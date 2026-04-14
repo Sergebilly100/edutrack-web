@@ -247,6 +247,8 @@ export default function AdminPage() {
     [impersonateMutation]
   )
 
+  // TanStack Table exposes non-memoizable functions; silence React Compiler lint warning here.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: tenantsQuery.data?.tenants ?? [],
     columns,
@@ -649,4 +651,3 @@ export default function AdminPage() {
     </div>
   )
 }
-
