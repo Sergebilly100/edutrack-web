@@ -7,11 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { fetchSchoolInfo } from '@/modules/onboarding/onboarding.api';
+import { useAuthStore } from '@/shared/store/auth.store';
 
 import { login } from './auth.api';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const setUser = useAuthStore((state) => state.setUser);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [schemaName, setSchemaName] = useState('school_sainte_marie');
@@ -25,10 +28,34 @@ export default function LoginPage() {
 
     try {
       const result = await login(identifier, password, schemaName || undefined);
+      setUser({
+        id: result.user.id,
+        name: result.user.name,
+        role: result.user.role,
+        phone: result.user.phone,
+        email: result.user.email,
+        tenantId: schemaName || 'default-tenant',
+        schemaName: schemaName || 'public',
+        plan: 'standard',
+      });
+
       if (result.user.role === 'teacher') {
         navigate('/attendance');
       } else {
-        navigate('/dashboard');
+        if (result.user.role === 'director') {
+          try {
+            const school = await fetchSchoolInfo();
+            if (school.onboarding_completed) {
+              navigate('/dashboard');
+            } else {
+              navigate('/onboarding');
+            }
+          } catch {
+            navigate('/onboarding');
+          }
+        } else {
+          navigate('/dashboard');
+        }
       }
     } catch (error) {
       if (isAxiosError(error)) {
