@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node20-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node20-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: Report asset sizes
+        run: du -sh dist/assets/*.js | sort -h
+
+      - name: Enforce total gzipped JS size <= 500KB
+        run: |
+          limit=512000
+          total=0
+          files=(dist/assets/*.js)
+
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No JavaScript assets found in dist/assets."
+            exit 1
+          fi
+
+          for file in "${files[@]}"; do
+            size=$(gzip -c "$file" | wc -c | tr -d ' ')
+            echo "$(basename "$file"): ${size} bytes gz"
+            total=$((total + size))
+          done
+
+          echo "Total gzipped JS size: ${total} bytes"
+          if [ "$total" -gt "$limit" ]; then
+            echo "Bundle size check failed: ${total} > ${limit} bytes"
+            exit 1
+          fi
