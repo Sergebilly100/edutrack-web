@@ -1,17 +1,10 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 
 import { Toaster } from "@/components/ui/toaster"
+import AttendancePage from "@/modules/attendance/AttendancePage"
 import { useAutoSync } from "@/shared/hooks/useAutoSync"
 import LoginPage from "./modules/auth/LoginPage"
 import ComponentsDemoPage from "./modules/dev/ComponentsDemoPage"
-
-function AttendancePage() {
-  return (
-    <div className="p-4">
-      <h1 className="text-2xl font-semibold">Attendance Page</h1>
-    </div>
-  )
-}
 
 function DashboardPage() {
   return (
