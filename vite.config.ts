@@ -43,6 +43,36 @@ export default defineConfig({
             },
           },
           {
+            urlPattern: /\/api\/v1\/attendance\/(today|active)/,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "attendance-today-v1-cache",
+              expiration: {
+                maxAgeSeconds: 60 * 60,
+              },
+            },
+          },
+          {
+            urlPattern: /\/api\/v1\/attendance\/history/,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "attendance-history-v1-cache",
+              expiration: {
+                maxAgeSeconds: 60 * 60,
+              },
+            },
+          },
+          {
+            urlPattern: /\/api\/v1\/notifications\/log/,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "notifications-log-v1-cache",
+              expiration: {
+                maxAgeSeconds: 30 * 60,
+              },
+            },
+          },
+          {
             urlPattern: /\/api\/schedule/,
             handler: "CacheFirst",
             options: {

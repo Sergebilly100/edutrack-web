@@ -1,6 +1,4 @@
-import axios from "axios"
-
-const api = axios.create({ baseURL: import.meta.env.VITE_API_URL, withCredentials: true })
+import { apiClient as api } from "@/shared/api/client"
 
 export type CheckInPayload = { schedule_id: string }
 export type CheckInResponse = { late_minutes?: number | null }

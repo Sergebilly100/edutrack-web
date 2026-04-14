@@ -15,6 +15,7 @@ import { login } from './auth.api';
 export default function LoginPage() {
   const navigate = useNavigate();
   const setUser = useAuthStore((state) => state.setUser);
+  const setAccessToken = useAuthStore((state) => state.setAccessToken);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [schemaName, setSchemaName] = useState('school_sainte_marie');
@@ -25,9 +26,11 @@ export default function LoginPage() {
     event.preventDefault();
     setErrorMessage(null);
     setIsPending(true);
+    setAccessToken(null);
 
     try {
       const result = await login(identifier, password, schemaName || undefined);
+      setAccessToken(result.accessToken);
       setUser({
         id: result.user.id,
         name: result.user.name,
@@ -41,6 +44,8 @@ export default function LoginPage() {
 
       if (result.user.role === 'teacher') {
         navigate('/attendance');
+      } else if (result.user.role === 'super_admin') {
+        navigate('/admin');
       } else {
         if (result.user.role === 'director') {
           try {

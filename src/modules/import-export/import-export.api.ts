@@ -1,5 +1,5 @@
-import axios from "axios"
 import { z } from "zod"
+import { apiClient as api } from "@/shared/api/client"
 
 export type ImportType = "students" | "teachers" | "schedule"
 
@@ -53,11 +53,6 @@ const ConfirmResponseSchema = z.object({
   updated: z.number(),
   errors: z.array(ImportIssueSchema).default([]),
   preview: z.array(z.record(z.string(), z.string())).default([])
-})
-
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
-  withCredentials: true
 })
 
 const toSeverity = (issue: RawImportIssue): "error" | "warning" => {
