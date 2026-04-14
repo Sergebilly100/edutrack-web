@@ -21,14 +21,14 @@ export default defineConfig({
           {
             src: "/icons/icon-192.png",
             sizes: "192x192",
-            type: "image/png"
+            type: "image/png",
           },
           {
             src: "/icons/icon-512.png",
             sizes: "512x512",
-            type: "image/png"
-          }
-        ]
+            type: "image/png",
+          },
+        ],
       },
       workbox: {
         runtimeCaching: [
@@ -38,9 +38,9 @@ export default defineConfig({
             options: {
               cacheName: "attendance-today-cache",
               expiration: {
-                maxAgeSeconds: 60 * 60
-              }
-            }
+                maxAgeSeconds: 60 * 60,
+              },
+            },
           },
           {
             urlPattern: /\/api\/schedule/,
@@ -48,9 +48,9 @@ export default defineConfig({
             options: {
               cacheName: "schedule-cache",
               expiration: {
-                maxAgeSeconds: 24 * 60 * 60
-              }
-            }
+                maxAgeSeconds: 24 * 60 * 60,
+              },
+            },
           },
           {
             urlPattern: /\/api\/teachers/,
@@ -58,9 +58,9 @@ export default defineConfig({
             options: {
               cacheName: "teachers-cache",
               expiration: {
-                maxAgeSeconds: 30 * 60
-              }
-            }
+                maxAgeSeconds: 30 * 60,
+              },
+            },
           },
           {
             urlPattern: /\/api\/rooms/,
@@ -68,17 +68,22 @@ export default defineConfig({
             options: {
               cacheName: "rooms-cache",
               expiration: {
-                maxAgeSeconds: 7 * 24 * 60 * 60
-              }
-            }
-          }
-        ]
-      }
-    })
+                maxAgeSeconds: 7 * 24 * 60 * 60,
+              },
+            },
+          },
+        ],
+      },
+    }),
   ],
   resolve: {
     alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url))
-    }
-  }
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: "./src/test/setup.ts",
+  },
 })
