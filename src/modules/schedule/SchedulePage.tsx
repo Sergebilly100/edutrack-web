@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Navigate } from "react-router-dom"
 
@@ -12,7 +12,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -21,12 +21,23 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
-import { AddIcon, DeleteIcon, EditIcon, ScheduleIcon } from "@/shared/components/icons"
+import { getTeachers } from "@/modules/teachers/teachers.api"
+import { WeekCoverageAlert } from "@/shared/components"
+import {
+  AddIcon,
+  DeleteIcon,
+  EditIcon,
+  LayoutGridIcon,
+  ListIcon,
+  ScheduleIcon,
+} from "@/shared/components/icons"
 import { useAuthStore, type AuthRole } from "@/shared/store/auth.store"
+
+import WeekGrid from "./components/WeekGrid"
 import {
   createScheduleSlot,
   deleteScheduleSlot,
@@ -35,10 +46,8 @@ import {
   type ScheduleCreatePayload,
   type ScheduleRow,
   type WeeklyScheduleData,
-  updateScheduleSlot
+  updateScheduleSlot,
 } from "./schedule.api"
-import { getTeachers } from "@/modules/teachers/teachers.api"
-import { WeekCoverageAlert } from "@/shared/components"
 
 const DAYS = [
   { value: 1, label: "Lun" },
@@ -46,19 +55,10 @@ const DAYS = [
   { value: 3, label: "Mer" },
   { value: 4, label: "Jeu" },
   { value: 5, label: "Ven" },
-  { value: 6, label: "Sam" }
+  { value: 6, label: "Sam" },
 ] as const
 
-const TEACHER_COLOR_CLASSES = [
-  "border-blue-200 bg-blue-50 text-blue-900",
-  "border-emerald-200 bg-emerald-50 text-emerald-900",
-  "border-amber-200 bg-amber-50 text-amber-900",
-  "border-rose-200 bg-rose-50 text-rose-900",
-  "border-cyan-200 bg-cyan-50 text-cyan-900",
-  "border-lime-200 bg-lime-50 text-lime-900",
-  "border-indigo-200 bg-indigo-50 text-indigo-900",
-  "border-orange-200 bg-orange-50 text-orange-900"
-] as const
+type ViewMode = "grid" | "list"
 
 type SlotFormState = {
   teacherId: string
@@ -69,26 +69,54 @@ type SlotFormState = {
   subject: string
 }
 
+type SlotCreatePrefill = {
+  dayOfWeek?: number
+  hour?: number
+}
+
 const emptyFormState: SlotFormState = {
   teacherId: "",
   classId: "",
   dayOfWeek: "",
   timeSlotId: "",
   roomId: "",
-  subject: ""
+  subject: "",
 }
 
 const canManageSchedule = (role: AuthRole | undefined) => role === "director" || role === "secretary"
 
-const toISODate = (date: Date) => date.toISOString().slice(0, 10)
+const toISODate = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+const fromISODate = (value: string): Date => {
+  const [year, month, day] = value.split("-").map((part) => Number(part))
+  return new Date(year || 1970, (month || 1) - 1, day || 1)
+}
+
+const getMonday = (baseDate: Date) => {
+  const copy = new Date(baseDate)
+  copy.setHours(0, 0, 0, 0)
+  const weekday = copy.getDay()
+  const shift = weekday === 0 ? -6 : 1 - weekday
+  copy.setDate(copy.getDate() + shift)
+  return copy
+}
 
 const getMondayForWeek = (weekOffset: 0 | 1): string => {
-  const now = new Date()
-  const utcNow = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
-  const day = utcNow.getUTCDay()
-  const diff = day === 0 ? -6 : 1 - day
-  utcNow.setUTCDate(utcNow.getUTCDate() + diff + weekOffset * 7)
-  return toISODate(utcNow)
+  const today = new Date()
+  const monday = getMonday(today)
+  monday.setDate(monday.getDate() + weekOffset * 7)
+  return toISODate(monday)
+}
+
+const shiftWeek = (weekMondayIso: string, amount: number): string => {
+  const date = fromISODate(weekMondayIso)
+  date.setDate(date.getDate() + amount * 7)
+  return toISODate(date)
 }
 
 const sortSchedules = (items: ScheduleRow[]) =>
@@ -111,7 +139,7 @@ const toPayload = (formState: SlotFormState, periodId: string): ScheduleCreatePa
   dayOfWeek: Number(formState.dayOfWeek),
   timeSlotId: formState.timeSlotId,
   roomId: formState.roomId,
-  subject: formState.subject.trim()
+  subject: formState.subject.trim(),
 })
 
 const defaultFormStateFromData = (data: WeeklyScheduleData): SlotFormState => ({
@@ -120,7 +148,7 @@ const defaultFormStateFromData = (data: WeeklyScheduleData): SlotFormState => ({
   dayOfWeek: "1",
   timeSlotId: data.catalog.timeSlots[0]?.id ?? "",
   roomId: data.catalog.rooms[0]?.id ?? "",
-  subject: ""
+  subject: "",
 })
 
 const createOptimisticSchedule = (
@@ -145,8 +173,49 @@ const createOptimisticSchedule = (
     teacher,
     class: klass,
     room,
-    timeSlot
+    timeSlot,
   }
+}
+
+const toMinutes = (time: string) => {
+  const [hours, minutes] = time.split(":")
+  return (Number(hours) || 0) * 60 + (Number(minutes) || 0)
+}
+
+const resolveTimeSlotForHour = (data: WeeklyScheduleData, hour: number): string => {
+  const sorted = [...data.catalog.timeSlots].sort((a, b) => a.sortOrder - b.sortOrder)
+
+  const exact = sorted.find((slot) => Number(slot.startTime.split(":")[0]) === hour)
+  if (exact) {
+    return exact.id
+  }
+
+  const target = hour * 60
+  return (
+    sorted.reduce(
+      (best, slot) => {
+        const distance = Math.abs(toMinutes(slot.startTime) - target)
+        if (distance < best.distance) {
+          return { id: slot.id, distance }
+        }
+        return best
+      },
+      { id: sorted[0]?.id ?? "", distance: Number.POSITIVE_INFINITY }
+    ).id || ""
+  )
+}
+
+const getInitialViewMode = (): ViewMode => {
+  if (typeof window === "undefined") {
+    return "list"
+  }
+
+  const stored = window.localStorage.getItem("schedule-view-mode")
+  if (stored === "grid" || stored === "list") {
+    return stored
+  }
+
+  return window.matchMedia("(min-width: 768px)").matches ? "grid" : "list"
 }
 
 export default function SchedulePage() {
@@ -158,6 +227,11 @@ export default function SchedulePage() {
   const [classFilter, setClassFilter] = useState("all")
   const [mobileDay, setMobileDay] = useState("1")
   const [weekView, setWeekView] = useState<"current" | "next">("current")
+  const [viewMode, setViewMode] = useState<ViewMode>(() => getInitialViewMode())
+
+  const currentWeekMonday = useMemo(() => getMondayForWeek(0), [])
+  const nextWeekMonday = useMemo(() => getMondayForWeek(1), [])
+  const [selectedWeekMonday, setSelectedWeekMonday] = useState(currentWeekMonday)
 
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleRow | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -166,13 +240,30 @@ export default function SchedulePage() {
   const [editingSchedule, setEditingSchedule] = useState<ScheduleRow | null>(null)
   const [formState, setFormState] = useState<SlotFormState>(emptyFormState)
 
-  const currentWeekMonday = useMemo(() => getMondayForWeek(0), [])
-  const nextWeekMonday = useMemo(() => getMondayForWeek(1), [])
-  const selectedWeekMonday = weekView === "current" ? currentWeekMonday : nextWeekMonday
+  const weeklyQueryKey = useMemo(() => ["schedule-weekly", selectedWeekMonday] as const, [selectedWeekMonday])
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return
+    }
+
+    window.localStorage.setItem("schedule-view-mode", viewMode)
+  }, [viewMode])
+
+  const setWeekFromIso = (weekIso: string) => {
+    setSelectedWeekMonday(weekIso)
+    if (weekIso === currentWeekMonday) {
+      setWeekView("current")
+      return
+    }
+    if (weekIso === nextWeekMonday) {
+      setWeekView("next")
+    }
+  }
 
   const scheduleQuery = useQuery({
-    queryKey: ["schedule-weekly", selectedWeekMonday],
-    queryFn: () => fetchWeeklySchedule(selectedWeekMonday)
+    queryKey: weeklyQueryKey,
+    queryFn: () => fetchWeeklySchedule(selectedWeekMonday),
   })
 
   const nextWeekCoverageQuery = useQuery({
@@ -189,26 +280,9 @@ export default function SchedulePage() {
   const canManage = canManageSchedule(user?.role)
   const blockedTeachers = useMemo(
     () =>
-      new Set(
-        (teachersQuery.data?.data ?? [])
-          .filter((teacher) => teacher.isBlocked)
-          .map((teacher) => teacher.id)
-      ),
+      new Set((teachersQuery.data?.data ?? []).filter((teacher) => teacher.isBlocked).map((teacher) => teacher.id)),
     [teachersQuery.data?.data]
   )
-
-  const teacherColorById = useMemo(() => {
-    if (!data) {
-      return new Map<string, string>()
-    }
-
-    return new Map(
-      data.catalog.teachers.map((teacher, index) => [
-        teacher.id,
-        TEACHER_COLOR_CLASSES[index % TEACHER_COLOR_CLASSES.length]
-      ])
-    )
-  }, [data])
 
   const filteredSchedules = useMemo(() => {
     if (!data) {
@@ -246,14 +320,24 @@ export default function SchedulePage() {
     setFormState(defaultFormStateFromData(fromData))
   }
 
-  const openCreateModal = () => {
+  const openCreateModal = (prefill?: SlotCreatePrefill) => {
     if (!data) {
       return
     }
 
     setEditingSchedule(null)
     setDetailOpen(false)
-    resetFormState(data)
+
+    const defaults = defaultFormStateFromData(data)
+    setFormState({
+      ...defaults,
+      dayOfWeek: prefill?.dayOfWeek ? String(prefill.dayOfWeek) : defaults.dayOfWeek,
+      timeSlotId:
+        typeof prefill?.hour === "number"
+          ? resolveTimeSlotForHour(data, prefill.hour)
+          : defaults.timeSlotId,
+    })
+
     setFormOpen(true)
   }
 
@@ -266,7 +350,7 @@ export default function SchedulePage() {
       dayOfWeek: String(schedule.dayOfWeek),
       timeSlotId: schedule.timeSlot.id,
       roomId: schedule.room.id,
-      subject: schedule.subject
+      subject: schedule.subject,
     })
     setFormOpen(true)
   }
@@ -280,8 +364,8 @@ export default function SchedulePage() {
       return createScheduleSlot(values.payload)
     },
     onMutate: async (values) => {
-      await queryClient.cancelQueries({ queryKey: ["schedule-weekly"] })
-      const previous = queryClient.getQueryData<WeeklyScheduleData>(["schedule-weekly"])
+      await queryClient.cancelQueries({ queryKey: weeklyQueryKey })
+      const previous = queryClient.getQueryData<WeeklyScheduleData>(weeklyQueryKey)
 
       if (!previous) {
         return { previous }
@@ -298,27 +382,27 @@ export default function SchedulePage() {
         ? previous.schedules.map((item) => (item.id === values.id ? optimisticSchedule : item))
         : [optimisticSchedule, ...previous.schedules]
 
-      queryClient.setQueryData<WeeklyScheduleData>(["schedule-weekly"], {
+      queryClient.setQueryData<WeeklyScheduleData>(weeklyQueryKey, {
         ...previous,
-        schedules: nextSchedules
+        schedules: nextSchedules,
       })
 
       return { previous }
     },
     onError: (_error, _values, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(["schedule-weekly"], context.previous)
+        queryClient.setQueryData(weeklyQueryKey, context.previous)
       }
 
       toast({
         variant: "destructive",
         title: "Action impossible",
-        description: "Impossible d'enregistrer ce créneau."
+        description: "Impossible d'enregistrer ce créneau.",
       })
     },
     onSuccess: () => {
       toast({
-        title: editingSchedule ? "Créneau modifié" : "Créneau ajouté"
+        title: editingSchedule ? "Créneau modifié" : "Créneau ajouté",
       })
       setFormOpen(false)
       setEditingSchedule(null)
@@ -327,20 +411,20 @@ export default function SchedulePage() {
       }
     },
     onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["schedule-weekly"] })
-    }
+      await queryClient.invalidateQueries({ queryKey: weeklyQueryKey })
+    },
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteScheduleSlot(id),
     onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: ["schedule-weekly"] })
-      const previous = queryClient.getQueryData<WeeklyScheduleData>(["schedule-weekly"])
+      await queryClient.cancelQueries({ queryKey: weeklyQueryKey })
+      const previous = queryClient.getQueryData<WeeklyScheduleData>(weeklyQueryKey)
 
       if (previous) {
-        queryClient.setQueryData<WeeklyScheduleData>(["schedule-weekly"], {
+        queryClient.setQueryData<WeeklyScheduleData>(weeklyQueryKey, {
           ...previous,
-          schedules: previous.schedules.filter((item) => item.id !== id)
+          schedules: previous.schedules.filter((item) => item.id !== id),
         })
       }
 
@@ -348,12 +432,12 @@ export default function SchedulePage() {
     },
     onError: (_error, _id, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(["schedule-weekly"], context.previous)
+        queryClient.setQueryData(weeklyQueryKey, context.previous)
       }
 
       toast({
         variant: "destructive",
-        title: "Suppression impossible"
+        title: "Suppression impossible",
       })
     },
     onSuccess: () => {
@@ -362,8 +446,8 @@ export default function SchedulePage() {
       setSelectedSchedule(null)
     },
     onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["schedule-weekly"] })
-    }
+      await queryClient.invalidateQueries({ queryKey: weeklyQueryKey })
+    },
   })
 
   const handleSubmit = async () => {
@@ -377,14 +461,14 @@ export default function SchedulePage() {
       toast({
         variant: "destructive",
         title: "Formulaire incomplet",
-        description: "Renseignez tous les champs requis."
+        description: "Renseignez tous les champs requis.",
       })
       return
     }
 
     await upsertMutation.mutateAsync({
       id: editingSchedule?.id,
-      payload
+      payload,
     })
   }
 
@@ -392,29 +476,62 @@ export default function SchedulePage() {
     return <Navigate to="/" replace />
   }
 
+  const weekStartDate = fromISODate(selectedWeekMonday)
+
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
       <header className="space-y-4">
         <WeekCoverageAlert
           nextWeekHasCoverage={nextWeekCoverageQuery.data ?? true}
-          onNavigateToSchedule={() => setWeekView("next")}
+          onNavigateToSchedule={() => {
+            setWeekView("next")
+            setWeekFromIso(nextWeekMonday)
+          }}
         />
 
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">Emploi du temps</h1>
-          <p className="text-sm text-muted-foreground">
-            Vue hebdomadaire et gestion des créneaux de cours.
-          </p>
+          <p className="text-sm text-muted-foreground">Vue hebdomadaire et gestion des créneaux de cours.</p>
         </div>
 
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="grid gap-2 sm:grid-cols-3 md:w-auto">
-            <Tabs value={weekView} onValueChange={(value) => setWeekView(value as "current" | "next")}>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <Tabs
+              value={weekView}
+              onValueChange={(value) => {
+                const nextValue = value as "current" | "next"
+                setWeekView(nextValue)
+                setWeekFromIso(nextValue === "current" ? currentWeekMonday : nextWeekMonday)
+              }}
+            >
               <TabsList className="grid grid-cols-2">
                 <TabsTrigger value="current">Semaine courante</TabsTrigger>
                 <TabsTrigger value="next">Semaine prochaine</TabsTrigger>
               </TabsList>
             </Tabs>
+
+            <div className="inline-flex items-center rounded-lg border bg-muted/40 p-1">
+              <button
+                type="button"
+                onClick={() => setViewMode("grid")}
+                className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition ${
+                  viewMode === "grid" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                }`}
+              >
+                <LayoutGridIcon className="h-4 w-4" />
+                Grille
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("list")}
+                className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition ${
+                  viewMode === "list" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                }`}
+              >
+                <ListIcon className="h-4 w-4" />
+                Liste
+              </button>
+            </div>
 
             <Select value={teacherFilter} onValueChange={setTeacherFilter} disabled={!data}>
               <SelectTrigger className="w-full md:w-[220px]">
@@ -446,7 +563,7 @@ export default function SchedulePage() {
           </div>
 
           {canManage ? (
-            <Button onClick={openCreateModal} disabled={!data?.period}>
+            <Button onClick={() => openCreateModal()} disabled={!data?.period}>
               <AddIcon className="mr-2 h-4 w-4" />
               Ajouter un créneau
             </Button>
@@ -456,9 +573,7 @@ export default function SchedulePage() {
         </div>
       </header>
 
-      {scheduleQuery.isLoading ? (
-        <p className="text-sm text-muted-foreground">Chargement de l'emploi du temps...</p>
-      ) : null}
+      {scheduleQuery.isLoading ? <p className="text-sm text-muted-foreground">Chargement de l'emploi du temps...</p> : null}
 
       {scheduleQuery.isError ? (
         <Alert variant="destructive">
@@ -474,13 +589,36 @@ export default function SchedulePage() {
         </Alert>
       ) : null}
 
-      {!scheduleQuery.isLoading && data ? (
+      {!scheduleQuery.isLoading && data && viewMode === "grid" ? (
+        <WeekGrid
+          slots={filteredSchedules}
+          weekStart={weekStartDate}
+          onSlotClick={(slot) => {
+            setSelectedSchedule(slot)
+            setDetailOpen(true)
+          }}
+          onSlotAdd={(day, hour) => {
+            if (!canManage) {
+              return
+            }
+            openCreateModal({ dayOfWeek: day, hour })
+          }}
+          onWeekChange={(nextWeekStart) => {
+            const nextIso = toISODate(nextWeekStart)
+            setWeekFromIso(nextIso)
+          }}
+          onToday={() => setWeekFromIso(currentWeekMonday)}
+          isBlockedTeacher={(teacherId) => blockedTeachers.has(teacherId)}
+        />
+      ) : null}
+
+      {!scheduleQuery.isLoading && data && viewMode === "list" ? (
         <>
           <Card className="hidden md:block">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <ScheduleIcon className="h-5 w-5" />
-                Vue hebdomadaire
+                Vue liste
               </CardTitle>
               <CardDescription>
                 {data.period
@@ -504,9 +642,7 @@ export default function SchedulePage() {
                   <tbody>
                     {data.catalog.timeSlots.map((slot) => (
                       <tr key={slot.id}>
-                        <td className="align-top border p-2 font-medium text-muted-foreground">
-                          {slot.label}
-                        </td>
+                        <td className="align-top border p-2 font-medium text-muted-foreground">{slot.label}</td>
                         {DAYS.map((day) => {
                           const cellItems = scheduleByCell.get(`${day.value}-${slot.id}`) ?? []
 
@@ -521,7 +657,7 @@ export default function SchedulePage() {
                                       setSelectedSchedule(item)
                                       setDetailOpen(true)
                                     }}
-                                    className={`w-full rounded-md border p-2 text-left transition hover:opacity-90 ${teacherColorById.get(item.teacher.id) ?? "border-muted bg-muted/40"}`}
+                                    className="w-full rounded-md border bg-muted/30 p-2 text-left transition hover:opacity-90"
                                   >
                                     <p className="text-xs font-semibold">{item.teacher.name}</p>
                                     <p className="text-xs">{item.class.name}</p>
@@ -548,7 +684,7 @@ export default function SchedulePage() {
           <Card className="md:hidden">
             <CardHeader>
               <CardTitle>Vue mobile</CardTitle>
-              <CardDescription>375px et plus: liste par jour</CardDescription>
+              <CardDescription>Liste par jour</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Tabs value={mobileDay} onValueChange={setMobileDay}>
@@ -572,11 +708,13 @@ export default function SchedulePage() {
                         setSelectedSchedule(item)
                         setDetailOpen(true)
                       }}
-                      className={`w-full rounded-lg border p-3 text-left ${teacherColorById.get(item.teacher.id) ?? "border-muted bg-muted/40"}`}
+                      className="w-full rounded-lg border bg-muted/30 p-3 text-left"
                     >
                       <p className="text-xs font-semibold">{item.timeSlot.label}</p>
                       <p className="text-sm font-medium">{item.subject}</p>
-                      <p className="text-xs">{item.teacher.name} · {item.class.name}</p>
+                      <p className="text-xs">
+                        {item.teacher.name} · {item.class.name}
+                      </p>
                       {blockedTeachers.has(item.teacher.id) ? (
                         <Badge variant="destructive" className="mt-1">
                           Prof bloqué
@@ -599,16 +737,26 @@ export default function SchedulePage() {
           <DialogHeader>
             <DialogTitle>Détail du créneau</DialogTitle>
             <DialogDescription>
-              {selectedSchedule ? `${selectedSchedule.timeSlot.label} · ${DAYS[selectedSchedule.dayOfWeek - 1]?.label}` : ""}
+              {selectedSchedule
+                ? `${selectedSchedule.timeSlot.label} · ${DAYS[selectedSchedule.dayOfWeek - 1]?.label}`
+                : ""}
             </DialogDescription>
           </DialogHeader>
 
           {selectedSchedule ? (
             <div className="space-y-2 text-sm">
-              <p><span className="font-medium">Matière:</span> {selectedSchedule.subject}</p>
-              <p><span className="font-medium">Professeur:</span> {selectedSchedule.teacher.name}</p>
-              <p><span className="font-medium">Classe:</span> {selectedSchedule.class.name}</p>
-              <p><span className="font-medium">Salle:</span> {selectedSchedule.room.name}</p>
+              <p>
+                <span className="font-medium">Matière:</span> {selectedSchedule.subject}
+              </p>
+              <p>
+                <span className="font-medium">Professeur:</span> {selectedSchedule.teacher.name}
+              </p>
+              <p>
+                <span className="font-medium">Classe:</span> {selectedSchedule.class.name}
+              </p>
+              <p>
+                <span className="font-medium">Salle:</span> {selectedSchedule.room.name}
+              </p>
             </div>
           ) : null}
 
@@ -643,9 +791,7 @@ export default function SchedulePage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingSchedule ? "Modifier un créneau" : "Ajouter un créneau"}</DialogTitle>
-            <DialogDescription>
-              Choisissez le professeur, la classe, le jour et le créneau.
-            </DialogDescription>
+            <DialogDescription>Choisissez le professeur, la classe, le jour et le créneau.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">

@@ -41,6 +41,8 @@ export {
   ChevronRight as ChevronRightIcon,
   ChevronLeft as ChevronLeftIcon,
   ArrowUpDown as ArrowUpDownIcon,
+  LayoutGrid as LayoutGridIcon,
+  List as ListIcon,
   ArrowUp as ArrowUpIcon,
   ArrowDown as ArrowDownIcon,
   ArrowLeft as BackIcon,
