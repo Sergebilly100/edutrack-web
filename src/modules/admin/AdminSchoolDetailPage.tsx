@@ -2,7 +2,7 @@ import { useEffect } from "react"
 import { Navigate, useNavigate, useParams } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowLeft, Save } from "lucide-react"
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { isAxiosError } from "axios"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -101,6 +101,8 @@ export default function AdminSchoolDetailPage() {
   const school = schoolQuery.data
   const canSuspend = school?.metadata.status !== "suspended"
   const canActivate = school?.metadata.status === "suspended"
+  const selectedPlan = useWatch({ control: form.control, name: "plan" })
+  const maxAdminPositionsValue = useWatch({ control: form.control, name: "maxAdminPositions" })
 
   useEffect(() => {
     if (!school) {
@@ -209,7 +211,7 @@ export default function AdminSchoolDetailPage() {
                   <div className="space-y-2">
                     <Label>Plan</Label>
                     <Select
-                      value={form.watch("plan")}
+                      value={selectedPlan}
                       onValueChange={(value) => form.setValue("plan", value as TenantPlan)}
                     >
                       <SelectTrigger>
@@ -231,7 +233,7 @@ export default function AdminSchoolDetailPage() {
                       type="number"
                       min={1}
                       max={50}
-                      value={form.watch("maxAdminPositions")}
+                      value={maxAdminPositionsValue}
                       onChange={(event) => form.setValue("maxAdminPositions", event.target.value)}
                     />
                   </div>

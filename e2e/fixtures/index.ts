@@ -10,22 +10,22 @@ type EduTrackFixtures = {
 }
 
 export const test = base.extend<EduTrackFixtures>({
-  directorPage: async ({ browser, baseURL }, use) => {
+  directorPage: async ({ browser, baseURL }, setPage) => {
     const context = await browser.newContext({
       storageState: path.resolve(process.cwd(), "e2e/.auth/director.json"),
       baseURL,
     })
     const page = await context.newPage()
-    await use(page)
+    await setPage(page)
     await context.close()
   },
-  teacherPage: async ({ browser, baseURL }, use) => {
+  teacherPage: async ({ browser, baseURL }, setPage) => {
     const context = await browser.newContext({
       storageState: path.resolve(process.cwd(), "e2e/.auth/teacher.json"),
       baseURL,
     })
     const page = await context.newPage()
-    await use(page)
+    await setPage(page)
     await context.close()
   },
 })
