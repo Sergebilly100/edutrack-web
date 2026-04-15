@@ -1,261 +1,88 @@
 import { useMemo, useState } from "react"
-import { Navigate } from "react-router-dom"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table"
-import { isAxiosError } from "axios"
+import { Navigate, useNavigate } from "react-router-dom"
+import { useQuery } from "@tanstack/react-query"
+import { BarChart3, Building2, TrendingUp, Users } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useToast } from "@/components/ui/use-toast"
 import {
-  createTenant,
-  getTenants,
-  impersonateTenant,
-  updateTenant,
-  type CreateTenantPayload,
-  type TenantListItem,
+  getAdminMetrics,
+  getRevenueMetrics,
+  listSchools,
+  type SchoolListItem,
   type TenantPlan,
   type TenantStatus,
 } from "@/modules/admin/admin.api"
-import TenantCard from "@/modules/admin/components/TenantCard"
-import TenantStatsModal from "@/modules/admin/components/TenantStatsModal"
+import AdminSchoolRow from "@/modules/admin/components/AdminSchoolRow"
+import RevenueChart from "@/modules/admin/components/RevenueChart"
+import SchoolFormModal from "@/modules/admin/components/SchoolFormModal"
+import { StatCard } from "@/shared/components"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 type FilterPlan = "all" | TenantPlan
 type FilterStatus = "all" | TenantStatus
-type FilterChurn = "all" | "true" | "false"
 
 const PLAN_OPTIONS: TenantPlan[] = ["essential", "pro", "establishment"]
 const STATUS_OPTIONS: TenantStatus[] = ["trial", "active", "suspended", "cancelled"]
 
-const formatMrr = (value: number): string =>
-  `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} FCFA`
+const formatFcfa = (value: number) => `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} FCFA`
 
-const formatRelativeTime = (isoDate: string | null): string => {
-  if (!isoDate) {
-    return "Jamais"
+const computeRetentionRate = (schools: SchoolListItem[]) => {
+  if (schools.length === 0) {
+    return 0
   }
 
-  const target = new Date(isoDate).getTime()
   const now = Date.now()
-  const deltaMs = now - target
-  if (deltaMs <= 0) {
-    return "À l'instant"
-  }
+  const activeOver30Days = schools.filter((school) => {
+    if (!school.lastConnection) {
+      return false
+    }
+    const diffDays = (now - new Date(school.lastConnection).getTime()) / (1000 * 60 * 60 * 24)
+    return diffDays <= 30
+  }).length
 
-  const minutes = Math.floor(deltaMs / (60 * 1000))
-  const hours = Math.floor(deltaMs / (60 * 60 * 1000))
-  const days = Math.floor(deltaMs / (24 * 60 * 60 * 1000))
-
-  if (minutes < 1) return "À l'instant"
-  if (minutes < 60) return `Il y a ${minutes}m`
-  if (hours < 24) return `Il y a ${hours}h`
-  if (days < 7) return `Il y a ${days}j`
-  return new Date(isoDate).toLocaleDateString("fr-FR")
-}
-
-const errorMessage = (error: unknown, fallback: string) => {
-  if (isAxiosError(error)) {
-    return (error.response?.data as { error?: string } | undefined)?.error ?? error.message
-  }
-  return error instanceof Error ? error.message : fallback
+  return Math.round((activeOver30Days / schools.length) * 100)
 }
 
 export default function AdminPage() {
   const user = useAuthStore((state) => state.user)
-  const { toast } = useToast()
-  const queryClient = useQueryClient()
+  const navigate = useNavigate()
 
   const [page, setPage] = useState(1)
-  const [limit] = useState(10)
+  const [limit] = useState(25)
   const [planFilter, setPlanFilter] = useState<FilterPlan>("all")
   const [statusFilter, setStatusFilter] = useState<FilterStatus>("all")
-  const [churnFilter, setChurnFilter] = useState<FilterChurn>("all")
+  const [search, setSearch] = useState("")
+  const [createModalOpen, setCreateModalOpen] = useState(false)
 
-  const [statsTarget, setStatsTarget] = useState<TenantListItem | null>(null)
-  const [editTarget, setEditTarget] = useState<TenantListItem | null>(null)
-  const [editPlan, setEditPlan] = useState<TenantPlan>("essential")
-  const [editStatus, setEditStatus] = useState<TenantStatus>("trial")
-
-  const [createOpen, setCreateOpen] = useState(false)
-  const [createPayload, setCreatePayload] = useState<CreateTenantPayload>({
-    name: "",
-    subdomain: "",
-    plan: "essential",
-    directorName: "",
-    directorPhone: "",
-    directorEmail: "",
+  const schoolsQuery = useQuery({
+    queryKey: ["admin", "schools", page, limit],
+    queryFn: () => listSchools({ page, limit }),
   })
 
-  const tenantsQuery = useQuery({
-    queryKey: ["admin", "tenants", page, limit, planFilter, statusFilter, churnFilter],
-    queryFn: () =>
-      getTenants({
-        page,
-        limit,
-        plan: planFilter === "all" ? undefined : planFilter,
-        status: statusFilter === "all" ? undefined : statusFilter,
-        churnRisk: churnFilter === "all" ? undefined : churnFilter === "true",
-      }),
+  const metricsQuery = useQuery({
+    queryKey: ["admin", "metrics"],
+    queryFn: getAdminMetrics,
   })
 
-  const updateMutation = useMutation({
-    mutationFn: (payload: { tenantId: string; plan: TenantPlan; status: TenantStatus }) =>
-      updateTenant(payload.tenantId, { plan: payload.plan, status: payload.status }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["admin", "tenants"] })
-      toast({ title: "Tenant mis à jour" })
-      setEditTarget(null)
-    },
-    onError: (error) => {
-      toast({
-        title: "Erreur",
-        description: errorMessage(error, "Échec de la mise à jour tenant."),
-        variant: "destructive",
-      })
-    },
+  const revenueQuery = useQuery({
+    queryKey: ["admin", "revenue-metrics"],
+    queryFn: getRevenueMetrics,
   })
 
-  const createMutation = useMutation({
-    mutationFn: (payload: CreateTenantPayload) =>
-      createTenant({
-        ...payload,
-        directorEmail: payload.directorEmail?.trim() ? payload.directorEmail.trim() : undefined,
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["admin", "tenants"] })
-      toast({ title: "Nouvelle école créée" })
-      setCreateOpen(false)
-      setCreatePayload({
-        name: "",
-        subdomain: "",
-        plan: "essential",
-        directorName: "",
-        directorPhone: "",
-        directorEmail: "",
-      })
-    },
-    onError: (error) => {
-      toast({
-        title: "Erreur",
-        description: errorMessage(error, "Création du tenant impossible."),
-        variant: "destructive",
-      })
-    },
-  })
-
-  const impersonateMutation = useMutation({
-    mutationFn: (tenantId: string) => impersonateTenant(tenantId),
-    onError: (error) => {
-      toast({
-        title: "Erreur",
-        description: errorMessage(error, "Impersonation impossible."),
-        variant: "destructive",
-      })
-    },
-  })
-
-  const columns = useMemo<ColumnDef<TenantListItem>[]>(
-    () => [
-      {
-        header: "École",
-        accessorKey: "name",
-        cell: ({ row }) => (
-          <div>
-            <p className="font-medium">{row.original.name}</p>
-            <p className="text-xs text-muted-foreground">{row.original.subdomain}</p>
-          </div>
-        ),
-      },
-      {
-        header: "Plan",
-        accessorKey: "plan",
-        cell: ({ row }) => <Badge variant="outline">{row.original.plan}</Badge>,
-      },
-      {
-        header: "Statut",
-        accessorKey: "status",
-        cell: ({ row }) => (
-          <Badge variant={row.original.status === "active" ? "default" : "secondary"}>{row.original.status}</Badge>
-        ),
-      },
-      {
-        header: "Taux pointage 7j",
-        accessorKey: "attendanceRate7d",
-        cell: ({ row }) => `${row.original.attendanceRate7d.toFixed(2)}%`,
-      },
-      {
-        header: "Dernier pointage",
-        accessorKey: "lastAttendanceAt",
-        cell: ({ row }) => formatRelativeTime(row.original.lastAttendanceAt),
-      },
-      {
-        header: "MRR",
-        accessorKey: "estimatedMrrFcfa",
-        cell: ({ row }) => formatMrr(row.original.estimatedMrrFcfa),
-      },
-      {
-        header: "Actions",
-        id: "actions",
-        cell: ({ row }) => (
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => setStatsTarget(row.original)}>
-              Stats
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setEditTarget(row.original)
-                setEditPlan(row.original.plan)
-                setEditStatus(row.original.status)
-              }}
-            >
-              Modifier
-            </Button>
-            <Button
-              size="sm"
-              onClick={async () => {
-                const result = await impersonateMutation.mutateAsync(row.original.id)
-                const params = new URLSearchParams({
-                  impersonation_token: result.token,
-                  schema: result.schemaName,
-                })
-                window.open(`/dashboard?${params.toString()}`, "_blank", "noopener,noreferrer")
-              }}
-            >
-              Accès support
-            </Button>
-          </div>
-        ),
-      },
-    ],
-    [impersonateMutation]
-  )
-
-  // TanStack Table exposes non-memoizable functions; silence React Compiler lint warning here.
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const table = useReactTable({
-    data: tenantsQuery.data?.tenants ?? [],
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    manualPagination: true,
-    pageCount: tenantsQuery.data?.pagination.totalPages ?? 0,
-  })
+  const filteredSchools = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase()
+    return (schoolsQuery.data?.schools ?? []).filter((school) => {
+      const matchesPlan = planFilter === "all" || school.plan === planFilter
+      const matchesStatus = statusFilter === "all" || school.status === statusFilter
+      const matchesSearch = normalizedSearch.length === 0 || school.name.toLowerCase().includes(normalizedSearch)
+      return matchesPlan && matchesStatus && matchesSearch
+    })
+  }, [schoolsQuery.data?.schools, planFilter, search, statusFilter])
 
   if (!user) {
     return <Navigate to="/" replace />
@@ -271,383 +98,181 @@ export default function AdminPage() {
     )
   }
 
-  const summary = tenantsQuery.data?.summary
-  const pagination = tenantsQuery.data?.pagination
+  const metrics = metricsQuery.data
+  const retentionRate = computeRetentionRate(schoolsQuery.data?.schools ?? [])
+  const dau7d = metrics?.dauLast7d[metrics.dauLast7d.length - 1]?.uniqueUsers ?? 0
+  const pagination = schoolsQuery.data?.pagination
 
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Console Super Admin</h1>
-          <p className="text-sm text-muted-foreground">Monitoring et gestion de toutes les écoles EduTrack CI.</p>
+      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Console EduTrack</h1>
+          <p className="text-sm text-muted-foreground">Monitoring multi-tenant et pilotage des écoles.</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>Nouvelle école</Button>
-      </div>
+        <Button onClick={() => setCreateModalOpen(true)}>Créer une école</Button>
+      </header>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Écoles actives</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{summary?.activeTenants ?? 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Écoles trial</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{summary?.trialTenants ?? 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">MRR total</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{formatMrr(summary?.totalMrrFcfa ?? 0)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Risque churn</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold text-red-600">{summary?.churnRiskTenants ?? 0}</p>
-          </CardContent>
-        </Card>
-      </div>
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Total écoles actives"
+          value={metrics?.activeSchools ?? 0}
+          subtitle="Écoles actives sur les 7 derniers jours"
+          icon={<Building2 className="h-4 w-4" />}
+          loading={metricsQuery.isLoading}
+        />
+        <StatCard
+          title="MRR total FCFA"
+          value={formatFcfa(metrics?.mrrTotalFcfa ?? 0)}
+          subtitle="Revenus mensuels récurrents"
+          icon={<TrendingUp className="h-4 w-4" />}
+          variant="success"
+          loading={metricsQuery.isLoading}
+        />
+        <StatCard
+          title="DAU (7j)"
+          value={dau7d}
+          subtitle="Utilisateurs actifs aujourd'hui"
+          icon={<Users className="h-4 w-4" />}
+          loading={metricsQuery.isLoading}
+        />
+        <StatCard
+          title="Taux de rétention"
+          value={`${retentionRate}%`}
+          subtitle="Écoles actives ≤ 30j / total"
+          icon={<BarChart3 className="h-4 w-4" />}
+          variant={retentionRate >= 70 ? "success" : retentionRate >= 40 ? "warning" : "danger"}
+          loading={schoolsQuery.isLoading}
+        />
+      </section>
 
-      <Card>
-        <CardContent className="pt-6">
-          <div className="mb-4 grid gap-3 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label>Plan</Label>
-              <Select value={planFilter} onValueChange={(value) => { setPlanFilter(value as FilterPlan); setPage(1) }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tous les plans" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous</SelectItem>
-                  {PLAN_OPTIONS.map((plan) => (
-                    <SelectItem key={plan} value={plan}>
-                      {plan}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Statut</Label>
-              <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value as FilterStatus); setPage(1) }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tous les statuts" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous</SelectItem>
-                  {STATUS_OPTIONS.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Churn</Label>
-              <Select value={churnFilter} onValueChange={(value) => { setChurnFilter(value as FilterChurn); setPage(1) }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tous" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous</SelectItem>
-                  <SelectItem value="true">À risque</SelectItem>
-                  <SelectItem value="false">Non à risque</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+      {metricsQuery.isError || revenueQuery.isError || schoolsQuery.isError ? (
+        <Alert variant="destructive">
+          <AlertDescription>Impossible de charger la console admin. Vérifiez la connexion API.</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {revenueQuery.isLoading ? <Skeleton className="h-[280px] w-full rounded-lg" /> : <RevenueChart data={revenueQuery.data ?? []} />}
+
+      <section className="rounded-lg border border-border bg-card p-4 md:p-6">
+        <div className="mb-4 grid gap-3 md:grid-cols-3">
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Recherche</p>
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Rechercher une école"
+            />
           </div>
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Plan</p>
+            <Select value={planFilter} onValueChange={(value) => setPlanFilter(value as FilterPlan)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Tous les plans" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous</SelectItem>
+                {PLAN_OPTIONS.map((plan) => (
+                  <SelectItem key={plan} value={plan}>
+                    {plan}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Statut</p>
+            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as FilterStatus)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Tous les statuts" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous</SelectItem>
+                {STATUS_OPTIONS.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {status}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
-          {tenantsQuery.isError ? (
-            <Alert variant="destructive">
-              <AlertDescription>
-                {errorMessage(tenantsQuery.error, "Impossible de charger les tenants.")}
-              </AlertDescription>
-            </Alert>
-          ) : null}
-
-          <div className="space-y-3 md:hidden">
-            {(tenantsQuery.data?.tenants ?? []).map((tenant) => (
-              <TenantCard
-                key={tenant.id}
-                tenant={tenant}
-                lastAttendanceLabel={formatRelativeTime(tenant.lastAttendanceAt)}
-                mrrLabel={formatMrr(tenant.estimatedMrrFcfa)}
-                onStats={setStatsTarget}
-                onEdit={(item) => {
-                  setEditTarget(item)
-                  setEditPlan(item.plan)
-                  setEditStatus(item.status)
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>École</TableHead>
+              <TableHead>Plan</TableHead>
+              <TableHead>Statut</TableHead>
+              <TableHead>Utilisateurs</TableHead>
+              <TableHead>Dernière connexion</TableHead>
+              <TableHead>MRR</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {schoolsQuery.isLoading ? (
+              <TableRow>
+                <TableCell className="p-4 text-sm text-muted-foreground" colSpan={7}>
+                  Chargement des écoles...
+                </TableCell>
+              </TableRow>
+            ) : null}
+            {!schoolsQuery.isLoading && filteredSchools.length === 0 ? (
+              <TableRow>
+                <TableCell className="p-4 text-sm text-muted-foreground" colSpan={7}>
+                  Aucune école trouvée avec ces filtres.
+                </TableCell>
+              </TableRow>
+            ) : null}
+            {filteredSchools.map((school) => (
+              <AdminSchoolRow
+                key={school.tenantId}
+                school={{
+                  id: school.tenantId,
+                  name: school.name,
+                  city: "Ville non renseignée",
+                  plan: school.plan,
+                  status: school.status,
+                  usersCount: school.nbUsers,
+                  lastConnectionAt: school.lastConnection,
+                  mrrFcfa: school.mrrFcfa,
                 }}
-                onSupport={async (item) => {
-                  const result = await impersonateMutation.mutateAsync(item.id)
-                  const params = new URLSearchParams({
-                    impersonation_token: result.token,
-                    schema: result.schemaName,
-                  })
-                  window.open(`/dashboard?${params.toString()}`, "_blank", "noopener,noreferrer")
-                }}
+                onViewDetail={(target) => navigate(`/admin/schools/${target.id}`)}
+                onOpenConfig={(target) => navigate(`/admin/schools/${target.id}`)}
               />
             ))}
-          </div>
+          </TableBody>
+        </Table>
 
-          <div className="hidden md:block">
-            <Table>
-              <TableHeader>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <TableHead key={header.id}>
-                        {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {tenantsQuery.isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-sm text-muted-foreground">
-                      Chargement des tenants...
-                    </TableCell>
-                  </TableRow>
-                ) : null}
-
-                {table.getRowModel().rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    className={row.original.churnRisk ? "bg-red-50/40 hover:bg-red-50/60" : undefined}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-
-                {!tenantsQuery.isLoading && table.getRowModel().rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-sm text-muted-foreground">
-                      Aucun tenant trouvé avec ces filtres.
-                    </TableCell>
-                  </TableRow>
-                ) : null}
-              </TableBody>
-            </Table>
-          </div>
-
-          <div className="mt-4 flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              {pagination ? `Page ${pagination.page} / ${Math.max(pagination.totalPages, 1)} · ${pagination.total} résultat(s)` : ""}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={!pagination || page <= 1 || tenantsQuery.isFetching}
-                onClick={() => setPage((current) => Math.max(current - 1, 1))}
-              >
-                Précédent
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={!pagination || page >= pagination.totalPages || tenantsQuery.isFetching}
-                onClick={() => setPage((current) => current + 1)}
-              >
-                Suivant
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <TenantStatsModal
-        open={Boolean(statsTarget)}
-        onOpenChange={(open) => {
-          if (!open) setStatsTarget(null)
-        }}
-        tenantId={statsTarget?.id ?? null}
-        tenantName={statsTarget?.name ?? null}
-      />
-
-      <Dialog
-        open={Boolean(editTarget)}
-        onOpenChange={(open) => {
-          if (!open) setEditTarget(null)
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Modifier le tenant</DialogTitle>
-            <DialogDescription>Mettre à jour le plan et le statut du tenant sélectionné.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Plan</Label>
-              <Select value={editPlan} onValueChange={(value) => setEditPlan(value as TenantPlan)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PLAN_OPTIONS.map((plan) => (
-                    <SelectItem key={plan} value={plan}>
-                      {plan}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Statut</Label>
-              <Select value={editStatus} onValueChange={(value) => setEditStatus(value as TenantStatus)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
+        <div className="mt-4 flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            {pagination
+              ? `Page ${pagination.page} / ${Math.max(pagination.totalPages, 1)} · ${pagination.total} école(s)`
+              : ""}
+          </p>
+          <div className="flex gap-2">
             <Button
+              size="sm"
               variant="outline"
-              onClick={() => setEditTarget(null)}
-              disabled={updateMutation.isPending}
+              disabled={!pagination || pagination.page <= 1 || schoolsQuery.isFetching}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
             >
-              Annuler
+              Précédent
             </Button>
             <Button
-              onClick={() => {
-                if (!editTarget) return
-                updateMutation.mutate({
-                  tenantId: editTarget.id,
-                  plan: editPlan,
-                  status: editStatus,
-                })
-              }}
-              disabled={updateMutation.isPending}
+              size="sm"
+              variant="outline"
+              disabled={!pagination || pagination.page >= pagination.totalPages || schoolsQuery.isFetching}
+              onClick={() => setPage((current) => current + 1)}
             >
-              {updateMutation.isPending ? "Enregistrement..." : "Enregistrer"}
+              Suivant
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Nouvelle école</DialogTitle>
-            <DialogDescription>Créer un tenant avec son directeur initial.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="tenant-name">Nom école</Label>
-              <Input
-                id="tenant-name"
-                value={createPayload.name}
-                onChange={(event) => setCreatePayload((current) => ({ ...current, name: event.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="tenant-subdomain">Subdomain</Label>
-              <Input
-                id="tenant-subdomain"
-                value={createPayload.subdomain}
-                onChange={(event) =>
-                  setCreatePayload((current) => ({
-                    ...current,
-                    subdomain: event.target.value.toLowerCase().replace(/\s+/g, "-"),
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Plan</Label>
-              <Select
-                value={createPayload.plan}
-                onValueChange={(value) => setCreatePayload((current) => ({ ...current, plan: value as TenantPlan }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PLAN_OPTIONS.map((plan) => (
-                    <SelectItem key={plan} value={plan}>
-                      {plan}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="director-name">Nom directeur</Label>
-              <Input
-                id="director-name"
-                value={createPayload.directorName}
-                onChange={(event) =>
-                  setCreatePayload((current) => ({ ...current, directorName: event.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="director-phone">Téléphone directeur</Label>
-              <Input
-                id="director-phone"
-                value={createPayload.directorPhone}
-                onChange={(event) =>
-                  setCreatePayload((current) => ({ ...current, directorPhone: event.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="director-email">Email directeur (optionnel)</Label>
-              <Input
-                id="director-email"
-                type="email"
-                value={createPayload.directorEmail ?? ""}
-                onChange={(event) =>
-                  setCreatePayload((current) => ({ ...current, directorEmail: event.target.value }))
-                }
-              />
-            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={createMutation.isPending}>
-              Annuler
-            </Button>
-            <Button
-              onClick={() => createMutation.mutate(createPayload)}
-              disabled={
-                createMutation.isPending ||
-                !createPayload.name ||
-                !createPayload.subdomain ||
-                !createPayload.directorName ||
-                !createPayload.directorPhone
-              }
-            >
-              {createMutation.isPending ? "Création..." : "Créer l'école"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </section>
+
+      <SchoolFormModal open={createModalOpen} onOpenChange={setCreateModalOpen} />
     </div>
   )
 }

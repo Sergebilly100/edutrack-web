@@ -2,6 +2,7 @@ import { useEffect } from "react"
 import { Navigate, Route, Routes, useSearchParams } from "react-router-dom"
 
 import AdminPage from "@/modules/admin/AdminPage"
+import AdminSchoolDetailPage from "@/modules/admin/AdminSchoolDetailPage"
 import AttendancePage from "@/modules/attendance/AttendancePage"
 import DashboardPage from "@/modules/dashboard/DashboardPage"
 import TeacherDashboardPage from "@/modules/dashboard/TeacherDashboardPage"
@@ -97,6 +98,7 @@ export default function App() {
         <Route path="/students" element={<StudentsPage />} />
         <Route path="/students/:studentId" element={<StudentDetailPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin/schools/:tenantId" element={<AdminSchoolDetailPage />} />
         <Route path="/import" element={<ImportPage />} />
         <Route path="/imports" element={<ImportPage />} />
         <Route path="/salaries" element={<SalariesPage />} />

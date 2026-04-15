@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/use-toast"
-import { apiClient } from "@/shared/api/client"
+import { createSchool, type TeachingType } from "@/modules/admin/admin.api"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 const PHONE_CI_REGEX = /^225\d{10}$/
@@ -46,7 +46,7 @@ const schoolFormSchema = z.object({
     .min(3, "Le sous-domaine doit contenir au moins 3 caractères")
     .regex(/^[a-z0-9-]+$/, "Utilisez uniquement lettres minuscules, chiffres et tirets"),
   city: z.string().trim().min(2, "La ville est requise"),
-  teachingType: z.enum(["general", "technical", "mixed"]),
+  teachingType: z.enum(["primaire", "secondaire", "superieur", "mixte"]),
   directorName: z.string().trim().min(2, "Le nom du directeur est requis"),
   directorPhone: z.string().trim().regex(PHONE_CI_REGEX, "Format attendu : 225XXXXXXXXXX"),
   directorEmail: z
@@ -58,41 +58,20 @@ const schoolFormSchema = z.object({
       message: "Email invalide",
     }),
   plan: z.enum(["essential", "pro", "establishment"]),
-  maxAdminPositions: z.number().int().min(1).max(100),
+  maxAdminPositions: z.number().int().min(1).max(50),
 })
 
 type SchoolFormValues = z.infer<typeof schoolFormSchema>
 
 type CreatedCredentials = {
-  username: string
+  directorName: string
+  directorPhone: string
   temporaryPassword: string
 }
 
 type SchoolFormModalProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-}
-
-type CreateSchoolPayload = {
-  name: string
-  subdomain: string
-  city: string
-  teachingType: "general" | "technical" | "mixed"
-  plan: "essential" | "pro" | "establishment"
-  maxAdminPositions: number
-  director: {
-    name: string
-    phone: string
-    email?: string
-  }
-}
-
-type CreateSchoolResponse = {
-  schoolId: string
-  directorCredentials?: {
-    username?: string
-    temporaryPassword?: string
-  }
 }
 
 const slugify = (value: string) =>
@@ -103,9 +82,6 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9\s-]/g, "")
     .trim()
     .replace(/\s+/g, "-")
-
-const createSchool = (payload: CreateSchoolPayload) =>
-  apiClient.post<CreateSchoolResponse>("/admin/schools", payload).then((response) => response.data)
 
 export default function SchoolFormModal({ open, onOpenChange }: SchoolFormModalProps) {
   const user = useAuthStore((state) => state.user)
@@ -122,7 +98,7 @@ export default function SchoolFormModal({ open, onOpenChange }: SchoolFormModalP
       schoolName: "",
       subdomain: "",
       city: "",
-      teachingType: "general",
+      teachingType: "secondaire",
       directorName: "",
       directorPhone: "",
       directorEmail: "",
@@ -153,16 +129,16 @@ export default function SchoolFormModal({ open, onOpenChange }: SchoolFormModalP
   const mutation = useMutation({
     mutationFn: createSchool,
     onSuccess: async (response) => {
-      await queryClient.invalidateQueries({ queryKey: ["admin", "tenants"] })
+      await queryClient.invalidateQueries({ queryKey: ["admin", "schools"] })
+      await queryClient.invalidateQueries({ queryKey: ["admin", "metrics"] })
+      await queryClient.invalidateQueries({ queryKey: ["admin", "revenue-metrics"] })
 
-      const nextCredentials = response.directorCredentials?.username && response.directorCredentials?.temporaryPassword
-        ? {
-            username: response.directorCredentials.username,
-            temporaryPassword: response.directorCredentials.temporaryPassword,
-          }
-        : null
+      setCredentials({
+        directorName: response.directorCredentials.name,
+        directorPhone: response.directorCredentials.phone,
+        temporaryPassword: response.directorCredentials.password,
+      })
 
-      setCredentials(nextCredentials)
       toast({ title: "École créée" })
     },
     onError: () => {
@@ -174,21 +150,22 @@ export default function SchoolFormModal({ open, onOpenChange }: SchoolFormModalP
     },
   })
 
-  const canSubmit = useMemo(() => form.formState.isValid && !mutation.isPending, [form.formState.isValid, mutation.isPending])
+  const canSubmit = useMemo(
+    () => form.formState.isValid && !mutation.isPending,
+    [form.formState.isValid, mutation.isPending]
+  )
 
   const onSubmit = (values: SchoolFormValues) => {
     mutation.mutate({
       name: values.schoolName,
       subdomain: values.subdomain,
       city: values.city,
-      teachingType: values.teachingType,
+      teaching_type: values.teachingType as TeachingType,
       plan: values.plan,
-      maxAdminPositions: values.maxAdminPositions,
-      director: {
-        name: values.directorName,
-        phone: values.directorPhone,
-        email: values.directorEmail?.trim() ? values.directorEmail.trim() : undefined,
-      },
+      max_admin_positions: values.maxAdminPositions,
+      director_name: values.directorName,
+      director_phone: values.directorPhone,
+      director_email: values.directorEmail?.trim() ? values.directorEmail.trim() : undefined,
     })
   }
 
@@ -197,9 +174,9 @@ export default function SchoolFormModal({ open, onOpenChange }: SchoolFormModalP
       return
     }
 
-    const payload = `Username: ${credentials.username}\nMot de passe: ${credentials.temporaryPassword}`
+    const payload = `Nom: ${credentials.directorName}\nTéléphone: ${credentials.directorPhone}\nMot de passe: ${credentials.temporaryPassword}`
     await navigator.clipboard.writeText(payload)
-    toast({ title: "Credentials copiés" })
+    toast({ title: "Identifiants copiés" })
   }
 
   const isSuperAdmin = user?.role === "super_admin"
@@ -282,9 +259,10 @@ export default function SchoolFormModal({ open, onOpenChange }: SchoolFormModalP
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="general">Général</SelectItem>
-                            <SelectItem value="technical">Technique</SelectItem>
-                            <SelectItem value="mixed">Mixte</SelectItem>
+                            <SelectItem value="primaire">Primaire</SelectItem>
+                            <SelectItem value="secondaire">Secondaire</SelectItem>
+                            <SelectItem value="superieur">Supérieur</SelectItem>
+                            <SelectItem value="mixte">Mixte</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -396,13 +374,26 @@ export default function SchoolFormModal({ open, onOpenChange }: SchoolFormModalP
 
               {credentials ? (
                 <Alert>
-                  <AlertTitle>Credentials directeur</AlertTitle>
+                  <AlertTitle>Identifiants directeur</AlertTitle>
                   <AlertDescription>
                     <div className="space-y-1">
-                      <p>Username: <span className="font-medium">{credentials.username}</span></p>
-                      <p>Mot de passe: <span className="font-medium">{credentials.temporaryPassword}</span></p>
+                      <p>
+                        Nom: <span className="font-medium">{credentials.directorName}</span>
+                      </p>
+                      <p>
+                        Téléphone: <span className="font-medium">{credentials.directorPhone}</span>
+                      </p>
+                      <p>
+                        Mot de passe: <span className="font-medium">{credentials.temporaryPassword}</span>
+                      </p>
                     </div>
-                    <Button type="button" variant="outline" size="sm" className="mt-3 gap-2" onClick={() => void handleCopyCredentials()}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-3 gap-2"
+                      onClick={() => void handleCopyCredentials()}
+                    >
                       <Copy className="h-4 w-4" />
                       Copier
                     </Button>
