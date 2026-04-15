@@ -9,6 +9,7 @@ import ImportPage from "@/modules/import-export/ImportPage"
 import OnboardingWizard from "@/modules/onboarding/OnboardingWizard"
 import SalariesPage from "@/modules/salaries/SalariesPage"
 import SchedulePage from "@/modules/schedule/SchedulePage"
+import SettingsPage from "@/modules/settings/SettingsPage"
 import StudentDetailPage from "@/modules/students/StudentDetailPage"
 import StudentsPage from "@/modules/students/StudentsPage"
 import TeacherDetailPage from "@/modules/teachers/TeacherDetailPage"
@@ -99,7 +100,7 @@ export default function App() {
         <Route path="/import" element={<ImportPage />} />
         <Route path="/imports" element={<ImportPage />} />
         <Route path="/salaries" element={<SalariesPage />} />
-        <Route path="/settings" element={<PlaceholderPage title="Paramètres" />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Route>
 
       <Route path="*" element={<RoleRedirect />} />

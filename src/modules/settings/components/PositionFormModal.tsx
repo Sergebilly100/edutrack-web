@@ -37,6 +37,7 @@ export type PositionPayload = {
   id: string
   name: string
   permissions: string[]
+  assignmentsCount?: number
 }
 
 type PositionFormModalProps = {
@@ -89,6 +90,7 @@ export default function PositionFormModal({
       return createPosition(values)
     },
     onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["settings", "school-config"] })
       await queryClient.invalidateQueries({ queryKey: ["settings", "positions"] })
       onOpenChange(false)
       toast({

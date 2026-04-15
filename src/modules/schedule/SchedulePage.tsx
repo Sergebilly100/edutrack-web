@@ -30,12 +30,15 @@ import { useAuthStore, type AuthRole } from "@/shared/store/auth.store"
 import {
   createScheduleSlot,
   deleteScheduleSlot,
+  fetchNextWeekCoverage,
   fetchWeeklySchedule,
   type ScheduleCreatePayload,
   type ScheduleRow,
   type WeeklyScheduleData,
   updateScheduleSlot
 } from "./schedule.api"
+import { getTeachers } from "@/modules/teachers/teachers.api"
+import { WeekCoverageAlert } from "@/shared/components"
 
 const DAYS = [
   { value: 1, label: "Lun" },
@@ -76,6 +79,17 @@ const emptyFormState: SlotFormState = {
 }
 
 const canManageSchedule = (role: AuthRole | undefined) => role === "director" || role === "secretary"
+
+const toISODate = (date: Date) => date.toISOString().slice(0, 10)
+
+const getMondayForWeek = (weekOffset: 0 | 1): string => {
+  const now = new Date()
+  const utcNow = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
+  const day = utcNow.getUTCDay()
+  const diff = day === 0 ? -6 : 1 - day
+  utcNow.setUTCDate(utcNow.getUTCDate() + diff + weekOffset * 7)
+  return toISODate(utcNow)
+}
 
 const sortSchedules = (items: ScheduleRow[]) =>
   [...items].sort((a, b) => {
@@ -143,6 +157,7 @@ export default function SchedulePage() {
   const [teacherFilter, setTeacherFilter] = useState("all")
   const [classFilter, setClassFilter] = useState("all")
   const [mobileDay, setMobileDay] = useState("1")
+  const [weekView, setWeekView] = useState<"current" | "next">("current")
 
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleRow | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -151,13 +166,36 @@ export default function SchedulePage() {
   const [editingSchedule, setEditingSchedule] = useState<ScheduleRow | null>(null)
   const [formState, setFormState] = useState<SlotFormState>(emptyFormState)
 
+  const currentWeekMonday = useMemo(() => getMondayForWeek(0), [])
+  const nextWeekMonday = useMemo(() => getMondayForWeek(1), [])
+  const selectedWeekMonday = weekView === "current" ? currentWeekMonday : nextWeekMonday
+
   const scheduleQuery = useQuery({
-    queryKey: ["schedule-weekly"],
-    queryFn: fetchWeeklySchedule
+    queryKey: ["schedule-weekly", selectedWeekMonday],
+    queryFn: () => fetchWeeklySchedule(selectedWeekMonday)
+  })
+
+  const nextWeekCoverageQuery = useQuery({
+    queryKey: ["schedule", "next-week-coverage", nextWeekMonday],
+    queryFn: () => fetchNextWeekCoverage(nextWeekMonday),
+  })
+
+  const teachersQuery = useQuery({
+    queryKey: ["teachers", "schedule-page", "blocked-state"],
+    queryFn: () => getTeachers({ page: 1, limit: 200 }),
   })
 
   const data = scheduleQuery.data
   const canManage = canManageSchedule(user?.role)
+  const blockedTeachers = useMemo(
+    () =>
+      new Set(
+        (teachersQuery.data?.data ?? [])
+          .filter((teacher) => teacher.isBlocked)
+          .map((teacher) => teacher.id)
+      ),
+    [teachersQuery.data?.data]
+  )
 
   const teacherColorById = useMemo(() => {
     if (!data) {
@@ -357,6 +395,11 @@ export default function SchedulePage() {
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
       <header className="space-y-4">
+        <WeekCoverageAlert
+          nextWeekHasCoverage={nextWeekCoverageQuery.data ?? true}
+          onNavigateToSchedule={() => setWeekView("next")}
+        />
+
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">Emploi du temps</h1>
           <p className="text-sm text-muted-foreground">
@@ -365,7 +408,14 @@ export default function SchedulePage() {
         </div>
 
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="grid gap-2 sm:grid-cols-2 md:w-auto">
+          <div className="grid gap-2 sm:grid-cols-3 md:w-auto">
+            <Tabs value={weekView} onValueChange={(value) => setWeekView(value as "current" | "next")}>
+              <TabsList className="grid grid-cols-2">
+                <TabsTrigger value="current">Semaine courante</TabsTrigger>
+                <TabsTrigger value="next">Semaine prochaine</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
             <Select value={teacherFilter} onValueChange={setTeacherFilter} disabled={!data}>
               <SelectTrigger className="w-full md:w-[220px]">
                 <SelectValue placeholder="Filtrer par professeur" />
@@ -476,6 +526,11 @@ export default function SchedulePage() {
                                     <p className="text-xs font-semibold">{item.teacher.name}</p>
                                     <p className="text-xs">{item.class.name}</p>
                                     <p className="text-xs">{item.subject}</p>
+                                    {blockedTeachers.has(item.teacher.id) ? (
+                                      <Badge variant="destructive" className="mt-1">
+                                        Prof bloqué
+                                      </Badge>
+                                    ) : null}
                                   </button>
                                 ))}
                               </div>
@@ -522,6 +577,11 @@ export default function SchedulePage() {
                       <p className="text-xs font-semibold">{item.timeSlot.label}</p>
                       <p className="text-sm font-medium">{item.subject}</p>
                       <p className="text-xs">{item.teacher.name} · {item.class.name}</p>
+                      {blockedTeachers.has(item.teacher.id) ? (
+                        <Badge variant="destructive" className="mt-1">
+                          Prof bloqué
+                        </Badge>
+                      ) : null}
                     </button>
                   ))}
 

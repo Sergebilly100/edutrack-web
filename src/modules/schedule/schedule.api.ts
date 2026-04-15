@@ -7,6 +7,7 @@ export type TeacherCatalogItem = {
   id: string
   name: string
   username: string
+  isBlocked?: boolean
 }
 
 export type ClassCatalogItem = {
@@ -45,6 +46,7 @@ export type ScheduleRow = {
     id: string
     name: string
     username: string
+    isBlocked?: boolean
   }
   class: {
     id: string
@@ -187,6 +189,16 @@ const ActiveScheduleResponseSchema = z.object({
   schedules: z.array(ScheduleRowSchema)
 })
 
+const SchedulePeriodsResponseSchema = z.object({
+  periods: z.array(
+    z.object({
+      valid_from: z.string(),
+      valid_to: z.string(),
+      is_active: z.boolean(),
+    })
+  ).default([]),
+})
+
 const ImportHistoryItemSchema = z.object({
   id: z.string(),
   imported_at: z.string(),
@@ -240,8 +252,16 @@ export const fetchTeacherSchedule = async (): Promise<TeacherSchedule[]> => {
   }))
 }
 
-export const fetchActiveSchedules = async (): Promise<ActiveScheduleData> => {
-  const response = await api.get("/schedule/active")
+const getDateParam = (value: unknown): string | undefined =>
+  typeof value === "string" && value.length > 0 ? value : undefined
+
+export const fetchActiveSchedules = async (date?: unknown): Promise<ActiveScheduleData> => {
+  const resolvedDate = getDateParam(date)
+  const response = await api.get("/schedule/active", {
+    params: {
+      ...(resolvedDate ? { date: resolvedDate } : {}),
+    },
+  })
   const parsed = ActiveScheduleResponseSchema.parse(response.data)
 
   return {
@@ -260,8 +280,13 @@ export const fetchActiveSchedules = async (): Promise<ActiveScheduleData> => {
   }
 }
 
-export const fetchWeeklySchedule = async (): Promise<WeeklyScheduleData> => {
-  const response = await api.get("/schedule/weekly")
+export const fetchWeeklySchedule = async (date?: unknown): Promise<WeeklyScheduleData> => {
+  const resolvedDate = getDateParam(date)
+  const response = await api.get("/schedule/weekly", {
+    params: {
+      ...(resolvedDate ? { date: resolvedDate } : {}),
+    },
+  })
   const parsed = WeeklyScheduleResponseSchema.parse(response.data)
 
   return {
@@ -277,7 +302,14 @@ export const fetchWeeklySchedule = async (): Promise<WeeklyScheduleData> => {
       : null,
     schedules: parsed.schedules,
     catalog: {
-      teachers: parsed.teachers,
+      teachers: parsed.teachers.map((teacher) => ({
+        ...teacher,
+        isBlocked: typeof (teacher as Record<string, unknown>).is_blocked === "boolean"
+          ? ((teacher as Record<string, unknown>).is_blocked as boolean)
+          : typeof (teacher as Record<string, unknown>).isBlocked === "boolean"
+            ? ((teacher as Record<string, unknown>).isBlocked as boolean)
+            : undefined,
+      })),
       classes: parsed.classes,
       rooms: parsed.rooms,
       timeSlots: parsed.time_slots.map((slot) => ({
@@ -289,6 +321,40 @@ export const fetchWeeklySchedule = async (): Promise<WeeklyScheduleData> => {
       }))
     }
   }
+}
+
+const toDateOnly = (value: string): Date => {
+  const [year, month, day] = value.split("-").map((part) => Number(part))
+  return new Date(Date.UTC(year ?? 1970, (month ?? 1) - 1, day ?? 1))
+}
+
+const hasDateOverlap = (startA: Date, endA: Date, startB: Date, endB: Date): boolean => {
+  return startA <= endB && startB <= endA
+}
+
+export const fetchNextWeekCoverage = async (nextWeekMonday: string): Promise<boolean> => {
+  const active = await fetchActiveSchedules(nextWeekMonday)
+  if (active.period) {
+    return true
+  }
+
+  const response = await api.get("/schedule/periods")
+  const parsed = SchedulePeriodsResponseSchema.parse(response.data)
+  const nextWeekStart = toDateOnly(nextWeekMonday)
+  const nextWeekEnd = new Date(nextWeekStart)
+  nextWeekEnd.setUTCDate(nextWeekEnd.getUTCDate() + 6)
+
+  return parsed.periods.some((period) => {
+    if (!period.is_active) {
+      return false
+    }
+    return hasDateOverlap(
+      toDateOnly(period.valid_from),
+      toDateOnly(period.valid_to),
+      nextWeekStart,
+      nextWeekEnd
+    )
+  })
 }
 
 export const createScheduleSlot = async (payload: ScheduleCreatePayload): Promise<{ id: string }> => {
