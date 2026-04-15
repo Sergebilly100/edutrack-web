@@ -210,11 +210,35 @@ const toSchedulePayload = (payload: ScheduleCreatePayload) => ({
   is_active: payload.isActive
 })
 
-export const fetchTeacherSchedule = () =>
-  api.get<TeacherSchedule[] | { schedules?: TeacherSchedule[] }>("/schedule/teacher/me").then((r) => {
-    const data = r.data
-    return Array.isArray(data) ? data : (data.schedules ?? [])
-  })
+const toIsoDateTime = (date: string, time: string): string => {
+  return `${date}T${time}.000Z`
+}
+
+export const fetchTeacherSchedule = async (): Promise<TeacherSchedule[]> => {
+  const response = await api.get("/schedule/teacher/me")
+  const payload = response.data as { date?: string; schedules?: ScheduleRow[] } | ScheduleRow[]
+
+  const date =
+    (typeof payload === "object" &&
+    payload !== null &&
+    !Array.isArray(payload) &&
+    typeof payload.date === "string"
+      ? payload.date
+      : new Date().toISOString().slice(0, 10))
+
+  const schedules = Array.isArray(payload) ? payload : payload.schedules ?? []
+
+  return schedules.map((item) => ({
+    id: item.id,
+    class_id: item.class.id,
+    class_name: item.class.name,
+    subject_name: item.subject,
+    room_id: item.room.id,
+    room_name: item.room.name,
+    start_at: toIsoDateTime(date, item.timeSlot.startTime),
+    end_at: toIsoDateTime(date, item.timeSlot.endTime),
+  }))
+}
 
 export const fetchActiveSchedules = async (): Promise<ActiveScheduleData> => {
   const response = await api.get("/schedule/active")

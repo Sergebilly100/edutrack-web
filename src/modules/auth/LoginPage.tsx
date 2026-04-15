@@ -12,6 +12,11 @@ import { useAuthStore } from '@/shared/store/auth.store';
 
 import { login } from './auth.api';
 
+const resolveDirectorPostLoginRoute = async (): Promise<'/dashboard' | '/onboarding'> => {
+  const school = await fetchSchoolInfo();
+  return school.onboarding_completed === true ? '/dashboard' : '/onboarding';
+};
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const setUser = useAuthStore((state) => state.setUser);
@@ -43,18 +48,14 @@ export default function LoginPage() {
       });
 
       if (result.user.role === 'teacher') {
-        navigate('/attendance');
+        navigate('/dashboard');
       } else if (result.user.role === 'super_admin') {
         navigate('/admin');
       } else {
         if (result.user.role === 'director') {
           try {
-            const school = await fetchSchoolInfo();
-            if (school.onboarding_completed) {
-              navigate('/dashboard');
-            } else {
-              navigate('/onboarding');
-            }
+            const target = await resolveDirectorPostLoginRoute();
+            navigate(target);
           } catch {
             navigate('/onboarding');
           }
@@ -90,7 +91,7 @@ export default function LoginPage() {
                 <Input
                   id="identifier"
                   name="identifier"
-                  placeholder="diallo.ibra ou 225XXXXXXXXXX"
+                  placeholder="username, téléphone ou email"
                   value={identifier}
                   onChange={(event) => setIdentifier(event.target.value)}
                   required

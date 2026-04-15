@@ -29,6 +29,25 @@ const formatTime = (dateValue: string) =>
     minute: "2-digit",
   })
 
+const DEMO_SCHEDULE_ID = "demo-schedule"
+
+const buildDemoSchedule = (): TeacherSchedule => {
+  const now = new Date()
+  const start = new Date(now.getTime() - 15 * 60 * 1000)
+  const end = new Date(now.getTime() + 45 * 60 * 1000)
+
+  return {
+    id: DEMO_SCHEDULE_ID,
+    class_id: "demo-class",
+    class_name: "6e Demo",
+    subject_name: "Mathématiques (Démo)",
+    room_id: "demo-room",
+    room_name: "Salle A1 (Démo)",
+    start_at: start.toISOString(),
+    end_at: end.toISOString(),
+  }
+}
+
 export default function AttendancePage() {
   const user = useAuthStore((state) => state.user)
 
@@ -39,7 +58,9 @@ export default function AttendancePage() {
 
   const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null)
 
-  const schedules = scheduleQuery.data ?? []
+  const liveSchedules = scheduleQuery.data ?? []
+  const hasLiveSchedules = liveSchedules.length > 0
+  const schedules = hasLiveSchedules ? liveSchedules : [buildDemoSchedule()]
 
   const activeSchedule = useMemo(() => {
     return getActiveSchedule(schedules, new Date())
@@ -99,9 +120,11 @@ export default function AttendancePage() {
         </Alert>
       ) : null}
 
-      {!scheduleQuery.isLoading && schedules.length === 0 ? (
+      {!scheduleQuery.isLoading && !hasLiveSchedules ? (
         <Alert>
-          <AlertDescription>Aucun cours planifié aujourd'hui.</AlertDescription>
+          <AlertDescription>
+            Aucun cours planifié aujourd'hui. Un créneau de démonstration est affiché pour tester le pointage.
+          </AlertDescription>
         </Alert>
       ) : null}
 
@@ -141,7 +164,9 @@ export default function AttendancePage() {
         </div>
       ) : null}
 
-      {selectedSchedule ? <TeacherFlow schedule={selectedSchedule} /> : null}
+      {selectedSchedule ? (
+        <TeacherFlow schedule={selectedSchedule} demoMode={selectedSchedule.id === DEMO_SCHEDULE_ID} />
+      ) : null}
     </div>
   )
 }

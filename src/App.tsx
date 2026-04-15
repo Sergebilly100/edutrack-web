@@ -8,6 +8,7 @@ import AdminPage from "@/modules/admin/AdminPage"
 import { getTenants } from "@/modules/admin/admin.api"
 import AttendancePage from "@/modules/attendance/AttendancePage"
 import DashboardPage from "@/modules/dashboard/DashboardPage"
+import TeacherDashboardPage from "@/modules/dashboard/TeacherDashboardPage"
 import ImportPage from "@/modules/import-export/ImportPage"
 import OnboardingWizard from "@/modules/onboarding/OnboardingWizard"
 import SchedulePage from "@/modules/schedule/SchedulePage"
@@ -20,6 +21,7 @@ import ComponentsDemoPage from "./modules/dev/ComponentsDemoPage"
 
 function DashboardRoute() {
   const [searchParams] = useSearchParams()
+  const user = useAuthStore((state) => state.user)
   const setAccessToken = useAuthStore((state) => state.setAccessToken)
 
   useEffect(() => {
@@ -31,9 +33,11 @@ function DashboardRoute() {
     setAccessToken(impersonationToken)
   }, [searchParams, setAccessToken])
 
-  return (
-    <DashboardPage />
-  )
+  if (user?.role === "teacher") {
+    return <TeacherDashboardPage />
+  }
+
+  return <DashboardPage />
 }
 
 function AppShell({ children }: { children: ReactNode }) {
@@ -59,12 +63,21 @@ function AppShell({ children }: { children: ReactNode }) {
               <NavLink to="/dashboard" className="text-sm font-medium text-muted-foreground hover:text-foreground">
                 Dashboard
               </NavLink>
-              <NavLink to="/teachers" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-                Profs
-              </NavLink>
-              <NavLink to="/students" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-                Élèves
-              </NavLink>
+              {user?.role !== "teacher" ? (
+                <>
+                  <NavLink to="/teachers" className="text-sm font-medium text-muted-foreground hover:text-foreground">
+                    Profs
+                  </NavLink>
+                  <NavLink to="/students" className="text-sm font-medium text-muted-foreground hover:text-foreground">
+                    Élèves
+                  </NavLink>
+                </>
+              ) : null}
+              {user?.role === "teacher" ? (
+                <NavLink to="/attendance" className="text-sm font-medium text-muted-foreground hover:text-foreground">
+                  Pointage
+                </NavLink>
+              ) : null}
               {user?.role === "super_admin" ? (
                 <NavLink to="/admin" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
                   <span>Admin</span>

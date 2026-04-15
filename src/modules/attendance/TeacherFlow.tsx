@@ -8,14 +8,6 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
   bulkStudents,
   checkIn,
   fetchRooms,
@@ -46,6 +38,7 @@ export type TeacherSchedule = {
 
 type TeacherFlowProps = {
   schedule: TeacherSchedule
+  demoMode?: boolean
 }
 
 const formatTimeRange = (startAt: string, endAt: string) => {
@@ -55,12 +48,18 @@ const formatTimeRange = (startAt: string, endAt: string) => {
   return `${start.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} - ${end.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`
 }
 
-export default function TeacherFlow({ schedule }: TeacherFlowProps) {
+const DEMO_STUDENTS: StudentItem[] = [
+  { id: "demo-student-1", full_name: "Kouadio Amani" },
+  { id: "demo-student-2", full_name: "Traoré Mariam" },
+  { id: "demo-student-3", full_name: "Koné Ibrahim" },
+]
+
+export default function TeacherFlow({ schedule, demoMode = false }: TeacherFlowProps) {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [lateMinutes, setLateMinutes] = useState<number | null>(null)
-  const [mismatchDialogOpen, setMismatchDialogOpen] = useState(false)
   const [isQrSubmitting, setIsQrSubmitting] = useState(false)
   const [absentStudentIds, setAbsentStudentIds] = useState<Set<string>>(new Set())
+  const [qrWarning, setQrWarning] = useState<string | null>(null)
   const { toast } = useToast()
 
   const { isOnline } = useNetworkStatus()
@@ -69,20 +68,21 @@ export default function TeacherFlow({ schedule }: TeacherFlowProps) {
     queryKey: ["rooms"],
     queryFn: fetchRooms,
     staleTime: 1000 * 60 * 10,
+    enabled: !demoMode,
   })
 
   const studentsQuery = useQuery({
     queryKey: ["students", schedule.class_id],
     queryFn: () => fetchStudents(schedule.class_id),
-    enabled: step >= 3,
+    enabled: !demoMode && step >= 3,
   })
 
   useEffect(() => {
     setStep(1)
     setLateMinutes(null)
-    setMismatchDialogOpen(false)
     setIsQrSubmitting(false)
     setAbsentStudentIds(new Set())
+    setQrWarning(null)
   }, [schedule.id])
 
   useEffect(() => {
@@ -108,6 +108,15 @@ export default function TeacherFlow({ schedule }: TeacherFlowProps) {
   const absentCount = absentStudentIds.size
 
   const handleCheckIn = async () => {
+    if (demoMode) {
+      setStep(2)
+      toast({
+        title: "Présence enregistrée (démo)",
+        description: "Mode démonstration: aucune donnée réelle n'a été modifiée.",
+      })
+      return
+    }
+
     const result = await checkInMutation.mutateAsync({ schedule_id: schedule.id })
     let resolvedLateMinutes = lateMinutes
 
@@ -126,18 +135,22 @@ export default function TeacherFlow({ schedule }: TeacherFlowProps) {
     })
   }
 
-  const validateMismatchLocally = async (token: string) => {
+  const resolveScannedRoom = async (token: string) => {
     const cachedRooms = roomsQuery.data ?? (await roomsQuery.refetch()).data ?? []
-    const matchedRoom = cachedRooms.find((room) => room.qr_token === token)
-
-    if (!matchedRoom) {
-      return true
-    }
-
-    return matchedRoom.id !== schedule.room_id
+    return cachedRooms.find((room) => room.qr_token === token) ?? null
   }
 
   const handleQrDetected = async (token: string) => {
+    if (demoMode) {
+      setQrWarning(null)
+      setStep(3)
+      toast({
+        title: "Scan validé (démo)",
+        description: "Mode démonstration: le QR est accepté automatiquement.",
+      })
+      return
+    }
+
     if (isQrSubmitting) {
       return
     }
@@ -145,29 +158,47 @@ export default function TeacherFlow({ schedule }: TeacherFlowProps) {
     setIsQrSubmitting(true)
 
     try {
+      const matchedRoom = await resolveScannedRoom(token)
+      if (!matchedRoom) {
+        toast({
+          title: "QR non reconnu",
+          description: "Ce QR ne correspond à aucune salle de l'établissement.",
+          variant: "destructive",
+        })
+        return
+      }
+
       const response = await qrScanMutation.mutateAsync({
         qr_token: token,
         scan_type: "start",
         schedule_id: schedule.id,
       })
 
-      if (isOnline) {
-        if (response?.room_mismatch) {
-          setMismatchDialogOpen(true)
-          return
-        }
+      const isRoomMismatch = isOnline
+        ? Boolean(response?.room_mismatch) || matchedRoom.id !== schedule.room_id
+        : matchedRoom.id !== schedule.room_id
 
-        setStep(3)
-        return
-      }
-
-      const localMismatch = await validateMismatchLocally(token)
-      if (localMismatch) {
-        setMismatchDialogOpen(true)
-        return
+      if (isRoomMismatch) {
+        setQrWarning(
+          "Salle différente de la salle prévue. La direction sera notifiée automatiquement."
+        )
+        toast({
+          title: "Salle différente",
+          description:
+            "Le pointage continue. Une alerte est envoyée à la direction.",
+          variant: "destructive",
+        })
+      } else {
+        setQrWarning(null)
       }
 
       setStep(3)
+    } catch {
+      toast({
+        title: "Échec du scan QR",
+        description: "Impossible de valider ce scan pour le moment.",
+        variant: "destructive",
+      })
     } finally {
       setIsQrSubmitting(false)
     }
@@ -188,6 +219,15 @@ export default function TeacherFlow({ schedule }: TeacherFlowProps) {
   }
 
   const handleSubmitCall = async () => {
+    if (demoMode) {
+      setStep(4)
+      toast({
+        title: "Appel validé (démo)",
+        description: `${absentStudentIds.size} absent(s) simulé(s).`,
+      })
+      return
+    }
+
     await bulkStudentsMutation.mutateAsync({
       schedule_id: schedule.id,
       date: new Date().toISOString().split("T")[0],
@@ -202,6 +242,7 @@ export default function TeacherFlow({ schedule }: TeacherFlowProps) {
   }
 
   const progressLabel = `${Math.min(step, 3)}/3`
+  const studentRows = demoMode ? DEMO_STUDENTS : studentsQuery.data ?? []
   const timeRange = useMemo(
     () => formatTimeRange(schedule.start_at, schedule.end_at),
     [schedule.end_at, schedule.start_at]
@@ -211,7 +252,10 @@ export default function TeacherFlow({ schedule }: TeacherFlowProps) {
     <div className="space-y-6 rounded-lg border border-border bg-card p-4 shadow-sm md:p-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Flux enseignant</h2>
-        <Badge variant="outline">Étape {progressLabel}</Badge>
+        <div className="flex items-center gap-2">
+          {demoMode ? <Badge variant="secondary">Mode démo</Badge> : null}
+          <Badge variant="outline">Étape {progressLabel}</Badge>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -257,6 +301,17 @@ export default function TeacherFlow({ schedule }: TeacherFlowProps) {
       {step === 2 ? (
         <div className="space-y-4">
           <p className="text-sm font-medium">Scannez le QR code de la salle {schedule.room_name}</p>
+          {demoMode ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setStep(3)
+              }}
+            >
+              Passer le scan (démo)
+            </Button>
+          ) : null}
           {lateMinutes !== null && lateMinutes > 0 ? (
             <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700">
               Retard de {lateMinutes}min
@@ -269,36 +324,6 @@ export default function TeacherFlow({ schedule }: TeacherFlowProps) {
               void handleQrDetected(token)
             }}
           />
-
-          <Dialog open={mismatchDialogOpen} onOpenChange={setMismatchDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle className="text-red-600">Mauvaise salle !</DialogTitle>
-                <DialogDescription>
-                  Cours prévu en {schedule.room_name}. Vérifiez le QR code scanné.
-                </DialogDescription>
-              </DialogHeader>
-              <Alert variant="destructive">
-                <AlertDescription>
-                  Le scan ne correspond pas à la salle planifiée. Continuer peut créer un mismatch.
-                </AlertDescription>
-              </Alert>
-              <DialogFooter>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setMismatchDialogOpen(false)
-                    setStep(3)
-                  }}
-                >
-                  Continuer quand même
-                </Button>
-                <Button variant="destructive" onClick={() => setMismatchDialogOpen(false)}>
-                  Annuler
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </div>
       ) : null}
 
@@ -306,7 +331,13 @@ export default function TeacherFlow({ schedule }: TeacherFlowProps) {
         <div className="space-y-4">
           <h3 className="text-base font-semibold">Appel de {schedule.class_name}</h3>
 
-          {studentsQuery.isLoading ? (
+          {qrWarning ? (
+            <Alert variant="destructive">
+              <AlertDescription>{qrWarning}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          {studentsQuery.isLoading && !demoMode ? (
             <div className="space-y-2">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Skeleton key={i} className="h-10 w-full rounded-md" />
@@ -314,7 +345,7 @@ export default function TeacherFlow({ schedule }: TeacherFlowProps) {
             </div>
           ) : null}
 
-          {!studentsQuery.isLoading && studentsQuery.data?.length === 0 ? (
+          {!studentsQuery.isLoading && studentRows.length === 0 ? (
             <Alert>
               <AlertDescription>Aucun élève trouvé pour cette classe.</AlertDescription>
             </Alert>
@@ -329,7 +360,7 @@ export default function TeacherFlow({ schedule }: TeacherFlowProps) {
           ) : null}
 
           <div className="space-y-2">
-            {(studentsQuery.data ?? []).map((student) => {
+            {studentRows.map((student) => {
               const isAbsent = absentStudentIds.has(student.id)
 
               return (
@@ -354,7 +385,7 @@ export default function TeacherFlow({ schedule }: TeacherFlowProps) {
 
           <Button
             className="w-full"
-            disabled={bulkStudentsMutation.isPending || studentsQuery.isLoading}
+            disabled={bulkStudentsMutation.isPending || (!demoMode && studentsQuery.isLoading)}
             onClick={() => void handleSubmitCall()}
           >
             {bulkStudentsMutation.isPending
