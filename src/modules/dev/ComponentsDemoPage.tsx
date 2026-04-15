@@ -22,16 +22,25 @@ import {
   SelectValue
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import {
+  DocumentList,
+  DocumentUpload,
   EmptyState,
   OfflineIndicator,
   PageLayout,
+  PresenceDonut,
+  SalaryRow,
   Spinner,
   StatusBadge,
+  TeacherProfileCard,
+  WeekCoverageAlert,
   emptyStateIcons
 } from "@/shared/components"
+import type { SalaryRowPeriodSummary, SalaryRowTeacher } from "@/shared/components/SalaryRow"
 
 const touchFeedbackClass = "active:scale-95 transition-transform duration-100"
 
@@ -49,6 +58,55 @@ const mockRecords: PresenceRecord[] = [
   { id: "2", teacher: "Mme Konan", status: "late", lateMinutes: 12 },
   { id: "3", teacher: "M. Traoré", status: "absent" }
 ]
+
+const salaryRows: Array<{ teacher: SalaryRowTeacher; periodSummary: SalaryRowPeriodSummary }> = [
+  {
+    teacher: { id: "t-1", name: "M. Diallo Ibrahim", type: "vacataire" },
+    periodSummary: {
+      hoursDone: 36,
+      hoursPlanned: 38,
+      amountFcfa: 180000,
+      status: "pending",
+      canMarkPaid: true,
+    },
+  },
+  {
+    teacher: { id: "t-2", name: "Mme Konan Awa", type: "permanent" },
+    periodSummary: {
+      hoursDone: 30,
+      hoursPlanned: 40,
+      amountFcfa: 150000,
+      status: "paid",
+      canMarkPaid: false,
+    },
+  },
+  {
+    teacher: { id: "t-3", name: "M. Traoré Koffi", type: "vacataire" },
+    periodSummary: {
+      hoursDone: 22,
+      hoursPlanned: 36,
+      amountFcfa: 110000,
+      status: "disputed",
+      canMarkPaid: false,
+    },
+  },
+]
+
+const demoTeacher = {
+  id: "teacher-demo-1",
+  name: "M. Coulibaly Yao",
+  username: "coulibaly.yao",
+  type: "vacataire" as const,
+}
+
+const demoBlockedTeacher = {
+  id: "teacher-demo-2",
+  name: "Mme Konan Aya",
+  username: "konan.aya",
+  type: "permanent" as const,
+  blockReason: "Documents manquants pour le dossier RH.",
+}
+
 const FETCH_ERROR = new Error("Impossible de charger les professeurs")
 
 function PatternFetchState() {
@@ -251,6 +309,10 @@ function ColorTokenSwatch({
 
 export default function ComponentsDemoPage() {
   const [forcedNetwork, setForcedNetwork] = useState<"auto" | "offline" | "recovered">("offline")
+  const [nextWeekHasCoverage, setNextWeekHasCoverage] = useState(false)
+  const [demoEntityType, setDemoEntityType] = useState<"teacher" | "student">("teacher")
+  const [demoEntityId, setDemoEntityId] = useState("teacher-demo-1")
+  const [firstTeacherBlocked, setFirstTeacherBlocked] = useState(false)
 
   const shadcnVars = useMemo(
     () => [
@@ -466,6 +528,156 @@ export default function ComponentsDemoPage() {
               Le composant <code>PageLayout</code> est utilisé comme layout global de cette page.
             </AlertDescription>
           </Alert>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Composants B2 - Widgets métriques</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <p className="text-sm font-medium">SalaryRow (pending / paid / disputed)</p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Professeur</TableHead>
+                  <TableHead>Progression heures</TableHead>
+                  <TableHead>Montant</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {salaryRows.map((row) => (
+                  <SalaryRow
+                    key={row.teacher.id}
+                    teacher={row.teacher}
+                    periodSummary={row.periodSummary}
+                    onMarkPaid={() => undefined}
+                    onExportPDF={() => undefined}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium">PresenceDonut (présences variées)</p>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-lg border p-4 shadow-card">
+                <p className="mb-3 text-xs text-muted-foreground">Semaine A</p>
+                <PresenceDonut present={24} absent={3} late={2} size="sm" />
+              </div>
+              <div className="rounded-lg border p-4 shadow-card">
+                <p className="mb-3 text-xs text-muted-foreground">Semaine B</p>
+                <PresenceDonut present={16} absent={8} late={5} size="md" />
+              </div>
+              <div className="rounded-lg border p-4 shadow-card">
+                <p className="mb-3 text-xs text-muted-foreground">Semaine C</p>
+                <PresenceDonut present={0} absent={0} late={0} size="sm" />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium">WeekCoverageAlert (visible / cachée)</p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant={nextWeekHasCoverage ? "outline" : "default"}
+                className={touchFeedbackClass}
+                onClick={() => setNextWeekHasCoverage(false)}
+              >
+                Afficher alerte
+              </Button>
+              <Button
+                type="button"
+                variant={nextWeekHasCoverage ? "default" : "outline"}
+                className={touchFeedbackClass}
+                onClick={() => setNextWeekHasCoverage(true)}
+              >
+                Cacher alerte
+              </Button>
+            </div>
+            <WeekCoverageAlert
+              nextWeekHasCoverage={nextWeekHasCoverage}
+              onNavigateToSchedule={() => undefined}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Composants B3 - Profil & Documents</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <p className="text-sm font-medium">TeacherProfileCard (actif / bloqué)</p>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <TeacherProfileCard
+                teacher={demoTeacher}
+                monthStats={{
+                  hours_done: 28,
+                  hours_planned: 32,
+                  attendance_rate: 88,
+                  status: firstTeacherBlocked ? "blocked" : "active",
+                }}
+                onBlock={async () => {
+                  setFirstTeacherBlocked(true)
+                }}
+                onUnblock={async () => {
+                  setFirstTeacherBlocked(false)
+                }}
+                onViewDocuments={() => undefined}
+              />
+
+              <TeacherProfileCard
+                teacher={demoBlockedTeacher}
+                monthStats={{
+                  hours_done: 31,
+                  hours_planned: 32,
+                  attendance_rate: 97,
+                  status: "blocked",
+                }}
+                onBlock={async () => undefined}
+                onUnblock={async () => undefined}
+                onViewDocuments={() => undefined}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium">DocumentUpload + DocumentList</p>
+            <div className="grid gap-2 md:grid-cols-3">
+              <Select value={demoEntityType} onValueChange={(value: "teacher" | "student") => setDemoEntityType(value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Type d'entité" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="teacher">teacher</SelectItem>
+                  <SelectItem value="student">student</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                value={demoEntityId}
+                onChange={(event) => setDemoEntityId(event.target.value)}
+                placeholder="ID entité"
+              />
+              <p className="text-xs text-muted-foreground md:self-center">
+                Utiliser un ID valide du seed pour tester l'upload réel.
+              </p>
+            </div>
+
+            <DocumentUpload
+              entityType={demoEntityType}
+              entityId={demoEntityId}
+              onUploadSuccess={() => undefined}
+            />
+
+            <DocumentList entityType={demoEntityType} entityId={demoEntityId} />
+          </div>
         </CardContent>
       </Card>
 

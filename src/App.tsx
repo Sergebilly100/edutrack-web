@@ -1,5 +1,6 @@
-import { useEffect, type ReactNode } from "react"
-import { Navigate, Route, Routes, useLocation, useSearchParams } from "react-router-dom"
+import { useEffect } from "react"
+import { Navigate, Route, Routes, useSearchParams } from "react-router-dom"
+
 import AdminPage from "@/modules/admin/AdminPage"
 import AttendancePage from "@/modules/attendance/AttendancePage"
 import DashboardPage from "@/modules/dashboard/DashboardPage"
@@ -9,7 +10,7 @@ import OnboardingWizard from "@/modules/onboarding/OnboardingWizard"
 import SchedulePage from "@/modules/schedule/SchedulePage"
 import StudentsPage from "@/modules/students/StudentsPage"
 import TeachersPage from "@/modules/teachers/TeachersPage"
-import { AppLayout } from "@/shared/components/AppLayout"
+import { AppShell } from "@/shared/components/layout/AppShell"
 import { useAutoSync } from "@/shared/hooks/useAutoSync"
 import { useAuthStore } from "@/shared/store/auth.store"
 import LoginPage from "./modules/auth/LoginPage"
@@ -36,36 +37,67 @@ function DashboardRoute() {
   return <DashboardPage />
 }
 
-function AppShell({ children }: { children: ReactNode }) {
-  const location = useLocation()
+function RoleRedirect() {
   const user = useAuthStore((state) => state.user)
-  const shouldUseLayout = Boolean(user) && location.pathname !== "/" && location.pathname !== "/dev"
 
-  if (!shouldUseLayout) {
-    return <>{children}</>
+  if (!user) {
+    return <Navigate to="/login" replace />
   }
 
-  return <AppLayout>{children}</AppLayout>
+  if (user.role === "teacher") {
+    return <Navigate to="/attendance" replace />
+  }
+
+  if (user.role === "super_admin") {
+    return <Navigate to="/admin" replace />
+  }
+
+  return <Navigate to="/dashboard" replace />
+}
+
+function LoginRoute() {
+  const user = useAuthStore((state) => state.user)
+
+  if (user) {
+    return <RoleRedirect />
+  }
+
+  return <LoginPage />
+}
+
+function PlaceholderPage({ title }: { title: string }) {
+  return (
+    <div className="rounded-lg border bg-card p-6">
+      <h1 className="text-lg font-semibold">{title}</h1>
+      <p className="mt-2 text-sm text-muted-foreground">Cette section sera branchée dans une tâche dédiée.</p>
+    </div>
+  )
 }
 
 export default function App() {
   useAutoSync()
 
   return (
-    <AppShell>
-      <Routes>
-        <Route path="/" element={<LoginPage />} />
+    <Routes>
+      <Route path="/login" element={<LoginRoute />} />
+      <Route path="/dev" element={<ComponentsDemoPage />} />
+
+      <Route element={<AppShell />}>
+        <Route path="/" element={<RoleRedirect />} />
+        <Route path="/dashboard" element={<DashboardRoute />} />
         <Route path="/attendance" element={<AttendancePage />} />
         <Route path="/onboarding" element={<OnboardingWizard />} />
-        <Route path="/imports" element={<ImportPage />} />
         <Route path="/schedule" element={<SchedulePage />} />
         <Route path="/teachers" element={<TeachersPage />} />
         <Route path="/students" element={<StudentsPage />} />
         <Route path="/admin" element={<AdminPage />} />
-        <Route path="/dashboard" element={<DashboardRoute />} />
-        <Route path="/dev" element={<ComponentsDemoPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </AppShell>
+        <Route path="/import" element={<ImportPage />} />
+        <Route path="/imports" element={<ImportPage />} />
+        <Route path="/salaries" element={<PlaceholderPage title="Salaires" />} />
+        <Route path="/settings" element={<PlaceholderPage title="Paramètres" />} />
+      </Route>
+
+      <Route path="*" element={<RoleRedirect />} />
+    </Routes>
   )
 }

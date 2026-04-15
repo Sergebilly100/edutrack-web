@@ -48,7 +48,7 @@ export default function LoginPage() {
       });
 
       if (result.user.role === 'teacher') {
-        navigate('/dashboard');
+        navigate('/attendance');
       } else if (result.user.role === 'super_admin') {
         navigate('/admin');
       } else {

@@ -1,5 +1,4 @@
 import { create } from "zustand"
-import { persist } from "zustand/middleware"
 
 export type AuthRole = "director" | "secretary" | "teacher" | "super_admin"
 
@@ -19,20 +18,13 @@ type AuthState = {
   accessToken: string | null
   setUser: (user: AuthUser | null) => void
   setAccessToken: (accessToken: string | null) => void
-  clearAuth: () => void
+  logout: () => void
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (setState) => ({
-      user: null,
-      accessToken: null,
-      setUser: (user) => setState({ user }),
-      setAccessToken: (accessToken) => setState({ accessToken }),
-      clearAuth: () => setState({ user: null, accessToken: null }),
-    }),
-    {
-      name: "edutrack-auth",
-    }
-  )
-)
+export const useAuthStore = create<AuthState>()((setState) => ({
+  user: null,
+  accessToken: null,
+  setUser: (user) => setState({ user }),
+  setAccessToken: (accessToken) => setState({ accessToken }),
+  logout: () => setState({ user: null, accessToken: null }),
+}))
