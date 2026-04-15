@@ -170,3 +170,21 @@ export const getTodayAbsences = () =>
   api
     .get<{ data: TodayAbsenceGroup[] }>("/attendance/students/today")
     .then((response) => response.data.data)
+
+export const getStudentById = async (studentId: string): Promise<StudentItem> => {
+  const firstPage = await listStudents({ page: 1, limit: 200 })
+  const firstMatch = firstPage.data.find((item) => item.id === studentId)
+  if (firstMatch) {
+    return firstMatch
+  }
+
+  for (let page = 2; page <= firstPage.pagination.totalPages; page += 1) {
+    const response = await listStudents({ page, limit: 200 })
+    const match = response.data.find((item) => item.id === studentId)
+    if (match) {
+      return match
+    }
+  }
+
+  throw new Error("STUDENT_NOT_FOUND")
+}

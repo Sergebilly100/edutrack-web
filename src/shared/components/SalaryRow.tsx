@@ -100,7 +100,7 @@ export function SalaryRow({ teacher, periodSummary, onMarkPaid, onExportPDF }: S
       : 0
 
   return (
-    <TableRow>
+    <TableRow className={cn(periodSummary.status === "paid" ? "bg-muted/30 opacity-80" : "")}>
       <TableCell className="min-w-[220px]">
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9 border border-border/60">

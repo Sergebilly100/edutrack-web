@@ -7,7 +7,9 @@ import DashboardPage from "@/modules/dashboard/DashboardPage"
 import TeacherDashboardPage from "@/modules/dashboard/TeacherDashboardPage"
 import ImportPage from "@/modules/import-export/ImportPage"
 import OnboardingWizard from "@/modules/onboarding/OnboardingWizard"
+import SalariesPage from "@/modules/salaries/SalariesPage"
 import SchedulePage from "@/modules/schedule/SchedulePage"
+import StudentDetailPage from "@/modules/students/StudentDetailPage"
 import StudentsPage from "@/modules/students/StudentsPage"
 import TeacherDetailPage from "@/modules/teachers/TeacherDetailPage"
 import TeachersPage from "@/modules/teachers/TeachersPage"
@@ -92,10 +94,11 @@ export default function App() {
         <Route path="/teachers" element={<TeachersPage />} />
         <Route path="/teachers/:teacherId" element={<TeacherDetailPage />} />
         <Route path="/students" element={<StudentsPage />} />
+        <Route path="/students/:studentId" element={<StudentDetailPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/import" element={<ImportPage />} />
         <Route path="/imports" element={<ImportPage />} />
-        <Route path="/salaries" element={<PlaceholderPage title="Salaires" />} />
+        <Route path="/salaries" element={<SalariesPage />} />
         <Route path="/settings" element={<PlaceholderPage title="Paramètres" />} />
       </Route>
 
