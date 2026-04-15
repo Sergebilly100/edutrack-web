@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { Navigate } from "react-router-dom"
+import type { ColumnDef } from "@tanstack/react-table"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -27,8 +28,10 @@ import {
   getAttendanceHistory,
   getTodayAbsences,
   listStudents,
+  type StudentItem,
 } from "@/modules/students/students.api"
-import { AddIcon, FilterIcon } from "@/shared/components/icons"
+import { DataTable, EmptyState } from "@/shared/components"
+import { AddIcon, AppIcon, ChevronRightIcon, FilterIcon, StudentsIcon } from "@/shared/components/icons"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 const CLASS_TABS = [
@@ -55,6 +58,7 @@ const formatDate = (value: string) =>
 const formatTimeSlotLabel = (label: string) => label.replace("-", " - ")
 
 type TabValue = (typeof CLASS_TABS)[number]["key"] | "absences"
+type StudentTableRow = StudentItem & { fullName: string }
 
 export default function StudentsPage() {
   const { toast } = useToast()
@@ -135,6 +139,44 @@ export default function StudentsPage() {
 
   const students = studentsQuery.data?.data ?? []
   const studentsCount = studentsQuery.data?.pagination.total ?? 0
+  const studentRows = useMemo<StudentTableRow[]>(
+    () =>
+      students.map((student) => ({
+        ...student,
+        fullName: `${student.lastName} ${student.firstName}`.trim(),
+      })),
+    [students]
+  )
+  const studentColumns = useMemo<ColumnDef<StudentTableRow>[]>(
+    () => [
+      {
+        accessorKey: "fullName",
+        header: "Nom",
+        enableSorting: true,
+        cell: ({ row }) => <p className="text-sm font-medium">{row.original.fullName}</p>,
+      },
+      {
+        id: "phone",
+        accessorFn: (row) => row.parentPhone ?? row.parentPhone2 ?? "",
+        header: "Parent",
+        cell: ({ row }) => {
+          const phone = row.original.parentPhone ?? row.original.parentPhone2
+          return phone ? <Badge variant="outline">{phone}</Badge> : <Badge variant="secondary">Non renseigne</Badge>
+        },
+      },
+      {
+        accessorKey: "isActive",
+        header: "Statut",
+        enableSorting: true,
+        cell: ({ row }) => (
+          <Badge variant={row.original.isActive ? "secondary" : "destructive"}>
+            {row.original.isActive ? "Actif" : "Inactif"}
+          </Badge>
+        ),
+      },
+    ],
+    []
+  )
 
   const historyStudentsQuery = useQuery({
     queryKey: ["students", "history-filter", historyClassId],
@@ -327,29 +369,35 @@ export default function StudentsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    {studentsQuery.isLoading ? (
-                      <p className="text-sm text-muted-foreground">Chargement des élèves...</p>
-                    ) : null}
-                    {!studentsQuery.isLoading && students.length === 0 ? (
-                      <Alert>
-                        <AlertDescription>Aucun élève actif dans cette classe.</AlertDescription>
-                      </Alert>
-                    ) : null}
-                    {students.slice(0, 10).map((student) => (
-                      <div
-                        key={student.id}
-                        className="flex items-center justify-between rounded-md border border-border p-2"
-                      >
-                        <span className="text-sm font-medium">
-                          {student.lastName} {student.firstName}
-                        </span>
-                        {student.parentPhone ? (
-                          <Badge variant="outline">{student.parentPhone}</Badge>
-                        ) : (
-                          <Badge variant="secondary">Parent non renseigné</Badge>
-                        )}
-                      </div>
-                    ))}
+                    <DataTable
+                      columns={studentColumns}
+                      data={studentRows}
+                      isLoading={studentsQuery.isLoading}
+                      searchKey="fullName"
+                      searchPlaceholder="Rechercher un eleve"
+                      pageSize={20}
+                      emptyState={
+                        <EmptyState
+                          icon={<AppIcon icon={StudentsIcon} size="md" className="text-muted-foreground" />}
+                          title="Aucun eleve"
+                          message="Aucun eleve actif dans cette classe ou aucun resultat avec cette recherche."
+                        />
+                      }
+                      mobileCard={(student) => (
+                        <div className="flex items-center gap-3 rounded-xl border bg-card p-4 shadow-sm">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">{student.fullName}</p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {student.parentPhone ?? student.parentPhone2 ?? "Parent non renseigne"}
+                            </p>
+                          </div>
+                          <Badge variant={student.isActive ? "secondary" : "destructive"} className="text-xs">
+                            {student.isActive ? "Actif" : "Inactif"}
+                          </Badge>
+                          <ChevronRightIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                        </div>
+                      )}
+                    />
                   </div>
                 </>
               )}

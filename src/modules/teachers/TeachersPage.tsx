@@ -1,13 +1,9 @@
 import { useMemo, useState } from "react"
-import {
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-  type ColumnDef,
-} from "@tanstack/react-table"
+import type { ColumnDef } from "@tanstack/react-table"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -27,14 +23,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { useToast } from "@/components/ui/use-toast"
 import TeacherForm from "@/modules/teachers/components/TeacherForm"
 import {
@@ -48,8 +36,14 @@ import {
   type TeacherUpsertPayload,
 } from "@/modules/teachers/teachers.api"
 import { QRCodeGenerator } from "@/shared/components/QRCodeGenerator"
-import { AddIcon, FilterIcon, SearchIcon } from "@/shared/components/icons"
-import { EmptyState, PageLayout } from "@/shared/components"
+import {
+  AddIcon,
+  AppIcon,
+  ChevronRightIcon,
+  FilterIcon,
+  TeachersIcon,
+} from "@/shared/components/icons"
+import { DataTable, EmptyState, PageLayout } from "@/shared/components"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 const THIRTY_DAYS_MS = 1000 * 60 * 60 * 24 * 30
@@ -108,16 +102,25 @@ const downloadBlob = (blob: Blob, filename: string) => {
 }
 
 type TeacherStatsMap = Record<string, { attendanceRate: number; hoursWorked: number; amountDue: number }>
+type TeacherTableRow = TeacherListItem & {
+  attendanceRate: number | null
+  hoursWorked: number | null
+  amountDue: number | null
+}
+
+const getInitials = (value: string) =>
+  value
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((chunk) => chunk[0]?.toUpperCase() ?? "")
+    .join("")
 
 export default function TeachersPage() {
   const user = useAuthStore((state) => state.user)
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
-  const [page, setPage] = useState(1)
-  const [limit] = useState(10)
-
-  const [search, setSearch] = useState("")
   const [typeFilter, setTypeFilter] = useState<"all" | "vacataire" | "permanent">("all")
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all")
   const [subjectFilter, setSubjectFilter] = useState("")
@@ -133,28 +136,18 @@ export default function TeachersPage() {
   const last30Days = useMemo(() => getLast30DaysPeriod(), [])
 
   const teachersQuery = useQuery({
-    queryKey: [
-      "teachers",
-      page,
-      limit,
-      typeFilter,
-      statusFilter,
-      subjectFilter,
-      search,
-    ],
+    queryKey: ["teachers", typeFilter, statusFilter, subjectFilter],
     queryFn: () =>
       getTeachers({
-        page,
-        limit,
+        page: 1,
+        limit: 100,
         type: typeFilter,
         is_active: statusFilter === "all" ? "all" : statusFilter === "active",
         subject: subjectFilter.trim() || undefined,
-        search: search.trim() || undefined,
       }),
   })
 
   const teachers = teachersQuery.data?.data ?? []
-  const pagination = teachersQuery.data?.pagination
 
   const statsQueries = useQueries({
     queries: teachers.map((teacher) => ({
@@ -223,10 +216,23 @@ export default function TeachersPage() {
     },
   })
 
-  const columns = useMemo<ColumnDef<TeacherListItem>[]>(
+  const tableData = useMemo<TeacherTableRow[]>(
+    () =>
+      teachers.map((teacher) => ({
+        ...teacher,
+        attendanceRate: statsMap[teacher.id]?.attendanceRate ?? null,
+        hoursWorked: statsMap[teacher.id]?.hoursWorked ?? null,
+        amountDue: statsMap[teacher.id]?.amountDue ?? null,
+      })),
+    [statsMap, teachers]
+  )
+
+  const columns = useMemo<ColumnDef<TeacherTableRow>[]>(
     () => [
       {
+        accessorKey: "fullName",
         header: "Nom",
+        enableSorting: true,
         cell: ({ row }) => {
           const teacher = row.original
           return (
@@ -238,7 +244,9 @@ export default function TeachersPage() {
         },
       },
       {
+        accessorKey: "type",
         header: "Type",
+        enableSorting: true,
         cell: ({ row }) => (
           <Badge variant="outline">
             {row.original.type === "vacataire" ? "Vacataire" : "Permanent"}
@@ -246,28 +254,35 @@ export default function TeachersPage() {
         ),
       },
       {
+        id: "subjects",
+        accessorFn: (row) => row.subjects.join(", "),
         header: "Matières",
+        enableSorting: true,
         cell: ({ row }) => (
           <p className="max-w-[240px] text-sm text-muted-foreground">{row.original.subjects.join(", ")}</p>
         ),
       },
       {
+        id: "attendanceRate",
+        accessorFn: (row) => row.attendanceRate ?? -1,
         header: "Taux présence 30j",
         cell: ({ row }) => {
-          const stats = statsMap[row.original.id]
-          if (!stats) {
+          const attendanceRate = row.original.attendanceRate
+          if (attendanceRate === null) {
             return <Skeleton className="h-6 w-16" />
           }
 
           return (
-            <Badge variant="outline" className={getPresenceBadgeClass(stats.attendanceRate)}>
-              {stats.attendanceRate.toFixed(0)}%
+            <Badge variant="outline" className={getPresenceBadgeClass(attendanceRate)}>
+              {attendanceRate.toFixed(0)}%
             </Badge>
           )
         },
       },
       {
+        accessorKey: "isActive",
         header: "Statut",
+        enableSorting: true,
         cell: ({ row }) => (
           <Badge
             variant="outline"
@@ -285,7 +300,6 @@ export default function TeachersPage() {
         header: "Actions",
         cell: ({ row }) => {
           const teacher = row.original
-          const stats = statsMap[teacher.id]
 
           return (
             <div className="flex flex-wrap gap-2">
@@ -310,9 +324,9 @@ export default function TeachersPage() {
                   Exporter les heures
                 </Button>
               ) : null}
-              {teacher.type === "vacataire" && stats ? (
+              {teacher.type === "vacataire" && teacher.hoursWorked !== null && teacher.amountDue !== null ? (
                 <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
-                  {stats.hoursWorked.toFixed(1)}h · {formatCurrency(stats.amountDue)}
+                  {teacher.hoursWorked.toFixed(1)}h · {formatCurrency(teacher.amountDue)}
                 </Badge>
               ) : null}
             </div>
@@ -320,15 +334,8 @@ export default function TeachersPage() {
         },
       },
     ],
-    [statsMap]
+    []
   )
-
-  // eslint-disable-next-line react-hooks/incompatible-library -- useReactTable est la source d'état officielle de TanStack Table
-  const table = useReactTable({
-    data: teachers,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-  })
 
   if (!user) {
     return null
@@ -356,26 +363,10 @@ export default function TeachersPage() {
       }
     >
       <div className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-        <div className="grid gap-3 md:grid-cols-4">
-          <div className="relative">
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-9"
-              value={search}
-              onChange={(event) => {
-                setPage(1)
-                setSearch(event.target.value)
-              }}
-              placeholder="Rechercher un professeur"
-            />
-          </div>
-
+        <div className="grid gap-3 md:grid-cols-3">
           <Select
             value={typeFilter}
-            onValueChange={(value: "all" | "vacataire" | "permanent") => {
-              setPage(1)
-              setTypeFilter(value)
-            }}
+            onValueChange={(value: "all" | "vacataire" | "permanent") => setTypeFilter(value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="Type" />
@@ -389,10 +380,7 @@ export default function TeachersPage() {
 
           <Select
             value={statusFilter}
-            onValueChange={(value: "all" | "active" | "inactive") => {
-              setPage(1)
-              setStatusFilter(value)
-            }}
+            onValueChange={(value: "all" | "active" | "inactive") => setStatusFilter(value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="Statut" />
@@ -409,23 +397,12 @@ export default function TeachersPage() {
             <Input
               className="pl-9"
               value={subjectFilter}
-              onChange={(event) => {
-                setPage(1)
-                setSubjectFilter(event.target.value)
-              }}
+              onChange={(event) => setSubjectFilter(event.target.value)}
               placeholder="Filtrer par matière"
             />
           </div>
         </div>
       </div>
-
-      {teachersQuery.isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 6 }).map((_, index) => (
-            <Skeleton key={index} className="h-12 w-full" />
-          ))}
-        </div>
-      ) : null}
 
       {teachersQuery.isError ? (
         <Alert variant="destructive">
@@ -435,67 +412,44 @@ export default function TeachersPage() {
         </Alert>
       ) : null}
 
-      {!teachersQuery.isLoading && !teachersQuery.isError && teachers.length === 0 ? (
-        <EmptyState
-          title="Aucun professeur"
-          description="Ajoutez un professeur ou ajustez les filtres pour afficher des résultats."
-          action={{ label: "Ajouter un prof", onClick: () => setCreateOpen(true) }}
-        />
-      ) : null}
 
-      {!teachersQuery.isLoading && !teachersQuery.isError && teachers.length > 0 ? (
-        <div className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(header.column.columnDef.header, header.getContext())}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">
-              Page {pagination?.page ?? page} / {Math.max(1, pagination?.totalPages ?? 1)} · {pagination?.total ?? 0} prof(s)
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={(pagination?.page ?? page) <= 1}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-              >
-                Précédent
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={(pagination?.page ?? page) >= Math.max(1, pagination?.totalPages ?? 1)}
-                onClick={() => setPage((current) => current + 1)}
-              >
-                Suivant
-              </Button>
+      {!teachersQuery.isError ? (
+        <DataTable
+          columns={columns}
+          data={tableData}
+          isLoading={teachersQuery.isLoading}
+          searchKey="fullName"
+          searchPlaceholder="Rechercher un professeur"
+          pageSize={20}
+          emptyState={
+            <EmptyState
+              icon={<AppIcon icon={TeachersIcon} size="md" className="text-muted-foreground" />}
+              title="Aucun professeur"
+              message="Ajoutez un professeur ou ajustez les filtres pour afficher des résultats."
+              action={{ label: "Ajouter un prof", onClick: () => setCreateOpen(true) }}
+            />
+          }
+          mobileCard={(teacher) => (
+            <div className="flex items-center gap-3 rounded-xl border bg-card p-4 shadow-sm">
+              <Avatar className="h-10 w-10 flex-shrink-0">
+                <AvatarFallback className="text-sm">{getInitials(teacher.fullName)}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{teacher.fullName}</p>
+                <p className="truncate text-xs text-muted-foreground">{teacher.subjects.join(", ")}</p>
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <Badge variant={teacher.isActive ? "secondary" : "destructive"} className="text-xs">
+                  {teacher.isActive ? "Actif" : "Inactif"}
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  {teacher.attendanceRate === null ? "--" : `${teacher.attendanceRate.toFixed(0)}%`}
+                </span>
+              </div>
+              <ChevronRightIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
             </div>
-          </div>
-        </div>
+          )}
+        />
       ) : null}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>

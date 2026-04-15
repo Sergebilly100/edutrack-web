@@ -1,6 +1,7 @@
 export { OfflineIndicator } from "./OfflineIndicator"
 export { Spinner } from "./Spinner"
 export { EmptyState, emptyStateIcons } from "./EmptyState"
+export { DataTable, DataTablePagination, DataTableSkeleton, DataTableToolbar } from "./DataTable"
 export { StatusBadge } from "./StatusBadge"
 export { PageLayout } from "./PageLayout"
 export { AppShell } from "./layout/AppShell"
