@@ -1,8 +1,7 @@
-import { Moon, Sun } from "lucide-react"
-
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { MoonIcon, SunIcon } from "@/shared/components/icons"
 import { useTheme } from "@/shared/hooks/useTheme"
 import type { Theme } from "@/shared/providers/ThemeProvider"
 
@@ -37,9 +36,9 @@ export function ThemeToggle({ className }: { className?: string }) {
           aria-label={`Basculer le thème (actuel: ${themeLabelMap[theme]}, prochain: ${themeLabelMap[nextTheme]})`}
         >
           {resolvedTheme === "dark" ? (
-            <Moon className="animate-in fade-in zoom-in-75 duration-150" />
+            <MoonIcon className="animate-in fade-in zoom-in-75 duration-150" />
           ) : (
-            <Sun className="animate-in fade-in zoom-in-75 duration-150" />
+            <SunIcon className="animate-in fade-in zoom-in-75 duration-150" />
           )}
         </Button>
       </TooltipTrigger>

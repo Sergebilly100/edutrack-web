@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { CheckCircle2, WifiOff } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { OfflineIcon, OnlineIcon } from "@/shared/components/icons"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
 
 type ForceState = "auto" | "offline" | "recovered"
@@ -67,14 +67,14 @@ export function OfflineIndicator({ forceState = "auto" }: OfflineIndicatorProps)
     >
       {mode === "offline" ? (
         <div className="bg-amber-500 text-white text-sm font-medium py-2 px-4 flex items-center gap-2">
-          <WifiOff className="h-4 w-4" />
+          <OfflineIcon className="h-4 w-4" />
           <span>Hors ligne — vos actions sont sauvegardées localement</span>
         </div>
       ) : null}
 
       {mode === "recovered" ? (
         <div className="bg-green-600 text-white text-sm font-medium py-2 px-4 flex items-center gap-2">
-          <CheckCircle2 className="h-4 w-4" />
+          <OnlineIcon className="h-4 w-4" />
           <span>Connexion rétablie — synchronisation en cours...</span>
         </div>
       ) : null}

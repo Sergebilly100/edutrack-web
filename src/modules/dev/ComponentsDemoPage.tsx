@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { AlertCircle, CheckCircle2, Info, Users } from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -40,6 +39,7 @@ import {
   WeekCoverageAlert,
   emptyStateIcons
 } from "@/shared/components"
+import { ClassIcon, ErrorIcon, InfoIcon, PresentIcon } from "@/shared/components/icons"
 import type { SalaryRowPeriodSummary, SalaryRowTeacher } from "@/shared/components/SalaryRow"
 
 const touchFeedbackClass = "active:scale-95 transition-transform duration-100"
@@ -152,7 +152,7 @@ function PatternFetchState() {
     return (
       <div className="space-y-3">
         <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
+          <ErrorIcon className="h-4 w-4" />
           <AlertDescription>{error.message}</AlertDescription>
         </Alert>
         <div className="flex gap-2">
@@ -173,7 +173,7 @@ function PatternFetchState() {
     return (
       <div className="space-y-3">
         <EmptyState
-          icon={Users}
+          icon={ClassIcon}
           title="Aucun professeur"
           description="Importez via Excel ou ajoutez manuellement."
           action={{ label: "Ajouter", onClick: () => undefined }}
@@ -252,7 +252,7 @@ function PatternMutation() {
     <div className="space-y-3">
       {isSuccess ? (
         <div className="flex items-center gap-2 text-green-600 animate-in fade-in duration-300">
-          <CheckCircle2 className="h-5 w-5" />
+          <PresentIcon className="h-5 w-5" />
           <span className="font-medium">Enregistré !</span>
         </div>
       ) : (
@@ -387,7 +387,7 @@ export default function ComponentsDemoPage() {
           </div>
 
           <Alert>
-            <Info className="h-4 w-4" />
+            <InfoIcon className="h-4 w-4" />
             <AlertTitle>Information</AlertTitle>
             <AlertDescription>Exemple d’alerte standard.</AlertDescription>
           </Alert>
@@ -523,7 +523,7 @@ export default function ComponentsDemoPage() {
           </div>
 
           <Alert>
-            <Info className="h-4 w-4" />
+            <InfoIcon className="h-4 w-4" />
             <AlertDescription>
               Le composant <code>PageLayout</code> est utilisé comme layout global de cette page.
             </AlertDescription>

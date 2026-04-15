@@ -1,8 +1,7 @@
-import { AlertCircle, CheckCircle2, Clock3 } from "lucide-react"
-
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { DashboardSmsItem } from "@/modules/dashboard/dashboard.api"
+import { ErrorIcon, PresentIcon, TimeIcon } from "@/shared/components/icons"
 
 type AlertsListProps = {
   alerts: DashboardSmsItem[]
@@ -74,19 +73,19 @@ export default function AlertsList({ alerts }: AlertsListProps) {
 
         {limitedAlerts.length > 0 ? (
           <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-            <Clock3 className="h-3.5 w-3.5" />
+            <TimeIcon className="h-3.5 w-3.5" />
             Données limitées aux 5 dernières notifications
           </div>
         ) : (
           <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-            <AlertCircle className="h-3.5 w-3.5" />
+            <ErrorIcon className="h-3.5 w-3.5" />
             Aucun SMS envoyé pour le moment
           </div>
         )}
 
         {limitedAlerts.some((item) => item.status === "sent" || item.status === "delivered") ? (
           <div className="mt-2 flex items-center gap-2 text-xs text-green-700">
-            <CheckCircle2 className="h-3.5 w-3.5" />
+            <PresentIcon className="h-3.5 w-3.5" />
             Des notifications ont bien été envoyées aujourd'hui
           </div>
         ) : null}

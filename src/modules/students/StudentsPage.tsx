@@ -28,6 +28,7 @@ import {
   getTodayAbsences,
   listStudents,
 } from "@/modules/students/students.api"
+import { AddIcon, FilterIcon } from "@/shared/components/icons"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 const CLASS_TABS = [
@@ -319,6 +320,7 @@ export default function StudentsPage() {
                         onClick={() => setStudentModalOpen(true)}
                         disabled={!currentClassId}
                       >
+                        <AddIcon className="mr-2 h-4 w-4" />
                         Ajouter un élève
                       </Button>
                     </div>
@@ -356,6 +358,10 @@ export default function StudentsPage() {
         })}
 
         <TabsContent value="absences" className="space-y-4">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <FilterIcon className="h-4 w-4" />
+            Filtres d&apos;historique
+          </div>
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Classe</Label>

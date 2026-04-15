@@ -1,7 +1,6 @@
-import { CheckCircle2, Clock, XCircle } from "lucide-react"
-
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { AbsentIcon, LateIcon, PresentIcon } from "@/shared/components/icons"
 
 type StatusBadgeProps = {
   status: "present" | "absent" | "late"
@@ -12,17 +11,17 @@ const statusStyles = {
   present: {
     label: "Présent",
     className: "bg-green-100 text-green-700 border-green-200",
-    Icon: CheckCircle2
+    Icon: PresentIcon
   },
   absent: {
     label: "Absent",
     className: "bg-red-100 text-red-700 border-red-200",
-    Icon: XCircle
+    Icon: AbsentIcon
   },
   late: {
     label: "Retard",
     className: "bg-amber-100 text-amber-700 border-amber-200",
-    Icon: Clock
+    Icon: LateIcon
   }
 } as const
 

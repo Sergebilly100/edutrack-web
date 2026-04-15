@@ -1,5 +1,4 @@
 import { useMemo } from "react"
-import { LogOut, User } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { useQueryClient } from "@tanstack/react-query"
 
@@ -13,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { logout } from "@/modules/auth/auth.api"
 import { cn } from "@/lib/utils"
+import { LogoutIcon, UserIcon } from "@/shared/components/icons"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 interface UserMenuProps {
@@ -90,12 +90,12 @@ export function UserMenu({ collapsed = false }: UserMenuProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuItem onClick={() => navigate("/settings#account")}>
-          <User className="h-4 w-4" />
+          <UserIcon className="h-4 w-4" />
           <span>Mon compte</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleLogout}>
-          <LogOut className="h-4 w-4" />
+          <LogoutIcon className="h-4 w-4" />
           <span>Se déconnecter</span>
         </DropdownMenuItem>
       </DropdownMenuContent>

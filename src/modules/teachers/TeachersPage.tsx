@@ -48,6 +48,7 @@ import {
   type TeacherUpsertPayload,
 } from "@/modules/teachers/teachers.api"
 import { QRCodeGenerator } from "@/shared/components/QRCodeGenerator"
+import { AddIcon, FilterIcon, SearchIcon } from "@/shared/components/icons"
 import { EmptyState, PageLayout } from "@/shared/components"
 import { useAuthStore } from "@/shared/store/auth.store"
 
@@ -349,20 +350,25 @@ export default function TeachersPage() {
       subtitle="Gestion des profs, QR codes et export des heures"
       actions={
         <Button className="min-h-[44px]" onClick={() => setCreateOpen(true)}>
+          <AddIcon className="mr-2 h-4 w-4" />
           Ajouter un prof
         </Button>
       }
     >
       <div className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-sm">
         <div className="grid gap-3 md:grid-cols-4">
-          <Input
-            value={search}
-            onChange={(event) => {
-              setPage(1)
-              setSearch(event.target.value)
-            }}
-            placeholder="Rechercher un professeur"
-          />
+          <div className="relative">
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              value={search}
+              onChange={(event) => {
+                setPage(1)
+                setSearch(event.target.value)
+              }}
+              placeholder="Rechercher un professeur"
+            />
+          </div>
 
           <Select
             value={typeFilter}
@@ -398,14 +404,18 @@ export default function TeachersPage() {
             </SelectContent>
           </Select>
 
-          <Input
-            value={subjectFilter}
-            onChange={(event) => {
-              setPage(1)
-              setSubjectFilter(event.target.value)
-            }}
-            placeholder="Filtrer par matière"
-          />
+          <div className="relative">
+            <FilterIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              value={subjectFilter}
+              onChange={(event) => {
+                setPage(1)
+                setSubjectFilter(event.target.value)
+              }}
+              placeholder="Filtrer par matière"
+            />
+          </div>
         </div>
       </div>
 

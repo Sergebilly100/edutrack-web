@@ -1,6 +1,5 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { CalendarClock, Download, FileSpreadsheet, Users, UserSquare2 } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -8,13 +7,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { downloadTemplate, type ImportType } from "@/modules/import-export/import-export.api"
 import { fetchImportHistory } from "@/modules/schedule/schedule.api"
+import {
+  CalendarClockIcon,
+  ClassIcon,
+  DownloadIcon,
+  SpreadsheetIcon,
+  TeacherIdentityIcon,
+} from "@/shared/components/icons"
 import ImportWizard from "./ImportWizard"
 
 type TemplateItem = {
   type: ImportType
   label: string
   description: string
-  icon: typeof Users
+  icon: typeof ClassIcon
 }
 
 const TEMPLATE_ITEMS: TemplateItem[] = [
@@ -22,19 +28,19 @@ const TEMPLATE_ITEMS: TemplateItem[] = [
     type: "students",
     label: "Modèle élèves",
     description: "Classes, identité et contacts parent",
-    icon: Users
+    icon: ClassIcon
   },
   {
     type: "teachers",
     label: "Modèle professeurs",
     description: "Type, matières et taux horaire",
-    icon: UserSquare2
+    icon: TeacherIdentityIcon
   },
   {
     type: "schedule",
     label: "Modèle emploi du temps",
     description: "Jour, créneau, professeur, classe, salle",
-    icon: FileSpreadsheet
+    icon: SpreadsheetIcon
   }
 ]
 
@@ -116,7 +122,7 @@ export default function ImportPage() {
                     <p className="text-xs text-muted-foreground">{item.description}</p>
                   </div>
                   <span className="inline-flex items-center text-xs">
-                    <Download className="mr-1 h-3 w-3" />
+                    <DownloadIcon className="mr-1 h-3 w-3" />
                     {downloadingType === item.type ? "Chargement..." : "Télécharger"}
                   </span>
                 </Button>
@@ -131,7 +137,7 @@ export default function ImportPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CalendarClock className="h-5 w-5" />
+            <CalendarClockIcon className="h-5 w-5" />
             Historique des imports
           </CardTitle>
           <CardDescription>Dernières opérations d’import confirmées.</CardDescription>

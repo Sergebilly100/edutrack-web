@@ -1,14 +1,5 @@
 import { useMemo, useRef, useState } from "react"
 import { isAxiosError } from "axios"
-import {
-  CalendarDays,
-  Download,
-  FileSpreadsheet,
-  GraduationCap,
-  TriangleAlert,
-  UserSquare2,
-  UploadCloud
-} from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -19,6 +10,15 @@ import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { useConfirmImport, useDryRun } from "@/modules/import/import.hooks"
 import { downloadTemplate, type ImportIssue, type ImportType } from "./import-export.api"
+import {
+  DownloadIcon,
+  ScheduleIcon,
+  SpreadsheetIcon,
+  StudentsIcon,
+  TeacherIdentityIcon,
+  UploadCloudIcon,
+  WarningIcon,
+} from "@/shared/components/icons"
 import { Spinner } from "@/shared/components"
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
@@ -31,7 +31,7 @@ type ImportTypeOption = {
   type: ImportType
   label: string
   description: string
-  icon: typeof GraduationCap
+  icon: typeof StudentsIcon
 }
 
 const importTypeOptions: ImportTypeOption[] = [
@@ -39,19 +39,19 @@ const importTypeOptions: ImportTypeOption[] = [
     type: "students",
     label: "Élèves",
     description: "Importer les élèves avec classe et contact parent.",
-    icon: GraduationCap
+    icon: StudentsIcon
   },
   {
     type: "teachers",
     label: "Professeurs",
     description: "Importer les enseignants, matières et type de contrat.",
-    icon: UserSquare2
+    icon: TeacherIdentityIcon
   },
   {
     type: "schedule",
     label: "Emploi du temps",
     description: "Importer les créneaux, classes, salles et matières.",
-    icon: CalendarDays
+    icon: ScheduleIcon
   }
 ]
 
@@ -265,7 +265,7 @@ export default function ImportWizard() {
       <CardContent className="space-y-6">
         {templateError ? (
           <Alert variant="destructive">
-            <TriangleAlert className="h-4 w-4" />
+            <WarningIcon className="h-4 w-4" />
             <AlertTitle>Action impossible</AlertTitle>
             <AlertDescription>{templateError}</AlertDescription>
           </Alert>
@@ -313,7 +313,7 @@ export default function ImportWizard() {
               {isDownloadingTemplate ? (
                 <Spinner size="sm" className="mr-2" />
               ) : (
-                <Download className="mr-2 h-4 w-4" />
+                <DownloadIcon className="mr-2 h-4 w-4" />
               )}
               📥 Télécharger le modèle Excel
             </Button>
@@ -335,7 +335,7 @@ export default function ImportWizard() {
                 isDragging ? "border-primary bg-primary/5" : "border-border"
               )}
             >
-              <UploadCloud className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
+              <UploadCloudIcon className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
               <p className="text-sm font-medium">Glissez-déposez votre fichier .xlsx ici</p>
               <p className="mb-4 text-xs text-muted-foreground">Taille maximale: 5Mo</p>
 
@@ -397,7 +397,7 @@ export default function ImportWizard() {
 
             {validationError ? (
               <Alert variant="destructive">
-                <TriangleAlert className="h-4 w-4" />
+                <WarningIcon className="h-4 w-4" />
                 <AlertDescription>{validationError}</AlertDescription>
               </Alert>
             ) : null}
@@ -424,7 +424,7 @@ export default function ImportWizard() {
 
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+                    <SpreadsheetIcon className="h-4 w-4 text-muted-foreground" />
                     <p className="text-sm font-medium">Aperçu des 5 premières lignes</p>
                   </div>
 
@@ -491,7 +491,7 @@ export default function ImportWizard() {
 
             {importError ? (
               <Alert variant="destructive">
-                <TriangleAlert className="h-4 w-4" />
+                <WarningIcon className="h-4 w-4" />
                 <AlertDescription>{importError}</AlertDescription>
               </Alert>
             ) : null}

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, BookOpenText, CalendarDays, CheckCircle2, RefreshCw, XCircle } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -25,6 +24,14 @@ import AlertsList from "@/modules/dashboard/components/AlertsList"
 import PresenceChart from "@/modules/dashboard/components/PresenceChart"
 import QRAlertsList from "@/modules/dashboard/components/QRAlertsList"
 import { AlertBanner } from "@/shared/components/AlertBanner"
+import {
+  AbsentIcon,
+  PresentIcon,
+  RefreshIcon,
+  ScheduleIcon,
+  SubjectIcon,
+  WarningIcon,
+} from "@/shared/components/icons"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { StatCard } from "@/shared/components/StatCard"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
@@ -269,7 +276,7 @@ export default function DashboardPage() {
                 qrAlertsQuery.isFetching
               }
             >
-              <RefreshCw
+              <RefreshIcon
                 className={`mr-2 h-4 w-4 ${(todayQuery.isFetching || historyQuery.isFetching || smsQuery.isFetching || qrAlertsQuery.isFetching) ? "animate-spin" : ""}`}
               />
               Actualiser
@@ -311,7 +318,7 @@ export default function DashboardPage() {
             title="Cours du jour"
             value={todayQuery.data?.courses.length ?? 0}
             subtitle="Créneaux planifiés"
-            icon={<BookOpenText className="h-4 w-4" />}
+            icon={<SubjectIcon className="h-4 w-4" />}
             variant="default"
             loading={todayQuery.isFetching && !todayQuery.data}
           />
@@ -319,7 +326,7 @@ export default function DashboardPage() {
             title="Présents"
             value={todayQuery.data?.presentCount ?? 0}
             subtitle="Pointages confirmés"
-            icon={<CheckCircle2 className="h-4 w-4" />}
+            icon={<PresentIcon className="h-4 w-4" />}
             variant="success"
             loading={todayQuery.isFetching && !todayQuery.data}
           />
@@ -327,7 +334,7 @@ export default function DashboardPage() {
             title="Non pointés"
             value={todayQuery.data?.unmarkedCount ?? 0}
             subtitle="À vérifier"
-            icon={<AlertTriangle className="h-4 w-4" />}
+            icon={<WarningIcon className="h-4 w-4" />}
             variant="warning"
             loading={todayQuery.isFetching && !todayQuery.data}
           />
@@ -335,7 +342,7 @@ export default function DashboardPage() {
             title="Absents"
             value={todayQuery.data?.absentCount ?? 0}
             subtitle="Signalements du jour"
-            icon={<XCircle className="h-4 w-4" />}
+            icon={<AbsentIcon className="h-4 w-4" />}
             variant="danger"
             loading={todayQuery.isFetching && !todayQuery.data}
           />
@@ -371,7 +378,7 @@ export default function DashboardPage() {
                         </div>
 
                         <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                          <CalendarDays className="h-3.5 w-3.5" />
+                          <ScheduleIcon className="h-3.5 w-3.5" />
                           <span>
                             {formatHour(course.startTime)} - {formatHour(course.endTime)}
                           </span>

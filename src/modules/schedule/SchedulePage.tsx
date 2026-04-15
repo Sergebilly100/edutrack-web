@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Navigate } from "react-router-dom"
-import { CalendarDays, Pencil, Plus, Trash2 } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -26,6 +25,7 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
+import { AddIcon, DeleteIcon, EditIcon, ScheduleIcon } from "@/shared/components/icons"
 import { useAuthStore, type AuthRole } from "@/shared/store/auth.store"
 import {
   createScheduleSlot,
@@ -397,7 +397,7 @@ export default function SchedulePage() {
 
           {canManage ? (
             <Button onClick={openCreateModal} disabled={!data?.period}>
-              <Plus className="mr-2 h-4 w-4" />
+              <AddIcon className="mr-2 h-4 w-4" />
               Ajouter un créneau
             </Button>
           ) : (
@@ -429,7 +429,7 @@ export default function SchedulePage() {
           <Card className="hidden md:block">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <CalendarDays className="h-5 w-5" />
+                <ScheduleIcon className="h-5 w-5" />
                 Vue hebdomadaire
               </CardTitle>
               <CardDescription>
@@ -559,11 +559,11 @@ export default function SchedulePage() {
                 onClick={() => void deleteMutation.mutateAsync(selectedSchedule.id)}
                 disabled={deleteMutation.isPending}
               >
-                <Trash2 className="mr-2 h-4 w-4" />
+                <DeleteIcon className="mr-2 h-4 w-4" />
                 Supprimer
               </Button>
               <Button variant="outline" onClick={() => openEditModal(selectedSchedule)}>
-                <Pencil className="mr-2 h-4 w-4" />
+                <EditIcon className="mr-2 h-4 w-4" />
                 Modifier
               </Button>
             </DialogFooter>
