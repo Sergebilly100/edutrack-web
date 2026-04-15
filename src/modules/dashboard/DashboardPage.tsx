@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { CalendarDays, RefreshCw } from "lucide-react"
+import { AlertTriangle, BookOpenText, CalendarDays, CheckCircle2, RefreshCw, XCircle } from "lucide-react"
 
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,10 +22,11 @@ import {
   type DashboardCourseItem,
 } from "@/modules/dashboard/dashboard.api"
 import AlertsList from "@/modules/dashboard/components/AlertsList"
-import AttendanceSummaryCard from "@/modules/dashboard/components/AttendanceSummaryCard"
 import PresenceChart from "@/modules/dashboard/components/PresenceChart"
 import QRAlertsList from "@/modules/dashboard/components/QRAlertsList"
+import { AlertBanner } from "@/shared/components/AlertBanner"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
+import { StatCard } from "@/shared/components/StatCard"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
 import { useTenant } from "@/shared/hooks/useTenant"
 
@@ -247,7 +247,7 @@ export default function DashboardPage() {
     <>
       <OfflineIndicator />
 
-      <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
+      <div className="space-y-6 animate-fade-in">
         <header className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1">
@@ -277,25 +277,68 @@ export default function DashboardPage() {
           </div>
 
           {cacheAgeLabel ? (
-            <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
-              {cacheAgeLabel}
-            </Badge>
+            <AlertBanner
+              type="warning"
+              title="Mode hors ligne"
+              message={cacheAgeLabel}
+            />
           ) : null}
         </header>
 
-        {todayQuery.isError || historyQuery.isError || smsQuery.isError || qrAlertsQuery.isError ? (
-          <Alert variant="destructive">
-            <AlertDescription>
-              Certaines données du dashboard n'ont pas pu être chargées. Réessayez avec le bouton
-              "Actualiser".
-            </AlertDescription>
-          </Alert>
-        ) : null}
+        <section className="space-y-3">
+          {todayQuery.isError || historyQuery.isError || smsQuery.isError || qrAlertsQuery.isError ? (
+            <AlertBanner
+              type="error"
+              title="Erreur de chargement"
+              message="Certaines données du dashboard n'ont pas pu être chargées. Réessayez avec le bouton Actualiser."
+            />
+          ) : null}
+          {unreadTodayQrCount > 0 ? (
+            <AlertBanner
+              type="info"
+              title="Alertes QR en attente"
+              message={`${unreadTodayQrCount} alerte(s) QR non lue(s) aujourd'hui.`}
+              action={{
+                label: "Voir les alertes",
+                onClick: () => setNotificationsTab("qr"),
+              }}
+            />
+          ) : null}
+        </section>
 
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <AttendanceSummaryCard label="✓ Présents" value={todayQuery.data?.presentCount ?? 0} tone="present" />
-          <AttendanceSummaryCard label="✗ Absents" value={todayQuery.data?.absentCount ?? 0} tone="absent" />
-          <AttendanceSummaryCard label="⏳ Non pointés" value={todayQuery.data?.unmarkedCount ?? 0} tone="unmarked" />
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            title="Cours du jour"
+            value={todayQuery.data?.courses.length ?? 0}
+            subtitle="Créneaux planifiés"
+            icon={<BookOpenText className="h-4 w-4" />}
+            variant="default"
+            loading={todayQuery.isFetching && !todayQuery.data}
+          />
+          <StatCard
+            title="Présents"
+            value={todayQuery.data?.presentCount ?? 0}
+            subtitle="Pointages confirmés"
+            icon={<CheckCircle2 className="h-4 w-4" />}
+            variant="success"
+            loading={todayQuery.isFetching && !todayQuery.data}
+          />
+          <StatCard
+            title="Non pointés"
+            value={todayQuery.data?.unmarkedCount ?? 0}
+            subtitle="À vérifier"
+            icon={<AlertTriangle className="h-4 w-4" />}
+            variant="warning"
+            loading={todayQuery.isFetching && !todayQuery.data}
+          />
+          <StatCard
+            title="Absents"
+            value={todayQuery.data?.absentCount ?? 0}
+            subtitle="Signalements du jour"
+            icon={<XCircle className="h-4 w-4" />}
+            variant="danger"
+            loading={todayQuery.isFetching && !todayQuery.data}
+          />
         </section>
 
         <section className="grid grid-cols-1 gap-6 md:grid-cols-2">

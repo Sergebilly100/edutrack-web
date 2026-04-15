@@ -6,8 +6,16 @@
     <meta name="theme-color" content="#3b82f6" />
     <link rel="manifest" href="/manifest.json" />
     <title>EduTrack CI</title>
-    <script type="module" crossorigin src="/assets/index-B0kCtsYj.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-Dg-o7bcM.css">
+    <script>
+      (function () {
+        const stored = localStorage.getItem("edutrack-theme") || "system";
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const dark = stored === "dark" || (stored === "system" && prefersDark);
+        if (dark) document.documentElement.classList.add("dark");
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-hDsahZTR.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BPUyXfi8.css">
   <link rel="manifest" href="/manifest.webmanifest"></head>
   <body>
     <div id="root"></div>

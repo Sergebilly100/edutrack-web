@@ -138,7 +138,7 @@ describe("DashboardPage", () => {
 
     expect(await screen.findByText("Tableau de bord")).toBeInTheDocument()
     expect(screen.getByText("École Sainte Marie")).toBeInTheDocument()
-    expect(screen.getByText("✓ Présents")).toBeInTheDocument()
+    expect(screen.getByText("Présents")).toBeInTheDocument()
     expect(screen.getByText("Maths")).toBeInTheDocument()
     expect(view.container.querySelector("section.md\\:grid-cols-2")).toBeTruthy()
     expect(screen.getByText("Alertes QR")).toBeInTheDocument()
