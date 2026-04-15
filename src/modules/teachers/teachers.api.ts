@@ -12,6 +12,8 @@ export type TeacherListItem = {
   subjects: string[]
   hourlyRate: number | null
   isActive: boolean
+  isBlocked: boolean
+  blockReason: string | null
   username: string
 }
 
@@ -19,6 +21,37 @@ export type TeacherStats = {
   attendanceRate: number
   hoursWorked: number
   amountDue: number
+}
+
+export type TeacherMonthlyAttendanceStatus =
+  | "present"
+  | "absent"
+  | "late"
+  | "excused"
+  | "not_marked"
+
+export type TeacherMonthlyAttendanceRow = {
+  date: string
+  className: string
+  subject: string
+  slotLabel: string
+  startTime: string
+  endTime: string
+  attendanceStatus: TeacherMonthlyAttendanceStatus
+  lateMinutes: number | null
+}
+
+export type TeacherMonthlyAttendanceSummary = {
+  hoursPlanned: number
+  hoursDone: number
+  totalFcfa: number | null
+  status: string
+}
+
+export type TeacherMonthlyAttendanceDetails = {
+  month: string
+  summary: TeacherMonthlyAttendanceSummary
+  rows: TeacherMonthlyAttendanceRow[]
 }
 
 export type TeachersPagination = {
@@ -126,6 +159,14 @@ const mapTeacher = (value: unknown): TeacherListItem => {
   const rawName = toString(item.name)
   const firstNameFromPayload = toString(item.first_name) || toString(item.firstName)
   const lastNameFromPayload = toString(item.last_name) || toString(item.lastName)
+  const isActive = toBoolean(item.is_active ?? item.isActive, true)
+  const isBlocked =
+    typeof item.is_blocked === "boolean"
+      ? item.is_blocked
+      : typeof item.isBlocked === "boolean"
+        ? item.isBlocked
+        : !isActive
+  const blockReason = toNullableString(item.blocked_reason ?? item.blockReason)
 
   const fromName = splitName(rawName)
   const firstName = firstNameFromPayload || fromName.firstName || "Prof"
@@ -141,7 +182,9 @@ const mapTeacher = (value: unknown): TeacherListItem => {
     type: (toString(item.type) === "permanent" ? "permanent" : "vacataire") as TeacherType,
     subjects: normalizeSubjects(item.subjects ?? item.subject),
     hourlyRate: item.hourly_rate === null ? null : item.hourlyRate === null ? null : toNumber(item.hourly_rate ?? item.hourlyRate, 0),
-    isActive: toBoolean(item.is_active ?? item.isActive, true),
+    isActive,
+    isBlocked,
+    blockReason,
     username: toString(item.username),
   }
 }
@@ -212,6 +255,15 @@ export async function createTeacher(payload: TeacherUpsertPayload): Promise<Teac
   return mapTeacher(envelope.data ?? envelope)
 }
 
+export async function getTeacherById(teacherId: string): Promise<TeacherListItem> {
+  const response = await getTeachers({ page: 1, limit: 500 })
+  const teacher = response.data.find((item) => item.id === teacherId)
+  if (!teacher) {
+    throw new Error("TEACHER_NOT_FOUND")
+  }
+  return teacher
+}
+
 export async function updateTeacher(
   teacherId: string,
   payload: TeacherUpsertPayload
@@ -223,6 +275,18 @@ export async function updateTeacher(
     type: payload.type,
     subjects: payload.subjects,
     hourly_rate: payload.hourlyRate,
+  })
+
+  const envelope = toRecord(response.data)
+  return mapTeacher(envelope.data ?? envelope)
+}
+
+export async function setTeacherActiveStatus(
+  teacherId: string,
+  isActive: boolean
+): Promise<TeacherListItem> {
+  const response = await api.put(`/teachers/${teacherId}`, {
+    is_active: isActive,
   })
 
   const envelope = toRecord(response.data)
@@ -254,6 +318,57 @@ export async function getTeacherStats(
     attendanceRate: toNumber(data.attendanceRate ?? data.attendance_rate, 0),
     hoursWorked: toNumber(data.hoursWorked ?? data.hours_worked, 0),
     amountDue: toNumber(data.amountDue ?? data.amount_due, 0),
+  }
+}
+
+const toAttendanceStatus = (value: unknown): TeacherMonthlyAttendanceStatus => {
+  if (
+    value === "present" ||
+    value === "absent" ||
+    value === "late" ||
+    value === "excused" ||
+    value === "not_marked"
+  ) {
+    return value
+  }
+  return "not_marked"
+}
+
+export async function getTeacherMonthlyAttendance(
+  teacherId: string,
+  month: string
+): Promise<TeacherMonthlyAttendanceDetails> {
+  const response = await api.get(`/billing/salary/${teacherId}`, {
+    params: { month },
+  })
+
+  const payload = toRecord(response.data)
+  const summary = toRecord(payload.summary)
+  const rowsRaw = Array.isArray(payload.rows) ? payload.rows : []
+
+  const rows = rowsRaw.map((item): TeacherMonthlyAttendanceRow => {
+    const row = toRecord(item)
+    return {
+      date: toString(row.date),
+      className: toString(row.className, "--"),
+      subject: toString(row.subject, "--"),
+      slotLabel: toString(row.slotLabel, "--"),
+      startTime: toString(row.startTime, "--"),
+      endTime: toString(row.endTime, "--"),
+      attendanceStatus: toAttendanceStatus(row.attendanceStatus),
+      lateMinutes: row.lateMinutes === null ? null : toNumber(row.lateMinutes, 0),
+    }
+  })
+
+  return {
+    month: toString(payload.month, month),
+    summary: {
+      hoursPlanned: toNumber(summary.hoursPlanned, 0),
+      hoursDone: toNumber(summary.hoursDone, 0),
+      totalFcfa: summary.totalFcfa === null ? null : toNumber(summary.totalFcfa, 0),
+      status: toString(summary.status, "pending"),
+    },
+    rows,
   }
 }
 

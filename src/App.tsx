@@ -9,6 +9,7 @@ import ImportPage from "@/modules/import-export/ImportPage"
 import OnboardingWizard from "@/modules/onboarding/OnboardingWizard"
 import SchedulePage from "@/modules/schedule/SchedulePage"
 import StudentsPage from "@/modules/students/StudentsPage"
+import TeacherDetailPage from "@/modules/teachers/TeacherDetailPage"
 import TeachersPage from "@/modules/teachers/TeachersPage"
 import { AppShell } from "@/shared/components/layout/AppShell"
 import { useAutoSync } from "@/shared/hooks/useAutoSync"
@@ -89,6 +90,7 @@ export default function App() {
         <Route path="/onboarding" element={<OnboardingWizard />} />
         <Route path="/schedule" element={<SchedulePage />} />
         <Route path="/teachers" element={<TeachersPage />} />
+        <Route path="/teachers/:teacherId" element={<TeacherDetailPage />} />
         <Route path="/students" element={<StudentsPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/import" element={<ImportPage />} />

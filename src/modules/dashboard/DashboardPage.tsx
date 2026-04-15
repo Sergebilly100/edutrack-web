@@ -1,43 +1,41 @@
-import { useEffect, useMemo, useState } from "react"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMemo, useRef } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { Bell, CheckCircle2, ChevronRight, GraduationCap, Users, Wallet } from "lucide-react"
+import { Link, useNavigate } from "react-router-dom"
 
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Separator } from "@/components/ui/separator"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { fetchSchoolInfo } from "@/modules/onboarding/onboarding.api"
 import {
   getAttendanceHistory,
-  getQRAlerts,
-  getSMSLog,
+  getCurrentMonthKey,
+  getDashboardCounts,
+  getNextWeekCoverageState,
+  getPreviousMonthKey,
+  getSalarySummary,
+  getTeacherTrendFromSummaries,
   getTodayAttendance,
+  getTopRiskTeachers,
+  getTotalPendingSalaries,
   type DashboardCourseItem,
 } from "@/modules/dashboard/dashboard.api"
-import AlertsList from "@/modules/dashboard/components/AlertsList"
-import PresenceChart from "@/modules/dashboard/components/PresenceChart"
-import QRAlertsList from "@/modules/dashboard/components/QRAlertsList"
 import { AlertBanner } from "@/shared/components/AlertBanner"
-import {
-  AbsentIcon,
-  PresentIcon,
-  RefreshIcon,
-  ScheduleIcon,
-  SubjectIcon,
-  WarningIcon,
-} from "@/shared/components/icons"
+import { EmptyState, emptyStateIcons } from "@/shared/components/EmptyState"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
+import { SalaryRow } from "@/shared/components/SalaryRow"
+import type { SalaryStatus } from "@/shared/components/SalaryRow"
 import { StatCard } from "@/shared/components/StatCard"
-import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
-import { useTenant } from "@/shared/hooks/useTenant"
+import { WeekCoverageAlert } from "@/shared/components/WeekCoverageAlert"
+import { useAuthStore } from "@/shared/store/auth.store"
 
-const formatDay = (value: Date) =>
+const QUERY_STALE_TIME = 60_000
+const TODAY_REFETCH_INTERVAL = 120_000
+
+const formatToday = (value: Date) =>
   value.toLocaleDateString("fr-FR", {
     weekday: "long",
     day: "2-digit",
@@ -45,7 +43,7 @@ const formatDay = (value: Date) =>
     year: "numeric",
   })
 
-const formatHour = (value: string) => {
+const formatHours = (value: string): string => {
   if (!value) {
     return "--:--"
   }
@@ -65,181 +63,235 @@ const formatHour = (value: string) => {
   })
 }
 
-const formatMinutesAgo = (timestamp: number) => {
-  const elapsedMs = Date.now() - timestamp
-  const elapsedMinutes = Math.max(1, Math.floor(elapsedMs / 60000))
-  return `${elapsedMinutes} min`
+const formatFcfa = (amount: number): string => `${new Intl.NumberFormat("fr-FR").format(amount)} FCFA`
+
+const courseStatusMeta: Record<string, { label: string; className: string }> = {
+  present: {
+    label: "Présent",
+    className: "border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/40 dark:text-green-200",
+  },
+  late: {
+    label: "Retard",
+    className: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200",
+  },
+  absent: {
+    label: "Absent",
+    className: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200",
+  },
+  default: {
+    label: "En attente",
+    className: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200",
+  },
 }
 
-const statusBadgeMeta: Record<string, { label: string; className: string }> = {
-  present: { label: "Présent", className: "bg-green-100 text-green-700 border-green-200" },
-  late: { label: "Retard", className: "bg-amber-100 text-amber-700 border-amber-200" },
-  absent: { label: "Absent", className: "bg-red-100 text-red-700 border-red-200" },
-  excused: { label: "Excusé", className: "bg-slate-100 text-slate-700 border-slate-200" },
-  default: { label: "Non pointé", className: "bg-slate-100 text-slate-700 border-slate-200" },
+const getInitials = (name: string): string => {
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+
+  if (parts.length === 0) {
+    return "?"
+  }
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase()
+  }
+
+  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase()
 }
 
-const QR_ALERT_READ_STORAGE_KEY = "dashboard_qr_alert_read_ids"
-
-const parseReadIds = (raw: string | null): Record<string, boolean> => {
-  if (!raw) {
-    return {}
+const toSalaryStatus = (value: string): SalaryStatus | null => {
+  if (value === "pending" || value === "paid" || value === "disputed") {
+    return value
   }
 
-  try {
-    const parsed = JSON.parse(raw)
-    if (typeof parsed !== "object" || parsed === null) {
-      return {}
-    }
-
-    const entries = Object.entries(parsed).filter((entry) => entry[1] === true)
-    return Object.fromEntries(entries) as Record<string, boolean>
-  } catch {
-    return {}
-  }
+  return null
 }
 
 function DashboardSkeleton() {
   return (
-    <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
+    <div className="space-y-6">
       <div className="space-y-2">
-        <div className="h-6 w-44 animate-pulse rounded bg-muted" />
-        <div className="h-4 w-56 animate-pulse rounded bg-muted" />
+        <Skeleton className="h-8 w-60" />
+        <Skeleton className="h-4 w-72" />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, index) => (
-          <div key={index} className="h-28 animate-pulse rounded-lg border bg-muted/50" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Skeleton key={index} className="h-36 rounded-xl" />
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <div className="space-y-3 rounded-lg border p-4">
-          <div className="h-5 w-40 animate-pulse rounded bg-muted" />
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="h-16 animate-pulse rounded-md bg-muted/60" />
-          ))}
-        </div>
+      <Skeleton className="h-60 rounded-xl" />
+      <Skeleton className="h-72 rounded-xl" />
+      <Skeleton className="h-72 rounded-xl" />
+    </div>
+  )
+}
 
-        <div className="space-y-3 rounded-lg border p-4">
-          <div className="h-5 w-40 animate-pulse rounded bg-muted" />
-          {Array.from({ length: 5 }).map((_, index) => (
-            <div key={index} className="h-14 animate-pulse rounded-md bg-muted/60" />
-          ))}
-        </div>
-      </div>
+function TodayPresenceList({ courses }: { courses: DashboardCourseItem[] }) {
+  if (courses.length === 0) {
+    return (
+      <EmptyState
+        icon={emptyStateIcons.noCourses}
+        title="Aucun créneau aujourd'hui"
+        message="Aucun cours n'est planifié pour la journée en cours."
+      />
+    )
+  }
 
-      <div className="h-72 animate-pulse rounded-lg border bg-muted/50" />
+  return (
+    <div className="space-y-2">
+      {courses.map((course) => {
+        const status = courseStatusMeta[course.status ?? "default"] ?? courseStatusMeta.default
+        return (
+          <div
+            key={course.id}
+            className="animate-fade-in rounded-lg border border-border p-3 transition hover:bg-muted/40"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{course.teacherName}</p>
+                <p className="truncate text-sm text-muted-foreground">{course.subject} • {course.className}</p>
+              </div>
+              <Badge variant="outline" className={status.className}>
+                {status.label}
+              </Badge>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {formatHours(course.startTime)} - {formatHours(course.endTime)} • {course.roomName}
+            </p>
+          </div>
+        )
+      })}
     </div>
   )
 }
 
 export default function DashboardPage() {
-  const queryClient = useQueryClient()
-  const tenant = useTenant()
-  const { isOnline } = useNetworkStatus()
-  const [selectedCourse, setSelectedCourse] = useState<DashboardCourseItem | null>(null)
-  const [notificationsTab, setNotificationsTab] = useState<"sms" | "qr">("sms")
-  const [qrReadIds, setQrReadIds] = useState<Record<string, boolean>>({})
+  const navigate = useNavigate()
+  const user = useAuthStore((state) => state.user)
+  const currentMonth = useMemo(() => getCurrentMonthKey(new Date()), [])
+  const previousMonth = useMemo(() => getPreviousMonthKey(new Date()), [])
+  const alertsRef = useRef<HTMLDivElement | null>(null)
 
   const todayQuery = useQuery({
-    queryKey: ["dashboard", "today"],
+    queryKey: ["dashboard", "today-v3"],
     queryFn: getTodayAttendance,
-    refetchInterval: 2 * 60 * 1000,
+    staleTime: QUERY_STALE_TIME,
+    refetchInterval: TODAY_REFETCH_INTERVAL,
+  })
+
+  const countsQuery = useQuery({
+    queryKey: ["dashboard", "counts-v3"],
+    queryFn: getDashboardCounts,
+    staleTime: QUERY_STALE_TIME,
   })
 
   const historyQuery = useQuery({
-    queryKey: ["dashboard", "history", 7],
+    queryKey: ["dashboard", "history-v3", 7],
     queryFn: () => getAttendanceHistory(7),
-    staleTime: 5 * 60 * 1000,
+    staleTime: QUERY_STALE_TIME,
   })
 
-  const smsQuery = useQuery({
-    queryKey: ["dashboard", "sms", 10],
-    queryFn: () => getSMSLog(10),
+  const coverageQuery = useQuery({
+    queryKey: ["dashboard", "coverage-v3"],
+    queryFn: getNextWeekCoverageState,
+    staleTime: QUERY_STALE_TIME,
   })
 
-  const qrAlertsQuery = useQuery({
-    queryKey: ["dashboard", "qr-alerts", 20],
-    queryFn: () => getQRAlerts(20),
+  const salarySummaryQuery = useQuery({
+    queryKey: ["dashboard", "salary-summary-v3", currentMonth],
+    queryFn: () => getSalarySummary(currentMonth),
+    staleTime: QUERY_STALE_TIME,
+  })
+
+  const previousSalarySummaryQuery = useQuery({
+    queryKey: ["dashboard", "salary-summary-v3", previousMonth],
+    queryFn: () => getSalarySummary(previousMonth),
+    staleTime: QUERY_STALE_TIME,
+  })
+
+  const riskTeachersQuery = useQuery({
+    queryKey: ["dashboard", "risk-teachers-v3", currentMonth],
+    queryFn: () => getTopRiskTeachers(currentMonth),
+    staleTime: QUERY_STALE_TIME,
   })
 
   const schoolQuery = useQuery({
-    queryKey: ["school-info"],
+    queryKey: ["dashboard", "school-v3"],
     queryFn: fetchSchoolInfo,
+    staleTime: QUERY_STALE_TIME,
   })
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return
+  const isInitialLoading =
+    todayQuery.isLoading ||
+    countsQuery.isLoading ||
+    historyQuery.isLoading ||
+    coverageQuery.isLoading ||
+    salarySummaryQuery.isLoading ||
+    previousSalarySummaryQuery.isLoading ||
+    riskTeachersQuery.isLoading ||
+    schoolQuery.isLoading
+
+  const weeklyAbsenceCount = useMemo(() => {
+    return (historyQuery.data ?? []).reduce((acc, row) => acc + row.absentCount, 0)
+  }, [historyQuery.data])
+
+  const pendingSalaries = useMemo(() => {
+    if (!salarySummaryQuery.data) {
+      return { totalFcfa: 0, count: 0 }
     }
 
-    setQrReadIds(parseReadIds(window.localStorage.getItem(QR_ALERT_READ_STORAGE_KEY)))
-  }, [])
+    return getTotalPendingSalaries(salarySummaryQuery.data)
+  }, [salarySummaryQuery.data])
 
-  const markQrAlertAsRead = (id: string) => {
-    setQrReadIds((current) => {
-      if (current[id]) {
-        return current
-      }
+  const teacherTrend = useMemo(() => {
+    if (!salarySummaryQuery.data || !previousSalarySummaryQuery.data) {
+      return 0
+    }
 
-      const next = {
-        ...current,
-        [id]: true,
-      }
+    return getTeacherTrendFromSummaries(salarySummaryQuery.data, previousSalarySummaryQuery.data)
+  }, [salarySummaryQuery.data, previousSalarySummaryQuery.data])
 
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(QR_ALERT_READ_STORAGE_KEY, JSON.stringify(next))
-      }
+  const presentRate = useMemo(() => {
+    const presentCount = todayQuery.data?.presentCount ?? 0
+    const totalCount = (todayQuery.data?.courses ?? []).length
 
-      return next
-    })
-  }
+    if (totalCount === 0) {
+      return 0
+    }
 
-  const unreadTodayQrCount = useMemo(() => {
-    return (qrAlertsQuery.data ?? []).filter((alert) => alert.isToday && !qrReadIds[alert.id]).length
-  }, [qrAlertsQuery.data, qrReadIds])
+    return (presentCount / totalCount) * 100
+  }, [todayQuery.data])
 
-  const isInitialLoading =
-    todayQuery.isLoading || historyQuery.isLoading || smsQuery.isLoading || qrAlertsQuery.isLoading
+  const presenceVariant: "success" | "warning" | "danger" =
+    presentRate >= 90 ? "success" : presentRate >= 70 ? "warning" : "danger"
 
-  const hasAnyData =
-    Boolean(todayQuery.data) ||
-    Boolean(historyQuery.data?.length) ||
-    Boolean(smsQuery.data?.length) ||
-    Boolean(qrAlertsQuery.data?.length)
+  const salaryRows = useMemo(() => {
+    const items = salarySummaryQuery.data?.items ?? []
 
-  const lastUpdatedAt = useMemo(() => {
-    return Math.max(
-      todayQuery.dataUpdatedAt,
-      historyQuery.dataUpdatedAt,
-      smsQuery.dataUpdatedAt,
-      qrAlertsQuery.dataUpdatedAt
-    )
-  }, [
-    todayQuery.dataUpdatedAt,
-    historyQuery.dataUpdatedAt,
-    smsQuery.dataUpdatedAt,
-    qrAlertsQuery.dataUpdatedAt,
-  ])
+    return items
+      .map((item) => {
+        const status = toSalaryStatus(item.status)
+        if (!status) {
+          return null
+        }
 
-  const cacheAgeLabel =
-    !isOnline && hasAnyData && lastUpdatedAt > 0
-      ? `Données mises en cache il y a ${formatMinutesAgo(lastUpdatedAt)}`
-      : null
+        return {
+          ...item,
+          status,
+        }
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null)
+      .slice(0, 5)
+  }, [salarySummaryQuery.data])
 
-  const schoolName = schoolQuery.data?.name?.trim() || tenant.schemaName || "École"
+  const activeAlertsCount =
+    (coverageQuery.data?.nextWeekHasCoverage === false ? 1 : 0) + (weeklyAbsenceCount > 3 ? 1 : 0)
 
-  const refreshDashboard = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["dashboard", "today"] }),
-      queryClient.invalidateQueries({ queryKey: ["dashboard", "history"] }),
-      queryClient.invalidateQueries({ queryKey: ["dashboard", "sms"] }),
-      queryClient.invalidateQueries({ queryKey: ["dashboard", "qr-alerts"] }),
-    ])
-
-    await Promise.all([todayQuery.refetch(), historyQuery.refetch(), smsQuery.refetch(), qrAlertsQuery.refetch()])
-  }
+  const schoolName = schoolQuery.data?.name?.trim() || "École"
 
   if (isInitialLoading) {
     return (
@@ -255,209 +307,189 @@ export default function DashboardPage() {
       <OfflineIndicator />
 
       <div className="space-y-6 animate-fade-in">
-        <header className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <header className="sticky top-14 z-20 -mx-4 border-b bg-background/95 px-4 py-4 backdrop-blur md:top-0 md:-mx-6 md:px-6">
+          <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
-              <h1 className="text-2xl font-semibold tracking-tight">Tableau de bord</h1>
-              <p className="text-sm text-muted-foreground">{schoolName}</p>
-              <p className="text-sm text-muted-foreground capitalize">{formatDay(new Date())}</p>
+              <h1 className="text-2xl font-semibold tracking-tight">Bonjour, {user?.name ?? "Directeur"}</h1>
+              <p className="text-sm capitalize text-muted-foreground">{formatToday(new Date())}</p>
+              <Badge variant="outline" className="mt-1">{schoolName}</Badge>
             </div>
 
             <Button
               type="button"
               variant="outline"
-              onClick={() => {
-                void refreshDashboard()
-              }}
-              disabled={
-                todayQuery.isFetching ||
-                historyQuery.isFetching ||
-                smsQuery.isFetching ||
-                qrAlertsQuery.isFetching
-              }
+              size="icon"
+              aria-label="Voir les notifications"
+              onClick={() => alertsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              className="relative"
             >
-              <RefreshIcon
-                className={`mr-2 h-4 w-4 ${(todayQuery.isFetching || historyQuery.isFetching || smsQuery.isFetching || qrAlertsQuery.isFetching) ? "animate-spin" : ""}`}
-              />
-              Actualiser
+              <Bell className="h-4 w-4" />
+              {activeAlertsCount > 0 ? (
+                <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-white">
+                  {activeAlertsCount}
+                </span>
+              ) : null}
             </Button>
           </div>
-
-          {cacheAgeLabel ? (
-            <AlertBanner
-              type="warning"
-              title="Mode hors ligne"
-              message={cacheAgeLabel}
-            />
-          ) : null}
         </header>
 
-        <section className="space-y-3">
-          {todayQuery.isError || historyQuery.isError || smsQuery.isError || qrAlertsQuery.isError ? (
+        <section ref={alertsRef} className="space-y-3 animate-fade-in">
+          <WeekCoverageAlert
+            nextWeekHasCoverage={coverageQuery.data?.nextWeekHasCoverage ?? true}
+            onNavigateToSchedule={() => navigate("/schedule")}
+          />
+
+          {weeklyAbsenceCount > 3 ? (
             <AlertBanner
-              type="error"
-              title="Erreur de chargement"
-              message="Certaines données du dashboard n'ont pas pu être chargées. Réessayez avec le bouton Actualiser."
-            />
-          ) : null}
-          {unreadTodayQrCount > 0 ? (
-            <AlertBanner
-              type="info"
-              title="Alertes QR en attente"
-              message={`${unreadTodayQrCount} alerte(s) QR non lue(s) aujourd'hui.`}
+              type="warning"
+              title="Absences profs élevées cette semaine"
+              message={`${weeklyAbsenceCount} absences non justifiées ont été relevées sur les 7 derniers jours.`}
               action={{
-                label: "Voir les alertes",
-                onClick: () => setNotificationsTab("qr"),
+                label: "Voir les profs",
+                onClick: () => navigate("/teachers"),
               }}
             />
           ) : null}
         </section>
 
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
           <StatCard
-            title="Cours du jour"
-            value={todayQuery.data?.courses.length ?? 0}
-            subtitle="Créneaux planifiés"
-            icon={<SubjectIcon className="h-4 w-4" />}
+            title="Profs actifs"
+            value={countsQuery.data?.activeTeachers ?? 0}
+            subtitle="Comptes actifs"
+            icon={<Users className="h-4 w-4" />}
+            trend={{
+              value: Number(teacherTrend.toFixed(1)),
+              label: "vs mois dernier",
+            }}
             variant="default"
-            loading={todayQuery.isFetching && !todayQuery.data}
           />
           <StatCard
-            title="Présents"
-            value={todayQuery.data?.presentCount ?? 0}
-            subtitle="Pointages confirmés"
-            icon={<PresentIcon className="h-4 w-4" />}
-            variant="success"
-            loading={todayQuery.isFetching && !todayQuery.data}
+            title="Élèves actifs"
+            value={countsQuery.data?.activeStudents ?? 0}
+            subtitle="Inscrits actifs"
+            icon={<GraduationCap className="h-4 w-4" />}
+            variant="default"
           />
           <StatCard
-            title="Non pointés"
-            value={todayQuery.data?.unmarkedCount ?? 0}
-            subtitle="À vérifier"
-            icon={<WarningIcon className="h-4 w-4" />}
-            variant="warning"
-            loading={todayQuery.isFetching && !todayQuery.data}
+            title="Présence profs aujourd'hui"
+            value={`${Math.round(presentRate)}%`}
+            subtitle={`${todayQuery.data?.presentCount ?? 0} / ${(todayQuery.data?.courses ?? []).length} pointés`}
+            icon={<CheckCircle2 className="h-4 w-4" />}
+            variant={presenceVariant}
           />
           <StatCard
-            title="Absents"
-            value={todayQuery.data?.absentCount ?? 0}
-            subtitle="Signalements du jour"
-            icon={<AbsentIcon className="h-4 w-4" />}
-            variant="danger"
-            loading={todayQuery.isFetching && !todayQuery.data}
+            title="Salaires à payer"
+            value={formatFcfa(pendingSalaries.totalFcfa)}
+            subtitle={`${pendingSalaries.count} fiche(s) en attente`}
+            icon={<Wallet className="h-4 w-4" />}
+            variant={pendingSalaries.totalFcfa > 0 ? "warning" : "default"}
           />
         </section>
 
-        <section className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          <div className="space-y-3 rounded-lg border p-4 shadow-sm">
-            <h2 className="text-lg font-semibold">Cours du jour</h2>
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <Card className="xl:col-span-2">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg font-semibold">Présences profs — Aujourd'hui</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TodayPresenceList courses={todayQuery.data?.courses ?? []} />
+            </CardContent>
+          </Card>
 
-            {(todayQuery.data?.courses ?? []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucun cours planifié pour aujourd'hui.</p>
-            ) : (
-              <ul className="space-y-2">
-                {todayQuery.data?.courses.map((course) => {
-                  const status =
-                    statusBadgeMeta[course.status ?? "default"] ?? statusBadgeMeta.default
-
-                  return (
-                    <li key={course.id}>
-                      <button
-                        type="button"
-                        className="w-full rounded-md border border-border p-3 text-left transition-colors hover:bg-muted/50"
-                        onClick={() => setSelectedCourse(course)}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-medium">{course.subject}</p>
-                            <p className="text-xs text-muted-foreground">{course.className}</p>
-                          </div>
-                          <Badge variant="outline" className={status.className}>
-                            {status.label}
-                          </Badge>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-lg font-semibold">Profs à risque</CardTitle>
+              <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-sm">
+                <Link to="/teachers">Voir tous</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {(riskTeachersQuery.data ?? []).length === 0 ? (
+                <EmptyState
+                  icon={emptyStateIcons.allGood}
+                  title="Aucun profil à risque"
+                  message="Aucune absence significative détectée ce mois-ci."
+                />
+              ) : (
+                <div className="space-y-2">
+                  {(riskTeachersQuery.data ?? []).map((teacher) => (
+                    <div key={teacher.teacherId} className="animate-fade-in flex items-center justify-between rounded-lg border border-border p-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <Avatar className="h-9 w-9">
+                          <AvatarFallback className="text-xs font-semibold">{getInitials(teacher.teacherName)}</AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{teacher.teacherName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {teacher.absenceCount} absence(s) • {Math.round(teacher.attendanceRate)}% présence
+                          </p>
                         </div>
-
-                        <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                          <ScheduleIcon className="h-3.5 w-3.5" />
-                          <span>
-                            {formatHour(course.startTime)} - {formatHour(course.endTime)}
-                          </span>
-                          <Separator orientation="vertical" className="h-3" />
-                          <span>{course.roomName}</span>
-                        </div>
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
-
-          <Tabs value={notificationsTab} onValueChange={(value) => setNotificationsTab(value as "sms" | "qr")}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="sms">SMS récents</TabsTrigger>
-              <TabsTrigger value="qr" className="gap-2">
-                Alertes QR
-                {unreadTodayQrCount > 0 ? (
-                  <Badge className="bg-red-600 text-white hover:bg-red-600">{unreadTodayQrCount}</Badge>
-                ) : null}
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="sms">
-              <AlertsList alerts={smsQuery.data ?? []} />
-            </TabsContent>
-            <TabsContent value="qr">
-              <QRAlertsList
-                alerts={qrAlertsQuery.data ?? []}
-                readIds={qrReadIds}
-                onMarkRead={markQrAlertAsRead}
-              />
-            </TabsContent>
-          </Tabs>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </section>
 
         <section>
-          <PresenceChart data={historyQuery.data ?? []} />
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-lg font-semibold">Résumé salaires du mois</CardTitle>
+              <Button asChild variant="outline" size="sm" className="h-8">
+                <Link to="/salaries">Voir tous les salaires</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {salaryRows.length === 0 ? (
+                <EmptyState
+                  icon={emptyStateIcons.noTeachers}
+                  title="Aucune fiche salaire"
+                  message="Aucune ligne de salaire n'est disponible pour ce mois."
+                />
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Professeur</TableHead>
+                        <TableHead>Progression</TableHead>
+                        <TableHead>Total</TableHead>
+                        <TableHead>Statut</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {salaryRows.map((row) => (
+                        <SalaryRow
+                          key={row.teacherId}
+                          teacher={{
+                            id: row.teacherId,
+                            name: row.teacherName,
+                            type: row.teacherType,
+                          }}
+                          periodSummary={{
+                            hoursDone: row.hoursDone,
+                            hoursPlanned: row.hoursPlanned,
+                            amountFcfa: row.totalFcfa ?? 0,
+                            status: row.status,
+                            canMarkPaid: row.status === "pending",
+                          }}
+                          onMarkPaid={() => navigate("/salaries")}
+                          onExportPDF={() => navigate("/salaries")}
+                        />
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </section>
       </div>
-
-      <Dialog open={Boolean(selectedCourse)} onOpenChange={(open) => !open && setSelectedCourse(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{selectedCourse?.subject ?? "Détail du cours"}</DialogTitle>
-            <DialogDescription>
-              {selectedCourse?.className ?? "Classe"} · {selectedCourse?.roomName ?? "Salle"}
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedCourse ? (
-            <div className="space-y-3 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Créneau</span>
-                <span>
-                  {formatHour(selectedCourse.startTime)} - {formatHour(selectedCourse.endTime)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Statut</span>
-                <span>{statusBadgeMeta[selectedCourse.status ?? "default"]?.label ?? "Non pointé"}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Retard</span>
-                <span>{selectedCourse.lateMinutes ?? 0} min</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Scan salle</span>
-                <span>{selectedCourse.roomScannedName ?? "Non scanné"}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Mismatch salle</span>
-                <span>{selectedCourse.roomMismatch ? "Oui" : "Non"}</span>
-              </div>
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
     </>
   )
 }

@@ -1,40 +1,50 @@
 import { type ReactNode } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { MemoryRouter } from "react-router-dom"
 
 const getTodayAttendanceMock = vi.fn()
 const getAttendanceHistoryMock = vi.fn()
-const getSMSLogMock = vi.fn()
-const getQRAlertsMock = vi.fn()
+const getDashboardCountsMock = vi.fn()
+const getNextWeekCoverageStateMock = vi.fn()
+const getSalarySummaryMock = vi.fn()
+const getTopRiskTeachersMock = vi.fn()
+const getCurrentMonthKeyMock = vi.fn()
+const getPreviousMonthKeyMock = vi.fn()
+const getTeacherTrendFromSummariesMock = vi.fn()
+const getTotalPendingSalariesMock = vi.fn()
 const fetchSchoolInfoMock = vi.fn()
 
-let isOnlineMock = true
+const navigateMock = vi.fn()
+
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom")
+  return {
+    ...actual,
+    useNavigate: () => navigateMock,
+  }
+})
 
 vi.mock("@/modules/dashboard/dashboard.api", () => {
   return {
     getTodayAttendance: () => getTodayAttendanceMock(),
     getAttendanceHistory: (days: number) => getAttendanceHistoryMock(days),
-    getSMSLog: (limit: number) => getSMSLogMock(limit),
-    getQRAlerts: (limit: number) => getQRAlertsMock(limit),
+    getDashboardCounts: () => getDashboardCountsMock(),
+    getNextWeekCoverageState: () => getNextWeekCoverageStateMock(),
+    getSalarySummary: (month: string) => getSalarySummaryMock(month),
+    getTopRiskTeachers: (month: string) => getTopRiskTeachersMock(month),
+    getCurrentMonthKey: () => getCurrentMonthKeyMock(),
+    getPreviousMonthKey: () => getPreviousMonthKeyMock(),
+    getTeacherTrendFromSummaries: (current: unknown, previous: unknown) =>
+      getTeacherTrendFromSummariesMock(current, previous),
+    getTotalPendingSalaries: (summary: unknown) => getTotalPendingSalariesMock(summary),
   }
 })
 
 vi.mock("@/modules/onboarding/onboarding.api", () => {
   return {
     fetchSchoolInfo: () => fetchSchoolInfoMock(),
-  }
-})
-
-vi.mock("@/shared/hooks/useNetworkStatus", () => {
-  return {
-    useNetworkStatus: () => ({ isOnline: isOnlineMock, wasOffline: !isOnlineMock }),
-  }
-})
-
-vi.mock("@/modules/dashboard/components/PresenceChart", () => {
-  return {
-    default: () => <div>Mock Presence Chart</div>,
   }
 })
 
@@ -51,13 +61,16 @@ function renderWithQueryClient(ui: ReactNode) {
     },
   })
 
-  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>)
+  return render(
+    <MemoryRouter>
+      <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
+    </MemoryRouter>
+  )
 }
 
 describe("DashboardPage", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    isOnlineMock = true
 
     useAuthStore.setState({
       user: {
@@ -73,14 +86,18 @@ describe("DashboardPage", () => {
       accessToken: null,
     })
 
+    getCurrentMonthKeyMock.mockReturnValue("2026-04")
+    getPreviousMonthKeyMock.mockReturnValue("2026-03")
+
     getTodayAttendanceMock.mockResolvedValue({
       date: "2026-04-14",
       presentCount: 5,
       absentCount: 1,
-      unmarkedCount: 2,
+      unmarkedCount: 1,
       courses: [
         {
           id: "course-1",
+          teacherName: "M. Diallo",
           subject: "Maths",
           className: "6A",
           roomName: "Salle A1",
@@ -97,79 +114,72 @@ describe("DashboardPage", () => {
     })
 
     getAttendanceHistoryMock.mockResolvedValue([
-      { date: "2026-04-10", presentCount: 8, totalCount: 10, attendanceRate: 80 },
+      { date: "2026-04-10", presentCount: 8, absentCount: 4, totalCount: 12, attendanceRate: 66.6 },
     ])
 
-    getSMSLogMock.mockResolvedValue([
-      {
-        id: "sms-1",
-        type: "teacher_late_director",
-        recipientPhone: "2250700000000",
-        message: "SMS test",
-        status: "sent",
-        sentAt: "2026-04-14T08:10:00.000Z",
-        createdAt: null,
-      },
-    ])
+    getDashboardCountsMock.mockResolvedValue({
+      activeTeachers: 12,
+      activeStudents: 240,
+    })
 
-    getQRAlertsMock.mockResolvedValue([
+    getNextWeekCoverageStateMock.mockResolvedValue({ nextWeekHasCoverage: false })
+
+    getSalarySummaryMock
+      .mockResolvedValueOnce({
+        month: "2026-04",
+        items: [
+          {
+            teacherId: "t-1",
+            teacherName: "M. Diallo",
+            teacherType: "vacataire",
+            hoursPlanned: 20,
+            hoursDone: 18,
+            hourlyRate: 2500,
+            totalFcfa: 45000,
+            status: "pending",
+            salaryRecordId: "r-1",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        month: "2026-03",
+        items: [],
+      })
+
+    getTopRiskTeachersMock.mockResolvedValue([
       {
-        id: "qr-1",
-        type: "teacher_qr_mismatch",
-        status: "sent",
-        message:
-          "EduTrack: M. Diallo a scanné salle B2 au lieu de A1 - Mathématiques 08:00-09:00",
-        dateTime: new Date().toISOString(),
+        teacherId: "t-1",
         teacherName: "M. Diallo",
-        subject: "Mathématiques",
-        className: null,
-        expectedRoom: "A1",
-        scannedRoom: "B2",
-        slotLabel: "08:00-09:00",
-        isToday: true,
+        absenceCount: 4,
+        attendanceRate: 60,
       },
     ])
+
+    getTeacherTrendFromSummariesMock.mockReturnValue(12.5)
+    getTotalPendingSalariesMock.mockReturnValue({ totalFcfa: 45000, count: 1 })
 
     fetchSchoolInfoMock.mockResolvedValue({ name: "École Sainte Marie" })
   })
 
-  it("renders dashboard data and opens course detail modal", async () => {
-    const view = renderWithQueryClient(<DashboardPage />)
+  it("renders C1 dashboard sections with real data", async () => {
+    renderWithQueryClient(<DashboardPage />)
 
-    expect(await screen.findByText("Tableau de bord")).toBeInTheDocument()
+    expect(await screen.findByText("Bonjour, Directeur Test")).toBeInTheDocument()
     expect(screen.getByText("École Sainte Marie")).toBeInTheDocument()
-    expect(screen.getByText("Présents")).toBeInTheDocument()
-    expect(screen.getByText("Maths")).toBeInTheDocument()
-    expect(view.container.querySelector("section.md\\:grid-cols-2")).toBeTruthy()
-    expect(screen.getByText("Alertes QR")).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole("button", { name: /Maths/i }))
-
-    expect(await screen.findByText("Scan salle")).toBeInTheDocument()
-    expect(screen.getByText("Mismatch salle")).toBeInTheDocument()
+    expect(screen.getByText("Profs actifs")).toBeInTheDocument()
+    expect(screen.getByText("Élèves actifs")).toBeInTheDocument()
+    expect(screen.getByText("Présences profs — Aujourd'hui")).toBeInTheDocument()
+    expect(screen.getAllByText("M. Diallo").length).toBeGreaterThan(0)
+    expect(screen.getByText("Résumé salaires du mois")).toBeInTheDocument()
+    expect(screen.getByText("Semaine prochaine non configurée")).toBeInTheDocument()
   })
 
-  it("refresh button triggers dashboard refetch", async () => {
+  it("navigates to schedule from week coverage alert", async () => {
     renderWithQueryClient(<DashboardPage />)
 
-    expect(await screen.findByText("Tableau de bord")).toBeInTheDocument()
+    const button = await screen.findByRole("button", { name: "Configurer l'EDT" })
+    fireEvent.click(button)
 
-    fireEvent.click(screen.getByRole("button", { name: "Actualiser" }))
-
-    await waitFor(() => {
-      expect(getTodayAttendanceMock).toHaveBeenCalledTimes(2)
-      expect(getAttendanceHistoryMock).toHaveBeenCalledTimes(2)
-      expect(getSMSLogMock).toHaveBeenCalledTimes(2)
-      expect(getQRAlertsMock).toHaveBeenCalledTimes(2)
-    })
-  })
-
-  it("shows cached data badge while offline", async () => {
-    isOnlineMock = false
-
-    renderWithQueryClient(<DashboardPage />)
-
-    expect(await screen.findByText("Tableau de bord")).toBeInTheDocument()
-    expect(screen.getByText(/Données mises en cache il y a/i)).toBeInTheDocument()
+    expect(navigateMock).toHaveBeenCalledWith("/schedule")
   })
 })

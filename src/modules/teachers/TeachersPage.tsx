@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react"
-import type { ColumnDef } from "@tanstack/react-table"
+import type { ColumnDef, Column } from "@tanstack/react-table"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useNavigate } from "react-router-dom"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -14,6 +15,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -22,26 +29,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
+import { cn } from "@/lib/utils"
 import TeacherForm from "@/modules/teachers/components/TeacherForm"
 import {
   createTeacher,
   exportTeacherHours,
   getTeacherStats,
   getTeachers,
-  softDeleteTeacher,
-  updateTeacher,
+  setTeacherActiveStatus,
   type TeacherListItem,
-  type TeacherUpsertPayload,
 } from "@/modules/teachers/teachers.api"
-import { QRCodeGenerator } from "@/shared/components/QRCodeGenerator"
 import {
   AddIcon,
   AppIcon,
+  BlockIcon,
   ChevronRightIcon,
+  ExportIcon,
   FilterIcon,
+  MoreIcon,
   TeachersIcon,
+  UnblockIcon,
+  ViewIcon,
 } from "@/shared/components/icons"
 import { DataTable, EmptyState, PageLayout } from "@/shared/components"
 import { useAuthStore } from "@/shared/store/auth.store"
@@ -71,25 +80,6 @@ const getLast30DaysPeriod = () => {
   }
 }
 
-const getPresenceBadgeClass = (rate: number) => {
-  if (rate > 80) {
-    return "border-green-200 bg-green-50 text-green-700"
-  }
-
-  if (rate >= 60) {
-    return "border-amber-200 bg-amber-50 text-amber-700"
-  }
-
-  return "border-red-200 bg-red-50 text-red-700"
-}
-
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "XOF",
-    maximumFractionDigits: 0,
-  }).format(value)
-
 const downloadBlob = (blob: Blob, filename: string) => {
   const url = window.URL.createObjectURL(blob)
   const anchor = document.createElement("a")
@@ -102,13 +92,13 @@ const downloadBlob = (blob: Blob, filename: string) => {
 }
 
 type TeacherStatsMap = Record<string, { attendanceRate: number; hoursWorked: number; amountDue: number }>
+
 type TeacherTableRow = TeacherListItem & {
-  attendanceRate: number | null
-  hoursWorked: number | null
-  amountDue: number | null
+  name: string
+  attendanceRate: number
 }
 
-const getInitials = (value: string) =>
+const initials = (value: string) =>
   value
     .split(" ")
     .filter(Boolean)
@@ -116,7 +106,61 @@ const getInitials = (value: string) =>
     .map((chunk) => chunk[0]?.toUpperCase() ?? "")
     .join("")
 
+function SortableHeader<TData>({ column, label }: { column: Column<TData, unknown>; label: string }) {
+  return (
+    <span className={cn("text-sm font-medium", column.getIsSorted() ? "text-foreground" : "text-muted-foreground")}>
+      {label}
+    </span>
+  )
+}
+
+function TeacherRowActions({
+  teacher,
+  onViewProfile,
+  onToggleBlocked,
+  onExportPdf,
+}: {
+  teacher: TeacherTableRow
+  onViewProfile: () => void
+  onToggleBlocked: () => void
+  onExportPdf: () => void
+}) {
+  return (
+    <div onClick={(event) => event.stopPropagation()}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <MoreIcon className="h-4 w-4" />
+            <span className="sr-only">Actions</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuItem onSelect={onViewProfile}>
+            <ViewIcon className="mr-2 h-4 w-4" />
+            Voir le profil
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onToggleBlocked}>
+            {teacher.isBlocked ? <UnblockIcon className="mr-2 h-4 w-4" /> : <BlockIcon className="mr-2 h-4 w-4" />}
+            {teacher.isBlocked ? "Débloquer" : "Bloquer"}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onExportPdf}>
+            <ExportIcon className="mr-2 h-4 w-4" />
+            Exporter PDF
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  )
+}
+
 export default function TeachersPage() {
+  const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -125,9 +169,7 @@ export default function TeachersPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all")
   const [subjectFilter, setSubjectFilter] = useState("")
 
-  const [teacherForQr, setTeacherForQr] = useState<TeacherListItem | null>(null)
-  const [teacherForEdit, setTeacherForEdit] = useState<TeacherListItem | null>(null)
-  const [teacherForDelete, setTeacherForDelete] = useState<TeacherListItem | null>(null)
+  const [teacherForStatusChange, setTeacherForStatusChange] = useState<TeacherListItem | null>(null)
   const [teacherForExport, setTeacherForExport] = useState<TeacherListItem | null>(null)
 
   const [createOpen, setCreateOpen] = useState(false)
@@ -179,28 +221,16 @@ export default function TeachersPage() {
     },
   })
 
-  const updateMutation = useMutation({
-    mutationFn: ({ teacherId, payload }: { teacherId: string; payload: TeacherUpsertPayload }) =>
-      updateTeacher(teacherId, payload),
-    onSuccess: async () => {
-      setTeacherForEdit(null)
+  const setStatusMutation = useMutation({
+    mutationFn: ({ teacherId, isActive }: { teacherId: string; isActive: boolean }) =>
+      setTeacherActiveStatus(teacherId, isActive),
+    onSuccess: async (_, variables) => {
+      setTeacherForStatusChange(null)
       await queryClient.invalidateQueries({ queryKey: ["teachers"] })
-      toast({ title: "Professeur mis à jour" })
+      toast({ title: variables.isActive ? "Professeur débloqué" : "Professeur bloqué" })
     },
     onError: () => {
-      toast({ title: "Erreur", description: "Impossible de modifier le professeur", variant: "destructive" })
-    },
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: softDeleteTeacher,
-    onSuccess: async () => {
-      setTeacherForDelete(null)
-      await queryClient.invalidateQueries({ queryKey: ["teachers"] })
-      toast({ title: "Professeur désactivé" })
-    },
-    onError: () => {
-      toast({ title: "Erreur", description: "Impossible de désactiver le professeur", variant: "destructive" })
+      toast({ title: "Erreur", description: "Impossible de modifier le statut", variant: "destructive" })
     },
   })
 
@@ -220,121 +250,108 @@ export default function TeachersPage() {
     () =>
       teachers.map((teacher) => ({
         ...teacher,
-        attendanceRate: statsMap[teacher.id]?.attendanceRate ?? null,
-        hoursWorked: statsMap[teacher.id]?.hoursWorked ?? null,
-        amountDue: statsMap[teacher.id]?.amountDue ?? null,
+        name: teacher.fullName,
+        attendanceRate: statsMap[teacher.id]?.attendanceRate ?? 0,
       })),
     [statsMap, teachers]
+  )
+
+  const activeCount = useMemo(
+    () => tableData.filter((teacher) => !teacher.isBlocked).length,
+    [tableData]
   )
 
   const columns = useMemo<ColumnDef<TeacherTableRow>[]>(
     () => [
       {
-        accessorKey: "fullName",
-        header: "Nom",
-        enableSorting: true,
-        cell: ({ row }) => {
-          const teacher = row.original
-          return (
-            <div className="space-y-1">
-              <p className="font-medium">{teacher.fullName}</p>
-              <p className="text-xs text-muted-foreground">@{teacher.username}</p>
+        id: "name",
+        accessorFn: (row) => row.name,
+        header: ({ column }) => <SortableHeader column={column} label="Nom" />,
+        cell: ({ row }) => (
+          <div className="flex items-center gap-3">
+            <Avatar className="h-8 w-8">
+              <AvatarFallback>{initials(row.original.name)}</AvatarFallback>
+            </Avatar>
+            <div>
+              <p className="text-sm font-medium">{row.original.name}</p>
+              <p className="text-xs text-muted-foreground">@{row.original.username}</p>
             </div>
-          )
-        },
+          </div>
+        ),
+      },
+      {
+        accessorKey: "subjects",
+        header: "Matières",
+        cell: ({ row }) => (
+          <div className="flex flex-wrap gap-1">
+            {row.original.subjects.slice(0, 2).map((subject) => (
+              <Badge key={subject} variant="secondary">
+                {subject}
+              </Badge>
+            ))}
+            {row.original.subjects.length > 2 ? (
+              <Badge variant="outline">+{row.original.subjects.length - 2}</Badge>
+            ) : null}
+          </div>
+        ),
+        enableSorting: false,
       },
       {
         accessorKey: "type",
         header: "Type",
-        enableSorting: true,
         cell: ({ row }) => (
-          <Badge variant="outline">
-            {row.original.type === "vacataire" ? "Vacataire" : "Permanent"}
+          <Badge variant={row.original.type === "vacataire" ? "default" : "secondary"}>
+            {row.original.type}
           </Badge>
         ),
       },
       {
-        id: "subjects",
-        accessorFn: (row) => row.subjects.join(", "),
-        header: "Matières",
-        enableSorting: true,
+        accessorKey: "attendanceRate",
+        header: ({ column }) => <SortableHeader column={column} label="Présence" />,
         cell: ({ row }) => (
-          <p className="max-w-[240px] text-sm text-muted-foreground">{row.original.subjects.join(", ")}</p>
-        ),
-      },
-      {
-        id: "attendanceRate",
-        accessorFn: (row) => row.attendanceRate ?? -1,
-        header: "Taux présence 30j",
-        cell: ({ row }) => {
-          const attendanceRate = row.original.attendanceRate
-          if (attendanceRate === null) {
-            return <Skeleton className="h-6 w-16" />
-          }
-
-          return (
-            <Badge variant="outline" className={getPresenceBadgeClass(attendanceRate)}>
-              {attendanceRate.toFixed(0)}%
-            </Badge>
-          )
-        },
-      },
-      {
-        accessorKey: "isActive",
-        header: "Statut",
-        enableSorting: true,
-        cell: ({ row }) => (
-          <Badge
-            variant="outline"
-            className={
-              row.original.isActive
-                ? "border-green-200 bg-green-50 text-green-700"
-                : "border-slate-200 bg-slate-100 text-slate-700"
-            }
-          >
-            {row.original.isActive ? "Actif" : "Inactif"}
-          </Badge>
-        ),
-      },
-      {
-        header: "Actions",
-        cell: ({ row }) => {
-          const teacher = row.original
-
-          return (
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => setTeacherForQr(teacher)}>
-                QR Code
-              </Button>
-              <Button size="sm" variant="secondary" onClick={() => setTeacherForEdit(teacher)}>
-                Modifier
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setTeacherForDelete(teacher)}>
-                Désactiver
-              </Button>
-              {teacher.type === "vacataire" ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setTeacherForExport(teacher)
-                    setExportPeriod(getDefaultExportPeriod())
-                  }}
-                >
-                  Exporter les heures
-                </Button>
-              ) : null}
-              {teacher.type === "vacataire" && teacher.hoursWorked !== null && teacher.amountDue !== null ? (
-                <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
-                  {teacher.hoursWorked.toFixed(1)}h · {formatCurrency(teacher.amountDue)}
-                </Badge>
-              ) : null}
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
+              <div
+                className={cn(
+                  "h-full rounded-full",
+                  row.original.attendanceRate >= 90
+                    ? "bg-green-500"
+                    : row.original.attendanceRate >= 70
+                      ? "bg-amber-500"
+                      : "bg-red-500"
+                )}
+                style={{ width: `${row.original.attendanceRate}%` }}
+              />
             </div>
-          )
-        },
+            <span className="text-xs tabular-nums">{row.original.attendanceRate}%</span>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "isBlocked",
+        header: "Statut",
+        cell: ({ row }) => (
+          <Badge variant={row.original.isBlocked ? "destructive" : "secondary"}>
+            {row.original.isBlocked ? "Bloqué" : "Actif"}
+          </Badge>
+        ),
+      },
+      {
+        id: "actions",
+        cell: ({ row }) => (
+          <TeacherRowActions
+            teacher={row.original}
+            onViewProfile={() => navigate(`/teachers/${row.original.id}`)}
+            onToggleBlocked={() => setTeacherForStatusChange(row.original)}
+            onExportPdf={() => {
+              setTeacherForExport(row.original)
+              setExportPeriod(getDefaultExportPeriod())
+            }}
+          />
+        ),
       },
     ],
-    []
+    [navigate]
   )
 
   if (!user) {
@@ -353,8 +370,8 @@ export default function TeachersPage() {
 
   return (
     <PageLayout
-      title="Professeurs"
-      subtitle="Gestion des profs, QR codes et export des heures"
+      title={`Professeurs (${activeCount} actifs)`}
+      subtitle="Gestion des profs, blocage et export"
       actions={
         <Button className="min-h-[44px]" onClick={() => setCreateOpen(true)}>
           <AddIcon className="mr-2 h-4 w-4" />
@@ -388,7 +405,7 @@ export default function TeachersPage() {
             <SelectContent>
               <SelectItem value="all">Tous les statuts</SelectItem>
               <SelectItem value="active">Actifs</SelectItem>
-              <SelectItem value="inactive">Inactifs</SelectItem>
+              <SelectItem value="inactive">Bloqués</SelectItem>
             </SelectContent>
           </Select>
 
@@ -406,21 +423,19 @@ export default function TeachersPage() {
 
       {teachersQuery.isError ? (
         <Alert variant="destructive">
-          <AlertDescription>
-            Impossible de charger la liste des professeurs.
-          </AlertDescription>
+          <AlertDescription>Impossible de charger la liste des professeurs.</AlertDescription>
         </Alert>
       ) : null}
-
 
       {!teachersQuery.isError ? (
         <DataTable
           columns={columns}
           data={tableData}
           isLoading={teachersQuery.isLoading}
-          searchKey="fullName"
+          searchKey="name"
           searchPlaceholder="Rechercher un professeur"
           pageSize={20}
+          onRowClick={(teacher) => navigate(`/teachers/${teacher.id}`)}
           emptyState={
             <EmptyState
               icon={<AppIcon icon={TeachersIcon} size="md" className="text-muted-foreground" />}
@@ -430,24 +445,26 @@ export default function TeachersPage() {
             />
           }
           mobileCard={(teacher) => (
-            <div className="flex items-center gap-3 rounded-xl border bg-card p-4 shadow-sm">
+            <button
+              type="button"
+              className="flex w-full items-center gap-3 rounded-xl border bg-card p-4 text-left shadow-sm"
+              onClick={() => navigate(`/teachers/${teacher.id}`)}
+            >
               <Avatar className="h-10 w-10 flex-shrink-0">
-                <AvatarFallback className="text-sm">{getInitials(teacher.fullName)}</AvatarFallback>
+                <AvatarFallback className="text-sm">{initials(teacher.name)}</AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{teacher.fullName}</p>
+                <p className="truncate text-sm font-medium">{teacher.name}</p>
                 <p className="truncate text-xs text-muted-foreground">{teacher.subjects.join(", ")}</p>
               </div>
               <div className="flex flex-col items-end gap-1">
-                <Badge variant={teacher.isActive ? "secondary" : "destructive"} className="text-xs">
-                  {teacher.isActive ? "Actif" : "Inactif"}
+                <Badge variant={teacher.isBlocked ? "destructive" : "secondary"} className="text-xs">
+                  {teacher.isBlocked ? "Bloqué" : "Actif"}
                 </Badge>
-                <span className="text-xs text-muted-foreground">
-                  {teacher.attendanceRate === null ? "--" : `${teacher.attendanceRate.toFixed(0)}%`}
-                </span>
+                <span className="text-xs text-muted-foreground">{teacher.attendanceRate}%</span>
               </div>
               <ChevronRightIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-            </div>
+            </button>
           )}
         />
       ) : null}
@@ -468,72 +485,41 @@ export default function TeachersPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(teacherForEdit)} onOpenChange={(open) => !open && setTeacherForEdit(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Modifier le professeur</DialogTitle>
-            <DialogDescription>Mettez à jour les informations du professeur.</DialogDescription>
-          </DialogHeader>
-          {teacherForEdit ? (
-            <TeacherForm
-              initialValues={{
-                firstName: teacherForEdit.firstName,
-                lastName: teacherForEdit.lastName,
-                phone: teacherForEdit.phone,
-                type: teacherForEdit.type,
-                subjects: teacherForEdit.subjects,
-                hourlyRate: teacherForEdit.hourlyRate,
-              }}
-              isPending={updateMutation.isPending}
-              submitLabel="Enregistrer les modifications"
-              onSubmit={async (payload) => {
-                await updateMutation.mutateAsync({ teacherId: teacherForEdit.id, payload })
-              }}
-            />
-          ) : null}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={Boolean(teacherForQr)} onOpenChange={(open) => !open && setTeacherForQr(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>QR code professeur</DialogTitle>
-            <DialogDescription>
-              Générez et téléchargez le QR code pour {teacherForQr?.fullName}.
-            </DialogDescription>
-          </DialogHeader>
-          {teacherForQr ? (
-            <div className="flex justify-center">
-              <QRCodeGenerator roomToken={teacherForQr.username} roomName={teacherForQr.fullName} />
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
-
       <Dialog
-        open={Boolean(teacherForDelete)}
-        onOpenChange={(open) => !open && setTeacherForDelete(null)}
+        open={Boolean(teacherForStatusChange)}
+        onOpenChange={(open) => !open && setTeacherForStatusChange(null)}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Désactiver le professeur</DialogTitle>
+            <DialogTitle>
+              {teacherForStatusChange?.isBlocked ? "Débloquer le professeur" : "Bloquer le professeur"}
+            </DialogTitle>
             <DialogDescription>
-              Le professeur sera désactivé (soft delete) et restera dans l'historique.
+              {teacherForStatusChange?.isBlocked
+                ? "Le professeur retrouvera l'accès à ses actions habituelles."
+                : "Le professeur sera marqué comme bloqué dans la liste."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setTeacherForDelete(null)}>
+            <Button variant="outline" onClick={() => setTeacherForStatusChange(null)}>
               Annuler
             </Button>
             <Button
-              variant="destructive"
-              disabled={deleteMutation.isPending}
+              variant={teacherForStatusChange?.isBlocked ? "secondary" : "destructive"}
+              disabled={setStatusMutation.isPending}
               onClick={() => {
-                if (!teacherForDelete) return
-                void deleteMutation.mutateAsync(teacherForDelete.id)
+                if (!teacherForStatusChange) return
+                void setStatusMutation.mutateAsync({
+                  teacherId: teacherForStatusChange.id,
+                  isActive: teacherForStatusChange.isBlocked,
+                })
               }}
             >
-              {deleteMutation.isPending ? "Désactivation..." : "Confirmer"}
+              {setStatusMutation.isPending
+                ? "Traitement..."
+                : teacherForStatusChange?.isBlocked
+                  ? "Débloquer"
+                  : "Bloquer"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -545,7 +531,7 @@ export default function TeachersPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Exporter les heures</DialogTitle>
+            <DialogTitle>Exporter PDF</DialogTitle>
             <DialogDescription>
               Sélectionnez la période d'export pour {teacherForExport?.fullName}.
             </DialogDescription>
@@ -589,7 +575,7 @@ export default function TeachersPage() {
                 })
               }}
             >
-              {exportMutation.isPending ? "Export..." : "Exporter (XLSX)"}
+              {exportMutation.isPending ? "Export..." : "Exporter"}
             </Button>
           </DialogFooter>
         </DialogContent>
