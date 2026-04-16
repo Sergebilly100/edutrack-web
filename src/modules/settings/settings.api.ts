@@ -1,6 +1,7 @@
 import { apiClient } from "@/shared/api/client"
 
-export type TeachingType = "general" | "technical" | "mixed"
+export type TeachingType = "general" | "technical" | "mixed" | "primaire" | "secondaire" | "superieur" | "mixte"
+export type SchoolPlan = "essential" | "pro" | "establishment"
 
 export type PositionPermission = string
 
@@ -22,8 +23,12 @@ export type AssignableUser = {
 export type SchoolConfigData = {
   school: {
     name: string
+    subdomain: string
+    plan: SchoolPlan
     city: string
     teachingType: TeachingType
+    maxUsers: number
+    currentUsers: number
   }
   limits: {
     maxAdminPositions: number
@@ -64,11 +69,27 @@ const asNumber = (value: unknown, fallback = 0): number => {
 }
 
 const parseTeachingType = (value: unknown): TeachingType => {
-  if (value === "general" || value === "technical" || value === "mixed") {
+  if (
+    value === "general" ||
+    value === "technical" ||
+    value === "mixed" ||
+    value === "primaire" ||
+    value === "secondaire" ||
+    value === "superieur" ||
+    value === "mixte"
+  ) {
     return value
   }
 
   return "general"
+}
+
+const parseSchoolPlan = (value: unknown): SchoolPlan => {
+  if (value === "essential" || value === "pro" || value === "establishment") {
+    return value
+  }
+
+  return "essential"
 }
 
 const parsePosition = (value: unknown): PositionItem => {
@@ -107,8 +128,12 @@ const parseConfigEnvelope = (value: unknown): SchoolConfigData => {
   return {
     school: {
       name: asString(schoolRaw.name),
+      subdomain: asString(schoolRaw.subdomain),
+      plan: parseSchoolPlan(schoolRaw.plan),
       city: asString(schoolRaw.city),
       teachingType: parseTeachingType(schoolRaw.teachingType ?? schoolRaw.teaching_type),
+      maxUsers: asNumber(schoolRaw.maxUsers ?? schoolRaw.max_users, 0),
+      currentUsers: asNumber(schoolRaw.currentUsers ?? schoolRaw.current_users, 0),
     },
     limits: {
       maxAdminPositions: asNumber(limitsRaw.max_admin_positions ?? limitsRaw.maxAdminPositions, 0),
@@ -129,8 +154,12 @@ const parseSchoolInfo = (value: unknown): SchoolConfigData["school"] => {
 
   return {
     name: asString(payload.name),
+    subdomain: asString(payload.subdomain),
+    plan: parseSchoolPlan(payload.plan),
     city: asString(payload.city),
     teachingType: parseTeachingType(payload.teachingType ?? payload.teaching_type),
+    maxUsers: asNumber(payload.maxUsers ?? payload.max_users, 0),
+    currentUsers: asNumber(payload.currentUsers ?? payload.current_users, 0),
   }
 }
 

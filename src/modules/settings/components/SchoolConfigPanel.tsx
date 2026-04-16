@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import axios from "axios"
 import { ChevronDown, Pencil, Plus, Trash2, UserPlus } from "lucide-react"
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -41,8 +43,6 @@ import {
   deletePosition,
   fetchSchoolConfig,
   type PositionItem,
-  type TeachingType,
-  updateSchoolInfo,
   updateSchoolLimit,
 } from "@/modules/settings/settings.api"
 import { useAuthStore } from "@/shared/store/auth.store"
@@ -64,15 +64,13 @@ export default function SchoolConfigPanel() {
   const [assignDialogOpen, setAssignDialogOpen] = useState(false)
   const [positionToAssign, setPositionToAssign] = useState<PositionItem | null>(null)
   const [selectedUserId, setSelectedUserId] = useState("")
+  const [assignError, setAssignError] = useState<string | null>(null)
 
   const schoolConfigQuery = useQuery({
     queryKey: SETTINGS_QUERY_KEY,
     queryFn: fetchSchoolConfig,
   })
 
-  const [schoolName, setSchoolName] = useState("")
-  const [city, setCity] = useState("")
-  const [teachingType, setTeachingType] = useState<TeachingType>("general")
   const [maxAdminPositions, setMaxAdminPositions] = useState("0")
 
   useEffect(() => {
@@ -80,31 +78,8 @@ export default function SchoolConfigPanel() {
       return
     }
 
-    setSchoolName(schoolConfigQuery.data.school.name)
-    setCity(schoolConfigQuery.data.school.city)
-    setTeachingType(schoolConfigQuery.data.school.teachingType)
     setMaxAdminPositions(String(schoolConfigQuery.data.limits.maxAdminPositions))
   }, [schoolConfigQuery.data])
-
-  const saveSchoolInfoMutation = useMutation({
-    mutationFn: () =>
-      updateSchoolInfo({
-        name: schoolName.trim(),
-        city: city.trim(),
-        teachingType,
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY })
-      toast({ title: "Informations école mises à jour" })
-    },
-    onError: () => {
-      toast({
-        title: "Erreur",
-        description: "Impossible de sauvegarder les informations de l'école.",
-        variant: "destructive",
-      })
-    },
-  })
 
   const saveLimitMutation = useMutation({
     mutationFn: () => updateSchoolLimit(Number(maxAdminPositions)),
@@ -144,9 +119,17 @@ export default function SchoolConfigPanel() {
       setAssignDialogOpen(false)
       setPositionToAssign(null)
       setSelectedUserId("")
+      setAssignError(null)
       toast({ title: "Utilisateur assigné" })
     },
-    onError: () => {
+    onError: (error) => {
+      if (axios.isAxiosError(error) && typeof error.response?.data?.error === "string") {
+        const apiError = error.response.data.error
+        setAssignError(apiError)
+        return
+      }
+
+      setAssignError("Impossible d'assigner cet utilisateur.")
       toast({
         title: "Erreur",
         description: "Impossible d'assigner cet utilisateur.",
@@ -158,17 +141,7 @@ export default function SchoolConfigPanel() {
   const positions = schoolConfigQuery.data?.positions ?? []
   const assignableUsers = schoolConfigQuery.data?.users ?? []
   const isDirector = user?.role === "director"
-
-  const hasDirtySchoolInfo = useMemo(() => {
-    const data = schoolConfigQuery.data
-    if (!data) {
-      return false
-    }
-
-    return (
-      schoolName !== data.school.name || city !== data.school.city || teachingType !== data.school.teachingType
-    )
-  }, [city, schoolConfigQuery.data, schoolName, teachingType])
+  const school = schoolConfigQuery.data?.school
 
   const handleDeletePosition = (position: PositionPayload) => {
     const confirmed = window.confirm(`Supprimer le poste ${position.name} ?`)
@@ -182,8 +155,25 @@ export default function SchoolConfigPanel() {
   const openAssignDialog = (position: PositionItem) => {
     setPositionToAssign(position)
     setSelectedUserId("")
+    setAssignError(null)
     setAssignDialogOpen(true)
   }
+
+  const planLabel = school?.plan === "pro" ? "Pro" : school?.plan === "establishment" ? "Establishment" : "Essential"
+  const teachingTypeLabel =
+    school?.teachingType === "primaire"
+      ? "Primaire"
+      : school?.teachingType === "secondaire"
+        ? "Secondaire"
+        : school?.teachingType === "superieur"
+          ? "Supérieur"
+          : school?.teachingType === "mixte"
+            ? "Mixte"
+            : school?.teachingType === "technical"
+              ? "Technique"
+              : school?.teachingType === "mixed"
+                ? "Mixte"
+                : "Général"
 
   return (
     <>
@@ -197,39 +187,37 @@ export default function SchoolConfigPanel() {
             <ChevronDown className="h-4 w-4 text-muted-foreground" />
           </CollapsibleTrigger>
           <CollapsibleContent className="border-t border-border p-4">
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="school-name">Nom</Label>
-                <Input id="school-name" value={schoolName} onChange={(event) => setSchoolName(event.target.value)} />
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">École</p>
+                  <p className="text-sm font-medium">{school?.name || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Plan</p>
+                  <p className="text-sm font-medium">{planLabel}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Utilisateurs</p>
+                  <p className="text-sm font-medium">{school ? `${school.currentUsers} / ${school.maxUsers}` : "-"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Sous-domaine</p>
+                  <p className="text-sm font-medium">{school?.subdomain || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Ville</p>
+                  <p className="text-sm font-medium">{school?.city || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Type d&apos;enseignement</p>
+                  <p className="text-sm font-medium">{teachingTypeLabel}</p>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="school-city">Ville</Label>
-                <Input id="school-city" value={city} onChange={(event) => setCity(event.target.value)} />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Type d&apos;enseignement</Label>
-                <Select value={teachingType} onValueChange={(value) => setTeachingType(value as TeachingType)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="general">Général</SelectItem>
-                    <SelectItem value="technical">Technique</SelectItem>
-                    <SelectItem value="mixed">Mixte</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="mt-4 flex justify-end">
-              <Button
-                onClick={() => saveSchoolInfoMutation.mutate()}
-                disabled={!hasDirtySchoolInfo || saveSchoolInfoMutation.isPending}
-              >
-                {saveSchoolInfoMutation.isPending ? "Sauvegarde..." : "Sauvegarder"}
-              </Button>
+              <p className="text-sm text-muted-foreground">
+                Pour modifier ces informations, contactez l&apos;administrateur EduTrack CI.
+              </p>
             </div>
           </CollapsibleContent>
         </Collapsible>
@@ -394,20 +382,28 @@ export default function SchoolConfigPanel() {
               Aucun utilisateur assignable disponible. Vérifiez la source de données des utilisateurs de l&apos;école.
             </p>
           ) : (
-            <div className="space-y-2">
-              <Label htmlFor="assign-user">Utilisateur</Label>
-              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                <SelectTrigger id="assign-user">
-                  <SelectValue placeholder="Choisir un utilisateur" />
-                </SelectTrigger>
-                <SelectContent>
-                  {assignableUsers.map((schoolUser) => (
-                    <SelectItem key={schoolUser.id} value={schoolUser.id}>
-                      {schoolUser.name} ({schoolUser.role})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="space-y-3">
+              {assignError ? (
+                <Alert variant="destructive">
+                  <AlertTitle>Limite utilisateurs</AlertTitle>
+                  <AlertDescription>{assignError}</AlertDescription>
+                </Alert>
+              ) : null}
+              <div className="space-y-2">
+                <Label htmlFor="assign-user">Utilisateur</Label>
+                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                  <SelectTrigger id="assign-user">
+                    <SelectValue placeholder="Choisir un utilisateur" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assignableUsers.map((schoolUser) => (
+                      <SelectItem key={schoolUser.id} value={schoolUser.id}>
+                        {schoolUser.name} ({schoolUser.role})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           )}
 
