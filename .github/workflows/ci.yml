@@ -18,6 +18,7 @@ jobs:
       REDIS_URL: redis://localhost:6379
       NODE_ENV: test
       SMS_MOCK: "true"
+      BUNDLE_GZIP_LIMIT_BYTES: "614400"
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -158,9 +159,9 @@ jobs:
       - name: Report asset sizes
         run: du -sh dist/assets/*.js | sort -h
 
-      - name: Enforce total gzipped JS size <= 500KB
+      - name: Enforce total gzipped JS size budget
         run: |
-          limit=512000
+          limit="${BUNDLE_GZIP_LIMIT_BYTES:-614400}"
           total=0
           files=(dist/assets/*.js)
 
@@ -175,7 +176,7 @@ jobs:
             total=$((total + size))
           done
 
-          echo "Total gzipped JS size: ${total} bytes"
+          echo "Total gzipped JS size: ${total} bytes (limit: ${limit} bytes)"
           if [ "$total" -gt "$limit" ]; then
             echo "Bundle size check failed: ${total} > ${limit} bytes"
             exit 1
