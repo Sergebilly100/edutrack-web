@@ -56,15 +56,18 @@ const getStatus = (slot: ScheduleSlot, attendance: TeacherAttendance | undefined
 export default function CourseCard({ slot, attendance, onStartCourse }: CourseCardProps) {
   const now = new Date()
   const status = getStatus(slot, attendance, now)
+  const alreadyCheckedIn =
+    attendance?.status === "present" || attendance?.status === "late" || attendance?.status === "excused"
 
   const courseDateKey = slot.date ?? toDateKey(now)
   const start = toDateTime(courseDateKey, slot.start_time)
   const minutesToStart = Math.floor((start.getTime() - now.getTime()) / 60000)
 
-  const canStart = status === "now" || (status === "upcoming" && minutesToStart <= 30)
+  const canStart = !alreadyCheckedIn && (status === "now" || (status === "upcoming" && minutesToStart <= 30))
 
   return (
     <li
+      data-testid={`teacher-course-card-${slot.id}`}
       className={cn(
         "min-h-[80px] rounded-xl border bg-card p-4 shadow-card",
         status === "now" && "border-primary",
@@ -95,9 +98,15 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
 
         <div className="flex flex-col items-end gap-2">
           {status === "done" ? (
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-xs" data-testid={`teacher-course-status-${slot.id}`}>
               {attendance?.status === "late" ? <LateIcon className="mr-1 h-3.5 w-3.5" /> : <PresentIcon className="mr-1 h-3.5 w-3.5" />}
               {attendance?.status === "late" ? "En retard" : "Présent"}
+            </Badge>
+          ) : null}
+
+          {alreadyCheckedIn && status !== "done" ? (
+            <Badge variant="outline" className="text-xs" data-testid={`teacher-course-status-${slot.id}`}>
+              Déjà enregistré
             </Badge>
           ) : null}
 
@@ -109,7 +118,12 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
           ) : null}
 
           {canStart ? (
-            <Button type="button" size="sm" onClick={() => onStartCourse(slot)}>
+            <Button
+              type="button"
+              size="sm"
+              data-testid={`teacher-start-course-${slot.id}`}
+              onClick={() => onStartCourse(slot)}
+            >
               Démarrer le cours
             </Button>
           ) : null}

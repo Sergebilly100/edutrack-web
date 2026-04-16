@@ -75,11 +75,11 @@ export default function QRScanner({ onTokenDetected, scheduleId, scanType }: QRS
         </Badge>
 
         {isScanning ? (
-          <Button variant="ghost" className="min-h-[48px]" onClick={() => void stopScan()}>
+          <Button variant="ghost" className="min-h-[48px]" data-testid="teacher-qr-close-camera" onClick={() => void stopScan()}>
             Annuler
           </Button>
         ) : (
-          <Button className="min-h-[48px]" onClick={() => void startScan()}>
+          <Button className="min-h-[48px]" data-testid="teacher-qr-open-camera" onClick={() => void startScan()}>
             Ouvrir la caméra
           </Button>
         )}
@@ -88,6 +88,7 @@ export default function QRScanner({ onTokenDetected, scheduleId, scanType }: QRS
       <div className="relative overflow-hidden rounded-lg border border-border bg-muted/30">
         <div
           id="qr-reader"
+          data-testid="teacher-qr-reader"
           className="mx-auto aspect-square w-full max-w-sm rounded-lg bg-black/80"
         />
 
@@ -117,6 +118,7 @@ export default function QRScanner({ onTokenDetected, scheduleId, scanType }: QRS
           <p className="text-sm font-medium text-amber-800">Saisir le code manuellement</p>
           <div className="flex gap-2">
             <Input
+              data-testid="teacher-qr-manual-input"
               value={manualCode}
               onChange={(event) => setManualCode(event.target.value)}
               placeholder="Saisir le code manuellement"
@@ -125,6 +127,7 @@ export default function QRScanner({ onTokenDetected, scheduleId, scanType }: QRS
               type="button"
               variant="secondary"
               className="min-h-[48px]"
+              data-testid="teacher-qr-manual-submit"
               onClick={handleManualSubmit}
             >
               Valider

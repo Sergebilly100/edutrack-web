@@ -29,6 +29,12 @@ const PERMISSION_ERROR_MESSAGE =
 const CAMERA_UNAVAILABLE_ERROR_MESSAGE = "Aucune caméra disponible sur cet appareil"
 export const QR_TIMEOUT_ERROR_MESSAGE = "QR code non reconnu après 30 secondes"
 
+type Html5QrcodeCtor = typeof Html5Qrcode
+
+type TestWindow = Window & {
+  __EDUTRACK_HTML5_QRCODE__?: Html5QrcodeCtor
+}
+
 function toScannerError(error: unknown): string {
   if (!(error instanceof Error)) {
     return "Erreur inconnue lors du scan QR"
@@ -53,6 +59,15 @@ function toScannerError(error: unknown): string {
   }
 
   return error.message
+}
+
+const getHtml5QrcodeCtor = (): Html5QrcodeCtor => {
+  if (typeof window === "undefined") {
+    return Html5Qrcode
+  }
+
+  const override = (window as TestWindow).__EDUTRACK_HTML5_QRCODE__
+  return override ?? Html5Qrcode
 }
 
 export function useQRScanner(options: UseQRScannerOptions): UseQRScannerResult {
@@ -154,7 +169,8 @@ export function useQRScanner(options: UseQRScannerOptions): UseQRScannerResult {
     }
 
     try {
-      const cameras = await Html5Qrcode.getCameras()
+      const Html5QrcodeImpl = getHtml5QrcodeCtor()
+      const cameras = await Html5QrcodeImpl.getCameras()
 
       if (cameras.length === 0) {
         setError(CAMERA_UNAVAILABLE_ERROR_MESSAGE)
@@ -175,7 +191,8 @@ export function useQRScanner(options: UseQRScannerOptions): UseQRScannerResult {
       return
     }
 
-    const scanner = new Html5Qrcode(QR_READER_ELEMENT_ID)
+    const Html5QrcodeImpl = getHtml5QrcodeCtor()
+    const scanner = new Html5QrcodeImpl(QR_READER_ELEMENT_ID)
     scannerRef.current = scanner
 
     try {

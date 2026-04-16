@@ -102,7 +102,7 @@ export default function TeacherSchedulePage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="teacher-schedule-page">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Mon planning</h1>
         <p className="text-sm font-medium text-muted-foreground">Semaine du {formatDateRange(weekStart, weekEnd)}</p>
@@ -141,7 +141,7 @@ export default function TeacherSchedulePage() {
       ) : null}
 
       {!scheduleQuery.isLoading && daySlots.length > 0 ? (
-        <ul className="space-y-3">
+        <ul className="space-y-3" data-testid="teacher-schedule-list">
           {daySlots.map((slot) => (
             <CourseCard
               key={slot.id}

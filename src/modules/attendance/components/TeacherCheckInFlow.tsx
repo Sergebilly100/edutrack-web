@@ -202,6 +202,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
     <Sheet open={open} onOpenChange={(nextOpen) => (nextOpen ? undefined : onClose())}>
       <SheetContent
         side="bottom"
+        data-testid="teacher-checkin-flow"
         className="max-h-[92vh] space-y-4 overflow-y-auto rounded-t-2xl px-4 pb-6 pt-4 md:mx-auto md:max-w-3xl"
       >
         <SheetHeader className="space-y-1 text-left">
@@ -235,7 +236,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
         </div>
 
         {step === 1 ? (
-          <section className="space-y-4 rounded-xl border p-4">
+          <section className="space-y-4 rounded-xl border p-4" data-testid="teacher-checkin-step-1">
             <div className="space-y-1 text-sm">
               <p>
                 <span className="font-medium">Matière :</span> {slot.subject_name}
@@ -258,6 +259,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
               type="button"
               size="lg"
               className="w-full"
+              data-testid="teacher-checkin-submit"
               disabled={checkInMutation.isPending}
               onClick={() => {
                 void handleCheckIn()
@@ -269,7 +271,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
         ) : null}
 
         {step === 2 ? (
-          <section className="space-y-4 rounded-xl border p-4">
+          <section className="space-y-4 rounded-xl border p-4" data-testid="teacher-checkin-step-2">
             <QRScanner
               scheduleId={slot.id}
               scanType="start"
@@ -285,10 +287,12 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                   value={manualQrCode}
                   onChange={(event) => setManualQrCode(event.target.value)}
                   placeholder="Code QR"
+                  data-testid="teacher-checkin-manual-qr-input"
                 />
                 <Button
                   type="button"
                   variant="secondary"
+                  data-testid="teacher-checkin-manual-qr-submit"
                   disabled={qrMutation.isPending}
                   onClick={() => {
                     void handleQrSubmit(manualQrCode)
@@ -309,14 +313,20 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
               <Badge className="bg-green-600 text-white hover:bg-green-600">Salle vérifiée</Badge>
             ) : null}
 
-            <Button type="button" variant="outline" className="w-full" onClick={() => setStep(3)}>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              data-testid="teacher-checkin-skip-qr"
+              onClick={() => setStep(3)}
+            >
               Passer cette étape
             </Button>
           </section>
         ) : null}
 
         {step === 3 ? (
-          <section className="space-y-4 rounded-xl border p-4">
+          <section className="space-y-4 rounded-xl border p-4" data-testid="teacher-checkin-step-3">
             {studentsQuery.isLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 6 }).map((_, index) => (
@@ -332,16 +342,18 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
             ) : null}
 
             {studentsQuery.data?.length ? (
-              <div className="max-h-[40vh] space-y-2 overflow-y-auto pr-1">
+              <div className="max-h-[40vh] space-y-2 overflow-y-auto pr-1" data-testid="teacher-student-list">
                 {studentsQuery.data.map((student) => {
                   const isPresent = !absentStudentIds.has(student.id)
 
                   return (
                     <label
                       key={student.id}
+                      data-testid={`teacher-student-row-${student.id}`}
                       className="flex min-h-[48px] items-center gap-3 rounded-md border px-3 py-2"
                     >
                       <Checkbox
+                        data-testid={`teacher-student-checkbox-${student.id}`}
                         checked={isPresent}
                         onCheckedChange={(value) => toggleStudent(student.id, Boolean(value))}
                       />
@@ -356,6 +368,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
               type="button"
               size="lg"
               className="w-full"
+              data-testid="teacher-students-submit"
               disabled={submitStudentsMutation.isPending}
               onClick={() => {
                 void handleSubmitStudents()
