@@ -221,8 +221,11 @@ const resolveDownloadUrl = (value: unknown): string | null => {
 const parseJobPayload = (value: unknown): ExportJobStatus => {
   const payload = isRecord(value) ? value : {}
   const result = isRecord(payload.result) ? payload.result : {}
+  const status = asString(payload.status)
 
   const possibleUrl =
+    payload.resultUrl ??
+    payload.downloadUrl ??
     result.url ??
     result.fileUrl ??
     result.downloadUrl ??
@@ -230,12 +233,20 @@ const parseJobPayload = (value: unknown): ExportJobStatus => {
     result.filePath ??
     result.file_path
 
-  const rawState = asString(payload.state, "unknown")
+  const rawState = asString(payload.state, status || "unknown")
+  const normalizedFromStatus =
+    status === "pending"
+      ? "queued"
+      : status === "processing"
+        ? "running"
+        : status === "done" || status === "failed"
+          ? status
+          : null
 
   return {
     jobId: asString(payload.jobId),
     rawState,
-    state: normalizeJobState(rawState),
+    state: normalizedFromStatus ?? normalizeJobState(rawState),
     downloadUrl: resolveDownloadUrl(possibleUrl),
     failedReason: asNullableString(payload.failedReason),
   }
@@ -267,8 +278,33 @@ export const queueTeacherSalaryExport = async (
   teacherId: string,
   month: string
 ): Promise<{ jobId: string }> => {
-  const response = await api.get(`/billing/salary/export/${teacherId}`, {
-    params: { month },
+  try {
+    const response = await api.post("/billing/salary/export", {
+      teacherId,
+      periodMonth: month,
+    })
+
+    const payload = isRecord(response.data) ? response.data : {}
+    return { jobId: asString(payload.jobId) }
+  } catch {
+    const fallback = await api.get(`/billing/salary/export/${teacherId}`, {
+      params: { month },
+    })
+
+    const payload = isRecord(fallback.data) ? fallback.data : {}
+    return { jobId: asString(payload.jobId) }
+  }
+}
+
+export const queueBulkSalaryExport = async (input: {
+  periodFrom: string
+  periodTo: string
+  teacherId?: string
+}): Promise<{ jobId: string }> => {
+  const response = await api.post("/billing/salary/export/bulk", {
+    periodFrom: input.periodFrom,
+    periodTo: input.periodTo,
+    teacherId: input.teacherId ?? null,
   })
 
   const payload = isRecord(response.data) ? response.data : {}
@@ -276,6 +312,6 @@ export const queueTeacherSalaryExport = async (
 }
 
 export const getExportJobStatus = async (jobId: string): Promise<ExportJobStatus> => {
-  const response = await api.get(`/jobs/${jobId}`)
+  const response = await api.get(`/jobs/${jobId}/status`)
   return parseJobPayload(response.data)
 }

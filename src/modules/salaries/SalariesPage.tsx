@@ -28,7 +28,7 @@ import {
   getRecentMonthOptions,
   getSalarySummary,
   isFutureMonth,
-  queueSchoolSalaryExport,
+  queueBulkSalaryExport,
   queueTeacherSalaryExport,
   updateSalaryStatus,
   type SalarySummaryItem,
@@ -67,6 +67,10 @@ export default function SalariesPage() {
   const [selectedSalaryRow, setSelectedSalaryRow] = useState<SalarySummaryItem | null>(null)
   const [paymentNotes, setPaymentNotes] = useState("")
   const [exportJobId, setExportJobId] = useState<string | null>(null)
+  const [bulkExportDialogOpen, setBulkExportDialogOpen] = useState(false)
+  const [bulkExportTarget, setBulkExportTarget] = useState<string>("all")
+  const [bulkPeriodFrom, setBulkPeriodFrom] = useState(getCurrentMonth)
+  const [bulkPeriodTo, setBulkPeriodTo] = useState(getCurrentMonth)
 
   const monthOptions = useMemo(() => getRecentMonthOptions(getCurrentMonth(), 18), [])
 
@@ -133,19 +137,21 @@ export default function SalariesPage() {
     },
   })
 
-  const exportSchoolMutation = useMutation({
-    mutationFn: () => queueSchoolSalaryExport(selectedMonth),
+  const exportBulkMutation = useMutation({
+    mutationFn: (input: { periodFrom: string; periodTo: string; teacherId?: string }) =>
+      queueBulkSalaryExport(input),
     onSuccess: ({ jobId }) => {
       setExportJobId(jobId)
+      setBulkExportDialogOpen(false)
       toast({
         title: "Export lancé",
-        description: "Le bilan PDF est en cours de génération.",
+        description: "Le bilan multi-période est en cours de génération.",
       })
     },
     onError: () => {
       toast({
         title: "Erreur",
-        description: "Impossible de lancer l'export PDF.",
+        description: "Impossible de lancer l'export du bilan.",
         variant: "destructive",
       })
     },
@@ -153,8 +159,9 @@ export default function SalariesPage() {
 
   const exportTeacherMutation = useMutation({
     mutationFn: (teacherId: string) => queueTeacherSalaryExport(teacherId, selectedMonth),
-    onSuccess: () => {
-      toast({ title: "Export professeur queué" })
+    onSuccess: ({ jobId }) => {
+      setExportJobId(jobId)
+      toast({ title: "Export professeur lancé" })
     },
     onError: () => {
       toast({
@@ -202,6 +209,10 @@ export default function SalariesPage() {
   )
 
   const isSelectedMonthFuture = isFutureMonth(selectedMonth)
+  const teacherOptions = useMemo(
+    () => items.map((item) => ({ id: item.teacherId, label: item.teacherName })),
+    [items]
+  )
 
   const openMarkPaidDialog = (row: SalarySummaryItem) => {
     if (!row.salaryRecordId) {
@@ -278,8 +289,13 @@ export default function SalariesPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => exportSchoolMutation.mutate()}
-                disabled={exportSchoolMutation.isPending}
+                onClick={() => {
+                  setBulkExportTarget("all")
+                  setBulkPeriodFrom(selectedMonth)
+                  setBulkPeriodTo(selectedMonth)
+                  setBulkExportDialogOpen(true)
+                }}
+                disabled={exportBulkMutation.isPending}
                 data-testid="salaries-export-school-button"
               >
                 Export bilan PDF
@@ -505,6 +521,88 @@ export default function SalariesPage() {
               disabled={markPaidMutation.isPending || !selectedSalaryRow?.salaryRecordId}
             >
               Confirmer le paiement
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkExportDialogOpen} onOpenChange={setBulkExportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Exporter le bilan</DialogTitle>
+            <DialogDescription>
+              Choisissez un professeur (ou tous) et la période à exporter.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="bulk-export-target" className="text-sm font-medium">
+                Pour
+              </label>
+              <Select value={bulkExportTarget} onValueChange={setBulkExportTarget}>
+                <SelectTrigger id="bulk-export-target">
+                  <SelectValue placeholder="Tous les professeurs" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les professeurs</SelectItem>
+                  {teacherOptions.map((teacher) => (
+                    <SelectItem key={teacher.id} value={teacher.id}>
+                      {teacher.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label htmlFor="bulk-period-from" className="text-sm font-medium">
+                  Période de
+                </label>
+                <Input
+                  id="bulk-period-from"
+                  type="month"
+                  value={bulkPeriodFrom}
+                  onChange={(event) => setBulkPeriodFrom(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="bulk-period-to" className="text-sm font-medium">
+                  à
+                </label>
+                <Input
+                  id="bulk-period-to"
+                  type="month"
+                  value={bulkPeriodTo}
+                  onChange={(event) => setBulkPeriodTo(event.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setBulkExportDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                const teacherId = bulkExportTarget === "all" ? undefined : bulkExportTarget
+                exportBulkMutation.mutate({
+                  periodFrom: bulkPeriodFrom,
+                  periodTo: bulkPeriodTo,
+                  teacherId,
+                })
+              }}
+              disabled={
+                exportBulkMutation.isPending ||
+                bulkPeriodFrom.length !== 7 ||
+                bulkPeriodTo.length !== 7 ||
+                bulkPeriodFrom > bulkPeriodTo
+              }
+            >
+              Générer
             </Button>
           </DialogFooter>
         </DialogContent>
