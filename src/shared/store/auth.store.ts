@@ -16,15 +16,19 @@ export type AuthUser = {
 type AuthState = {
   user: AuthUser | null
   accessToken: string | null
+  refreshToken: string | null
   setUser: (user: AuthUser | null) => void
   setAccessToken: (accessToken: string | null) => void
+  setRefreshToken: (refreshToken: string | null) => void
   logout: () => void
 }
 
 export const useAuthStore = create<AuthState>()((setState) => ({
   user: null,
   accessToken: null,
+  refreshToken: null,
   setUser: (user) => setState({ user }),
   setAccessToken: (accessToken) => setState({ accessToken }),
-  logout: () => setState({ user: null, accessToken: null }),
+  setRefreshToken: (refreshToken) => setState({ refreshToken }),
+  logout: () => setState({ user: null, accessToken: null, refreshToken: null }),
 }))

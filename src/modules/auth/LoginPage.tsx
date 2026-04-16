@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -19,8 +19,10 @@ const resolveDirectorPostLoginRoute = async (): Promise<'/dashboard' | '/onboard
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const setUser = useAuthStore((state) => state.setUser);
   const setAccessToken = useAuthStore((state) => state.setAccessToken);
+  const setRefreshToken = useAuthStore((state) => state.setRefreshToken);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [schemaName, setSchemaName] = useState('school_sainte_marie');
@@ -32,10 +34,12 @@ export default function LoginPage() {
     setErrorMessage(null);
     setIsPending(true);
     setAccessToken(null);
+    setRefreshToken(null);
 
     try {
       const result = await login(identifier, password, schemaName || undefined);
       setAccessToken(result.accessToken);
+      setRefreshToken(result.refreshToken ?? null);
       setUser({
         id: result.user.id,
         name: result.user.name,
@@ -125,6 +129,12 @@ export default function LoginPage() {
               {errorMessage ? (
                 <Alert variant="destructive">
                   <AlertDescription>{errorMessage}</AlertDescription>
+                </Alert>
+              ) : null}
+
+              {searchParams.get('reason') === 'session_expired' ? (
+                <Alert className="border-amber-300 text-amber-800 dark:border-amber-600 dark:text-amber-300">
+                  <AlertDescription>Votre session a expiré. Veuillez vous reconnecter.</AlertDescription>
                 </Alert>
               ) : null}
 

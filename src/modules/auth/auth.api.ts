@@ -2,6 +2,7 @@ import { apiClient as api } from '@/shared/api/client';
 
 type LoginResponse = {
   accessToken: string;
+  refreshToken?: string;
   tokenType: 'Bearer';
   expiresIn: string;
   user: {
