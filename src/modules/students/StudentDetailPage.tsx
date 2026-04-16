@@ -1,57 +1,54 @@
-import { useEffect, useMemo, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate, useParams } from "react-router-dom"
+import { BookOpen, Clock3, MessageSquare, Phone, UserCheck } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { cn } from "@/lib/utils"
-import { DocumentList, DocumentUpload, PageLayout, PresenceDonut } from "@/shared/components"
-import { BackIcon, SmsIcon } from "@/shared/components/icons"
-import { getAttendanceHistory, getStudentById } from "@/modules/students/students.api"
+import { useToast } from "@/components/ui/use-toast"
+import { getStudentById, updateStudent } from "@/modules/students/students.api"
+import { DocumentList, DocumentUpload, PageLayout, PresenceDonut, StatCard } from "@/shared/components"
+import { BackIcon } from "@/shared/components/icons"
 
-const noteStorageKey = (studentId: string) => `edutrack:student-note:${studentId}`
+const initials = (firstName: string, lastName: string) =>
+  `${lastName?.[0] ?? ""}${firstName?.[0] ?? ""}`.toUpperCase()
 
-const toMonthRange = () => {
-  const now = new Date()
-  const start = new Date(now.getFullYear(), now.getMonth(), 1)
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-  return {
-    dateFrom: start.toISOString().slice(0, 10),
-    dateTo: end.toISOString().slice(0, 10),
-  }
+const smsLabel: Record<"queued" | "sent" | "failed" | "delivered", string> = {
+  queued: "En attente",
+  sent: "Envoyé",
+  failed: "Échec",
+  delivered: "Livré",
 }
 
-const getWeekdaysInMonth = () => {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth()
-  const maxDay = new Date(year, month + 1, 0).getDate()
-
-  let count = 0
-  for (let day = 1; day <= maxDay; day += 1) {
-    const current = new Date(year, month, day)
-    const dow = current.getDay()
-    if (dow !== 0) {
-      count += 1
-    }
-  }
-
-  return count
+const recentSmsLabel: Record<"sent" | "failed" | "not_sent" | "none", string> = {
+  sent: "Envoyé",
+  failed: "Échec",
+  not_sent: "Non envoyé",
+  none: "-",
 }
 
 export default function StudentDetailPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
   const { studentId = "" } = useParams<{ studentId: string }>()
 
+  const [parentName, setParentName] = useState("")
+  const [parentPhone, setParentPhone] = useState("")
+  const [parentName2, setParentName2] = useState("")
+  const [parentPhone2, setParentPhone2] = useState("")
   const [note, setNote] = useState("")
-  const [noteStatus, setNoteStatus] = useState<"idle" | "saving" | "saved">("idle")
+  const [noteStatus, setNoteStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
 
-  const monthRange = useMemo(() => toMonthRange(), [])
+  const lastSavedNoteRef = useRef("")
+  const hydratedRef = useRef(false)
 
   const studentQuery = useQuery({
     queryKey: ["students", "detail", studentId],
@@ -59,49 +56,82 @@ export default function StudentDetailPage() {
     enabled: studentId.trim().length > 0,
   })
 
-  const absencesQuery = useQuery({
-    queryKey: [
-      "students",
-      "absences",
-      "month",
-      studentId,
-      monthRange.dateFrom,
-      monthRange.dateTo,
-    ],
-    queryFn: () =>
-      getAttendanceHistory({
-        page: 1,
-        limit: 200,
-        studentId,
-        dateFrom: monthRange.dateFrom,
-        dateTo: monthRange.dateTo,
+  const saveContactsMutation = useMutation({
+    mutationFn: () =>
+      updateStudent(studentId, {
+        parentName: parentName.trim() ? parentName.trim() : null,
+        parentPhone: parentPhone.trim() ? parentPhone.trim() : null,
+        parentName2: parentName2.trim() ? parentName2.trim() : null,
+        parentPhone2: parentPhone2.trim() ? parentPhone2.trim() : null,
       }),
-    enabled: studentId.trim().length > 0,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["students", "detail", studentId] })
+      await queryClient.invalidateQueries({ queryKey: ["students", "list"] })
+      toast({ title: "Contacts parents mis à jour" })
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de mettre à jour les contacts", variant: "destructive" })
+    },
+  })
+
+  const saveNoteMutation = useMutation({
+    mutationFn: (nextNote: string) =>
+      updateStudent(studentId, {
+        note: nextNote.trim() ? nextNote.trim() : null,
+      }),
+    onSuccess: async (_, savedNote) => {
+      lastSavedNoteRef.current = savedNote
+      setNoteStatus("saved")
+      await queryClient.invalidateQueries({ queryKey: ["students", "detail", studentId] })
+    },
+    onError: () => {
+      setNoteStatus("error")
+    },
   })
 
   useEffect(() => {
-    if (!studentId) {
+    const student = studentQuery.data
+    if (!student) {
       return
     }
-    const existing = localStorage.getItem(noteStorageKey(studentId))
-    setNote(existing ?? "")
-  }, [studentId])
+
+    setParentName(student.parentName ?? "")
+    setParentPhone(student.parentPhone ?? "")
+    setParentName2(student.parentName2 ?? "")
+    setParentPhone2(student.parentPhone2 ?? "")
+    setNote(student.note ?? "")
+    lastSavedNoteRef.current = student.note ?? ""
+    hydratedRef.current = true
+    setNoteStatus("idle")
+  }, [studentQuery.data])
 
   useEffect(() => {
-    if (!studentId) {
+    if (!studentId || !hydratedRef.current) {
+      return
+    }
+
+    if (note === lastSavedNoteRef.current) {
+      if (noteStatus !== "idle") {
+        setNoteStatus("idle")
+      }
       return
     }
 
     setNoteStatus("saving")
     const timer = window.setTimeout(() => {
-      localStorage.setItem(noteStorageKey(studentId), note)
-      setNoteStatus("saved")
+      void saveNoteMutation.mutateAsync(note)
     }, 1000)
 
     return () => {
       window.clearTimeout(timer)
     }
-  }, [note, studentId])
+  }, [note, noteStatus, saveNoteMutation, studentId])
+
+  const estimatedPresentDays = useMemo(() => {
+    const schoolDaysEstimate = 22
+    const absences = studentQuery.data?.absenceSummary.thisMonth ?? 0
+    return Math.max(0, schoolDaysEstimate - absences)
+  }, [studentQuery.data?.absenceSummary.thisMonth])
 
   if (!studentId) {
     return (
@@ -133,16 +163,10 @@ export default function StudentDetailPage() {
   }
 
   const student = studentQuery.data
-  const absences = absencesQuery.data?.data ?? []
-  const absentCount = absencesQuery.data?.pagination.total ?? 0
-  const expectedDays = getWeekdaysInMonth()
-  const presentEstimate = Math.max(0, expectedDays - absentCount)
-
-  const phone = student.parentPhone ?? student.parentPhone2
 
   return (
     <PageLayout
-      title="Détail élève"
+      title="Fiche élève"
       subtitle={`${student.lastName} ${student.firstName}`.trim()}
       actions={
         <Button variant="outline" onClick={() => navigate("/students")}>
@@ -151,38 +175,63 @@ export default function StudentDetailPage() {
         </Button>
       }
     >
-      <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <div className="space-y-4">
+      <Card>
+        <CardContent className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between md:p-6">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-12 w-12">
+              <AvatarFallback>{initials(student.firstName, student.lastName)}</AvatarFallback>
+            </Avatar>
+            <div>
+              <p className="text-lg font-semibold">{student.lastName} {student.firstName}</p>
+              <p className="text-sm text-muted-foreground">{student.className}</p>
+            </div>
+          </div>
+          <Badge variant={student.isActive ? "secondary" : "destructive"}>
+            {student.isActive ? "Actif" : "Inactif"}
+          </Badge>
+        </CardContent>
+      </Card>
+
+      <Tabs defaultValue="informations" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
+          <TabsTrigger value="informations">Informations</TabsTrigger>
+          <TabsTrigger value="absences">Absences</TabsTrigger>
+          <TabsTrigger value="documents">Documents</TabsTrigger>
+          <TabsTrigger value="sms">SMS Parents</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="informations" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Informations élève</CardTitle>
+              <CardTitle className="text-base">Contacts parents</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <p className="text-xs text-muted-foreground">Nom complet</p>
-                <p className="text-sm font-medium">{student.lastName} {student.firstName}</p>
+            <CardContent className="space-y-4">
+              <div className="grid gap-2 md:grid-cols-2">
+                <Input value={parentName} onChange={(event) => setParentName(event.target.value)} placeholder="Nom parent 1" />
+                <div className="flex gap-2">
+                  <Input value={parentPhone} onChange={(event) => setParentPhone(event.target.value)} placeholder="Téléphone parent 1" />
+                  <Button type="button" variant="outline" asChild disabled={!parentPhone.trim()}>
+                    <a href={parentPhone.trim() ? `tel:${parentPhone.trim()}` : undefined}>
+                      <Phone className="h-4 w-4" />
+                    </a>
+                  </Button>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Classe</p>
-                <p className="text-sm">{student.className}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Parent 1</p>
-                <p className="text-sm">{student.parentPhone ?? "Non renseigné"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Parent 2</p>
-                <p className="text-sm">{student.parentPhone2 ?? "Non renseigné"}</p>
-              </div>
-              <Badge variant={student.isActive ? "secondary" : "destructive"}>
-                {student.isActive ? "Actif" : "Inactif"}
-              </Badge>
 
-              <Button asChild className="w-full" disabled={!phone}>
-                <a href={phone ? `tel:${phone}` : undefined}>
-                  <SmsIcon className="mr-2 h-4 w-4" />
-                  SMS parent
-                </a>
+              <div className="grid gap-2 md:grid-cols-2">
+                <Input value={parentName2} onChange={(event) => setParentName2(event.target.value)} placeholder="Nom parent 2" />
+                <div className="flex gap-2">
+                  <Input value={parentPhone2} onChange={(event) => setParentPhone2(event.target.value)} placeholder="Téléphone parent 2" />
+                  <Button type="button" variant="outline" asChild disabled={!parentPhone2.trim()}>
+                    <a href={parentPhone2.trim() ? `tel:${parentPhone2.trim()}` : undefined}>
+                      <Phone className="h-4 w-4" />
+                    </a>
+                  </Button>
+                </div>
+              </div>
+
+              <Button type="button" onClick={() => saveContactsMutation.mutate()} disabled={saveContactsMutation.isPending}>
+                {saveContactsMutation.isPending ? "Enregistrement..." : "Modifier les contacts"}
               </Button>
             </CardContent>
           </Card>
@@ -195,101 +244,141 @@ export default function StudentDetailPage() {
               <textarea
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
-                placeholder="Ajouter une note sur cet élève..."
                 rows={6}
-                className={cn(
-                  "flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors",
-                  "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                  "disabled:cursor-not-allowed disabled:opacity-50"
-                )}
+                placeholder="Ajouter une note sur cet élève..."
+                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
               <p className="text-xs text-muted-foreground">
-                {noteStatus === "saving" ? "Sauvegarde..." : noteStatus === "saved" ? "Sauvegardé" : ""}
+                {noteStatus === "saving" ? "Sauvegarde..." : ""}
+                {noteStatus === "saved" ? "Sauvegardé" : ""}
+                {noteStatus === "error" ? "Erreur de sauvegarde" : ""}
               </p>
             </CardContent>
           </Card>
-        </div>
+        </TabsContent>
 
-        <Tabs defaultValue="absences" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="absences">Absences</TabsTrigger>
-            <TabsTrigger value="documents">Documents</TabsTrigger>
-          </TabsList>
+        <TabsContent value="absences" className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <StatCard title="Total absences" value={student.absenceSummary.total} icon={<BookOpen className="h-4 w-4" />} variant="danger" />
+            <StatCard title="Ce mois" value={student.absenceSummary.thisMonth} icon={<Clock3 className="h-4 w-4" />} variant="warning" />
+            <StatCard title="Cette semaine" value={student.absenceSummary.thisWeek} icon={<UserCheck className="h-4 w-4" />} />
+          </div>
 
-          <TabsContent value="absences" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Absences du mois</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <PresenceDonut present={presentEstimate} absent={absentCount} late={0} size="sm" />
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Résumé</p>
-                  <p className="text-xs text-muted-foreground">Absences enregistrées: {absentCount}</p>
-                  <p className="text-xs text-muted-foreground">Période: {monthRange.dateFrom} → {monthRange.dateTo}</p>
-                </div>
-              </CardContent>
-            </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Présence estimée (mois en cours)</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <PresenceDonut present={estimatedPresentDays} absent={student.absenceSummary.thisMonth} late={0} size="sm" />
+              <p className="text-sm text-muted-foreground">
+                Estimation sur 22 jours d'école: {estimatedPresentDays} jours présents / {student.absenceSummary.thisMonth} absences.
+              </p>
+            </CardContent>
+          </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Liste des absences</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {absencesQuery.isLoading ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                ) : absences.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Aucune absence ce mois-ci.</p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Classe</TableHead>
-                        <TableHead>Statut</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {absences.map((row) => (
-                        <TableRow key={row.id}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Absences récentes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {student.recentAbsences.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Aucune absence récente.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Matière</TableHead>
+                      <TableHead>Professeur</TableHead>
+                      <TableHead>SMS</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {student.recentAbsences.map((row, index) => {
+                      const statusKey = row.smsStatus ?? "none"
+                      return (
+                        <TableRow key={`${row.date}-${row.subject}-${index}`}>
                           <TableCell>{row.date}</TableCell>
-                          <TableCell>{row.className}</TableCell>
+                          <TableCell>{row.subject}</TableCell>
+                          <TableCell>{row.teacherName}</TableCell>
                           <TableCell>
-                            <Badge variant="destructive">Absent</Badge>
+                            <Badge variant={row.smsStatus === "failed" ? "destructive" : "secondary"}>
+                              {recentSmsLabel[statusKey]}
+                            </Badge>
                           </TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-          <TabsContent value="documents" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Ajouter un document</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <DocumentUpload entityType="student" entityId={student.id} onUploadSuccess={() => undefined} />
-              </CardContent>
-            </Card>
+        <TabsContent value="documents" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Ajouter un document</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DocumentUpload entityType="student" entityId={student.id} onUploadSuccess={() => undefined} />
+            </CardContent>
+          </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Documents</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <DocumentList entityType="student" entityId={student.id} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Documents</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DocumentList entityType="student" entityId={student.id} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="sms" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Historique SMS parents</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {student.parentSms.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Aucun SMS trouvé pour cet élève.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Motif</TableHead>
+                      <TableHead>Destinataire</TableHead>
+                      <TableHead>Statut</TableHead>
+                      <TableHead className="w-[130px]">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {student.parentSms.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell>{new Date(row.date).toLocaleString()}</TableCell>
+                        <TableCell className="max-w-[360px] truncate">{row.reason}</TableCell>
+                        <TableCell>{row.recipientPhone}</TableCell>
+                        <TableCell>
+                          <Badge variant={row.status === "failed" ? "destructive" : "secondary"}>{smsLabel[row.status]}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button type="button" size="sm" variant="outline" disabled={row.status !== "failed"}>
+                            <MessageSquare className="mr-2 h-4 w-4" />
+                            Renvoyer
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </PageLayout>
   )
 }

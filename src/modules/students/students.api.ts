@@ -6,8 +6,11 @@ export type StudentItem = {
   className: string
   firstName: string
   lastName: string
+  parentName?: string | null
   parentPhone: string | null
+  parentName2?: string | null
   parentPhone2: string | null
+  note?: string | null
   isActive: boolean
   createdAt: string
 }
@@ -34,8 +37,11 @@ export type CreateStudentPayload = {
   classId: string
   firstName: string
   lastName: string
+  parentName?: string | null
   parentPhone?: string | null
+  parentName2?: string | null
   parentPhone2?: string | null
+  note?: string | null
   isActive?: boolean
 }
 
@@ -43,9 +49,51 @@ export type UpdateStudentPayload = {
   classId?: string
   firstName?: string
   lastName?: string
+  parentName?: string | null
   parentPhone?: string | null
+  parentName2?: string | null
   parentPhone2?: string | null
+  note?: string | null
   isActive?: boolean
+}
+
+export type StudentDetail = {
+  id: string
+  firstName: string
+  lastName: string
+  className: string
+  classId: string
+  isActive: boolean
+  parentPhone: string | null
+  parentPhone2: string | null
+  parentName: string | null
+  parentName2: string | null
+  note: string | null
+  createdAt: string
+  absenceSummary: {
+    total: number
+    thisMonth: number
+    thisWeek: number
+  }
+  recentAbsences: Array<{
+    date: string
+    subject: string
+    teacherName: string
+    smsStatus: "sent" | "failed" | "not_sent" | null
+  }>
+  documents: Array<{
+    id: string
+    fileName: string
+    fileUrl: string
+    uploadedAt: string
+  }>
+  parentSms: Array<{
+    id: string
+    date: string
+    reason: string
+    recipientPhone: string
+    status: "queued" | "sent" | "failed" | "delivered"
+  }>
 }
 
 export type AttendanceHistoryItem = {
@@ -118,8 +166,11 @@ export const createStudent = (payload: CreateStudentPayload) =>
       class_id: payload.classId,
       first_name: payload.firstName,
       last_name: payload.lastName,
+      parent_name: payload.parentName ?? null,
       parent_phone: payload.parentPhone ?? null,
+      parent_name_2: payload.parentName2 ?? null,
       parent_phone_2: payload.parentPhone2 ?? null,
+      notes: payload.note ?? null,
       is_active: payload.isActive ?? true,
     })
     .then((response) => response.data.data)
@@ -130,8 +181,11 @@ export const updateStudent = (studentId: string, payload: UpdateStudentPayload) 
       class_id: payload.classId,
       first_name: payload.firstName,
       last_name: payload.lastName,
+      parent_name: payload.parentName,
       parent_phone: payload.parentPhone,
+      parent_name_2: payload.parentName2,
       parent_phone_2: payload.parentPhone2,
+      notes: payload.note,
       is_active: payload.isActive,
     })
     .then((response) => response.data.data)
@@ -171,20 +225,5 @@ export const getTodayAbsences = () =>
     .get<{ data: TodayAbsenceGroup[] }>("/attendance/students/today")
     .then((response) => response.data.data)
 
-export const getStudentById = async (studentId: string): Promise<StudentItem> => {
-  const firstPage = await listStudents({ page: 1, limit: 200 })
-  const firstMatch = firstPage.data.find((item) => item.id === studentId)
-  if (firstMatch) {
-    return firstMatch
-  }
-
-  for (let page = 2; page <= firstPage.pagination.totalPages; page += 1) {
-    const response = await listStudents({ page, limit: 200 })
-    const match = response.data.find((item) => item.id === studentId)
-    if (match) {
-      return match
-    }
-  }
-
-  throw new Error("STUDENT_NOT_FOUND")
-}
+export const getStudentById = (studentId: string) =>
+  api.get<{ data: StudentDetail }>(`/students/${studentId}`).then((response) => response.data.data)
