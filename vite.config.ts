@@ -31,6 +31,9 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // The app bundle can exceed Workbox's default 2 MiB precache limit in CI builds.
+        // Keep precaching enabled by raising the threshold.
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         runtimeCaching: [
           {
             urlPattern: /\/api\/attendance\/today/,
