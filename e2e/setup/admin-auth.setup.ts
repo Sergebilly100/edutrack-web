@@ -32,7 +32,7 @@ test("setup admin auth state", async ({ page }) => {
     {
       identifier: process.env.E2E_ADMIN_IDENTIFIER ?? "admin@edutrack.ci",
       password: process.env.E2E_ADMIN_PASSWORD ?? "Test1234!",
-      schemaName: process.env.E2E_ADMIN_SCHEMA_NAME ?? "public",
+      schemaName: process.env.E2E_ADMIN_SCHEMA_NAME ?? "school_sainte_marie",
       expectedPath: "/admin",
       storagePath,
     },
