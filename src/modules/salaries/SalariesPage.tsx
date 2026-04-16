@@ -243,7 +243,7 @@ export default function SalariesPage() {
                 </Button>
 
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="w-[210px]">
+                  <SelectTrigger className="w-[210px]" data-testid="salaries-month-select-trigger">
                     <SelectValue placeholder="Sélectionner un mois" />
                   </SelectTrigger>
                   <SelectContent>

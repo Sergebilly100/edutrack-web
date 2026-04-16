@@ -164,6 +164,6 @@ export const getFirstTeacherId = async (
 
 export const selectSalaryMonth = async (page: Page, month: string) => {
   const monthLabel = formatMonthLabel(month)
-  await page.getByRole("combobox").click()
+  await page.getByTestId("salaries-month-select-trigger").click()
   await page.getByRole("option", { name: monthLabel }).click()
 }

@@ -3,12 +3,16 @@ import { expect, test } from "@playwright/test"
 import { createDirectorApiAuth, findPayableMonth, loginAsDirectorUI, selectSalaryMonth } from "./helpers"
 
 test.describe("Page salaires", () => {
+  test.describe.configure({ mode: "serial" })
+
   let payableMonth = ""
 
-  test.beforeEach(async ({ page, request }) => {
+  test.beforeAll(async ({ request }) => {
     const auth = await createDirectorApiAuth(request)
     payableMonth = await findPayableMonth(request, auth)
+  })
 
+  test.beforeEach(async ({ page }) => {
     await loginAsDirectorUI(page)
     await page.locator('a[href="/salaries"]:visible').first().click()
     await expect(page).toHaveURL(/\/salaries/)
@@ -32,11 +36,18 @@ test.describe("Page salaires", () => {
   test("marquer un prof comme payé change le badge statut", async ({ page }) => {
     const markPaidButton = page.locator("[data-testid^='salary-vacataire-mark-paid-']").first()
     await expect(markPaidButton).toBeVisible()
+
+    const markPaidButtonTestId = await markPaidButton.getAttribute("data-testid")
+    const teacherId = markPaidButtonTestId?.replace("salary-vacataire-mark-paid-", "")
+    expect(teacherId).toBeTruthy()
+
     await markPaidButton.click()
 
     await page.getByRole("button", { name: "Confirmer le paiement" }).click()
 
-    await expect(page.locator("[data-testid^='salary-vacataire-status-']", { hasText: "Payé" }).first()).toBeVisible()
+    await expect(page.getByTestId(`salary-vacataire-status-${teacherId as string}`)).toContainText("Payé", {
+      timeout: 15_000,
+    })
   })
 
   test("l'export PDF est queué (bouton télécharger apparaît)", async ({ page }) => {
