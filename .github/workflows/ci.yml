@@ -22,22 +22,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Verify cross-repo checkout config
-        run: |
-          echo "Web repository: ${{ github.repository }}"
-          echo "API repository target: ${{ vars.EDUTRACK_API_REPOSITORY || format('{0}/edutrack-api', github.repository_owner) }}"
-          if [ "${{ github.event.repository.private }}" = "true" ] && [ -z "${{ secrets.CI_REPO_ACCESS_TOKEN }}" ]; then
-            echo "::error::Missing secret CI_REPO_ACCESS_TOKEN. Required for cross-repository checkout when repositories are private."
-            exit 1
-          fi
-
-      - name: Checkout API repository
-        uses: actions/checkout@v5
-        with:
-          repository: ${{ vars.EDUTRACK_API_REPOSITORY || format('{0}/edutrack-api', github.repository_owner) }}
-          path: edutrack-api
-          token: ${{ secrets.CI_REPO_ACCESS_TOKEN || github.token }}
-
       - name: Setup Node.js 20
         uses: actions/setup-node@v5
         with:
@@ -62,6 +46,22 @@ jobs:
 
       - name: Run tests
         run: npm run test
+
+      - name: Verify cross-repo checkout config
+        run: |
+          echo "Web repository: ${{ github.repository }}"
+          echo "API repository target: ${{ vars.EDUTRACK_API_REPOSITORY || format('{0}/edutrack-api', github.repository_owner) }}"
+          if [ "${{ github.event.repository.private }}" = "true" ] && [ -z "${{ secrets.CI_REPO_ACCESS_TOKEN }}" ]; then
+            echo "::error::Missing secret CI_REPO_ACCESS_TOKEN. Required for cross-repository checkout when repositories are private."
+            exit 1
+          fi
+
+      - name: Checkout API repository
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ vars.EDUTRACK_API_REPOSITORY || format('{0}/edutrack-api', github.repository_owner) }}
+          path: edutrack-api
+          token: ${{ secrets.CI_REPO_ACCESS_TOKEN || github.token }}
 
       - name: Start PostgreSQL and Redis for E2E backend
         run: docker compose -f ./edutrack-api/docker-compose.yml up -d postgres redis
@@ -157,6 +157,7 @@ jobs:
         with:
           name: playwright-report
           path: playwright-report/
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Report asset sizes
