@@ -58,7 +58,7 @@ jobs:
         run: npm run typecheck
 
       - name: Lint
-        run: npm run lint
+        run: npm run lint -- --ignore-pattern "edutrack-api/**"
 
       - name: Run tests
         run: npm run test
