@@ -142,13 +142,14 @@ function TodayPresenceList({ courses }: { courses: DashboardCourseItem[] }) {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" data-testid="dashboard-today-presence-list">
       {courses.map((course) => {
         const status = courseStatusMeta[course.status ?? "default"] ?? courseStatusMeta.default
         return (
           <div
             key={course.id}
             className="animate-fade-in rounded-lg border border-border p-3 transition hover:bg-muted/40"
+            data-testid="dashboard-presence-row"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -352,7 +353,7 @@ export default function DashboardPage() {
           ) : null}
         </section>
 
-        <section className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
+        <section className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4" data-testid="dashboard-statcards">
           <StatCard
             title="Profs actifs"
             value={countsQuery.data?.activeTeachers ?? 0}
@@ -401,7 +402,7 @@ export default function DashboardPage() {
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg font-semibold">Profs à risque</CardTitle>
               <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-sm">
-                <Link to="/teachers">Voir tous</Link>
+                <Link to="/teachers" data-testid="dashboard-risk-see-all">Voir tous</Link>
               </Button>
             </CardHeader>
             <CardContent>

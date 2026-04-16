@@ -25,6 +25,7 @@ export interface SalaryRowProps {
   periodSummary: SalaryRowPeriodSummary
   onMarkPaid: (teacherId: string) => void
   onExportPDF: (teacherId: string) => void
+  dataTestIdPrefix?: string
 }
 
 const teacherTypeMeta: Record<SalaryRowTeacher["type"], { label: string; className: string }> = {
@@ -93,14 +94,17 @@ const getProgressColor = (ratio: number) => {
   return "bg-red-500"
 }
 
-export function SalaryRow({ teacher, periodSummary, onMarkPaid, onExportPDF }: SalaryRowProps) {
+export function SalaryRow({ teacher, periodSummary, onMarkPaid, onExportPDF, dataTestIdPrefix }: SalaryRowProps) {
   const progressRatio =
     periodSummary.hoursPlanned > 0
       ? Math.max(0, Math.min(100, (periodSummary.hoursDone / periodSummary.hoursPlanned) * 100))
       : 0
 
   return (
-    <TableRow className={cn(periodSummary.status === "paid" ? "bg-muted/30 opacity-80" : "")}>
+    <TableRow
+      className={cn(periodSummary.status === "paid" ? "bg-muted/30 opacity-80" : "")}
+      data-testid={dataTestIdPrefix ? `${dataTestIdPrefix}-row-${teacher.id}` : undefined}
+    >
       <TableCell className="min-w-[220px]">
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9 border border-border/60">
@@ -140,7 +144,11 @@ export function SalaryRow({ teacher, periodSummary, onMarkPaid, onExportPDF }: S
       </TableCell>
 
       <TableCell>
-        <Badge variant="outline" className={cn("text-xs font-medium", statusMeta[periodSummary.status].className)}>
+        <Badge
+          variant="outline"
+          className={cn("text-xs font-medium", statusMeta[periodSummary.status].className)}
+          data-testid={dataTestIdPrefix ? `${dataTestIdPrefix}-status-${teacher.id}` : undefined}
+        >
           {statusMeta[periodSummary.status].label}
         </Badge>
       </TableCell>
@@ -148,11 +156,22 @@ export function SalaryRow({ teacher, periodSummary, onMarkPaid, onExportPDF }: S
       <TableCell className="min-w-[200px]">
         <div className="flex flex-wrap justify-end gap-2">
           {periodSummary.status === "pending" && periodSummary.canMarkPaid ? (
-            <Button type="button" size="sm" onClick={() => onMarkPaid(teacher.id)}>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => onMarkPaid(teacher.id)}
+              data-testid={dataTestIdPrefix ? `${dataTestIdPrefix}-mark-paid-${teacher.id}` : undefined}
+            >
               Marquer payé
             </Button>
           ) : null}
-          <Button type="button" variant="outline" size="sm" onClick={() => onExportPDF(teacher.id)}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onExportPDF(teacher.id)}
+            data-testid={dataTestIdPrefix ? `${dataTestIdPrefix}-export-${teacher.id}` : undefined}
+          >
             Export PDF
           </Button>
         </div>

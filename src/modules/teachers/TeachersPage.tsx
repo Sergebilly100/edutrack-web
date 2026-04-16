@@ -379,7 +379,7 @@ export default function TeachersPage() {
         </Button>
       }
     >
-      <div className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-sm">
+      <div className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-sm" data-testid="teachers-filters">
         <div className="grid gap-3 md:grid-cols-3">
           <Select
             value={typeFilter}
@@ -416,6 +416,7 @@ export default function TeachersPage() {
               value={subjectFilter}
               onChange={(event) => setSubjectFilter(event.target.value)}
               placeholder="Filtrer par matière"
+              data-testid="teachers-subject-filter-input"
             />
           </div>
         </div>
@@ -428,45 +429,48 @@ export default function TeachersPage() {
       ) : null}
 
       {!teachersQuery.isError ? (
-        <DataTable
-          columns={columns}
-          data={tableData}
-          isLoading={teachersQuery.isLoading}
-          searchKey="name"
-          searchPlaceholder="Rechercher un professeur"
-          pageSize={20}
-          onRowClick={(teacher) => navigate(`/teachers/${teacher.id}`)}
-          emptyState={
-            <EmptyState
-              icon={<AppIcon icon={TeachersIcon} size="md" className="text-muted-foreground" />}
-              title="Aucun professeur"
-              message="Ajoutez un professeur ou ajustez les filtres pour afficher des résultats."
-              action={{ label: "Ajouter un prof", onClick: () => setCreateOpen(true) }}
-            />
-          }
-          mobileCard={(teacher) => (
-            <button
-              type="button"
-              className="flex w-full items-center gap-3 rounded-xl border bg-card p-4 text-left shadow-sm"
-              onClick={() => navigate(`/teachers/${teacher.id}`)}
-            >
-              <Avatar className="h-10 w-10 flex-shrink-0">
-                <AvatarFallback className="text-sm">{initials(teacher.name)}</AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{teacher.name}</p>
-                <p className="truncate text-xs text-muted-foreground">{teacher.subjects.join(", ")}</p>
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <Badge variant={teacher.isBlocked ? "destructive" : "secondary"} className="text-xs">
-                  {teacher.isBlocked ? "Bloqué" : "Actif"}
-                </Badge>
-                <span className="text-xs text-muted-foreground">{teacher.attendanceRate}%</span>
-              </div>
-              <ChevronRightIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-            </button>
-          )}
-        />
+        <div data-testid="teachers-list-table">
+          <DataTable
+            columns={columns}
+            data={tableData}
+            isLoading={teachersQuery.isLoading}
+            searchKey="name"
+            searchPlaceholder="Rechercher un professeur"
+            pageSize={20}
+            onRowClick={(teacher) => navigate(`/teachers/${teacher.id}`)}
+            emptyState={
+              <EmptyState
+                icon={<AppIcon icon={TeachersIcon} size="md" className="text-muted-foreground" />}
+                title="Aucun professeur"
+                message="Ajoutez un professeur ou ajustez les filtres pour afficher des résultats."
+                action={{ label: "Ajouter un prof", onClick: () => setCreateOpen(true) }}
+              />
+            }
+            mobileCard={(teacher) => (
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 rounded-xl border bg-card p-4 text-left shadow-sm"
+                onClick={() => navigate(`/teachers/${teacher.id}`)}
+                data-testid="teacher-mobile-card"
+              >
+                <Avatar className="h-10 w-10 flex-shrink-0">
+                  <AvatarFallback className="text-sm">{initials(teacher.name)}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{teacher.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{teacher.subjects.join(", ")}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <Badge variant={teacher.isBlocked ? "destructive" : "secondary"} className="text-xs">
+                    {teacher.isBlocked ? "Bloqué" : "Actif"}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">{teacher.attendanceRate}%</span>
+                </div>
+                <ChevronRightIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+              </button>
+            )}
+          />
+        </div>
       ) : null}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>

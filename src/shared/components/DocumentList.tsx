@@ -83,7 +83,7 @@ export function DocumentList({ entityType, entityId }: DocumentListProps) {
 
   return (
     <>
-      <Table>
+      <Table data-testid="document-list-table">
         <TableHeader>
           <TableRow>
             <TableHead>Document</TableHead>

@@ -11,14 +11,16 @@ export function WeekCoverageAlert({ nextWeekHasCoverage, onNavigateToSchedule }:
   }
 
   return (
-    <AlertBanner
-      type="warning"
-      title="Semaine prochaine non configurée"
-      message="L'emploi du temps de la semaine prochaine n'est pas configuré"
-      action={{
-        label: "Configurer l'EDT",
-        onClick: onNavigateToSchedule,
-      }}
-    />
+    <div data-testid="week-coverage-alert">
+      <AlertBanner
+        type="warning"
+        title="Semaine prochaine non configurée"
+        message="L'emploi du temps de la semaine prochaine n'est pas configuré"
+        action={{
+          label: "Configurer l'EDT",
+          onClick: onNavigateToSchedule,
+        }}
+      />
+    </div>
   )
 }

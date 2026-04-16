@@ -222,7 +222,7 @@ export default function SalariesPage() {
     <>
       <OfflineIndicator />
 
-      <div className="space-y-6 animate-fade-in">
+      <div className="space-y-6 animate-fade-in" data-testid="salaries-page">
         <header className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-1">
@@ -270,6 +270,7 @@ export default function SalariesPage() {
                 type="button"
                 onClick={() => setComputeDialogOpen(true)}
                 disabled={isSelectedMonthFuture || computeMutation.isPending}
+                data-testid="salaries-compute-button"
               >
                 Calculer les salaires
               </Button>
@@ -279,6 +280,7 @@ export default function SalariesPage() {
                 variant="outline"
                 onClick={() => exportSchoolMutation.mutate()}
                 disabled={exportSchoolMutation.isPending}
+                data-testid="salaries-export-school-button"
               >
                 Export bilan PDF
               </Button>
@@ -290,7 +292,7 @@ export default function SalariesPage() {
           ) : null}
 
           {exportJobId ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-3 text-sm">
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-3 text-sm" data-testid="salaries-export-job-panel">
               <Badge variant="outline">Job export: {exportJobId}</Badge>
               <Badge
                 variant="outline"
@@ -310,7 +312,7 @@ export default function SalariesPage() {
                 <Button asChild size="sm" variant="secondary">
                   <a href={exportJobQuery.data.downloadUrl} target="_blank" rel="noreferrer">
                     <Download className="mr-2 h-4 w-4" />
-                    Télécharger
+                    <span data-testid="salaries-export-download-link">Télécharger</span>
                   </a>
                 </Button>
               ) : null}
@@ -353,7 +355,7 @@ export default function SalariesPage() {
           />
         </section>
 
-        <section className="rounded-lg border border-border bg-card p-4 shadow-sm md:p-6">
+        <section className="rounded-lg border border-border bg-card p-4 shadow-sm md:p-6" data-testid="salaries-vacataire-section">
           <div className="mb-4 flex items-center justify-between gap-2">
             <h2 className="text-lg font-semibold">Salaires vacataires</h2>
             <Badge variant="outline">{vacataireRows.length} ligne(s)</Badge>
@@ -369,7 +371,7 @@ export default function SalariesPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <Table>
+              <Table data-testid="salaries-vacataire-table">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Professeur</TableHead>
@@ -389,6 +391,7 @@ export default function SalariesPage() {
                     return (
                       <SalaryRow
                         key={row.teacherId}
+                        dataTestIdPrefix="salary-vacataire"
                         teacher={{
                           id: row.teacherId,
                           name: row.teacherName,
@@ -453,7 +456,7 @@ export default function SalariesPage() {
             <Button type="button" variant="outline" onClick={() => setComputeDialogOpen(false)}>
               Annuler
             </Button>
-            <Button type="button" onClick={() => computeMutation.mutate()} disabled={computeMutation.isPending}>
+            <Button type="button" onClick={() => computeMutation.mutate()} disabled={computeMutation.isPending} data-testid="salaries-compute-confirm-button">
               Confirmer
             </Button>
           </DialogFooter>

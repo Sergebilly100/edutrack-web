@@ -1,0 +1,169 @@
+import { expect, type Page, type PlaywrightTestArgs } from "@playwright/test"
+
+type LoginPayload = {
+  accessToken: string
+}
+
+type TeacherListItem = {
+  id: string
+  isBlocked?: boolean
+  is_blocked?: boolean
+}
+
+type TeachersResponse = {
+  data?: TeacherListItem[]
+}
+
+type SalarySummaryItem = {
+  teacherType?: string
+  status?: string
+  salaryRecordId?: string | null
+}
+
+type SalarySummaryResponse = {
+  items?: SalarySummaryItem[]
+}
+
+const DIRECTOR_IDENTIFIER = process.env.E2E_DIRECTOR_IDENTIFIER ?? "directeur@sainte-marie.ci"
+const DIRECTOR_PASSWORD = process.env.E2E_DIRECTOR_PASSWORD ?? "Test1234!"
+const TENANT_SCHEMA = process.env.E2E_SCHEMA_NAME ?? "school_sainte_marie"
+const API_BASE_URL = process.env.E2E_API_URL ?? process.env.VITE_API_URL ?? "http://localhost:3000/api/v1"
+
+const toMonthKey = (date: Date): string => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  return `${year}-${month}`
+}
+
+const getMonthOffset = (offset: number): string => {
+  const now = new Date()
+  const shifted = new Date(Date.UTC(now.getFullYear(), now.getMonth() - offset, 1))
+  return toMonthKey(shifted)
+}
+
+export const formatMonthLabel = (month: string): string => {
+  const [yearRaw, monthRaw] = month.split("-")
+  const year = Number(yearRaw)
+  const monthIndex = Number(monthRaw) - 1
+
+  if (!Number.isInteger(year) || !Number.isInteger(monthIndex) || monthIndex < 0 || monthIndex > 11) {
+    return month
+  }
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(Date.UTC(year, monthIndex, 1)))
+}
+
+export const loginAsDirectorUI = async (page: Page) => {
+  await page.goto("/login")
+
+  await page.getByLabel("Identifiant").fill(DIRECTOR_IDENTIFIER)
+  await page.getByLabel("Mot de passe").fill(DIRECTOR_PASSWORD)
+  await page.getByLabel("Schéma tenant").fill(TENANT_SCHEMA)
+  await page.getByRole("button", { name: "Se connecter" }).click()
+
+  await page.waitForURL(/\/(dashboard|onboarding)/)
+
+  if (page.url().includes("/onboarding")) {
+    await page.goto("/dashboard")
+  }
+
+  await expect(page).toHaveURL(/\/dashboard/)
+}
+
+export type DirectorApiAuth = {
+  headers: Record<string, string>
+}
+
+export const createDirectorApiAuth = async (
+  request: PlaywrightTestArgs["request"]
+): Promise<DirectorApiAuth> => {
+  const loginResponse = await request.post(`${API_BASE_URL}/auth/login/teacher`, {
+    headers: {
+      "x-tenant-schema": TENANT_SCHEMA,
+    },
+    data: {
+      identifier: DIRECTOR_IDENTIFIER,
+      password: DIRECTOR_PASSWORD,
+    },
+  })
+
+  expect(loginResponse.ok()).toBeTruthy()
+
+  const payload = (await loginResponse.json()) as LoginPayload
+  expect(typeof payload.accessToken).toBe("string")
+  expect(payload.accessToken.length).toBeGreaterThan(0)
+
+  return {
+    headers: {
+      Authorization: `Bearer ${payload.accessToken}`,
+      "x-tenant-schema": TENANT_SCHEMA,
+    },
+  }
+}
+
+export const findPayableMonth = async (
+  request: PlaywrightTestArgs["request"],
+  auth: DirectorApiAuth
+): Promise<string> => {
+  for (let offset = 0; offset < 12; offset += 1) {
+    const month = getMonthOffset(offset)
+
+    await request.post(`${API_BASE_URL}/billing/salary/compute`, {
+      headers: auth.headers,
+      params: { month },
+    })
+
+    const summaryResponse = await request.get(`${API_BASE_URL}/billing/salary/summary`, {
+      headers: auth.headers,
+      params: { month },
+    })
+
+    if (!summaryResponse.ok()) {
+      continue
+    }
+
+    const summaryPayload = (await summaryResponse.json()) as SalarySummaryResponse
+    const items = Array.isArray(summaryPayload.items) ? summaryPayload.items : []
+
+    const hasPendingVacataire = items.some(
+      (item) => item.teacherType === "vacataire" && item.status === "pending" && typeof item.salaryRecordId === "string"
+    )
+
+    if (hasPendingVacataire) {
+      return month
+    }
+  }
+
+  throw new Error("Aucun mois payable trouvé sur les 12 derniers mois")
+}
+
+export const getFirstTeacherId = async (
+  request: PlaywrightTestArgs["request"],
+  auth: DirectorApiAuth
+): Promise<string> => {
+  const teachersResponse = await request.get(`${API_BASE_URL}/teachers`, {
+    headers: auth.headers,
+    params: { page: 1, limit: 100 },
+  })
+
+  expect(teachersResponse.ok()).toBeTruthy()
+
+  const teachersPayload = (await teachersResponse.json()) as TeachersResponse
+  const teachers = Array.isArray(teachersPayload.data) ? teachersPayload.data : []
+  const activeTeacher = teachers.find((teacher) => {
+    const blocked = teacher.isBlocked ?? teacher.is_blocked ?? false
+    return !blocked
+  })
+  const teacherId = (activeTeacher ?? teachers[0])?.id
+  expect(teacherId).toBeTruthy()
+  return teacherId as string
+}
+
+export const selectSalaryMonth = async (page: Page, month: string) => {
+  const monthLabel = formatMonthLabel(month)
+  await page.getByRole("combobox").click()
+  await page.getByRole("option", { name: monthLabel }).click()
+}

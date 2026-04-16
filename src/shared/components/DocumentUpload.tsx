@@ -93,6 +93,7 @@ export function DocumentUpload({ entityType, entityId, onUploadSuccess }: Docume
           dragActive ? "border-primary bg-primary/5" : ""
         )}
         onClick={() => inputRef.current?.click()}
+        data-testid="document-upload-dropzone"
         onDragOver={(event) => {
           event.preventDefault()
           setDragActive(true)
@@ -146,6 +147,7 @@ export function DocumentUpload({ entityType, entityId, onUploadSuccess }: Docume
         ref={inputRef}
         type="file"
         className="hidden"
+        data-testid="document-upload-input"
         accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
         onChange={(event) => {
           const files = event.target.files

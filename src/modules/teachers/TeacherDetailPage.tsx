@@ -434,7 +434,7 @@ export default function TeacherDetailPage() {
         </Alert>
       ) : null}
 
-      <div className="hidden gap-6 lg:grid lg:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="hidden gap-6 lg:grid lg:grid-cols-[360px_minmax(0,1fr)]" data-testid="teacher-detail-desktop-layout">
         {profileSection}
         {rightTabs}
       </div>
@@ -444,7 +444,7 @@ export default function TeacherDetailPage() {
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="profil">Profil</TabsTrigger>
             <TabsTrigger value="presences">Présences</TabsTrigger>
-            <TabsTrigger value="documents">Documents</TabsTrigger>
+            <TabsTrigger value="documents" data-testid="teacher-documents-tab-mobile">Documents</TabsTrigger>
             <TabsTrigger value="infos">Infos</TabsTrigger>
           </TabsList>
 
@@ -478,6 +478,7 @@ export default function TeacherDetailPage() {
               value={blockReason}
               onChange={(event) => setBlockReason(event.target.value)}
               placeholder="Ex: Dossier RH incomplet"
+              data-testid="teacher-block-reason-input"
             />
           </div>
 
@@ -488,6 +489,7 @@ export default function TeacherDetailPage() {
             <Button
               variant="destructive"
               disabled={statusMutation.isPending || blockReason.trim().length === 0}
+              data-testid="teacher-block-confirm-button"
               onClick={() => {
                 void statusMutation.mutateAsync({ isActive: false })
               }}

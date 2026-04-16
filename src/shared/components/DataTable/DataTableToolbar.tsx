@@ -31,6 +31,7 @@ export function DataTableToolbar<TData>({
             onChange={(event) => table.getColumn(searchKey)?.setFilterValue(event.target.value)}
             placeholder={searchPlaceholder || "Rechercher..."}
             className="pl-9"
+            data-testid="datatable-search-input"
           />
         </div>
       ) : null}
