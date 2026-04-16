@@ -5,6 +5,9 @@ on:
     branches:
       - dev
 
+permissions:
+  contents: read
+
 jobs:
   ci:
     runs-on: ubuntu-latest
@@ -18,6 +21,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Verify cross-repo checkout config
+        run: |
+          echo "Web repository: ${{ github.repository }}"
+          echo "API repository target: ${{ vars.EDUTRACK_API_REPOSITORY || format('{0}/edutrack-api', github.repository_owner) }}"
+          if [ "${{ github.event.repository.private }}" = "true" ] && [ -z "${{ secrets.CI_REPO_ACCESS_TOKEN }}" ]; then
+            echo "::error::Missing secret CI_REPO_ACCESS_TOKEN. Required for cross-repository checkout when repositories are private."
+            exit 1
+          fi
+
+      - name: Checkout API repository
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ vars.EDUTRACK_API_REPOSITORY || format('{0}/edutrack-api', github.repository_owner) }}
+          path: edutrack-api
+          token: ${{ secrets.CI_REPO_ACCESS_TOKEN || github.token }}
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v5
@@ -45,7 +64,7 @@ jobs:
         run: npm run test
 
       - name: Start PostgreSQL and Redis for E2E backend
-        run: docker compose -f ../edutrack-api/docker-compose.yml up -d postgres redis
+        run: docker compose -f ./edutrack-api/docker-compose.yml up -d postgres redis
 
       - name: Wait for PostgreSQL
         run: |
@@ -73,7 +92,7 @@ jobs:
 
       - name: Install API dependencies
         run: npm ci
-        working-directory: ../edutrack-api
+        working-directory: ./edutrack-api
 
       - name: Prepare JWT keys for E2E backend
         run: |
@@ -87,17 +106,17 @@ jobs:
             cat public.pem
             echo "EOF"
           } >> "$GITHUB_ENV"
-        working-directory: ../edutrack-api
+        working-directory: ./edutrack-api
 
       - name: Migrate and seed API database
         run: |
           npm run db:migrate
           npm run db:seed
-        working-directory: ../edutrack-api
+        working-directory: ./edutrack-api
 
       - name: Start API test backend
         run: npm run dev > /tmp/edutrack-api.log 2>&1 &
-        working-directory: ../edutrack-api
+        working-directory: ./edutrack-api
 
       - name: Wait for API health
         run: |
@@ -168,4 +187,4 @@ jobs:
 
       - name: Stop backend services
         if: always()
-        run: docker compose -f ../edutrack-api/docker-compose.yml down -v --remove-orphans || true
+        run: docker compose -f ./edutrack-api/docker-compose.yml down -v --remove-orphans || true
