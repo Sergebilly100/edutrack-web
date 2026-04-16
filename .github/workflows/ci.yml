@@ -137,11 +137,6 @@ jobs:
       - name: Build pour E2E
         run: npm run build
 
-      - name: Start preview server
-        run: npm run preview &
-        env:
-          VITE_API_URL: http://localhost:3000/api/v1
-
       - name: Run Playwright E2E
         run: npm run e2e
         env:
