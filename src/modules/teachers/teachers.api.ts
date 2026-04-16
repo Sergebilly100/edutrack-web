@@ -256,12 +256,27 @@ export async function createTeacher(payload: TeacherUpsertPayload): Promise<Teac
 }
 
 export async function getTeacherById(teacherId: string): Promise<TeacherListItem> {
-  const response = await getTeachers({ page: 1, limit: 500 })
-  const teacher = response.data.find((item) => item.id === teacherId)
-  if (!teacher) {
-    throw new Error("TEACHER_NOT_FOUND")
+  const pageSize = 100
+  let page = 1
+  let totalPages = 1
+
+  while (page <= totalPages) {
+    const response = await getTeachers({ page, limit: pageSize })
+    const teacher = response.data.find((item) => item.id === teacherId)
+
+    if (teacher) {
+      return teacher
+    }
+
+    totalPages = Math.max(1, response.pagination.totalPages)
+    if (response.data.length === 0) {
+      break
+    }
+
+    page += 1
   }
-  return teacher
+
+  throw new Error("TEACHER_NOT_FOUND")
 }
 
 export async function updateTeacher(

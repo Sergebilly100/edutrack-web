@@ -61,7 +61,7 @@ const normalizeDocumentItem = (raw: unknown): DocumentItem => {
 }
 
 export const listDocuments = async (entityType: DocumentEntityType, entityId: string): Promise<DocumentItem[]> => {
-  const response = await apiClient.get<{ data?: unknown }>(`/api/v1/documents/${entityType}/${entityId}`)
+  const response = await apiClient.get<{ data?: unknown }>(`/documents/${entityType}/${entityId}`)
   const payload = Array.isArray(response.data?.data) ? response.data.data : []
   return payload.map(normalizeDocumentItem)
 }
@@ -78,7 +78,7 @@ export const uploadDocument = async (input: {
   formData.append("name", input.name ?? input.file.name)
   formData.append("file", input.file)
 
-  const response = await apiClient.post<unknown>(`/api/v1/documents/${input.entityType}/${input.entityId}`, formData, {
+  const response = await apiClient.post<unknown>(`/documents/${input.entityType}/${input.entityId}`, formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
@@ -88,10 +88,10 @@ export const uploadDocument = async (input: {
 }
 
 export const getDocumentDownloadUrl = async (documentId: string): Promise<string> => {
-  const response = await apiClient.get<{ url?: unknown }>(`/api/v1/documents/${documentId}/download`)
+  const response = await apiClient.get<{ url?: unknown }>(`/documents/${documentId}/download`)
   return typeof response.data?.url === "string" ? response.data.url : ""
 }
 
 export const deleteDocument = async (documentId: string): Promise<void> => {
-  await apiClient.delete(`/api/v1/documents/${documentId}`)
+  await apiClient.delete(`/documents/${documentId}`)
 }

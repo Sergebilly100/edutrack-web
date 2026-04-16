@@ -1,6 +1,22 @@
 import { expect, test } from "@playwright/test"
 
-import { createDirectorApiAuth, getFirstTeacherId, loginAsDirectorUI } from "./helpers"
+import { loginAsDirectorUI } from "./helpers"
+
+const openTeacherDetail = async (
+  page: import("@playwright/test").Page,
+  options?: { activeOnly?: boolean }
+) => {
+  const cards = page.getByTestId("teacher-mobile-card")
+  await expect(cards.first()).toBeVisible()
+
+  const targetCard = options?.activeOnly
+    ? cards.filter({ hasText: "Actif" }).first()
+    : cards.first()
+
+  await targetCard.click()
+  await expect(page).toHaveURL(/\/teachers\/.+/)
+  await expect(page.getByText("Professeur introuvable.")).toHaveCount(0)
+}
 
 test.describe("Gestion profs", () => {
   test.beforeEach(async ({ page }) => {
@@ -29,29 +45,13 @@ test.describe("Gestion profs", () => {
     await expect(page.getByText(firstTeacherName).first()).toBeVisible()
   })
 
-  test("navigation vers le détail prof", async ({ page, request }) => {
-    const auth = await createDirectorApiAuth(request)
-    const teacherId = await getFirstTeacherId(request, auth)
-    await page.evaluate((id) => {
-      window.history.pushState({}, "", `/teachers/${id}`)
-      window.dispatchEvent(new PopStateEvent("popstate"))
-    }, teacherId)
-
-    await expect(page).toHaveURL(/\/teachers\/.+/)
-    await expect(page.getByText("Professeur introuvable.")).toHaveCount(0)
+  test("navigation vers le détail prof", async ({ page }) => {
+    await openTeacherDetail(page)
     await expect(page.getByRole("tab", { name: "Profil" }).first()).toBeVisible()
   })
 
-  test("le blocage d'un prof requiert une raison", async ({ page, request }) => {
-    const auth = await createDirectorApiAuth(request)
-    const teacherId = await getFirstTeacherId(request, auth)
-    await page.evaluate((id) => {
-      window.history.pushState({}, "", `/teachers/${id}`)
-      window.dispatchEvent(new PopStateEvent("popstate"))
-    }, teacherId)
-
-    await expect(page).toHaveURL(/\/teachers\/.+/)
-    await expect(page.getByText("Professeur introuvable.")).toHaveCount(0)
+  test("le blocage d'un prof requiert une raison", async ({ page }) => {
+    await openTeacherDetail(page, { activeOnly: true })
     await expect(page.getByRole("tab", { name: "Profil" }).first()).toBeVisible()
 
     const blockButton = page.getByRole("button", { name: "Bloquer" }).first()
@@ -66,16 +66,8 @@ test.describe("Gestion profs", () => {
     await expect(confirmButton).toBeEnabled()
   })
 
-  test("upload d'un document apparaît dans la liste", async ({ page, request }) => {
-    const auth = await createDirectorApiAuth(request)
-    const teacherId = await getFirstTeacherId(request, auth)
-    await page.evaluate((id) => {
-      window.history.pushState({}, "", `/teachers/${id}`)
-      window.dispatchEvent(new PopStateEvent("popstate"))
-    }, teacherId)
-
-    await expect(page).toHaveURL(/\/teachers\/.+/)
-    await expect(page.getByText("Professeur introuvable.")).toHaveCount(0)
+  test("upload d'un document apparaît dans la liste", async ({ page }) => {
+    await openTeacherDetail(page)
     await expect(page.getByRole("tab", { name: "Documents" }).first()).toBeVisible()
 
     await page.getByRole("tab", { name: "Documents" }).first().click()
