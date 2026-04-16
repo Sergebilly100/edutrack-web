@@ -1,8 +1,8 @@
 import { NavLink } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
+import { ThemeToggle } from "@/shared/components/ThemeToggle"
 import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
 import { UserMenu } from "@/shared/components/layout/UserMenu"
 import { useAuthStore } from "@/shared/store/auth.store"
@@ -56,9 +56,11 @@ export function Sidebar({ className }: SidebarProps) {
         </div>
       </nav>
 
-      <Separator />
-      <div className="h-16 px-3 py-2">
-        <UserMenu />
+      <div className="flex items-center border-t px-3 py-2">
+        <div className="min-w-0 flex-1 pr-2">
+          <UserMenu />
+        </div>
+        <ThemeToggle />
       </div>
     </aside>
   )

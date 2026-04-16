@@ -4,6 +4,7 @@ import { Navigate, Outlet } from "react-router-dom"
 import { BottomNav } from "@/shared/components/layout/BottomNav"
 import { MobileDrawer } from "@/shared/components/layout/MobileDrawer"
 import { Sidebar } from "@/shared/components/layout/Sidebar"
+import { TeacherTopBar } from "@/shared/components/layout/TeacherTopBar"
 import { TopBar } from "@/shared/components/layout/TopBar"
 import { useAuthStore } from "@/shared/store/auth.store"
 
@@ -13,10 +14,22 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const isAuthenticated = Boolean(useAuthStore((state) => state.user))
+  const user = useAuthStore((state) => state.user)
+  const isAuthenticated = Boolean(user)
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
+  }
+
+  if (user?.role === "teacher") {
+    return (
+      <div className="flex min-h-screen flex-col bg-background">
+        <TeacherTopBar />
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-lg px-4 py-4">{children ?? <Outlet />}</div>
+        </main>
+      </div>
+    )
   }
 
   return (

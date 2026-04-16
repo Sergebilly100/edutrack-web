@@ -372,6 +372,7 @@ export default function TeachersPage() {
     <PageLayout
       title={`Professeurs (${activeCount} actifs)`}
       subtitle="Gestion des profs, blocage et export"
+      contentClassName="max-w-7xl"
       actions={
         <Button className="min-h-[44px]" onClick={() => setCreateOpen(true)}>
           <AddIcon className="mr-2 h-4 w-4" />

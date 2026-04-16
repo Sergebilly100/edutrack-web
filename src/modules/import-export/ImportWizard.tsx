@@ -80,16 +80,16 @@ function ErrorList({ issues }: { issues: ImportIssue[] }) {
           <div
             key={`${issue.row}-${issue.column}-${issue.message}-${index}`}
             className={cn(
-              "rounded-md border p-3 text-sm",
+              "overflow-hidden rounded-md border p-3 text-sm",
               isWarning
                 ? "border-amber-200 bg-amber-50 text-amber-800"
                 : "border-red-200 bg-red-50 text-red-800"
             )}
           >
-            <p className="font-medium">
+            <p className="font-medium break-words">
               Ligne {issue.row} · {issue.column}
             </p>
-            <p>{issue.message}</p>
+            <p className="break-words">{issue.message}</p>
           </div>
         )
       })}
@@ -331,7 +331,7 @@ export default function ImportWizard() {
                 applySelectedFile(droppedFile)
               }}
               className={cn(
-                "rounded-lg border-2 border-dashed p-6 text-center transition-colors",
+                "flex min-h-[200px] flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 text-center transition-colors",
                 isDragging ? "border-primary bg-primary/5" : "border-border"
               )}
             >
@@ -363,7 +363,7 @@ export default function ImportWizard() {
                 </div>
               ) : null}
 
-              {fileError ? <p className="mt-3 text-sm font-medium text-red-600">{fileError}</p> : null}
+              {fileError ? <p className="mt-3 overflow-hidden break-words text-sm font-medium text-red-600">{fileError}</p> : null}
             </div>
 
             <div className="flex justify-end">
@@ -398,7 +398,7 @@ export default function ImportWizard() {
             {validationError ? (
               <Alert variant="destructive">
                 <WarningIcon className="h-4 w-4" />
-                <AlertDescription>{validationError}</AlertDescription>
+                <AlertDescription className="break-words overflow-hidden">{validationError}</AlertDescription>
               </Alert>
             ) : null}
 
@@ -408,50 +408,62 @@ export default function ImportWizard() {
                   <p className="font-medium">✓ {dryRunReport.valid} lignes valides</p>
                 </div>
 
-                {blockingIssues.length ? (
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <div className="space-y-4">
+                    {blockingIssues.length ? (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium text-red-700">Erreurs bloquantes</p>
+                        <ErrorList issues={blockingIssues} />
+                      </div>
+                    ) : null}
+
+                    {warningIssues.length ? (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium text-amber-700">Avertissements</p>
+                        <ErrorList issues={warningIssues} />
+                      </div>
+                    ) : null}
+
+                    {!blockingIssues.length && !warningIssues.length ? (
+                      <p className="text-sm text-muted-foreground">Aucune erreur détectée sur ce dry-run.</p>
+                    ) : null}
+                  </div>
+
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-red-700">Erreurs bloquantes</p>
-                    <ErrorList issues={blockingIssues} />
-                  </div>
-                ) : null}
+                    <div className="flex items-center gap-2">
+                      <SpreadsheetIcon className="h-4 w-4 text-muted-foreground" />
+                      <p className="text-sm font-medium">Aperçu des 5 premières lignes</p>
+                    </div>
 
-                {warningIssues.length ? (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-amber-700">Avertissements</p>
-                    <ErrorList issues={warningIssues} />
-                  </div>
-                ) : null}
-
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <SpreadsheetIcon className="h-4 w-4 text-muted-foreground" />
-                    <p className="text-sm font-medium">Aperçu des 5 premières lignes</p>
-                  </div>
-
-                  {dryRunReport.preview.length ? (
-                    <div className="overflow-x-auto rounded-md border">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            {Object.keys(dryRunReport.preview[0]).map((column) => (
-                              <TableHead key={column}>{column}</TableHead>
-                            ))}
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {dryRunReport.preview.slice(0, 5).map((row, rowIndex) => (
-                            <TableRow key={rowIndex}>
-                              {Object.entries(row).map(([column, value]) => (
-                                <TableCell key={`${rowIndex}-${column}`}>{value}</TableCell>
+                    {dryRunReport.preview.length ? (
+                      <div className="overflow-x-auto rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              {Object.keys(dryRunReport.preview[0]).map((column) => (
+                                <TableHead key={column} className="whitespace-nowrap">
+                                  {column}
+                                </TableHead>
                               ))}
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Aucune donnée à afficher.</p>
-                  )}
+                          </TableHeader>
+                          <TableBody>
+                            {dryRunReport.preview.slice(0, 5).map((row, rowIndex) => (
+                              <TableRow key={rowIndex}>
+                                {Object.entries(row).map(([column, value]) => (
+                                  <TableCell key={`${rowIndex}-${column}`} className="max-w-[280px] min-w-0 break-words align-top">
+                                    {String(value)}
+                                  </TableCell>
+                                ))}
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Aucune donnée à afficher.</p>
+                    )}
+                  </div>
                 </div>
               </>
             ) : null}
@@ -492,7 +504,7 @@ export default function ImportWizard() {
             {importError ? (
               <Alert variant="destructive">
                 <WarningIcon className="h-4 w-4" />
-                <AlertDescription>{importError}</AlertDescription>
+                <AlertDescription className="break-words overflow-hidden">{importError}</AlertDescription>
               </Alert>
             ) : null}
 

@@ -69,3 +69,21 @@
     font-feature-settings: "cv11", "ss01", "tnum";
   }
 }
+
+@layer components {
+  .sticky,
+  [data-sticky] {
+    background-color: hsl(var(--background)) !important;
+  }
+
+  [data-radix-select-content],
+  [role="listbox"],
+  [data-radix-popper-content-wrapper] {
+    background-color: hsl(var(--popover)) !important;
+    border: 1px solid hsl(var(--border)) !important;
+  }
+
+  [data-radix-dropdown-menu-content] {
+    background-color: hsl(var(--popover)) !important;
+  }
+}
