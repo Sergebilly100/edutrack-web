@@ -1,6 +1,6 @@
 import { createContext, useEffect, useMemo, useState, type ReactNode } from "react"
 
-export type Theme = "light" | "dark" | "system"
+export type Theme = "light" | "dark"
 export type ResolvedTheme = "light" | "dark"
 
 export interface ThemeContextValue {
@@ -10,13 +10,13 @@ export interface ThemeContextValue {
 }
 
 export const THEME_STORAGE_KEY = "edutrack-theme"
-const DEFAULT_THEME: Theme = "system"
+const DEFAULT_THEME: Theme = "light"
 const SYSTEM_THEME_QUERY = "(prefers-color-scheme: dark)"
 
 export const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
 
 function isTheme(value: string | null): value is Theme {
-  return value === "light" || value === "dark" || value === "system"
+  return value === "light" || value === "dark"
 }
 
 function getSystemTheme(): ResolvedTheme {
@@ -24,11 +24,11 @@ function getSystemTheme(): ResolvedTheme {
     return "light"
   }
 
-  return window.matchMedia(SYSTEM_THEME_QUERY).matches ? "dark" : "light"
+  return window.matchMedia(SYSTEM_THEME_QUERY).matches ? "light" : "dark" 
 }
 
 function resolveTheme(theme: Theme): ResolvedTheme {
-  return theme === "system" ? getSystemTheme() : theme
+  return theme === "light" ? getSystemTheme() : theme
 }
 
 function applyThemeClass(resolvedTheme: ResolvedTheme): void {
@@ -57,7 +57,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const mediaQuery = window.matchMedia(SYSTEM_THEME_QUERY)
 
     const handleSystemThemeChange = () => {
-      if (theme !== "system") {
+      if (theme !== "light") {
         return
       }
 

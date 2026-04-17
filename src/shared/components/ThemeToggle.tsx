@@ -5,12 +5,11 @@ import { MoonIcon, SunIcon } from "@/shared/components/icons"
 import { useTheme } from "@/shared/hooks/useTheme"
 import type { Theme } from "@/shared/providers/ThemeProvider"
 
-const themeCycle: Theme[] = ["light", "dark", "system"]
+const themeCycle: Theme[] = ["light", "dark"]
 
 const themeLabelMap: Record<Theme, string> = {
   light: "Clair",
   dark: "Sombre",
-  system: "Système",
 }
 
 export function ThemeToggle({ className }: { className?: string }) {
@@ -20,7 +19,7 @@ export function ThemeToggle({ className }: { className?: string }) {
   const nextTheme = themeCycle[(currentThemeIndex + 1) % themeCycle.length]
 
   const tooltipLabel =
-    theme === "system"
+    theme === "light"
       ? `Thème ${themeLabelMap[theme]} (${resolvedTheme === "dark" ? "sombre" : "clair"})`
       : `Thème ${themeLabelMap[theme]}`
 
