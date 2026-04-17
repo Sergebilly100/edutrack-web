@@ -24,7 +24,7 @@ export function PageLayout({ title, subtitle, actions, contentClassName, childre
         </div>
       </header>
       <OfflineIndicator />
-      <main className={cn("mx-auto max-w-2xl space-y-6 px-4 py-6", contentClassName)}>{children}</main>
+      <main className={cn("mx-auto max-w-7xl space-y-6 px-4 py-6", contentClassName)}>{children}</main>
     </div>
   )
 }
