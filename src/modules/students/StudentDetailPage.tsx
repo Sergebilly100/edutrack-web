@@ -16,6 +16,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { getStudentById, updateStudent } from "@/modules/students/students.api"
 import { DocumentList, DocumentUpload, PageLayout, PresenceDonut, StatCard } from "@/shared/components"
 import { BackIcon } from "@/shared/components/icons"
+import { useStudentLabel } from "@/shared/hooks/useStudentLabel"
 
 const initials = (firstName: string, lastName: string) =>
   `${lastName?.[0] ?? ""}${firstName?.[0] ?? ""}`.toUpperCase()
@@ -39,6 +40,7 @@ export default function StudentDetailPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const { studentId = "" } = useParams<{ studentId: string }>()
+  const studentLabel = useStudentLabel()
 
   const [parentName, setParentName] = useState("")
   const [parentPhone, setParentPhone] = useState("")
@@ -166,7 +168,7 @@ export default function StudentDetailPage() {
 
   return (
     <PageLayout
-      title="Fiche élève"
+      title={`Fiche ${studentLabel.toLowerCase()}`}
       subtitle={`${student.lastName} ${student.firstName}`.trim()}
       actions={
         <Button variant="outline" onClick={() => navigate("/students")}>

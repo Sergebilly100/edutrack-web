@@ -64,6 +64,12 @@ export type SchoolDetailsResponse = {
     city: string | null
     teachingType: TeachingType | null
     maxAdminPositions: number
+    maxUsers: number
+    maxSmsPerMonth: number
+    studentLabel: string | null
+    directorTitle: string | null
+    canEditSmsTemplate: boolean
+    canExportData: boolean
     createdAt: string
     updatedAt: string
   }
@@ -84,6 +90,14 @@ export type SchoolDetailsResponse = {
 
 export type UpdateSchoolConfigPayload = {
   max_admin_positions?: number
+  max_users?: number
+  max_sms_per_month?: number
+  city?: string
+  teaching_type?: TeachingType
+  student_label?: string
+  director_title?: string
+  can_edit_sms_template?: boolean
+  can_export_data?: boolean
   plan?: TenantPlan
   status?: TenantStatus
 }
@@ -107,6 +121,93 @@ export type RevenueMetricsResponse = Array<{
   mrr_fcfa: number
   payments_count: number
 }>
+
+export type RevenueSummaryResponse = {
+  cards: {
+    mrrTotalFcfa: number
+    arrFcfa: number
+    newSubscriptionsThisMonth: number
+    churnThisMonth: number
+  }
+  monthly: Array<{
+    month: string
+    mrr_fcfa: number
+    new_fcfa: number
+    churn_fcfa: number
+  }>
+  schools: Array<{
+    tenantId: string
+    school: string
+    plan: TenantPlan
+    status: TenantStatus
+    amountPerMonth: number
+    lastDueDate: string | null
+    paymentMode: string | null
+  }>
+}
+
+export type SmsTemplateType =
+  | "teacher_absent_director"
+  | "student_absent_parent"
+  | "payment_reminder"
+  | "teacher_late_director"
+  | "custom"
+
+export type SmsTemplateItem = {
+  id: string
+  tenantId: string | null
+  type: SmsTemplateType
+  messageTemplate: string
+  variables: string[]
+  updatedAt: string
+}
+
+export type SmsDashboardResponse = {
+  sentThisMonth: number
+  deliveryRate: number
+  activeSchools: number
+  estimatedCostFcfa: number
+  bySchool: Array<{
+    tenantId: string
+    school: string
+    sent: number
+    quota: number
+    usedPct: number
+  }>
+  history: Array<{
+    id: string
+    date: string
+    school: string
+    type: string
+    recipientMasked: string
+    status: string
+    message: string
+  }>
+}
+
+export type SchoolPaymentItem = {
+  id: string
+  date: string
+  amountFcfa: number
+  provider: string
+  reference: string | null
+  status: string
+}
+
+export type AddSchoolPaymentPayload = {
+  date: string
+  amount_fcfa: number
+  provider: "manual" | "mtn_momo" | "orange_money"
+  reference?: string
+  period_from?: string
+  period_to?: string
+}
+
+export type MaintenanceConfigResponse = {
+  maintenanceMode: boolean
+  maintenanceMessage: string
+  updatedAt: string
+}
 
 export type TenantListItem = {
   id: string
@@ -210,6 +311,9 @@ export const getAdminMetrics = () =>
 export const getRevenueMetrics = () =>
   api.get<RevenueMetricsResponse>("/admin/metrics/revenue").then((response) => response.data)
 
+export const getRevenueSummary = () =>
+  api.get<RevenueSummaryResponse>("/admin/revenue/summary").then((response) => response.data)
+
 export const getTenants = (query: TenantListQuery = {}) =>
   api
     .get<TenantListResponse>("/admin/tenants", {
@@ -228,3 +332,41 @@ export const getTenantStats = (tenantId: string) =>
 
 export const impersonateTenant = (tenantId: string) =>
   api.post<ImpersonationResponse>(`/admin/tenants/${tenantId}/impersonate`).then((response) => response.data)
+
+export const getSchoolPayments = (tenantId: string) =>
+  api
+    .get<{ items: SchoolPaymentItem[] }>(`/admin/schools/${tenantId}/payments`)
+    .then((response) => response.data.items)
+
+export const addSchoolPayment = (tenantId: string, payload: AddSchoolPaymentPayload) =>
+  api.post<{ success: boolean }>(`/admin/schools/${tenantId}/payments`, payload).then((response) => response.data)
+
+export const getSmsDashboard = () =>
+  api.get<SmsDashboardResponse>("/admin/sms/dashboard").then((response) => response.data)
+
+export const getGlobalSmsTemplates = () =>
+  api.get<{ items: SmsTemplateItem[] }>("/admin/sms/templates").then((response) => response.data.items)
+
+export const updateGlobalSmsTemplate = (type: SmsTemplateType, payload: { message_template: string; variables: string[] }) =>
+  api.put<{ success: boolean }>(`/admin/sms/templates/${type}`, payload).then((response) => response.data)
+
+export const getTenantSmsTemplates = (tenantId: string) =>
+  api.get<{ items: SmsTemplateItem[] }>(`/admin/sms/templates/${tenantId}`).then((response) => response.data.items)
+
+export const updateTenantSmsTemplate = (
+  tenantId: string,
+  type: SmsTemplateType,
+  payload: { message_template: string; variables: string[] }
+) => api.put<{ success: boolean }>(`/admin/sms/templates/${tenantId}/${type}`, payload).then((response) => response.data)
+
+export const resetTenantSmsTemplate = (tenantId: string, type: SmsTemplateType) =>
+  api.delete<{ success: boolean }>(`/admin/sms/templates/${tenantId}/${type}`).then((response) => response.data)
+
+export const getMaintenanceConfig = () =>
+  api.get<MaintenanceConfigResponse>("/admin/maintenance").then((response) => response.data)
+
+export const updateMaintenanceConfig = (payload: { maintenance_mode: boolean; maintenance_message: string }) =>
+  api.patch<{ success: boolean }>("/admin/maintenance", payload).then((response) => response.data)
+
+export const clearAdminCache = () =>
+  api.delete<{ success: boolean }>("/admin/cache").then((response) => response.data)

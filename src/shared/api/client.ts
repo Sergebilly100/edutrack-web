@@ -57,6 +57,11 @@ const redirectToSessionExpired = (): void => {
   window.location.href = "/login?reason=session_expired"
 }
 
+const redirectToMaintenance = (message?: string): void => {
+  const encoded = encodeURIComponent(message ?? "Mise à jour en cours")
+  window.location.href = `/maintenance?message=${encoded}`
+}
+
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
@@ -67,8 +72,15 @@ apiClient.interceptors.response.use(
     }
 
     const isUnauthorized = error.response?.status === 401
+    const isMaintenance = error.response?.status === 503
     const requestUrl = originalRequest.url ?? ""
     const isAuthEndpoint = requestUrl.includes("/auth/")
+
+    if (isMaintenance) {
+      const payload = error.response?.data as { error?: string; message?: string } | undefined
+      redirectToMaintenance(payload?.error ?? payload?.message)
+      return Promise.reject(error)
+    }
 
     if (isUnauthorized && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true

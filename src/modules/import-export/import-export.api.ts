@@ -9,12 +9,32 @@ export type ImportIssue = {
   message: string
   value?: string
   severity: "error" | "warning"
+  sheet?: string
 }
+
+export type DiffPreviewItem = {
+  key: string
+  displayName: string
+  changes?: Record<string, { before: string | null; after: string | null }>
+}
+
+export type ImportMode = "merge" | "replace"
 
 export type DryRunResponse = {
   valid: number
   errors: ImportIssue[]
   preview: Record<string, string>[]
+  toAdd: DiffPreviewItem[]
+  toUpdate: DiffPreviewItem[]
+  toDelete: DiffPreviewItem[]
+  unchanged: number
+  importMode: ImportMode
+  conflicts: Array<{
+    periodName: string
+    weekStart: string
+    weekEnd: string
+    message: string
+  }>
 }
 
 export type ConfirmImportResponse = {
@@ -22,6 +42,8 @@ export type ConfirmImportResponse = {
   updated: number
   errors: ImportIssue[]
   preview: Record<string, string>[]
+  deactivated: number
+  importMode: ImportMode
 }
 
 type RawImportIssue = {
@@ -31,6 +53,7 @@ type RawImportIssue = {
   value?: string
   severity?: string
   level?: string
+  sheet?: string
 }
 
 const ImportIssueSchema = z.object({
@@ -39,20 +62,61 @@ const ImportIssueSchema = z.object({
   message: z.string(),
   value: z.string().optional(),
   severity: z.enum(["error", "warning"]).optional(),
-  level: z.string().optional()
+  level: z.string().optional(),
+  sheet: z.string().optional(),
 })
 
 const DryRunResponseSchema = z.object({
   valid: z.number(),
   errors: z.array(ImportIssueSchema).default([]),
-  preview: z.array(z.record(z.string(), z.string())).default([])
+  preview: z.array(z.record(z.string(), z.string())).default([]),
+  toAdd: z
+    .array(
+      z.object({
+        key: z.string(),
+        displayName: z.string(),
+        changes: z.record(z.string(), z.object({ before: z.string().nullable(), after: z.string().nullable() })).optional(),
+      })
+    )
+    .default([]),
+  toUpdate: z
+    .array(
+      z.object({
+        key: z.string(),
+        displayName: z.string(),
+        changes: z.record(z.string(), z.object({ before: z.string().nullable(), after: z.string().nullable() })).optional(),
+      })
+    )
+    .default([]),
+  toDelete: z
+    .array(
+      z.object({
+        key: z.string(),
+        displayName: z.string(),
+      })
+    )
+    .default([]),
+  unchanged: z.number().default(0),
+  importMode: z.enum(["merge", "replace"]).default("merge"),
+  conflicts: z
+    .array(
+      z.object({
+        periodName: z.string(),
+        weekStart: z.string(),
+        weekEnd: z.string(),
+        message: z.string(),
+      })
+    )
+    .default([]),
 })
 
 const ConfirmResponseSchema = z.object({
   imported: z.number(),
   updated: z.number(),
   errors: z.array(ImportIssueSchema).default([]),
-  preview: z.array(z.record(z.string(), z.string())).default([])
+  preview: z.array(z.record(z.string(), z.string())).default([]),
+  deactivated: z.number().default(0),
+  importMode: z.enum(["merge", "replace"]).default("merge"),
 })
 
 const toSeverity = (issue: RawImportIssue): "error" | "warning" => {
@@ -65,9 +129,24 @@ const normalizeIssue = (issue: RawImportIssue): ImportIssue => ({
   severity: toSeverity(issue)
 })
 
-const toFormData = (file: File) => {
+const toFormData = (
+  file: File,
+  options?: {
+    importMode?: ImportMode
+    schedulePeriod?: { weekStart: string; weekEnd: string }
+    conflictAcknowledged?: boolean
+  }
+) => {
   const formData = new FormData()
   formData.append("file", file)
+  formData.append("mode", options?.importMode ?? "merge")
+  if (options?.schedulePeriod) {
+    formData.append("week_start", options.schedulePeriod.weekStart)
+    formData.append("week_end", options.schedulePeriod.weekEnd)
+  }
+  if (typeof options?.conflictAcknowledged === "boolean") {
+    formData.append("conflict_acknowledged", String(options.conflictAcknowledged))
+  }
   return formData
 }
 
@@ -104,28 +183,48 @@ export async function downloadTemplate(type: ImportType): Promise<void> {
   window.URL.revokeObjectURL(url)
 }
 
-export async function dryRun(type: ImportType, file: File): Promise<DryRunResponse> {
-  const response = await api.post(`/import/${type}/dry-run`, toFormData(file))
+export async function dryRun(
+  type: ImportType,
+  file: File,
+  options?: {
+    importMode?: ImportMode
+    schedulePeriod?: { weekStart: string; weekEnd: string }
+  }
+): Promise<DryRunResponse> {
+  const response = await api.post(`/import/${type}/dry-run`, toFormData(file, options))
   const parsed = DryRunResponseSchema.parse(response.data)
 
   return {
     valid: parsed.valid,
     preview: parsed.preview,
-    errors: parsed.errors.map(normalizeIssue)
+    errors: parsed.errors.map(normalizeIssue),
+    toAdd: parsed.toAdd,
+    toUpdate: parsed.toUpdate,
+    toDelete: parsed.toDelete,
+    unchanged: parsed.unchanged,
+    importMode: parsed.importMode,
+    conflicts: parsed.conflicts,
   }
 }
 
 export async function confirmImport(
   type: ImportType,
-  file: File
+  file: File,
+  options?: {
+    importMode?: ImportMode
+    schedulePeriod?: { weekStart: string; weekEnd: string }
+    conflictAcknowledged?: boolean
+  }
 ): Promise<ConfirmImportResponse> {
-  const response = await api.post(`/import/${type}/confirm`, toFormData(file))
+  const response = await api.post(`/import/${type}/confirm`, toFormData(file, options))
   const parsed = ConfirmResponseSchema.parse(response.data)
 
   return {
     imported: parsed.imported,
     updated: parsed.updated,
     preview: parsed.preview,
-    errors: parsed.errors.map(normalizeIssue)
+    errors: parsed.errors.map(normalizeIssue),
+    deactivated: parsed.deactivated,
+    importMode: parsed.importMode,
   }
 }

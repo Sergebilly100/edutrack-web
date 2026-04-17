@@ -9,16 +9,18 @@ import { useAuthStore } from "@/shared/store/auth.store"
 
 interface SidebarProps {
   className?: string
+  variant?: "default" | "super_admin"
 }
 
-export function Sidebar({ className }: SidebarProps) {
+export function Sidebar({ className, variant = "default" }: SidebarProps) {
   const userRole = useAuthStore((state) => state.user?.role)
   const items = getNavItemsByRole(userRole)
+  const isSuperAdmin = variant === "super_admin"
 
   return (
-    <aside className={cn("bg-background", className)}>
+    <aside className={cn(isSuperAdmin ? "bg-slate-100 dark:bg-slate-900/60" : "bg-background", className)}>
       <div className="flex h-16 items-center px-5">
-        <NavLink to="/dashboard" className="flex items-center gap-2">
+        <NavLink to={userRole === "super_admin" ? "/admin" : "/dashboard"} className="flex items-center gap-2">
           <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
             ET
           </span>

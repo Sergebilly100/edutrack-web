@@ -15,6 +15,7 @@ import { getAttendanceHistory, listStudents, type StudentItem } from "@/modules/
 import { DataTable, EmptyState, PageLayout } from "@/shared/components"
 import { AddIcon, AppIcon, ChevronRightIcon, FilterIcon, StudentsIcon } from "@/shared/components/icons"
 import { useAuthStore } from "@/shared/store/auth.store"
+import { useStudentLabel } from "@/shared/hooks/useStudentLabel"
 
 type StudentTableRow = StudentItem & {
   name: string
@@ -56,6 +57,7 @@ export default function StudentsPage() {
   const [classFilter, setClassFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all")
   const [searchTerm, setSearchTerm] = useState("")
+  const studentLabel = useStudentLabel()
 
   const monthRange = useMemo(() => toMonthRange(), [])
 
@@ -200,8 +202,8 @@ export default function StudentsPage() {
 
   return (
     <PageLayout
-      title="Élèves"
-      subtitle="Liste des élèves et suivi des absences"
+      title={studentLabel === "Élève" ? "Élèves" : "Étudiants"}
+      subtitle={`Liste des ${studentLabel.toLowerCase()}s et suivi des absences`}
       contentClassName="max-w-7xl"
       actions={
         <Button type="button" disabled>

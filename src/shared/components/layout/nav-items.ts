@@ -11,6 +11,7 @@ import {
   StudentsIcon,
   TeachersIcon,
 } from "@/shared/components/icons"
+import { Building2, MessageSquare, Settings2, TrendingUp, User } from "lucide-react"
 
 import type { AuthRole } from "@/shared/store/auth.store"
 
@@ -81,11 +82,46 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: true,
   },
   {
-    label: "Console Admin",
+    label: "Dashboard",
     href: "/admin",
     icon: AdminIcon,
     roles: ["super_admin"],
     mobileVisible: true,
+  },
+  {
+    label: "Écoles",
+    href: "/admin/schools",
+    icon: Building2,
+    roles: ["super_admin"],
+    mobileVisible: true,
+  },
+  {
+    label: "Revenus",
+    href: "/admin/revenue",
+    icon: TrendingUp,
+    roles: ["super_admin"],
+    mobileVisible: true,
+  },
+  {
+    label: "SMS & Notifs",
+    href: "/admin/sms",
+    icon: MessageSquare,
+    roles: ["super_admin"],
+    mobileVisible: true,
+  },
+  {
+    label: "Maintenance",
+    href: "/admin/maintenance",
+    icon: Settings2,
+    roles: ["super_admin"],
+    mobileVisible: true,
+  },
+  {
+    label: "Mon compte",
+    href: "/admin/account",
+    icon: User,
+    roles: ["super_admin"],
+    mobileVisible: false,
   },
 ]
 

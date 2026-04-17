@@ -4,12 +4,15 @@ import { isAxiosError } from "axios"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { useConfirmImport, useDryRun } from "@/modules/import/import.hooks"
-import { downloadTemplate, type ImportIssue, type ImportType } from "./import-export.api"
+import { downloadTemplate, type ImportIssue, type ImportMode, type ImportType } from "./import-export.api"
 import {
   DownloadIcon,
   ScheduleIcon,
@@ -87,7 +90,7 @@ function ErrorList({ issues }: { issues: ImportIssue[] }) {
             )}
           >
             <p className="font-medium break-words">
-              Ligne {issue.row} · {issue.column}
+              {issue.sheet ? `Feuille ${issue.sheet} · ` : ""}Ligne {issue.row} · {issue.column}
             </p>
             <p className="break-words">{issue.message}</p>
           </div>
@@ -109,12 +112,18 @@ export default function ImportWizard() {
   const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
   const [templateError, setTemplateError] = useState<string | null>(null)
+  const [importMode, setImportMode] = useState<ImportMode>("merge")
+  const [weekStart, setWeekStart] = useState("")
+  const [weekEnd, setWeekEnd] = useState("")
+  const [periodError, setPeriodError] = useState<string | null>(null)
+  const [conflictAcknowledged, setConflictAcknowledged] = useState(false)
 
   const dryRunMutation = useDryRun()
   const confirmMutation = useConfirmImport()
 
   const dryRunReport = dryRunMutation.data
   const confirmReport = confirmMutation.data
+  const hasConflicts = (dryRunReport?.conflicts?.length ?? 0) > 0
 
   const issues = dryRunReport?.errors ?? []
   const blockingIssues = useMemo(() => issues.filter((item) => item.severity === "error"), [issues])
@@ -130,8 +139,43 @@ export default function ImportWizard() {
 
   const resetAfterUploadChange = () => {
     setTemplateError(null)
+    setPeriodError(null)
+    setConflictAcknowledged(false)
     dryRunMutation.reset()
     confirmMutation.reset()
+  }
+
+  const isMonday = (value: string) => {
+    if (!value) return false
+    const date = new Date(`${value}T00:00:00.000Z`)
+    return !Number.isNaN(date.getTime()) && date.getUTCDay() === 1
+  }
+
+  const validateSchedulePeriod = () => {
+    if (importType !== "schedule") {
+      return true
+    }
+
+    if (!weekStart || !weekEnd) {
+      setPeriodError("Sélectionnez la période de validité de l'EDT.")
+      return false
+    }
+
+    if (!isMonday(weekStart) || !isMonday(weekEnd) || weekStart > weekEnd) {
+      setPeriodError(`Impossible de laisser une semaine sans EDT entre ${weekStart} et ${weekEnd}`)
+      return false
+    }
+
+    const start = new Date(`${weekStart}T00:00:00.000Z`)
+    const end = new Date(`${weekEnd}T00:00:00.000Z`)
+    const diffMs = end.getTime() - start.getTime()
+    if (diffMs % (7 * 24 * 60 * 60 * 1000) !== 0) {
+      setPeriodError(`Impossible de laisser une semaine sans EDT entre ${weekStart} et ${weekEnd}`)
+      return false
+    }
+
+    setPeriodError(null)
+    return true
   }
 
   const validateFile = (candidate: File): string | null => {
@@ -190,10 +234,19 @@ export default function ImportWizard() {
 
   const handleGoToValidation = () => {
     if (!file || !importType) return
+    if (!validateSchedulePeriod()) return
 
     setStep(2)
     dryRunMutation.mutate(
-      { type: importType, file },
+      {
+        type: importType,
+        file,
+        importMode,
+        schedulePeriod:
+          importType === "schedule" && weekStart && weekEnd
+            ? { weekStart, weekEnd }
+            : undefined,
+      },
       {
         onSuccess: () => setStep(2)
       }
@@ -202,10 +255,20 @@ export default function ImportWizard() {
 
   const handleConfirmImport = () => {
     if (!file || !importType) return
+    if (importType === "schedule" && hasConflicts && !conflictAcknowledged) return
 
     setStep(3)
     confirmMutation.mutate(
-      { type: importType, file },
+      {
+        type: importType,
+        file,
+        importMode,
+        schedulePeriod:
+          importType === "schedule" && weekStart && weekEnd
+            ? { weekStart, weekEnd }
+            : undefined,
+        conflictAcknowledged,
+      },
       {
         onSuccess: (data) => {
           toast({
@@ -225,6 +288,11 @@ export default function ImportWizard() {
     setFile(null)
     setFileError(null)
     setTemplateError(null)
+    setPeriodError(null)
+    setImportMode("merge")
+    setWeekStart("")
+    setWeekEnd("")
+    setConflictAcknowledged(false)
     dryRunMutation.reset()
     confirmMutation.reset()
     if (fileInputRef.current) {
@@ -302,6 +370,55 @@ export default function ImportWizard() {
                 )
               })}
             </div>
+
+            {(importType === "students" || importType === "teachers") ? (
+              <div className="space-y-2 rounded-lg border p-4">
+                <p className="text-sm font-medium">Mode de mise à jour</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant={importMode === "merge" ? "default" : "outline"}
+                    onClick={() => setImportMode("merge")}
+                  >
+                    Fusion
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={importMode === "replace" ? "default" : "outline"}
+                    onClick={() => setImportMode("replace")}
+                  >
+                    Remplacement
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {importMode === "merge"
+                    ? "Fusion: ajoute et met à jour, sans désactiver les absents du fichier."
+                    : "Remplacement: ajoute, met à jour, puis désactive les absents du fichier."}
+                </p>
+              </div>
+            ) : null}
+
+            {importType === "schedule" ? (
+              <div className="space-y-3 rounded-lg border p-4">
+                <p className="text-sm font-medium">Période de validité de l&apos;emploi du temps</p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="week-start">Semaine de début (lundi)</Label>
+                    <Input id="week-start" type="date" value={weekStart} onChange={(event) => setWeekStart(event.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="week-end">Semaine de fin (lundi)</Label>
+                    <Input id="week-end" type="date" value={weekEnd} onChange={(event) => setWeekEnd(event.target.value)} />
+                  </div>
+                </div>
+                {weekStart && weekEnd ? (
+                  <p className="text-xs text-muted-foreground">Cet EDT sera appliqué du {weekStart} au {weekEnd}.</p>
+                ) : null}
+                {periodError ? (
+                  <p className="text-sm text-destructive break-words overflow-hidden">{periodError}</p>
+                ) : null}
+              </div>
+            ) : null}
 
             <Button
               type="button"
@@ -408,6 +525,56 @@ export default function ImportWizard() {
                   <p className="font-medium">✓ {dryRunReport.valid} lignes valides</p>
                 </div>
 
+                {(importType === "students" || importType === "teachers") ? (
+                  <div className="grid gap-3 md:grid-cols-4">
+                    <div className="rounded-md border border-green-200 bg-green-50 p-3">
+                      <p className="text-xs text-green-700">Nouveaux</p>
+                      <p className="text-lg font-semibold text-green-800">+{dryRunReport.toAdd.length}</p>
+                    </div>
+                    <div className="rounded-md border border-blue-200 bg-blue-50 p-3">
+                      <p className="text-xs text-blue-700">Mis à jour</p>
+                      <p className="text-lg font-semibold text-blue-800">~{dryRunReport.toUpdate.length}</p>
+                    </div>
+                    <div className="rounded-md border border-red-200 bg-red-50 p-3">
+                      <p className="text-xs text-red-700">À désactiver</p>
+                      <p className="text-lg font-semibold text-red-800">
+                        {importMode === "replace" ? `-${dryRunReport.toDelete.length}` : "0"}
+                      </p>
+                    </div>
+                    <div className="rounded-md border p-3">
+                      <p className="text-xs text-muted-foreground">Inchangés</p>
+                      <p className="text-lg font-semibold">{dryRunReport.unchanged}</p>
+                    </div>
+                  </div>
+                ) : null}
+
+                {hasConflicts ? (
+                  <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                    <Alert>
+                      <WarningIcon className="h-4 w-4" />
+                      <AlertTitle>Modification d&apos;un EDT existant</AlertTitle>
+                      <AlertDescription>
+                        Les semaines suivantes ont déjà un emploi du temps défini :
+                      </AlertDescription>
+                    </Alert>
+                    <ul className="list-disc pl-6 text-sm text-amber-900">
+                      {dryRunReport.conflicts.map((conflict) => (
+                        <li key={`${conflict.periodName}-${conflict.weekStart}`}>{conflict.message}</li>
+                      ))}
+                    </ul>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="conflict-ack"
+                        checked={conflictAcknowledged}
+                        onCheckedChange={(checked) => setConflictAcknowledged(Boolean(checked))}
+                      />
+                      <Label htmlFor="conflict-ack">
+                        Je confirme vouloir remplacer l&apos;EDT existant pour ces semaines
+                      </Label>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="grid gap-6 lg:grid-cols-2">
                   <div className="space-y-4">
                     {blockingIssues.length ? (
@@ -481,7 +648,12 @@ export default function ImportWizard() {
               <Button
                 type="button"
                 onClick={handleConfirmImport}
-                disabled={confirmMutation.isPending || !dryRunReport || blockingIssues.length > 0}
+                disabled={
+                  confirmMutation.isPending ||
+                  !dryRunReport ||
+                  blockingIssues.length > 0 ||
+                  (importType === "schedule" && hasConflicts && !conflictAcknowledged)
+                }
                 className={cn(touchFeedbackClass, "min-h-[48px]")}
               >
                 Importer →
@@ -516,6 +688,11 @@ export default function ImportWizard() {
                     {confirmReport.updated > 0 ? (
                       <p className="text-sm">
                         {confirmReport.updated} enregistrements existants ont été mis à jour.
+                      </p>
+                    ) : null}
+                    {confirmReport.deactivated > 0 ? (
+                      <p className="text-sm">
+                        {confirmReport.deactivated} enregistrements absents du fichier ont été désactivés.
                       </p>
                     ) : null}
                   </div>

@@ -9,17 +9,19 @@ import { useAuthStore } from "@/shared/store/auth.store"
 interface MobileDrawerProps {
   open: boolean
   onClose: () => void
+  variant?: "default" | "super_admin"
 }
 
 const navLinkClassName = "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors duration-150"
 
-export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
+export function MobileDrawer({ open, onClose, variant = "default" }: MobileDrawerProps) {
   const userRole = useAuthStore((state) => state.user?.role)
   const items = getNavItemsByRole(userRole)
+  const isSuperAdmin = variant === "super_admin"
 
   return (
     <Sheet open={open} onOpenChange={(nextOpen) => (nextOpen ? null : onClose())}>
-      <SheetContent side="left" className="w-[272px] p-0">
+      <SheetContent side="left" className={cn("w-[272px] p-0", isSuperAdmin ? "bg-slate-100 dark:bg-slate-900/80" : "")}>
         <div className="sr-only">
           <SheetTitle>Navigation principale</SheetTitle>
         </div>

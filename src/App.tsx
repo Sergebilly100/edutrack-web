@@ -2,7 +2,11 @@ import { useEffect } from "react"
 import { Navigate, Route, Routes, useSearchParams } from "react-router-dom"
 
 import AdminPage from "@/modules/admin/AdminPage"
+import AdminAccountPage from "@/modules/admin/AdminAccountPage"
+import AdminMaintenancePage from "@/modules/admin/AdminMaintenancePage"
+import AdminRevenuePage from "@/modules/admin/AdminRevenuePage"
 import AdminSchoolDetailPage from "@/modules/admin/AdminSchoolDetailPage"
+import AdminSmsPage from "@/modules/admin/AdminSmsPage"
 import AttendancePage from "@/modules/attendance/AttendancePage"
 import DashboardPage from "@/modules/dashboard/DashboardPage"
 import TeacherDashboardPage from "@/modules/dashboard/TeacherDashboardPage"
@@ -19,6 +23,7 @@ import { AppShell } from "@/shared/components/layout/AppShell"
 import { useAutoSync } from "@/shared/hooks/useAutoSync"
 import { useAuthStore } from "@/shared/store/auth.store"
 import LoginPage from "./modules/auth/LoginPage"
+import MaintenancePage from "./modules/auth/MaintenancePage"
 import ComponentsDemoPage from "./modules/dev/ComponentsDemoPage"
 
 function DashboardRoute() {
@@ -85,6 +90,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginRoute />} />
+      <Route path="/maintenance" element={<MaintenancePage />} />
       <Route path="/dev" element={<ComponentsDemoPage />} />
 
       <Route element={<AppShell />}>
@@ -98,7 +104,12 @@ export default function App() {
         <Route path="/students" element={<StudentsPage />} />
         <Route path="/students/:studentId" element={<StudentDetailPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin/schools" element={<AdminPage />} />
         <Route path="/admin/schools/:tenantId" element={<AdminSchoolDetailPage />} />
+        <Route path="/admin/revenue" element={<AdminRevenuePage />} />
+        <Route path="/admin/sms" element={<AdminSmsPage />} />
+        <Route path="/admin/maintenance" element={<AdminMaintenancePage />} />
+        <Route path="/admin/account" element={<AdminAccountPage />} />
         <Route path="/import" element={<ImportPage />} />
         <Route path="/imports" element={<ImportPage />} />
         <Route path="/salaries" element={<SalariesPage />} />

@@ -32,18 +32,23 @@ export function AppShell({ children }: AppShellProps) {
     )
   }
 
+  const isSuperAdmin = user?.role === "super_admin"
+
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r md:flex" />
+      <Sidebar
+        variant={isSuperAdmin ? "super_admin" : "default"}
+        className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r md:flex"
+      />
 
       <TopBar onMenuClick={() => setDrawerOpen(true)} />
-      <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} variant={isSuperAdmin ? "super_admin" : "default"} />
 
       <main className="pb-16 md:pb-0 md:pl-64">
         <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-8">{children ?? <Outlet />}</div>
       </main>
 
-      <BottomNav />
+      {isSuperAdmin ? null : <BottomNav />}
     </div>
   )
 }
