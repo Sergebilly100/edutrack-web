@@ -12,8 +12,10 @@ export type TeacherListItem = {
   subjects: string[]
   hourlyRate: number | null
   isActive: boolean
+  // Blocage métier — champ dédié sur la table teachers
   isBlocked: boolean
   blockReason: string | null
+  blockedAt: string | null
   username: string
 }
 
@@ -102,17 +104,11 @@ const toNullableString = (value: unknown): string | null =>
   typeof value === "string" && value.length > 0 ? value : null
 
 const toNumber = (value: unknown, fallback = 0): number => {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value
-  }
-
+  if (typeof value === "number" && Number.isFinite(value)) return value
   if (typeof value === "string") {
     const parsed = Number(value)
-    if (Number.isFinite(parsed)) {
-      return parsed
-    }
+    if (Number.isFinite(parsed)) return parsed
   }
-
   return fallback
 }
 
@@ -121,19 +117,10 @@ const toBoolean = (value: unknown, fallback = true): boolean =>
 
 const splitName = (name: string): { firstName: string; lastName: string } => {
   const trimmed = name.trim()
-  if (!trimmed) {
-    return { firstName: "", lastName: "" }
-  }
-
+  if (!trimmed) return { firstName: "", lastName: "" }
   const chunks = trimmed.split(/\s+/)
-  if (chunks.length === 1) {
-    return { firstName: chunks[0], lastName: "" }
-  }
-
-  return {
-    firstName: chunks[0],
-    lastName: chunks.slice(1).join(" "),
-  }
+  if (chunks.length === 1) return { firstName: chunks[0] ?? "", lastName: "" }
+  return { firstName: chunks[0] ?? "", lastName: chunks.slice(1).join(" ") }
 }
 
 const normalizeSubjects = (value: unknown): string[] => {
@@ -143,14 +130,9 @@ const normalizeSubjects = (value: unknown): string[] => {
       .map((item) => item.trim())
       .filter(Boolean)
   }
-
   if (typeof value === "string") {
-    return value
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean)
+    return value.split(",").map((item) => item.trim()).filter(Boolean)
   }
-
   return []
 }
 
@@ -159,14 +141,16 @@ const mapTeacher = (value: unknown): TeacherListItem => {
   const rawName = toString(item.name)
   const firstNameFromPayload = toString(item.first_name) || toString(item.firstName)
   const lastNameFromPayload = toString(item.last_name) || toString(item.lastName)
+
   const isActive = toBoolean(item.is_active ?? item.isActive, true)
-  const isBlocked =
-    typeof item.is_blocked === "boolean"
-      ? item.is_blocked
-      : typeof item.isBlocked === "boolean"
-        ? item.isBlocked
-        : !isActive
+
+  // is_blocked est maintenant un champ dédié sur teachers, renvoyé directement
+  // par l'API. On ne le déduit plus de !isActive pour éviter les faux positifs.
+  const isBlocked = toBoolean(item.is_blocked ?? item.isBlocked, false)
+
+  // blocked_reason et blocked_at sont eux aussi des champs dédiés sur teachers.
   const blockReason = toNullableString(item.blocked_reason ?? item.blockReason)
+  const blockedAt = toNullableString(item.blocked_at ?? item.blockedAt)
 
   const fromName = splitName(rawName)
   const firstName = firstNameFromPayload || fromName.firstName || "Prof"
@@ -181,10 +165,16 @@ const mapTeacher = (value: unknown): TeacherListItem => {
     phone: toNullableString(item.phone),
     type: (toString(item.type) === "permanent" ? "permanent" : "vacataire") as TeacherType,
     subjects: normalizeSubjects(item.subjects ?? item.subject),
-    hourlyRate: item.hourly_rate === null ? null : item.hourlyRate === null ? null : toNumber(item.hourly_rate ?? item.hourlyRate, 0),
+    hourlyRate:
+      item.hourly_rate === null
+        ? null
+        : item.hourlyRate === null
+          ? null
+          : toNumber(item.hourly_rate ?? item.hourlyRate, 0),
     isActive,
     isBlocked,
     blockReason,
+    blockedAt,
     username: toString(item.username),
   }
 }
@@ -198,23 +188,18 @@ const mapPagination = (value: unknown, defaults?: GetTeachersParams): TeachersPa
     pagination.totalPages ?? pagination.total_pages,
     total === 0 ? 0 : Math.ceil(total / Math.max(1, limit))
   )
-
   return { page, limit, total, totalPages }
 }
 
 const extractFilename = (disposition?: string) => {
-  if (!disposition) {
-    return null
-  }
-
+  if (!disposition) return null
   const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
-  if (utf8Match?.[1]) {
-    return decodeURIComponent(utf8Match[1])
-  }
-
+  if (utf8Match?.[1]) return decodeURIComponent(utf8Match[1])
   const match = disposition.match(/filename="?([^";]+)"?/i)
   return match?.[1] ?? null
 }
+
+// ─── API functions ────────────────────────────────────────────────────────────
 
 export async function getTeachers(params: GetTeachersParams = {}): Promise<TeachersListResponse> {
   const response = await api.get("/teachers", {
@@ -250,33 +235,22 @@ export async function createTeacher(payload: TeacherUpsertPayload): Promise<Teac
     subjects: payload.subjects,
     hourly_rate: payload.hourlyRate,
   })
-
   const envelope = toRecord(response.data)
   return mapTeacher(envelope.data ?? envelope)
 }
 
+/**
+ * Récupère un prof par ID via la route dédiée GET /teachers/:id.
+ *
+ * Remplace l'ancien pagination-scan qui parcourait toutes les pages de /teachers
+ * jusqu'à trouver l'ID. Ce scan échouait (TEACHER_NOT_FOUND) si le prof venait
+ * d'être bloqué et que le cache ou les filtres l'excluaient de la liste,
+ * provoquant un toast d'erreur spurieux malgré un blocage réussi en base.
+ */
 export async function getTeacherById(teacherId: string): Promise<TeacherListItem> {
-  const pageSize = 100
-  let page = 1
-  let totalPages = 1
-
-  while (page <= totalPages) {
-    const response = await getTeachers({ page, limit: pageSize })
-    const teacher = response.data.find((item) => item.id === teacherId)
-
-    if (teacher) {
-      return teacher
-    }
-
-    totalPages = Math.max(1, response.pagination.totalPages)
-    if (response.data.length === 0) {
-      break
-    }
-
-    page += 1
-  }
-
-  throw new Error("TEACHER_NOT_FOUND")
+  const response = await api.get(`/teachers/${teacherId}`)
+  const envelope = toRecord(response.data)
+  return mapTeacher(envelope.data ?? envelope)
 }
 
 export async function updateTeacher(
@@ -291,11 +265,45 @@ export async function updateTeacher(
     subjects: payload.subjects,
     hourly_rate: payload.hourlyRate,
   })
-
   const envelope = toRecord(response.data)
   return mapTeacher(envelope.data ?? envelope)
 }
 
+/**
+ * Bloque un prof : écrit teachers.is_blocked = true + blocked_reason.
+ * N'affecte pas users.is_active.
+ */
+export async function blockTeacher(
+  teacherId: string,
+  blockReason: string
+): Promise<TeacherListItem> {
+  const response = await api.put(`/teachers/${teacherId}`, {
+    is_blocked: true,
+    blocked_reason: blockReason.trim() || null,
+  })
+  
+  const envelope = toRecord(response.data)
+  return mapTeacher(envelope.data ?? envelope)
+}
+
+/**
+ * Débloque un prof : écrit teachers.is_blocked = false, efface blocked_reason.
+ */
+export async function unblockTeacher(teacherId: string): Promise<TeacherListItem> {
+  const response = await api.put(`/teachers/${teacherId}`, {
+    is_blocked: false,
+    blocked_reason: null,
+  })
+  const envelope = toRecord(response.data)
+  return mapTeacher(envelope.data ?? envelope)
+}
+
+/**
+ * @deprecated Utilisé uniquement pour la compatibilité avec du code existant.
+ * Préférer blockTeacher / unblockTeacher qui ciblent le bon champ en base.
+ *
+ * Modifie users.is_active (accès au compte), distinct du blocage métier.
+ */
 export async function setTeacherActiveStatus(
   teacherId: string,
   isActive: boolean
@@ -303,7 +311,6 @@ export async function setTeacherActiveStatus(
   const response = await api.put(`/teachers/${teacherId}`, {
     is_active: isActive,
   })
-
   const envelope = toRecord(response.data)
   return mapTeacher(envelope.data ?? envelope)
 }
@@ -320,10 +327,7 @@ export async function getTeacherStats(
   dateTo: string
 ): Promise<TeacherStats> {
   const response = await api.get(`/teachers/${teacherId}/stats`, {
-    params: {
-      date_from: dateFrom,
-      date_to: dateTo,
-    },
+    params: { date_from: dateFrom, date_to: dateTo },
   })
 
   const payload = toRecord(response.data)

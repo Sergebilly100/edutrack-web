@@ -33,11 +33,12 @@ import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import TeacherForm from "@/modules/teachers/components/TeacherForm"
 import {
+  blockTeacher,
   createTeacher,
   exportTeacherHours,
   getTeacherStats,
   getTeachers,
-  setTeacherActiveStatus,
+  unblockTeacher,
   type TeacherListItem,
 } from "@/modules/teachers/teachers.api"
 import {
@@ -63,21 +64,13 @@ const getDefaultExportPeriod = () => {
   const now = new Date()
   const start = new Date(now.getFullYear(), now.getMonth(), 1)
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-
-  return {
-    dateFrom: toISODate(start),
-    dateTo: toISODate(end),
-  }
+  return { dateFrom: toISODate(start), dateTo: toISODate(end) }
 }
 
 const getLast30DaysPeriod = () => {
   const end = new Date()
   const start = new Date(end.getTime() - THIRTY_DAYS_MS)
-
-  return {
-    dateFrom: toISODate(start),
-    dateTo: toISODate(end),
-  }
+  return { dateFrom: toISODate(start), dateTo: toISODate(end) }
 }
 
 const downloadBlob = (blob: Blob, filename: string) => {
@@ -91,7 +84,10 @@ const downloadBlob = (blob: Blob, filename: string) => {
   window.URL.revokeObjectURL(url)
 }
 
-type TeacherStatsMap = Record<string, { attendanceRate: number; hoursWorked: number; amountDue: number }>
+type TeacherStatsMap = Record<
+  string,
+  { attendanceRate: number; hoursWorked: number; amountDue: number }
+>
 
 type TeacherTableRow = TeacherListItem & {
   name: string
@@ -106,9 +102,20 @@ const initials = (value: string) =>
     .map((chunk) => chunk[0]?.toUpperCase() ?? "")
     .join("")
 
-function SortableHeader<TData>({ column, label }: { column: Column<TData, unknown>; label: string }) {
+function SortableHeader<TData>({
+  column,
+  label,
+}: {
+  column: Column<TData, unknown>
+  label: string
+}) {
   return (
-    <span className={cn("text-sm font-medium", column.getIsSorted() ? "text-foreground" : "text-muted-foreground")}>
+    <span
+      className={cn(
+        "text-sm font-medium",
+        column.getIsSorted() ? "text-foreground" : "text-muted-foreground"
+      )}
+    >
       {label}
     </span>
   )
@@ -146,7 +153,11 @@ function TeacherRowActions({
             Voir le profil
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={onToggleBlocked}>
-            {teacher.isBlocked ? <UnblockIcon className="mr-2 h-4 w-4" /> : <BlockIcon className="mr-2 h-4 w-4" />}
+            {teacher.isBlocked ? (
+              <UnblockIcon className="mr-2 h-4 w-4" />
+            ) : (
+              <BlockIcon className="mr-2 h-4 w-4" />
+            )}
             {teacher.isBlocked ? "Débloquer" : "Bloquer"}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={onExportPdf}>
@@ -170,8 +181,8 @@ export default function TeachersPage() {
   const [subjectFilter, setSubjectFilter] = useState("")
 
   const [teacherForStatusChange, setTeacherForStatusChange] = useState<TeacherListItem | null>(null)
+  const [blockReasonInput, setBlockReasonInput] = useState("")
   const [teacherForExport, setTeacherForExport] = useState<TeacherListItem | null>(null)
-
   const [createOpen, setCreateOpen] = useState(false)
   const [exportPeriod, setExportPeriod] = useState(getDefaultExportPeriod)
 
@@ -202,9 +213,7 @@ export default function TeachersPage() {
   const statsMap = useMemo<TeacherStatsMap>(() => {
     return teachers.reduce<TeacherStatsMap>((acc, teacher, index) => {
       const result = statsQueries[index]?.data
-      if (result) {
-        acc[teacher.id] = result
-      }
+      if (result) acc[teacher.id] = result
       return acc
     }, {})
   }, [statsQueries, teachers])
@@ -217,20 +226,36 @@ export default function TeachersPage() {
       toast({ title: "Professeur ajouté" })
     },
     onError: () => {
-      toast({ title: "Erreur", description: "Impossible d'ajouter le professeur", variant: "destructive" })
+      toast({
+        title: "Erreur",
+        description: "Impossible d'ajouter le professeur",
+        variant: "destructive",
+      })
     },
   })
 
-  const setStatusMutation = useMutation({
-    mutationFn: ({ teacherId, isActive }: { teacherId: string; isActive: boolean }) =>
-      setTeacherActiveStatus(teacherId, isActive),
+  const closeStatusDialog = () => {
+    setTeacherForStatusChange(null)
+    setBlockReasonInput("")
+  }
+
+  // Mutation de blocage — cible teachers.is_blocked via blockTeacher/unblockTeacher
+  const toggleBlockMutation = useMutation({
+    mutationFn: ({ teacher, reason }: { teacher: TeacherListItem; reason: string }) =>
+      teacher.isBlocked ? unblockTeacher(teacher.id) : blockTeacher(teacher.id, reason),
     onSuccess: async (_, variables) => {
-      setTeacherForStatusChange(null)
+      closeStatusDialog()
       await queryClient.invalidateQueries({ queryKey: ["teachers"] })
-      toast({ title: variables.isActive ? "Professeur débloqué" : "Professeur bloqué" })
+      toast({
+        title: variables.teacher.isBlocked ? "Professeur débloqué" : "Professeur bloqué",
+      })
     },
     onError: () => {
-      toast({ title: "Erreur", description: "Impossible de modifier le statut", variant: "destructive" })
+      toast({
+        title: "Erreur",
+        description: "Impossible de modifier le statut",
+        variant: "destructive",
+      })
     },
   })
 
@@ -242,7 +267,11 @@ export default function TeachersPage() {
       toast({ title: "Export généré" })
     },
     onError: () => {
-      toast({ title: "Erreur", description: "Impossible d'exporter les heures", variant: "destructive" })
+      toast({
+        title: "Erreur",
+        description: "Impossible d'exporter les heures",
+        variant: "destructive",
+      })
     },
   })
 
@@ -342,7 +371,10 @@ export default function TeachersPage() {
           <TeacherRowActions
             teacher={row.original}
             onViewProfile={() => navigate(`/teachers/${row.original.id}`)}
-            onToggleBlocked={() => setTeacherForStatusChange(row.original)}
+            onToggleBlocked={() => {
+              setTeacherForStatusChange(row.original)
+              setBlockReasonInput("")
+            }}
             onExportPdf={() => {
               setTeacherForExport(row.original)
               setExportPeriod(getDefaultExportPeriod())
@@ -354,15 +386,15 @@ export default function TeachersPage() {
     [navigate]
   )
 
-  if (!user) {
-    return null
-  }
+  if (!user) return null
 
   if (user.role !== "director" && user.role !== "secretary") {
     return (
       <div className="p-4 md:p-6">
         <Alert variant="destructive">
-          <AlertDescription>Cette page est réservée à la direction et au secrétariat.</AlertDescription>
+          <AlertDescription>
+            Cette page est réservée à la direction et au secrétariat.
+          </AlertDescription>
         </Alert>
       </div>
     )
@@ -380,7 +412,11 @@ export default function TeachersPage() {
         </Button>
       }
     >
-      <div className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-sm" data-testid="teachers-filters">
+      {/* ── Filtres ── */}
+      <div
+        className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-sm"
+        data-testid="teachers-filters"
+      >
         <div className="grid gap-3 md:grid-cols-3">
           <Select
             value={typeFilter}
@@ -459,10 +495,15 @@ export default function TeachersPage() {
                 </Avatar>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{teacher.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">{teacher.subjects.join(", ")}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {teacher.subjects.join(", ")}
+                  </p>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <Badge variant={teacher.isBlocked ? "destructive" : "secondary"} className="text-xs">
+                  <Badge
+                    variant={teacher.isBlocked ? "destructive" : "secondary"}
+                    className="text-xs"
+                  >
                     {teacher.isBlocked ? "Bloqué" : "Actif"}
                   </Badge>
                   <span className="text-xs text-muted-foreground">{teacher.attendanceRate}%</span>
@@ -474,11 +515,14 @@ export default function TeachersPage() {
         </div>
       ) : null}
 
+      {/* ── Modal : créer un professeur ── */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Ajouter un professeur</DialogTitle>
-            <DialogDescription>Renseignez les informations du nouveau professeur.</DialogDescription>
+            <DialogDescription>
+              Renseignez les informations du nouveau professeur.
+            </DialogDescription>
           </DialogHeader>
           <TeacherForm
             isPending={createMutation.isPending}
@@ -490,37 +534,57 @@ export default function TeachersPage() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Modal : bloquer / débloquer ── */}
       <Dialog
         open={Boolean(teacherForStatusChange)}
-        onOpenChange={(open) => !open && setTeacherForStatusChange(null)}
+        onOpenChange={(open) => { if (!open) closeStatusDialog() }}
       >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {teacherForStatusChange?.isBlocked ? "Débloquer le professeur" : "Bloquer le professeur"}
+              {teacherForStatusChange?.isBlocked
+                ? "Débloquer le professeur"
+                : "Bloquer le professeur"}
             </DialogTitle>
             <DialogDescription>
               {teacherForStatusChange?.isBlocked
                 ? "Le professeur retrouvera l'accès à ses actions habituelles."
-                : "Le professeur sera marqué comme bloqué dans la liste."}
+                : "Saisissez le motif du blocage pour continuer."}
             </DialogDescription>
           </DialogHeader>
+
+          {/* Motif uniquement pour le blocage */}
+          {!teacherForStatusChange?.isBlocked ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Raison du blocage</p>
+              <Input
+                value={blockReasonInput}
+                onChange={(event) => setBlockReasonInput(event.target.value)}
+                placeholder="Ex: Dossier RH incomplet"
+                data-testid="teachers-list-block-reason-input"
+              />
+            </div>
+          ) : null}
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setTeacherForStatusChange(null)}>
+            <Button variant="outline" onClick={closeStatusDialog}>
               Annuler
             </Button>
             <Button
               variant={teacherForStatusChange?.isBlocked ? "secondary" : "destructive"}
-              disabled={setStatusMutation.isPending}
+              disabled={
+                toggleBlockMutation.isPending ||
+                (!teacherForStatusChange?.isBlocked && blockReasonInput.trim().length === 0)
+              }
               onClick={() => {
                 if (!teacherForStatusChange) return
-                void setStatusMutation.mutateAsync({
-                  teacherId: teacherForStatusChange.id,
-                  isActive: teacherForStatusChange.isBlocked,
+                void toggleBlockMutation.mutateAsync({
+                  teacher: teacherForStatusChange,
+                  reason: blockReasonInput.trim(),
                 })
               }}
             >
-              {setStatusMutation.isPending
+              {toggleBlockMutation.isPending
                 ? "Traitement..."
                 : teacherForStatusChange?.isBlocked
                   ? "Débloquer"
@@ -530,6 +594,7 @@ export default function TeachersPage() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Modal : export heures ── */}
       <Dialog
         open={Boolean(teacherForExport)}
         onOpenChange={(open) => !open && setTeacherForExport(null)}

@@ -21,10 +21,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import TeacherForm from "@/modules/teachers/components/TeacherForm"
 import {
+  blockTeacher,
   getTeacherById,
   getTeacherMonthlyAttendance,
   getTeacherStats,
-  setTeacherActiveStatus,
+  unblockTeacher,
   type TeacherUpsertPayload,
   updateTeacher,
 } from "@/modules/teachers/teachers.api"
@@ -60,11 +61,7 @@ const statusBadgeClass: Record<string, string> = {
   not_marked: "border-slate-200 bg-slate-50 text-slate-600",
 }
 
-function WeeklyScheduleCard({
-  teacherId,
-}: {
-  teacherId: string
-}) {
+function WeeklyScheduleCard({ teacherId }: { teacherId: string }) {
   const weeklyScheduleQuery = useQuery({
     queryKey: ["schedule", "weekly", teacherId],
     queryFn: fetchWeeklySchedule,
@@ -75,9 +72,7 @@ function WeeklyScheduleCard({
     return schedules
       .filter((item) => item.teacher.id === teacherId)
       .sort((a, b) => {
-        if (a.dayOfWeek !== b.dayOfWeek) {
-          return a.dayOfWeek - b.dayOfWeek
-        }
+        if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek
         return a.timeSlot.sortOrder - b.timeSlot.sortOrder
       })
   }, [teacherId, weeklyScheduleQuery.data?.schedules])
@@ -94,7 +89,9 @@ function WeeklyScheduleCard({
             <Skeleton className="h-10 w-full" />
           </div>
         ) : rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucun créneau trouvé pour ce professeur.</p>
+          <p className="text-sm text-muted-foreground">
+            Aucun créneau trouvé pour ce professeur.
+          </p>
         ) : (
           <div className="space-y-2">
             {rows.map((row) => (
@@ -148,13 +145,17 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
         <Card>
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground">Heures prévues</p>
-            <p className="text-lg font-semibold tabular-nums">{data.summary.hoursPlanned.toFixed(1)}h</p>
+            <p className="text-lg font-semibold tabular-nums">
+              {data.summary.hoursPlanned.toFixed(1)}h
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground">Heures faites</p>
-            <p className="text-lg font-semibold tabular-nums">{data.summary.hoursDone.toFixed(1)}h</p>
+            <p className="text-lg font-semibold tabular-nums">
+              {data.summary.hoursDone.toFixed(1)}h
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -171,7 +172,9 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
         </CardHeader>
         <CardContent>
           {data.rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucune présence enregistrée pour ce mois.</p>
+            <p className="text-sm text-muted-foreground">
+              Aucune présence enregistrée pour ce mois.
+            </p>
           ) : (
             <Table>
               <TableHeader>
@@ -191,7 +194,12 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
                     <TableCell>{row.className}</TableCell>
                     <TableCell>{row.slotLabel}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={statusBadgeClass[row.attendanceStatus] ?? statusBadgeClass.not_marked}>
+                      <Badge
+                        variant="outline"
+                        className={
+                          statusBadgeClass[row.attendanceStatus] ?? statusBadgeClass.not_marked
+                        }
+                      >
                         {statusLabel[row.attendanceStatus] ?? statusLabel.not_marked}
                       </Badge>
                     </TableCell>
@@ -214,7 +222,11 @@ function DocumentsPanel({ teacherId }: { teacherId: string }) {
           <CardTitle className="text-base">Ajouter un document</CardTitle>
         </CardHeader>
         <CardContent>
-          <DocumentUpload entityType="teacher" entityId={teacherId} onUploadSuccess={() => undefined} />
+          <DocumentUpload
+            entityType="teacher"
+            entityId={teacherId}
+            onUploadSuccess={() => undefined}
+          />
         </CardContent>
       </Card>
 
@@ -230,37 +242,43 @@ function DocumentsPanel({ teacherId }: { teacherId: string }) {
   )
 }
 
-function InfosPanel({
-  teacherId,
-}: {
-  teacherId: string
-}) {
+function InfosPanel({ teacherId }: { teacherId: string }) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
   const teacherQuery = useQuery({
-    queryKey: ["teacher", teacherId, "info"],
+    queryKey: ["teacher", teacherId],
     queryFn: () => getTeacherById(teacherId),
+    enabled: teacherId.trim().length > 0,
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ teacherId: currentTeacherId, payload }: { teacherId: string; payload: TeacherUpsertPayload }) =>
-      updateTeacher(currentTeacherId, payload),
+    mutationFn: ({ payload }: { teacherId: string; payload: TeacherUpsertPayload }) =>
+      updateTeacher(teacherId, payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["teacher", teacherId] })
       await queryClient.invalidateQueries({ queryKey: ["teachers"] })
       toast({ title: "Informations mises à jour" })
     },
     onError: () => {
-      toast({ title: "Erreur", description: "Impossible de mettre à jour ce professeur", variant: "destructive" })
+      toast({
+        title: "Erreur",
+        description: "Impossible de mettre à jour les informations",
+        variant: "destructive",
+      })
     },
   })
 
   if (teacherQuery.isLoading) {
-    return <Skeleton className="h-52 w-full" />
+    return (
+      <div className="space-y-2">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    )
   }
 
-  if (teacherQuery.isError || !teacherQuery.data) {
+  if (!teacherQuery.data) {
     return <p className="text-sm text-red-600">Impossible de charger les informations.</p>
   }
 
@@ -301,7 +319,9 @@ export default function TeacherDetailPage() {
   const [blockDialogOpen, setBlockDialogOpen] = useState(false)
   const [blockReason, setBlockReason] = useState("")
   const [desktopTab, setDesktopTab] = useState<"presences" | "documents" | "infos">("presences")
-  const [mobileTab, setMobileTab] = useState<"profil" | "presences" | "documents" | "infos">("profil")
+  const [mobileTab, setMobileTab] = useState<"profil" | "presences" | "documents" | "infos">(
+    "profil"
+  )
 
   const teacherQuery = useQuery({
     queryKey: ["teacher", teacherId],
@@ -315,22 +335,52 @@ export default function TeacherDetailPage() {
       const now = new Date()
       const start = new Date(now.getFullYear(), now.getMonth(), 1)
       const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-      return getTeacherStats(teacherId, start.toISOString().slice(0, 10), end.toISOString().slice(0, 10))
+      return getTeacherStats(
+        teacherId,
+        start.toISOString().slice(0, 10),
+        end.toISOString().slice(0, 10)
+      )
     },
     enabled: teacherId.trim().length > 0,
   })
 
-  const statusMutation = useMutation({
-    mutationFn: ({ isActive }: { isActive: boolean }) => setTeacherActiveStatus(teacherId, isActive),
-    onSuccess: async (_, variables) => {
+  const closeBlockDialog = () => {
+    setBlockDialogOpen(false)
+    setBlockReason("")
+  }
+
+  // ── Mutation blocage — cible teachers.is_blocked via blockTeacher ──────────
+  const blockMutation = useMutation({
+    mutationFn: (reason: string) => blockTeacher(teacherId, reason),
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["teacher", teacherId] })
       await queryClient.invalidateQueries({ queryKey: ["teachers"] })
-      toast({ title: variables.isActive ? "Professeur débloqué" : "Professeur bloqué" })
-      setBlockDialogOpen(false)
-      setBlockReason("")
+      toast({ title: "Professeur bloqué" })
+      closeBlockDialog()
     },
     onError: () => {
-      toast({ title: "Erreur", description: "Impossible de modifier le statut", variant: "destructive" })
+      toast({
+        title: "Erreur",
+        description: "Impossible de bloquer le professeur",
+        variant: "destructive",
+      })
+    },
+  })
+
+  // ── Mutation déblocage — efface teachers.is_blocked via unblockTeacher ─────
+  const unblockMutation = useMutation({
+    mutationFn: () => unblockTeacher(teacherId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["teacher", teacherId] })
+      await queryClient.invalidateQueries({ queryKey: ["teachers"] })
+      toast({ title: "Professeur débloqué" })
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de débloquer le professeur",
+        variant: "destructive",
+      })
     },
   })
 
@@ -381,7 +431,7 @@ export default function TeacherDetailPage() {
           setBlockDialogOpen(true)
         }}
         onUnblock={async () => {
-          await statusMutation.mutateAsync({ isActive: true })
+          await unblockMutation.mutateAsync()
         }}
         onViewDocuments={() => {
           setDesktopTab("documents")
@@ -394,7 +444,13 @@ export default function TeacherDetailPage() {
   )
 
   const rightTabs = (
-    <Tabs value={desktopTab} onValueChange={(value) => setDesktopTab(value as "presences" | "documents" | "infos")} className="space-y-4">
+    <Tabs
+      value={desktopTab}
+      onValueChange={(value) =>
+        setDesktopTab(value as "presences" | "documents" | "infos")
+      }
+      className="space-y-4"
+    >
       <TabsList className="grid w-full grid-cols-3">
         <TabsTrigger value="presences">Présences</TabsTrigger>
         <TabsTrigger value="documents">Documents</TabsTrigger>
@@ -418,7 +474,7 @@ export default function TeacherDetailPage() {
       title="Détail professeur"
       subtitle={teacher.fullName}
       actions={
-        <Button variant="outline" onClick={() => navigate("/teachers")}> 
+        <Button variant="outline" onClick={() => navigate("/teachers")}>
           <BackIcon className="mr-2 h-4 w-4" />
           Retour liste
         </Button>
@@ -429,22 +485,36 @@ export default function TeacherDetailPage() {
           <WarningIcon className="h-4 w-4" />
           <AlertTitle>Professeur bloqué</AlertTitle>
           <AlertDescription>
-            {teacher.blockReason?.trim() || "Ce professeur est actuellement bloqué. Débloquez-le pour réactiver son accès."}
+            {teacher.blockReason?.trim() ||
+              "Ce professeur est actuellement bloqué. Débloquez-le pour réactiver son accès."}
           </AlertDescription>
         </Alert>
       ) : null}
 
-      <div className="hidden gap-6 lg:grid lg:grid-cols-[360px_minmax(0,1fr)]" data-testid="teacher-detail-desktop-layout">
+      {/* Desktop layout */}
+      <div
+        className="hidden gap-6 lg:grid lg:grid-cols-[360px_minmax(0,1fr)]"
+        data-testid="teacher-detail-desktop-layout"
+      >
         {profileSection}
         {rightTabs}
       </div>
 
+      {/* Mobile layout */}
       <div className="space-y-4 lg:hidden">
-        <Tabs value={mobileTab} onValueChange={(value) => setMobileTab(value as "profil" | "presences" | "documents" | "infos")} className="space-y-4">
+        <Tabs
+          value={mobileTab}
+          onValueChange={(value) =>
+            setMobileTab(value as "profil" | "presences" | "documents" | "infos")
+          }
+          className="space-y-4"
+        >
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="profil">Profil</TabsTrigger>
             <TabsTrigger value="presences">Présences</TabsTrigger>
-            <TabsTrigger value="documents" data-testid="teacher-documents-tab-mobile">Documents</TabsTrigger>
+            <TabsTrigger value="documents" data-testid="teacher-documents-tab-mobile">
+              Documents
+            </TabsTrigger>
             <TabsTrigger value="infos">Infos</TabsTrigger>
           </TabsList>
 
@@ -463,13 +533,12 @@ export default function TeacherDetailPage() {
         </Tabs>
       </div>
 
-      <Dialog open={blockDialogOpen} onOpenChange={setBlockDialogOpen}>
+      {/* ── Modal de blocage ── */}
+      <Dialog open={blockDialogOpen} onOpenChange={(open) => { if (!open) closeBlockDialog() }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Bloquer ce professeur</DialogTitle>
-            <DialogDescription>
-              La raison du blocage est obligatoire.
-            </DialogDescription>
+            <DialogDescription>La raison du blocage est obligatoire.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-2">
@@ -483,18 +552,20 @@ export default function TeacherDetailPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBlockDialogOpen(false)}>
+            <Button variant="outline" onClick={closeBlockDialog}>
               Annuler
             </Button>
             <Button
               variant="destructive"
-              disabled={statusMutation.isPending || blockReason.trim().length === 0}
+              disabled={blockMutation.isPending || blockReason.trim().length === 0}
               data-testid="teacher-block-confirm-button"
               onClick={() => {
-                void statusMutation.mutateAsync({ isActive: false })
+                // blockReason est maintenant transmis à blockTeacher()
+                // qui le persistera dans teachers.blocked_reason
+                void blockMutation.mutateAsync(blockReason.trim())
               }}
             >
-              {statusMutation.isPending ? "Blocage..." : "Confirmer le blocage"}
+              {blockMutation.isPending ? "Blocage..." : "Confirmer le blocage"}
             </Button>
           </DialogFooter>
         </DialogContent>
