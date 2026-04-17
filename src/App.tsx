@@ -22,6 +22,7 @@ import TeacherDetailPage from "@/modules/teachers/TeacherDetailPage"
 import TeachersPage from "@/modules/teachers/TeachersPage"
 import { AppShell } from "@/shared/components/layout/AppShell"
 import { useAutoSync } from "@/shared/hooks/useAutoSync"
+import { useRestoreSession } from "@/shared/hooks/useRestoreSession"
 import { useAuthStore } from "@/shared/store/auth.store"
 import LoginPage from "./modules/auth/LoginPage"
 import MaintenancePage from "./modules/auth/MaintenancePage"
@@ -85,8 +86,34 @@ function PlaceholderPage({ title }: { title: string }) {
   )
 }
 
+/**
+ * Écran de chargement affiché le temps que useRestoreSession tente de
+ * récupérer une session existante. Évite le flash de redirect vers /login
+ * sur les utilisateurs déjà connectés.
+ */
+function SessionLoader() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-3">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-primary" />
+        <p className="text-sm text-muted-foreground">Chargement…</p>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   useAutoSync()
+  useRestoreSession()
+
+  const isSessionRestored = useAuthStore((state) => state.isSessionRestored)
+
+  // Bloquer tout rendu de route tant que la restauration de session n'est pas
+  // terminée. Sans ce gate, RoleRedirect voit user=null et redirige vers /login
+  // avant même que le cookie refresh ait été tenté.
+  if (!isSessionRestored) {
+    return <SessionLoader />
+  }
 
   return (
     <Routes>
