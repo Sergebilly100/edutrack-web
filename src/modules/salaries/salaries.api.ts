@@ -229,9 +229,7 @@ const parseJobPayload = (value: unknown): ExportJobStatus => {
     result.url ??
     result.fileUrl ??
     result.downloadUrl ??
-    result.file_url ??
-    result.filePath ??
-    result.file_path
+    result.file_url
 
   const rawState = asString(payload.state, status || "unknown")
   const normalizedFromStatus =

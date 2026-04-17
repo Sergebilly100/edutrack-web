@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CalendarDays, ChevronLeft, ChevronRight, Download, Wallet } from "lucide-react"
 
@@ -229,6 +229,23 @@ export default function SalariesPage() {
     setPayDialogOpen(true)
   }
 
+  useEffect(() => {
+    const state = exportJobQuery.data?.state
+    if (!exportJobId || !state) {
+      return
+    }
+
+    if (state !== "done" && state !== "failed") {
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      setExportJobId(null)
+    }, 8000)
+
+    return () => window.clearTimeout(timer)
+  }, [exportJobId, exportJobQuery.data?.state])
+
   return (
     <>
       <OfflineIndicator />
@@ -289,12 +306,13 @@ export default function SalariesPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => {
-                  setBulkExportTarget("all")
-                  setBulkPeriodFrom(selectedMonth)
-                  setBulkPeriodTo(selectedMonth)
-                  setBulkExportDialogOpen(true)
-                }}
+                onClick={() =>
+                  exportBulkMutation.mutate({
+                    periodFrom: selectedMonth,
+                    periodTo: selectedMonth,
+                    teacherId: undefined,
+                  })
+                }
                 disabled={exportBulkMutation.isPending}
                 data-testid="salaries-export-school-button"
               >
@@ -321,16 +339,27 @@ export default function SalariesPage() {
                   ? "Terminé"
                   : exportJobQuery.data?.state === "failed"
                     ? "Échec"
-                    : "En cours"}
+                    : "Génération en cours"}
               </Badge>
 
               {exportJobQuery.data?.downloadUrl ? (
-                <Button asChild size="sm" variant="secondary">
-                  <a href={exportJobQuery.data.downloadUrl} target="_blank" rel="noreferrer">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    window.open(exportJobQuery.data?.downloadUrl ?? "", "_blank", "noopener,noreferrer")
+                    setExportJobId(null)
+                  }}
+                >
                     <Download className="mr-2 h-4 w-4" />
                     <span data-testid="salaries-export-download-link">Télécharger</span>
-                  </a>
                 </Button>
+              ) : null}
+
+              {exportJobQuery.data?.state === "running" || exportJobQuery.data?.state === "queued" ? (
+                <span className="text-xs text-muted-foreground">
+                  Merci de patienter, le fichier sera téléchargeable automatiquement dès qu&apos;il est prêt.
+                </span>
               ) : null}
 
               {!exportJobQuery.data?.downloadUrl && exportJobQuery.data?.state === "done" ? (

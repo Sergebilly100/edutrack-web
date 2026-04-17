@@ -90,7 +90,7 @@ test.describe("Console Super Admin - Écoles", () => {
     await row.getByRole("button", { name: "Voir détail" }).click({ force: true })
 
     await expect(page).toHaveURL(/\/admin\/schools\/.+/)
-    await expect(page.getByText("Informations école", { exact: true })).toBeVisible()
+    await expect(page.getByText("Configuration école", { exact: true })).toBeVisible()
   })
 
   test("la modification du plan d'une école est sauvegardée", async ({ page, request }) => {
@@ -106,13 +106,13 @@ test.describe("Console Super Admin - Écoles", () => {
     await row.getByRole("button", { name: "Config" }).click({ force: true })
     await expect(page).toHaveURL(/\/admin\/schools\/.+/)
 
-    const planCombobox = page.getByRole("combobox").first()
+    const planCombobox = page.getByText("Plan", { exact: true }).locator("..").getByRole("combobox")
     await planCombobox.click()
     await page.getByRole("option", { name: "pro", exact: true }).click()
 
-    await page.getByRole("button", { name: "Enregistrer" }).click()
+    await page.getByRole("button", { name: "Enregistrer la configuration" }).click()
 
-    await expect(page.getByText("Configuration mise à jour", { exact: true }).first()).toBeVisible()
+    await expect(page.getByText("Configuration école mise à jour", { exact: true }).first()).toBeVisible()
     await expect(planCombobox).toContainText("pro")
   })
 })
