@@ -5,6 +5,7 @@ import {
   AttendanceIcon,
   DashboardIcon,
   ImportIcon,
+  RoomIcon,
   SalaryIcon,
   ScheduleIcon,
   SettingsIcon,
@@ -65,6 +66,13 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/import",
     icon: ImportIcon,
     roles: ["director"],
+    mobileVisible: false,
+  },
+  {
+    label: "Salles & QR",
+    href: "/rooms",
+    icon: RoomIcon,
+    roles: ["director", "secretary"],
     mobileVisible: false,
   },
   {

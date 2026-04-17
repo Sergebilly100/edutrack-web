@@ -232,4 +232,24 @@ export const fetchStudents = (classId: string) =>
       }))
     )
 
-export const fetchRooms = () => api.get<RoomItem[]>("/rooms").then((r) => r.data)
+export const fetchRooms = async (): Promise<RoomItem[]> => {
+  const response = await api.get<unknown>("/rooms")
+  const payload = toRecord(response.data)
+
+  const list = Array.isArray(response.data)
+    ? response.data
+    : Array.isArray(payload.rooms)
+      ? payload.rooms
+      : Array.isArray(payload.data)
+        ? payload.data
+        : []
+
+  return list.map((item) => {
+    const row = toRecord(item)
+    return {
+      id: toString(row.id),
+      name: toString(row.name),
+      qr_token: toString(row.qr_token || row.qrToken),
+    }
+  })
+}

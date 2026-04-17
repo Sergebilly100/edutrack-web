@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CalendarDays, ChevronLeft, ChevronRight, Download, Wallet } from "lucide-react"
 
@@ -38,6 +38,24 @@ import { EmptyState, OfflineIndicator, SalaryRow, StatCard, emptyStateIcons } fr
 const STALE_TIME = 60_000
 
 const formatFcfa = (value: number): string => `${new Intl.NumberFormat("fr-FR").format(value)} FCFA`
+
+const resolveDownloadFileName = (downloadUrl: string | null): string | null => {
+  if (!downloadUrl) {
+    return null
+  }
+
+  try {
+    const url = new URL(downloadUrl, window.location.origin)
+    const segments = url.pathname.split("/").filter(Boolean)
+    const lastSegment = segments.length > 0 ? segments[segments.length - 1] : null
+    if (!lastSegment) {
+      return null
+    }
+    return decodeURIComponent(lastSegment)
+  } catch {
+    return null
+  }
+}
 
 const toSalaryRowStatus = (value: SalarySummaryItem["status"]): "pending" | "paid" | "disputed" | null => {
   if (value === "pending" || value === "paid" || value === "disputed") {
@@ -229,22 +247,10 @@ export default function SalariesPage() {
     setPayDialogOpen(true)
   }
 
-  useEffect(() => {
-    const state = exportJobQuery.data?.state
-    if (!exportJobId || !state) {
-      return
-    }
-
-    if (state !== "done" && state !== "failed") {
-      return
-    }
-
-    const timer = window.setTimeout(() => {
-      setExportJobId(null)
-    }, 8000)
-
-    return () => window.clearTimeout(timer)
-  }, [exportJobId, exportJobQuery.data?.state])
+  const exportFileName = useMemo(
+    () => resolveDownloadFileName(exportJobQuery.data?.downloadUrl ?? null),
+    [exportJobQuery.data?.downloadUrl]
+  )
 
   return (
     <>
@@ -306,13 +312,12 @@ export default function SalariesPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() =>
-                  exportBulkMutation.mutate({
-                    periodFrom: selectedMonth,
-                    periodTo: selectedMonth,
-                    teacherId: undefined,
-                  })
-                }
+                onClick={() => {
+                  setBulkExportTarget("all")
+                  setBulkPeriodFrom(selectedMonth)
+                  setBulkPeriodTo(selectedMonth)
+                  setBulkExportDialogOpen(true)
+                }}
                 disabled={exportBulkMutation.isPending}
                 data-testid="salaries-export-school-button"
               >
@@ -327,7 +332,9 @@ export default function SalariesPage() {
 
           {exportJobId ? (
             <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-3 text-sm" data-testid="salaries-export-job-panel">
-              <Badge variant="outline">Job export: {exportJobId}</Badge>
+              <Badge variant="outline">
+                {exportFileName ? `Fichier: ${exportFileName}` : "Fichier d'export en préparation"}
+              </Badge>
               <Badge
                 variant="outline"
                 className={cn(
@@ -348,7 +355,6 @@ export default function SalariesPage() {
                   variant="secondary"
                   onClick={() => {
                     window.open(exportJobQuery.data?.downloadUrl ?? "", "_blank", "noopener,noreferrer")
-                    setExportJobId(null)
                   }}
                 >
                     <Download className="mr-2 h-4 w-4" />
@@ -617,6 +623,15 @@ export default function SalariesPage() {
             <Button
               type="button"
               onClick={() => {
+                if (bulkPeriodFrom.length !== 7 || bulkPeriodTo.length !== 7 || bulkPeriodFrom > bulkPeriodTo) {
+                  toast({
+                    title: "Période invalide",
+                    description: "Sélectionnez une période valide avant de générer le bilan.",
+                    variant: "destructive",
+                  })
+                  return
+                }
+
                 const teacherId = bulkExportTarget === "all" ? undefined : bulkExportTarget
                 exportBulkMutation.mutate({
                   periodFrom: bulkPeriodFrom,

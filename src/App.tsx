@@ -12,6 +12,7 @@ import DashboardPage from "@/modules/dashboard/DashboardPage"
 import TeacherDashboardPage from "@/modules/dashboard/TeacherDashboardPage"
 import ImportPage from "@/modules/import-export/ImportPage"
 import OnboardingWizard from "@/modules/onboarding/OnboardingWizard"
+import RoomsPage from "@/modules/rooms/RoomsPage"
 import SalariesPage from "@/modules/salaries/SalariesPage"
 import SchedulePage from "@/modules/schedule/SchedulePage"
 import SettingsPage from "@/modules/settings/SettingsPage"
@@ -112,6 +113,7 @@ export default function App() {
         <Route path="/admin/account" element={<AdminAccountPage />} />
         <Route path="/import" element={<ImportPage />} />
         <Route path="/imports" element={<ImportPage />} />
+        <Route path="/rooms" element={<RoomsPage />} />
         <Route path="/salaries" element={<SalariesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
