@@ -3,11 +3,14 @@ import { z } from "zod"
 import type { TeacherSchedule } from "@/modules/attendance/TeacherFlow"
 import { apiClient as api } from "@/shared/api/client"
 
+// ─── Types publics ─────────────────────────────────────────────────────────────
+
 export type TeacherCatalogItem = {
   id: string
   name: string
   username: string
   isBlocked?: boolean
+  subjects: string[]
 }
 
 export type ClassCatalogItem = {
@@ -24,8 +27,8 @@ export type RoomCatalogItem = {
 export type TimeSlotCatalogItem = {
   id: string
   label: string
-  startTime: string
-  endTime: string
+  startTime: string  // toujours "HH:MM" normalisé
+  endTime: string    // toujours "HH:MM" normalisé
   sortOrder: number
 }
 
@@ -60,8 +63,8 @@ export type ScheduleRow = {
   timeSlot: {
     id: string
     label: string
-    startTime: string
-    endTime: string
+    startTime: string  // toujours "HH:MM" normalisé
+    endTime: string    // toujours "HH:MM" normalisé
     sortOrder: number
   }
 }
@@ -93,6 +96,8 @@ export type ScheduleCreatePayload = {
   classId: string
   roomId: string
   timeSlotId: string
+  startTime?: string
+  endTime?: string
   dayOfWeek: number
   subject: string
   isActive?: boolean
@@ -108,14 +113,37 @@ export type ImportHistoryItem = {
   updatedCount: number
 }
 
+// ─── Normalisation des heures ─────────────────────────────────────────────────
+//
+// PostgreSQL retourne les colonnes `time` castées en `::text` sous la forme
+// "HH:MM:SS" (ex: "07:30:00"). Le frontend utilise "HH:MM" partout.
+// On normalise à la source dans fetchWeeklySchedule pour que toutes les
+// comparaisons de clés (scheduleByDayAndTime) soient cohérentes.
+
+/**
+ * Normalise "HH:MM:SS" → "HH:MM". Laisse "HH:MM" inchangé.
+ * Ex : "07:30:00" → "07:30" | "08:00" → "08:00"
+ */
+const normalizeTime = (raw: string): string => {
+  if (!raw) return raw
+  // Prend les deux premiers segments séparés par ":"
+  const parts = raw.split(":")
+  if (parts.length < 2) return raw
+  return `${parts[0]}:${parts[1]}`
+}
+
+// ─── Schémas Zod ──────────────────────────────────────────────────────────────
+
 const SchedulePeriodSchema = z.object({
   id: z.string(),
   name: z.string(),
   valid_from: z.string(),
   valid_to: z.string(),
-  is_active: z.boolean()
+  is_active: z.boolean(),
 })
 
+// On accepte les deux formats de temps depuis le backend ("HH:MM" et "HH:MM:SS")
+// La normalisation se fait après le parse.
 const ScheduleRowSchema = z.object({
   id: z.string(),
   schedulePeriodId: z.string(),
@@ -124,24 +152,24 @@ const ScheduleRowSchema = z.object({
   teacher: z.object({
     id: z.string(),
     name: z.string(),
-    username: z.string()
+    username: z.string(),
   }),
   class: z.object({
     id: z.string(),
-    name: z.string()
+    name: z.string(),
   }),
   room: z.object({
     id: z.string(),
     name: z.string(),
-    qrToken: z.string()
+    qrToken: z.string(),
   }),
   timeSlot: z.object({
     id: z.string(),
     label: z.string(),
     startTime: z.string(),
     endTime: z.string(),
-    sortOrder: z.number()
-  })
+    sortOrder: z.number(),
+  }),
 })
 
 const WeeklyScheduleResponseSchema = z.object({
@@ -152,22 +180,14 @@ const WeeklyScheduleResponseSchema = z.object({
     z.object({
       id: z.string(),
       name: z.string(),
-      username: z.string()
+      username: z.string(),
+      is_blocked: z.boolean().optional(),
+      isBlocked: z.boolean().optional(),
+      subjects: z.array(z.string()).default([]),
     })
   ),
-  classes: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string()
-    })
-  ),
-  rooms: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      qrToken: z.string()
-    })
-  ),
+  classes: z.array(z.object({ id: z.string(), name: z.string() })),
+  rooms: z.array(z.object({ id: z.string(), name: z.string(), qrToken: z.string() })),
   time_slots: z.array(
     z.object({
       id: z.string(),
@@ -177,26 +197,22 @@ const WeeklyScheduleResponseSchema = z.object({
       endTime: z.string().optional(),
       end_time: z.string().optional(),
       sortOrder: z.number().optional(),
-      sort_order: z.number().optional()
+      sort_order: z.number().optional(),
     })
-  )
+  ),
 })
 
 const ActiveScheduleResponseSchema = z.object({
   date: z.string(),
   dayOfWeek: z.number(),
   period: SchedulePeriodSchema.nullable(),
-  schedules: z.array(ScheduleRowSchema)
+  schedules: z.array(ScheduleRowSchema),
 })
 
 const SchedulePeriodsResponseSchema = z.object({
-  periods: z.array(
-    z.object({
-      valid_from: z.string(),
-      valid_to: z.string(),
-      is_active: z.boolean(),
-    })
-  ).default([]),
+  periods: z
+    .array(z.object({ valid_from: z.string(), valid_to: z.string(), is_active: z.boolean() }))
+    .default([]),
 })
 
 const ImportHistoryItemSchema = z.object({
@@ -204,41 +220,50 @@ const ImportHistoryItemSchema = z.object({
   imported_at: z.string(),
   type: z.enum(["students", "teachers", "schedule"]),
   imported_count: z.number(),
-  updated_count: z.number()
+  updated_count: z.number(),
 })
 
 const ImportHistoryResponseSchema = z.object({
-  items: z.array(ImportHistoryItemSchema).default([])
+  items: z.array(ImportHistoryItemSchema).default([]),
 })
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const toSchedulePayload = (payload: ScheduleCreatePayload) => ({
   schedule_period_id: payload.schedulePeriodId,
   teacher_id: payload.teacherId,
   class_id: payload.classId,
   room_id: payload.roomId,
-  time_slot_id: payload.timeSlotId,
+  ...(payload.timeSlotId ? { time_slot_id: payload.timeSlotId } : {}),
+  ...(payload.startTime ? { start_time: payload.startTime } : {}),
+  ...(payload.endTime ? { end_time: payload.endTime } : {}),
   day_of_week: payload.dayOfWeek,
   subject: payload.subject,
-  is_active: payload.isActive
+  is_active: payload.isActive,
 })
 
-const toIsoDateTime = (date: string, time: string): string => {
-  return `${date}T${time}.000Z`
-}
+const toIsoDateTime = (date: string, time: string): string => `${date}T${normalizeTime(time)}:00.000Z`
+
+const getDateParam = (value: unknown): string | undefined =>
+  typeof value === "string" && value.length > 0 ? value : undefined
+
+// ─── API Functions ────────────────────────────────────────────────────────────
 
 export const fetchTeacherSchedule = async (): Promise<TeacherSchedule[]> => {
   const response = await api.get("/schedule/teacher/me")
-  const payload = response.data as { date?: string; schedules?: ScheduleRow[] } | ScheduleRow[]
+  const payload = response.data as
+    | { date?: string; schedules?: ScheduleRow[] }
+    | ScheduleRow[]
 
   const date =
-    (typeof payload === "object" &&
+    typeof payload === "object" &&
     payload !== null &&
     !Array.isArray(payload) &&
     typeof payload.date === "string"
       ? payload.date
-      : new Date().toISOString().slice(0, 10))
+      : new Date().toISOString().slice(0, 10)
 
-  const schedules = Array.isArray(payload) ? payload : payload.schedules ?? []
+  const schedules = Array.isArray(payload) ? payload : (payload.schedules ?? [])
 
   return schedules.map((item) => ({
     id: item.id,
@@ -252,15 +277,10 @@ export const fetchTeacherSchedule = async (): Promise<TeacherSchedule[]> => {
   }))
 }
 
-const getDateParam = (value: unknown): string | undefined =>
-  typeof value === "string" && value.length > 0 ? value : undefined
-
 export const fetchActiveSchedules = async (date?: unknown): Promise<ActiveScheduleData> => {
   const resolvedDate = getDateParam(date)
   const response = await api.get("/schedule/active", {
-    params: {
-      ...(resolvedDate ? { date: resolvedDate } : {}),
-    },
+    params: resolvedDate ? { date: resolvedDate } : {},
   })
   const parsed = ActiveScheduleResponseSchema.parse(response.data)
 
@@ -273,21 +293,45 @@ export const fetchActiveSchedules = async (date?: unknown): Promise<ActiveSchedu
           name: parsed.period.name,
           validFrom: parsed.period.valid_from,
           validTo: parsed.period.valid_to,
-          isActive: parsed.period.is_active
+          isActive: parsed.period.is_active,
         }
       : null,
-    schedules: parsed.schedules
+    // Normaliser les heures des schedules de la vue active aussi
+    schedules: parsed.schedules.map((s) => ({
+      ...s,
+      timeSlot: {
+        ...s.timeSlot,
+        startTime: normalizeTime(s.timeSlot.startTime),
+        endTime: normalizeTime(s.timeSlot.endTime),
+      },
+    })),
   }
 }
 
 export const fetchWeeklySchedule = async (date?: unknown): Promise<WeeklyScheduleData> => {
   const resolvedDate = getDateParam(date)
   const response = await api.get("/schedule/weekly", {
-    params: {
-      ...(resolvedDate ? { date: resolvedDate } : {}),
-    },
+    params: resolvedDate ? { date: resolvedDate } : {},
   })
   const parsed = WeeklyScheduleResponseSchema.parse(response.data)
+
+  // Normaliser tous les temps en "HH:MM" — source unique de vérité pour les clés de lookup
+  const normalizedTimeSlots: TimeSlotCatalogItem[] = parsed.time_slots.map((slot) => ({
+    id: slot.id,
+    label: slot.label,
+    startTime: normalizeTime(slot.startTime ?? slot.start_time ?? ""),
+    endTime: normalizeTime(slot.endTime ?? slot.end_time ?? ""),
+    sortOrder: slot.sortOrder ?? slot.sort_order ?? 0,
+  }))
+
+  const normalizedSchedules: ScheduleRow[] = parsed.schedules.map((s) => ({
+    ...s,
+    timeSlot: {
+      ...s.timeSlot,
+      startTime: normalizeTime(s.timeSlot.startTime),
+      endTime: normalizeTime(s.timeSlot.endTime),
+    },
+  }))
 
   return {
     date: parsed.date,
@@ -297,29 +341,27 @@ export const fetchWeeklySchedule = async (date?: unknown): Promise<WeeklySchedul
           name: parsed.period.name,
           validFrom: parsed.period.valid_from,
           validTo: parsed.period.valid_to,
-          isActive: parsed.period.is_active
+          isActive: parsed.period.is_active,
         }
       : null,
-    schedules: parsed.schedules,
+    schedules: normalizedSchedules,
     catalog: {
       teachers: parsed.teachers.map((teacher) => ({
-        ...teacher,
-        isBlocked: typeof (teacher as Record<string, unknown>).is_blocked === "boolean"
-          ? ((teacher as Record<string, unknown>).is_blocked as boolean)
-          : typeof (teacher as Record<string, unknown>).isBlocked === "boolean"
-            ? ((teacher as Record<string, unknown>).isBlocked as boolean)
-            : undefined,
+        id: teacher.id,
+        name: teacher.name,
+        username: teacher.username,
+        isBlocked:
+          typeof teacher.is_blocked === "boolean"
+            ? teacher.is_blocked
+            : typeof teacher.isBlocked === "boolean"
+              ? teacher.isBlocked
+              : undefined,
+        subjects: teacher.subjects,
       })),
       classes: parsed.classes,
       rooms: parsed.rooms,
-      timeSlots: parsed.time_slots.map((slot) => ({
-        id: slot.id,
-        label: slot.label,
-        startTime: slot.startTime ?? slot.start_time ?? "",
-        endTime: slot.endTime ?? slot.end_time ?? "",
-        sortOrder: slot.sortOrder ?? slot.sort_order ?? 0
-      }))
-    }
+      timeSlots: normalizedTimeSlots,
+    },
   }
 }
 
@@ -328,15 +370,12 @@ const toDateOnly = (value: string): Date => {
   return new Date(Date.UTC(year ?? 1970, (month ?? 1) - 1, day ?? 1))
 }
 
-const hasDateOverlap = (startA: Date, endA: Date, startB: Date, endB: Date): boolean => {
-  return startA <= endB && startB <= endA
-}
+const hasDateOverlap = (startA: Date, endA: Date, startB: Date, endB: Date): boolean =>
+  startA <= endB && startB <= endA
 
 export const fetchNextWeekCoverage = async (nextWeekMonday: string): Promise<boolean> => {
   const active = await fetchActiveSchedules(nextWeekMonday)
-  if (active.period) {
-    return true
-  }
+  if (active.period) return true
 
   const response = await api.get("/schedule/periods")
   const parsed = SchedulePeriodsResponseSchema.parse(response.data)
@@ -345,9 +384,7 @@ export const fetchNextWeekCoverage = async (nextWeekMonday: string): Promise<boo
   nextWeekEnd.setUTCDate(nextWeekEnd.getUTCDate() + 6)
 
   return parsed.periods.some((period) => {
-    if (!period.is_active) {
-      return false
-    }
+    if (!period.is_active) return false
     return hasDateOverlap(
       toDateOnly(period.valid_from),
       toDateOnly(period.valid_to),
@@ -357,8 +394,13 @@ export const fetchNextWeekCoverage = async (nextWeekMonday: string): Promise<boo
   })
 }
 
-export const createScheduleSlot = async (payload: ScheduleCreatePayload): Promise<{ id: string }> => {
-  const response = await api.post<{ schedule: { id: string } }>("/schedule", toSchedulePayload(payload))
+export const createScheduleSlot = async (
+  payload: ScheduleCreatePayload
+): Promise<{ id: string }> => {
+  const response = await api.post<{ schedule: { id: string } }>(
+    "/schedule",
+    toSchedulePayload(payload)
+  )
   return response.data.schedule
 }
 
@@ -378,16 +420,13 @@ export const deleteScheduleSlot = async (scheduleId: string): Promise<void> => {
 }
 
 export const fetchImportHistory = async (limit = 20): Promise<ImportHistoryItem[]> => {
-  const response = await api.get("/import/history", {
-    params: { limit }
-  })
+  const response = await api.get("/import/history", { params: { limit } })
   const parsed = ImportHistoryResponseSchema.parse(response.data)
-
   return parsed.items.map((item) => ({
     id: item.id,
     importedAt: item.imported_at,
     type: item.type,
     importedCount: item.imported_count,
-    updatedCount: item.updated_count
+    updatedCount: item.updated_count,
   }))
 }

@@ -1,7 +1,9 @@
+import { useMemo } from "react"
 import { cn } from "@/lib/utils"
 import type { ScheduleRow } from "@/modules/schedule/schedule.api"
 
 import SlotCard from "./SlotCard"
+import { computeSlotLayouts } from "./WeekGrid"
 
 type DayColumnProps = {
   day: { value: number; label: string; date: Date }
@@ -37,9 +39,20 @@ export default function DayColumn({
   isBlockedTeacher,
   getSubjectColorClass,
 }: DayColumnProps) {
-  const hours = Array.from({ length: gridEndHour - gridStartHour }, (_, index) => gridStartHour + index)
+  const hours = Array.from(
+    { length: gridEndHour - gridStartHour },
+    (_, index) => gridStartHour + index
+  )
   const gridHeight = (gridEndHour - gridStartHour) * hourHeight
   const gridStartMinutes = gridStartHour * 60
+
+  /**
+   * FIX BUG 2 — Calcul de la disposition des slots en collision.
+   * Pour chaque slot chevauchant un autre sur le même créneau horaire,
+   * on attribue une sous-colonne (columnIndex / columnCount) afin de
+   * les afficher côte à côte plutôt que superposés.
+   */
+  const layouts = useMemo(() => computeSlotLayouts(slots), [slots])
 
   return (
     <div className="min-w-[170px] flex-1">
@@ -66,17 +79,43 @@ export default function DayColumn({
           const top = ((startMinutes - gridStartMinutes) / 60) * hourHeight
           const height = (durationMinutes / 60) * hourHeight
 
+          const layout = layouts.get(slot.id)
+          const columnCount = layout?.columnCount ?? 1
+          const columnIndex = layout?.columnIndex ?? 0
+
+          /**
+           * FIX BUG 2 — Positionnement en sous-colonnes.
+           *
+           * Chaque slot occupe une fraction de la largeur de la cellule.
+           * On utilise des pourcentages pour rester fluide quelle que soit
+           * la largeur de la colonne jour.
+           *
+           * Exemple : 3 cours simultanés → chacun occupe ~33% de la largeur,
+           * avec 2px de marge entre les cartes.
+           */
+          const GUTTER = 2 // px entre les sous-colonnes
+          const totalGutter = GUTTER * (columnCount - 1)
+          // left et width en px (on laisse le positionnement absolu gérer)
+          // On passe ces valeurs en style inline car ce sont des calculs dynamiques
+          // (exception à la règle "pas de styles inline" : valeurs calculées, pas de couleurs)
+          const widthPct = (1 / columnCount) * 100
+          const leftPct = (columnIndex / columnCount) * 100
+
           return (
             <SlotCard
               key={slot.id}
               slot={slot}
               height={height}
+              columnCount={columnCount}
               onClick={() => onSlotClick(slot)}
               isBlockedTeacher={isBlockedTeacher(slot.teacher.id)}
               className={cn("z-10", getSubjectColorClass(slot.subject))}
               style={{
                 top,
                 height,
+                left: `calc(${leftPct}% + ${columnIndex > 0 ? GUTTER : 1}px)`,
+                right: `calc(${100 - leftPct - widthPct}% + ${columnIndex < columnCount - 1 ? GUTTER : 1}px)`,
+                width: undefined, // géré via left+right
               }}
             />
           )

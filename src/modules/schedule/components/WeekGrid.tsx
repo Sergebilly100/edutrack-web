@@ -8,6 +8,8 @@ import DayColumn from "./DayColumn"
 export interface WeekGridProps {
   slots: ScheduleRow[]
   weekStart: Date
+  hasPeriod: boolean
+  isLoading?: boolean
   onSlotClick: (slot: ScheduleRow) => void
   onSlotAdd: (day: number, hour: number) => void
   onWeekChange?: (nextWeekStart: Date) => void
@@ -72,16 +74,114 @@ const getSubjectColorClass = (subject: string) => {
   return SUBJECT_COLORS[index]
 }
 
+/**
+ * Calcule la disposition des slots qui se chevauchent dans une colonne jour.
+ *
+ * Pour chaque slot, on détermine :
+ * - `columnIndex` : indice de la sous-colonne (0, 1, 2…)
+ * - `columnCount`  : nombre total de sous-colonnes dans le groupe de collision
+ *
+ * Algorithme O(n²) acceptable (< 20 slots / jour en pratique).
+ */
+export type SlotLayout = {
+  slotId: string
+  columnIndex: number
+  columnCount: number
+}
+
+const toMinutesFromTime = (time: string): number => {
+  const [h, m] = time.split(":")
+  return (Number(h) || 0) * 60 + (Number(m) || 0)
+}
+
+export const computeSlotLayouts = (slots: ScheduleRow[]): Map<string, SlotLayout> => {
+  const result = new Map<string, SlotLayout>()
+
+  if (slots.length === 0) return result
+
+  // Trier par heure de début
+  const sorted = [...slots].sort(
+    (a, b) =>
+      toMinutesFromTime(a.timeSlot.startTime) - toMinutesFromTime(b.timeSlot.startTime)
+  )
+
+  // Groupes de slots qui se chevauchent temporellement
+  const groups: ScheduleRow[][] = []
+  let currentGroup: ScheduleRow[] = []
+  let groupEnd = -1
+
+  for (const slot of sorted) {
+    const start = toMinutesFromTime(slot.timeSlot.startTime)
+    const end = toMinutesFromTime(slot.timeSlot.endTime)
+
+    if (start < groupEnd) {
+      // Collision avec le groupe courant
+      currentGroup.push(slot)
+      groupEnd = Math.max(groupEnd, end)
+    } else {
+      // Nouveau groupe
+      if (currentGroup.length > 0) groups.push(currentGroup)
+      currentGroup = [slot]
+      groupEnd = end
+    }
+  }
+  if (currentGroup.length > 0) groups.push(currentGroup)
+
+  // Pour chaque groupe, assigner des sous-colonnes par greedy coloring
+  for (const group of groups) {
+    const columnCount = group.length
+    // Attribution greedy : on place chaque slot dans la première colonne libre
+    const columnEnds: number[] = []
+
+    for (const slot of group) {
+      const start = toMinutesFromTime(slot.timeSlot.startTime)
+      const end = toMinutesFromTime(slot.timeSlot.endTime)
+
+      let placed = false
+      for (let col = 0; col < columnEnds.length; col++) {
+        if ((columnEnds[col] ?? 0) <= start) {
+          result.set(slot.id, { slotId: slot.id, columnIndex: col, columnCount })
+          columnEnds[col] = end
+          placed = true
+          break
+        }
+      }
+
+      if (!placed) {
+        const col = columnEnds.length
+        result.set(slot.id, { slotId: slot.id, columnIndex: col, columnCount })
+        columnEnds.push(end)
+      }
+    }
+
+    // Remettre à jour columnCount avec le nombre réel de colonnes utilisées
+    const realColumnCount = columnEnds.length
+    for (const slot of group) {
+      const layout = result.get(slot.id)
+      if (layout) {
+        result.set(slot.id, { ...layout, columnCount: realColumnCount })
+      }
+    }
+  }
+
+  return result
+}
+
 export default function WeekGrid({
   slots,
   weekStart,
+  hasPeriod,
+  isLoading = false,
   onSlotClick,
   onSlotAdd,
   onWeekChange,
   onToday,
   isBlockedTeacher,
 }: WeekGridProps) {
-  const hours = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR + 1 }, (_, index) => GRID_START_HOUR + index)
+  const hours = Array.from(
+    { length: GRID_END_HOUR - GRID_START_HOUR + 1 },
+    (_, index) => GRID_START_HOUR + index
+  )
   const days = DAYS.map((day, index) => ({
     ...day,
     date: addDays(weekStart, index),
@@ -126,40 +226,64 @@ export default function WeekGrid({
         </Button>
       </div>
 
-      <div className="overflow-x-auto">
-        <div className="flex min-w-[1100px]">
-          <div className="w-12 flex-shrink-0 border-r">
-            <div className="sticky top-0 z-20 h-[53px] border-b bg-background/95 backdrop-blur" aria-hidden="true" />
-            <div aria-hidden="true">
-              {hours.map((hour, index) => (
-                <div
-                  key={hour}
-                  className={cn("flex h-16 items-start justify-end pr-1 text-[11px] text-muted-foreground", index < hours.length - 1 ? "border-b" : "")}
-                >
-                  {String(hour).padStart(2, "0")}h
-                </div>
+      {/* État de chargement — skeleton overlay léger */}
+      {isLoading ? (
+        <div className="flex h-24 items-center justify-center rounded-md border bg-muted/30">
+          <p className="text-sm text-muted-foreground">Chargement…</p>
+        </div>
+      ) : !hasPeriod ? (
+        /* FIX BUG 1 : Pas de période active → grille vide explicite */
+        <div className="flex h-40 items-center justify-center rounded-md border border-dashed bg-muted/20">
+          <p className="text-sm text-muted-foreground">
+            Aucune période d'emploi du temps pour cette semaine.
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <div className="flex min-w-[1100px]">
+            <div className="w-12 flex-shrink-0 border-r">
+              <div
+                className="sticky top-0 z-20 h-[53px] border-b bg-background/95 backdrop-blur"
+                aria-hidden="true"
+              />
+              <div aria-hidden="true">
+                {hours.map((hour, index) => (
+                  <div
+                    key={hour}
+                    className={cn(
+                      "flex h-16 items-start justify-end pr-1 text-[11px] text-muted-foreground",
+                      index < hours.length - 1 ? "border-b" : ""
+                    )}
+                  >
+                    {String(hour).padStart(2, "0")}h
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex min-w-0 flex-1">
+              {days.map((day) => (
+                <DayColumn
+                  key={day.value}
+                  day={day}
+                  slots={(slotsByDay.get(day.value) ?? []).sort(
+                    (a, b) => a.timeSlot.sortOrder - b.timeSlot.sortOrder
+                  )}
+                  gridStartHour={GRID_START_HOUR}
+                  gridEndHour={GRID_END_HOUR}
+                  hourHeight={HOUR_HEIGHT}
+                  onSlotClick={onSlotClick}
+                  onSlotAdd={onSlotAdd}
+                  isBlockedTeacher={(teacherId) =>
+                    isBlockedTeacher ? isBlockedTeacher(teacherId) : false
+                  }
+                  getSubjectColorClass={getSubjectColorClass}
+                />
               ))}
             </div>
           </div>
-
-          <div className="flex min-w-0 flex-1">
-            {days.map((day) => (
-              <DayColumn
-                key={day.value}
-                day={day}
-                slots={(slotsByDay.get(day.value) ?? []).sort((a, b) => a.timeSlot.sortOrder - b.timeSlot.sortOrder)}
-                gridStartHour={GRID_START_HOUR}
-                gridEndHour={GRID_END_HOUR}
-                hourHeight={HOUR_HEIGHT}
-                onSlotClick={onSlotClick}
-                onSlotAdd={onSlotAdd}
-                isBlockedTeacher={(teacherId) => (isBlockedTeacher ? isBlockedTeacher(teacherId) : false)}
-                getSubjectColorClass={getSubjectColorClass}
-              />
-            ))}
-          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

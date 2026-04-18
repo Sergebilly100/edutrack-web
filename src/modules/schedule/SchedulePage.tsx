@@ -45,9 +45,12 @@ import {
   fetchWeeklySchedule,
   type ScheduleCreatePayload,
   type ScheduleRow,
+  type TimeSlotCatalogItem,
   type WeeklyScheduleData,
   updateScheduleSlot,
 } from "./schedule.api"
+
+// ─── Constantes ────────────────────────────────────────────────────────────────
 
 const DAYS = [
   { value: 1, label: "Lun" },
@@ -58,15 +61,34 @@ const DAYS = [
   { value: 6, label: "Sam" },
 ] as const
 
+const generateTimeOptions = (): { label: string; value: string }[] => {
+  const options: { label: string; value: string }[] = []
+  for (let h = 6; h <= 22; h++) {
+    for (const m of [0, 30]) {
+      if (h === 22 && m === 30) continue
+      const hStr = String(h).padStart(2, "0")
+      const mStr = String(m).padStart(2, "0")
+      options.push({ label: `${hStr}:${mStr}`, value: `${hStr}:${mStr}` })
+    }
+  }
+  return options
+}
+
+const TIME_OPTIONS = generateTimeOptions()
+
+// ─── Types ──────────────────────────────────────────────────────────────────────
+
 type ViewMode = "grid" | "list"
 
 type SlotFormState = {
   teacherId: string
   classId: string
   dayOfWeek: string
-  timeSlotId: string
+  startTime: string
+  endTime: string
   roomId: string
   subject: string
+  schedulePeriodId: string
 }
 
 type SlotCreatePrefill = {
@@ -78,12 +100,17 @@ const emptyFormState: SlotFormState = {
   teacherId: "",
   classId: "",
   dayOfWeek: "",
-  timeSlotId: "",
+  startTime: "08:00",
+  endTime: "09:00",
   roomId: "",
   subject: "",
+  schedulePeriodId: "",
 }
 
-const canManageSchedule = (role: AuthRole | undefined) => role === "director" || role === "secretary"
+// ─── Helpers ────────────────────────────────────────────────────────────────────
+
+const canManageSchedule = (role: AuthRole | undefined) =>
+  role === "director" || role === "secretary"
 
 const toISODate = (date: Date) => {
   const year = date.getFullYear()
@@ -113,42 +140,35 @@ const getMondayForWeek = (weekOffset: 0 | 1): string => {
   return toISODate(monday)
 }
 
-const shiftWeek = (weekMondayIso: string, amount: number): string => {
-  const date = fromISODate(weekMondayIso)
-  date.setDate(date.getDate() + amount * 7)
-  return toISODate(date)
-}
-
 const sortSchedules = (items: ScheduleRow[]) =>
   [...items].sort((a, b) => {
-    if (a.dayOfWeek !== b.dayOfWeek) {
-      return a.dayOfWeek - b.dayOfWeek
-    }
-
-    if (a.timeSlot.sortOrder !== b.timeSlot.sortOrder) {
+    if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek
+    if (a.timeSlot.sortOrder !== b.timeSlot.sortOrder)
       return a.timeSlot.sortOrder - b.timeSlot.sortOrder
-    }
-
     return a.teacher.name.localeCompare(b.teacher.name)
   })
 
-const toPayload = (formState: SlotFormState, periodId: string): ScheduleCreatePayload => ({
-  schedulePeriodId: periodId,
+const toPayload = (formState: SlotFormState): ScheduleCreatePayload => ({
+  schedulePeriodId: formState.schedulePeriodId,
   teacherId: formState.teacherId,
   classId: formState.classId,
   dayOfWeek: Number(formState.dayOfWeek),
-  timeSlotId: formState.timeSlotId,
+  timeSlotId: "",
+  startTime: formState.startTime,
+  endTime: formState.endTime,
   roomId: formState.roomId,
   subject: formState.subject.trim(),
 })
 
 const defaultFormStateFromData = (data: WeeklyScheduleData): SlotFormState => ({
-  teacherId: data.catalog.teachers[0]?.id ?? "",
+  teacherId: "",
   classId: data.catalog.classes[0]?.id ?? "",
   dayOfWeek: "1",
-  timeSlotId: data.catalog.timeSlots[0]?.id ?? "",
+  startTime: "08:00",
+  endTime: "09:00",
   roomId: data.catalog.rooms[0]?.id ?? "",
   subject: "",
+  schedulePeriodId: data.period?.id ?? "",
 })
 
 const createOptimisticSchedule = (
@@ -159,10 +179,19 @@ const createOptimisticSchedule = (
   const teacher = data.catalog.teachers.find((item) => item.id === payload.teacherId)
   const klass = data.catalog.classes.find((item) => item.id === payload.classId)
   const room = data.catalog.rooms.find((item) => item.id === payload.roomId)
-  const timeSlot = data.catalog.timeSlots.find((item) => item.id === payload.timeSlotId)
+  if (!teacher || !klass || !room) return null
 
-  if (!teacher || !klass || !room || !timeSlot) {
-    return null
+  // Chercher un time_slot existant dans le catalog (startTime déjà normalisé "HH:MM")
+  const existingSlot = data.catalog.timeSlots.find(
+    (ts) => ts.startTime === payload.startTime && ts.endTime === payload.endTime
+  )
+
+  const timeSlot = existingSlot ?? {
+    id: `optimistic-ts-${Date.now()}`,
+    label: `${payload.startTime ?? "?"} – ${payload.endTime ?? "?"}`,
+    startTime: payload.startTime ?? "00:00",
+    endTime: payload.endTime ?? "00:00",
+    sortOrder: 0,
   }
 
   return {
@@ -177,46 +206,57 @@ const createOptimisticSchedule = (
   }
 }
 
-const toMinutes = (time: string) => {
-  const [hours, minutes] = time.split(":")
-  return (Number(hours) || 0) * 60 + (Number(minutes) || 0)
-}
-
-const resolveTimeSlotForHour = (data: WeeklyScheduleData, hour: number): string => {
-  const sorted = [...data.catalog.timeSlots].sort((a, b) => a.sortOrder - b.sortOrder)
-
-  const exact = sorted.find((slot) => Number(slot.startTime.split(":")[0]) === hour)
-  if (exact) {
-    return exact.id
-  }
-
-  const target = hour * 60
-  return (
-    sorted.reduce(
-      (best, slot) => {
-        const distance = Math.abs(toMinutes(slot.startTime) - target)
-        if (distance < best.distance) {
-          return { id: slot.id, distance }
-        }
-        return best
-      },
-      { id: sorted[0]?.id ?? "", distance: Number.POSITIVE_INFINITY }
-    ).id || ""
-  )
-}
-
 const getInitialViewMode = (): ViewMode => {
-  if (typeof window === "undefined") {
-    return "list"
-  }
-
+  if (typeof window === "undefined") return "list"
   const stored = window.localStorage.getItem("schedule-view-mode")
-  if (stored === "grid" || stored === "list") {
-    return stored
-  }
-
+  if (stored === "grid" || stored === "list") return stored
   return window.matchMedia("(min-width: 768px)").matches ? "grid" : "list"
 }
+
+/**
+ * Construit les lignes de la vue liste en fusionnant le catalog de time_slots
+ * avec les time_slots réellement utilisés par les créneaux.
+ *
+ * Problème résolu : `findOrCreateTimeSlot` crée de nouveaux time_slots en base
+ * pour les horaires libres. Ces nouveaux time_slots apparaissent dans
+ * `catalog.timeSlots` MAIS avec des `startTime` différents des time_slots
+ * préexistants (ex: "08:00" vs "07:30"). La vue liste affichait alors des
+ * lignes séparées pour chaque time_slot, même ceux sans aucun créneau.
+ *
+ * Solution : on construit les lignes en union de :
+ * 1. Tous les time_slots du catalog (triés par sortOrder/startTime)
+ * 2. Les time_slots des créneaux qui ne sont pas encore dans le catalog
+ *    (cas optimistic update avec id synthétique)
+ *
+ * On déduplique par `startTime` pour éviter les doublons entre time_slots
+ * préexistants et ceux créés à la volée avec les mêmes horaires.
+ */
+const buildListRows = (
+  catalogTimeSlots: TimeSlotCatalogItem[],
+  schedules: ScheduleRow[]
+): TimeSlotCatalogItem[] => {
+  // Index des time_slots du catalog par startTime (déjà normalisé "HH:MM")
+  const byStartTime = new Map<string, TimeSlotCatalogItem>()
+  for (const ts of catalogTimeSlots) {
+    byStartTime.set(ts.startTime, ts)
+  }
+
+  // Ajouter les time_slots des créneaux manquants dans le catalog
+  for (const schedule of schedules) {
+    const key = schedule.timeSlot.startTime
+    if (!byStartTime.has(key)) {
+      byStartTime.set(key, schedule.timeSlot)
+    }
+  }
+
+  // Trier : d'abord par sortOrder, puis par startTime lexicographique ("HH:MM")
+  return [...byStartTime.values()].sort((a, b) => {
+    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+    return a.startTime.localeCompare(b.startTime)
+  })
+}
+
+// ─── Composant ──────────────────────────────────────────────────────────────────
 
 export default function SchedulePage() {
   const user = useAuthStore((state) => state.user)
@@ -235,35 +275,26 @@ export default function SchedulePage() {
 
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleRow | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
-
   const [formOpen, setFormOpen] = useState(false)
   const [editingSchedule, setEditingSchedule] = useState<ScheduleRow | null>(null)
   const [formState, setFormState] = useState<SlotFormState>(emptyFormState)
 
-  const weeklyQueryKey = useMemo(() => ["schedule-weekly", selectedWeekMonday] as const, [selectedWeekMonday])
+  // ── Queries ─────────────────────────────────────────────────────────────────
+
+  const weeklyQueryKey = useMemo(
+    () => ["schedule-weekly", selectedWeekMonday] as const,
+    [selectedWeekMonday]
+  )
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return
-    }
-
+    if (typeof window === "undefined") return
     window.localStorage.setItem("schedule-view-mode", viewMode)
   }, [viewMode])
-
-  const setWeekFromIso = (weekIso: string) => {
-    setSelectedWeekMonday(weekIso)
-    if (weekIso === currentWeekMonday) {
-      setWeekView("current")
-      return
-    }
-    if (weekIso === nextWeekMonday) {
-      setWeekView("next")
-    }
-  }
 
   const scheduleQuery = useQuery({
     queryKey: weeklyQueryKey,
     queryFn: () => fetchWeeklySchedule(selectedWeekMonday),
+    placeholderData: undefined,
   })
 
   const nextWeekCoverageQuery = useQuery({
@@ -278,17 +309,35 @@ export default function SchedulePage() {
 
   const data = scheduleQuery.data
   const canManage = canManageSchedule(user?.role)
+
   const blockedTeachers = useMemo(
     () =>
-      new Set((teachersQuery.data?.data ?? []).filter((teacher) => teacher.isBlocked).map((teacher) => teacher.id)),
+      new Set(
+        (teachersQuery.data?.data ?? []).filter((t) => t.isBlocked).map((t) => t.id)
+      ),
     [teachersQuery.data?.data]
   )
 
-  const filteredSchedules = useMemo(() => {
-    if (!data) {
-      return []
-    }
+  // ── Matières du prof sélectionné ────────────────────────────────────────────
+  const selectedTeacherSubjects = useMemo<string[]>(() => {
+    if (!formState.teacherId || !data) return []
+    const teacher = data.catalog.teachers.find((t) => t.id === formState.teacherId)
+    return teacher?.subjects ?? []
+  }, [formState.teacherId, data])
 
+  useEffect(() => {
+    if (!formState.subject) return
+    if (
+      selectedTeacherSubjects.length > 0 &&
+      !selectedTeacherSubjects.includes(formState.subject)
+    ) {
+      setFormState((prev) => ({ ...prev, subject: "" }))
+    }
+  }, [formState.subject, selectedTeacherSubjects])
+
+  // ── Créneaux filtrés ────────────────────────────────────────────────────────
+  const filteredSchedules = useMemo(() => {
+    if (!data?.period) return []
     return sortSchedules(
       data.schedules.filter((item) => {
         const teacherOk = teacherFilter === "all" || item.teacher.id === teacherFilter
@@ -298,46 +347,51 @@ export default function SchedulePage() {
     )
   }, [classFilter, data, teacherFilter])
 
-  const scheduleByCell = useMemo(() => {
-    const map = new Map<string, ScheduleRow[]>()
+  /**
+   * Lignes de la vue liste : union catalog + time_slots des créneaux,
+   * dédupliqués par startTime normalisé.
+   */
+  const listRows = useMemo(
+    () => buildListRows(data?.catalog.timeSlots ?? [], filteredSchedules),
+    [data?.catalog.timeSlots, filteredSchedules]
+  )
 
+  /**
+   * Index des créneaux par `${dayOfWeek}-${startTime}`.
+   * Les deux valeurs sont normalisées en "HH:MM" → clé toujours cohérente.
+   */
+  const scheduleByDayAndTime = useMemo(() => {
+    const map = new Map<string, ScheduleRow[]>()
     for (const item of filteredSchedules) {
-      const key = `${item.dayOfWeek}-${item.timeSlot.id}`
+      const key = `${item.dayOfWeek}-${item.timeSlot.startTime}`
       const list = map.get(key) ?? []
       list.push(item)
       map.set(key, list)
     }
-
     return map
   }, [filteredSchedules])
 
-  const resetFormState = (fromData?: WeeklyScheduleData) => {
-    if (!fromData) {
-      setFormState(emptyFormState)
-      return
-    }
+  // ── Helpers formulaire ──────────────────────────────────────────────────────
 
-    setFormState(defaultFormStateFromData(fromData))
+  const setWeekFromIso = (weekIso: string) => {
+    setSelectedWeekMonday(weekIso)
+    if (weekIso === currentWeekMonday) { setWeekView("current"); return }
+    if (weekIso === nextWeekMonday) setWeekView("next")
   }
 
   const openCreateModal = (prefill?: SlotCreatePrefill) => {
-    if (!data) {
-      return
-    }
-
+    if (!data) return
     setEditingSchedule(null)
     setDetailOpen(false)
-
-    const defaults = defaultFormStateFromData(data)
+    const startHour = prefill?.hour ?? 8
+    const startTime = `${String(startHour).padStart(2, "0")}:00`
+    const endTime = `${String(Math.min(startHour + 1, 22)).padStart(2, "0")}:00`
     setFormState({
-      ...defaults,
-      dayOfWeek: prefill?.dayOfWeek ? String(prefill.dayOfWeek) : defaults.dayOfWeek,
-      timeSlotId:
-        typeof prefill?.hour === "number"
-          ? resolveTimeSlotForHour(data, prefill.hour)
-          : defaults.timeSlotId,
+      ...defaultFormStateFromData(data),
+      dayOfWeek: prefill?.dayOfWeek ? String(prefill.dayOfWeek) : "1",
+      startTime,
+      endTime,
     })
-
     setFormOpen(true)
   }
 
@@ -348,52 +402,45 @@ export default function SchedulePage() {
       teacherId: schedule.teacher.id,
       classId: schedule.class.id,
       dayOfWeek: String(schedule.dayOfWeek),
-      timeSlotId: schedule.timeSlot.id,
+      startTime: schedule.timeSlot.startTime,
+      endTime: schedule.timeSlot.endTime,
       roomId: schedule.room.id,
       subject: schedule.subject,
+      schedulePeriodId: schedule.schedulePeriodId,
     })
     setFormOpen(true)
   }
 
+  // ── Mutations ───────────────────────────────────────────────────────────────
+
   const upsertMutation = useMutation({
     mutationFn: async (values: { id?: string; payload: ScheduleCreatePayload }) => {
-      if (values.id) {
-        return updateScheduleSlot(values.id, values.payload)
-      }
-
+      if (values.id) return updateScheduleSlot(values.id, values.payload)
       return createScheduleSlot(values.payload)
     },
     onMutate: async (values) => {
       await queryClient.cancelQueries({ queryKey: weeklyQueryKey })
       const previous = queryClient.getQueryData<WeeklyScheduleData>(weeklyQueryKey)
-
-      if (!previous) {
-        return { previous }
-      }
+      if (!previous) return { previous }
 
       const optimisticId = values.id ?? `optimistic-${Date.now()}`
       const optimisticSchedule = createOptimisticSchedule(optimisticId, values.payload, previous)
-
-      if (!optimisticSchedule) {
-        return { previous }
-      }
+      if (!optimisticSchedule) return { previous }
 
       const nextSchedules = values.id
-        ? previous.schedules.map((item) => (item.id === values.id ? optimisticSchedule : item))
+        ? previous.schedules.map((item) =>
+            item.id === values.id ? optimisticSchedule : item
+          )
         : [optimisticSchedule, ...previous.schedules]
 
       queryClient.setQueryData<WeeklyScheduleData>(weeklyQueryKey, {
         ...previous,
         schedules: nextSchedules,
       })
-
       return { previous }
     },
     onError: (_error, _values, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(weeklyQueryKey, context.previous)
-      }
-
+      if (context?.previous) queryClient.setQueryData(weeklyQueryKey, context.previous)
       toast({
         variant: "destructive",
         title: "Action impossible",
@@ -401,14 +448,9 @@ export default function SchedulePage() {
       })
     },
     onSuccess: () => {
-      toast({
-        title: editingSchedule ? "Créneau modifié" : "Créneau ajouté",
-      })
+      toast({ title: editingSchedule ? "Créneau modifié" : "Créneau ajouté" })
       setFormOpen(false)
       setEditingSchedule(null)
-      if (data) {
-        resetFormState(data)
-      }
     },
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: weeklyQueryKey })
@@ -420,25 +462,17 @@ export default function SchedulePage() {
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: weeklyQueryKey })
       const previous = queryClient.getQueryData<WeeklyScheduleData>(weeklyQueryKey)
-
       if (previous) {
         queryClient.setQueryData<WeeklyScheduleData>(weeklyQueryKey, {
           ...previous,
           schedules: previous.schedules.filter((item) => item.id !== id),
         })
       }
-
       return { previous }
     },
     onError: (_error, _id, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(weeklyQueryKey, context.previous)
-      }
-
-      toast({
-        variant: "destructive",
-        title: "Suppression impossible",
-      })
+      if (context?.previous) queryClient.setQueryData(weeklyQueryKey, context.previous)
+      toast({ variant: "destructive", title: "Suppression impossible" })
     },
     onSuccess: () => {
       toast({ title: "Créneau supprimé" })
@@ -451,44 +485,35 @@ export default function SchedulePage() {
   })
 
   const handleSubmit = async () => {
-    if (!data?.period) {
+    if (!formState.schedulePeriodId) {
+      toast({ variant: "destructive", title: "Aucune période", description: "Sélectionnez une période d'emploi du temps." })
       return
     }
-
-    const payload = toPayload(formState, data.period.id)
-
-    if (!payload.teacherId || !payload.classId || !payload.timeSlotId || !payload.roomId || !payload.subject) {
-      toast({
-        variant: "destructive",
-        title: "Formulaire incomplet",
-        description: "Renseignez tous les champs requis.",
-      })
+    if (formState.startTime >= formState.endTime) {
+      toast({ variant: "destructive", title: "Horaire invalide", description: "L'heure de fin doit être après l'heure de début." })
       return
     }
-
-    await upsertMutation.mutateAsync({
-      id: editingSchedule?.id,
-      payload,
-    })
+    const payload = toPayload(formState)
+    if (!payload.teacherId || !payload.classId || !payload.roomId || !payload.subject) {
+      toast({ variant: "destructive", title: "Formulaire incomplet", description: "Renseignez tous les champs requis." })
+      return
+    }
+    await upsertMutation.mutateAsync({ id: editingSchedule?.id, payload })
   }
 
-  if (!user) {
-    return <Navigate to="/" replace />
-  }
+  if (!user) return <Navigate to="/" replace />
 
   const weekStartDate = fromISODate(selectedWeekMonday)
+
+  // ── Rendu ───────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
       <header className="space-y-4">
         <WeekCoverageAlert
           nextWeekHasCoverage={nextWeekCoverageQuery.data ?? true}
-          onNavigateToSchedule={() => {
-            setWeekView("next")
-            setWeekFromIso(nextWeekMonday)
-          }}
+          onNavigateToSchedule={() => { setWeekView("next"); setWeekFromIso(nextWeekMonday) }}
         />
-
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">Emploi du temps</h1>
           <p className="text-sm text-muted-foreground">Vue hebdomadaire et gestion des créneaux de cours.</p>
@@ -499,9 +524,9 @@ export default function SchedulePage() {
             <Tabs
               value={weekView}
               onValueChange={(value) => {
-                const nextValue = value as "current" | "next"
-                setWeekView(nextValue)
-                setWeekFromIso(nextValue === "current" ? currentWeekMonday : nextWeekMonday)
+                const next = value as "current" | "next"
+                setWeekView(next)
+                setWeekFromIso(next === "current" ? currentWeekMonday : nextWeekMonday)
               }}
             >
               <TabsList className="grid grid-cols-2">
@@ -511,25 +536,13 @@ export default function SchedulePage() {
             </Tabs>
 
             <div className="inline-flex items-center rounded-lg border bg-muted/40 p-1">
-              <button
-                type="button"
-                onClick={() => setViewMode("grid")}
-                className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition ${
-                  viewMode === "grid" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
-                }`}
-              >
-                <LayoutGridIcon className="h-4 w-4" />
-                Grille
+              <button type="button" onClick={() => setViewMode("grid")}
+                className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition ${viewMode === "grid" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}>
+                <LayoutGridIcon className="h-4 w-4" />Grille
               </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("list")}
-                className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition ${
-                  viewMode === "list" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
-                }`}
-              >
-                <ListIcon className="h-4 w-4" />
-                Liste
+              <button type="button" onClick={() => setViewMode("list")}
+                className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition ${viewMode === "list" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}>
+                <ListIcon className="h-4 w-4" />Liste
               </button>
             </div>
 
@@ -540,9 +553,7 @@ export default function SchedulePage() {
               <SelectContent>
                 <SelectItem value="all">Tous les professeurs</SelectItem>
                 {(data?.catalog.teachers ?? []).map((teacher) => (
-                  <SelectItem key={teacher.id} value={teacher.id}>
-                    {teacher.name}
-                  </SelectItem>
+                  <SelectItem key={teacher.id} value={teacher.id}>{teacher.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -554,9 +565,7 @@ export default function SchedulePage() {
               <SelectContent>
                 <SelectItem value="all">Toutes les classes</SelectItem>
                 {(data?.catalog.classes ?? []).map((klass) => (
-                  <SelectItem key={klass.id} value={klass.id}>
-                    {klass.name}
-                  </SelectItem>
+                  <SelectItem key={klass.id} value={klass.id}>{klass.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -564,8 +573,7 @@ export default function SchedulePage() {
 
           {canManage ? (
             <Button onClick={() => openCreateModal()} disabled={!data?.period}>
-              <AddIcon className="mr-2 h-4 w-4" />
-              Ajouter un créneau
+              <AddIcon className="mr-2 h-4 w-4" />Ajouter un créneau
             </Button>
           ) : (
             <Badge variant="outline">Lecture seule</Badge>
@@ -573,40 +581,23 @@ export default function SchedulePage() {
         </div>
       </header>
 
-      {scheduleQuery.isLoading ? <p className="text-sm text-muted-foreground">Chargement de l'emploi du temps...</p> : null}
-
+      {scheduleQuery.isLoading ? <p className="text-sm text-muted-foreground">Chargement…</p> : null}
       {scheduleQuery.isError ? (
-        <Alert variant="destructive">
-          <AlertDescription>Impossible de charger l'emploi du temps.</AlertDescription>
-        </Alert>
+        <Alert variant="destructive"><AlertDescription>Impossible de charger l'emploi du temps.</AlertDescription></Alert>
       ) : null}
-
-      {!scheduleQuery.isLoading && data && !data.period ? (
-        <Alert>
-          <AlertDescription>
-            Aucune période d'emploi du temps active. Activez une période pour créer des créneaux.
-          </AlertDescription>
-        </Alert>
+      {!scheduleQuery.isLoading && data && !data.period && viewMode === "list" ? (
+        <Alert><AlertDescription>Aucune période active pour cette semaine.</AlertDescription></Alert>
       ) : null}
 
       {!scheduleQuery.isLoading && data && viewMode === "grid" ? (
         <WeekGrid
           slots={filteredSchedules}
           weekStart={weekStartDate}
-          onSlotClick={(slot) => {
-            setSelectedSchedule(slot)
-            setDetailOpen(true)
-          }}
-          onSlotAdd={(day, hour) => {
-            if (!canManage) {
-              return
-            }
-            openCreateModal({ dayOfWeek: day, hour })
-          }}
-          onWeekChange={(nextWeekStart) => {
-            const nextIso = toISODate(nextWeekStart)
-            setWeekFromIso(nextIso)
-          }}
+          hasPeriod={!!data.period}
+          isLoading={scheduleQuery.isFetching}
+          onSlotClick={(slot) => { setSelectedSchedule(slot); setDetailOpen(true) }}
+          onSlotAdd={(day, hour) => { if (!canManage) return; openCreateModal({ dayOfWeek: day, hour }) }}
+          onWeekChange={(next) => setWeekFromIso(toISODate(next))}
           onToday={() => setWeekFromIso(currentWeekMonday)}
           isBlockedTeacher={(teacherId) => blockedTeachers.has(teacherId)}
         />
@@ -617,8 +608,7 @@ export default function SchedulePage() {
           <Card className="hidden md:block">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <ScheduleIcon className="h-5 w-5" />
-                Vue liste
+                <ScheduleIcon className="h-5 w-5" />Vue liste
               </CardTitle>
               <CardDescription>
                 {data.period
@@ -633,39 +623,42 @@ export default function SchedulePage() {
                     <tr>
                       <th className="w-[140px] border p-2 text-left font-medium">Créneau</th>
                       {DAYS.map((day) => (
-                        <th key={day.value} className="border p-2 text-left font-medium">
-                          {day.label}
-                        </th>
+                        <th key={day.value} className="border p-2 text-left font-medium">{day.label}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {data.catalog.timeSlots.map((slot) => (
-                      <tr key={slot.id}>
-                        <td className="align-top border p-2 font-medium text-muted-foreground">{slot.label}</td>
+                    {/*
+                      On itère sur `listRows` (union catalog + time_slots des créneaux)
+                      plutôt que sur `data.catalog.timeSlots` seul.
+                      Chaque ligne est identifiée par son `startTime` normalisé "HH:MM".
+                    */}
+                    {listRows.map((slot) => (
+                      <tr key={`${slot.id}-${slot.startTime}`}>
+                        <td className="align-top border p-2 font-medium text-muted-foreground">
+                          {slot.label}
+                        </td>
                         {DAYS.map((day) => {
-                          const cellItems = scheduleByCell.get(`${day.value}-${slot.id}`) ?? []
-
+                          const cellItems =
+                            scheduleByDayAndTime.get(`${day.value}-${slot.startTime}`) ?? []
                           return (
-                            <td key={`${day.value}-${slot.id}`} className="h-[92px] align-top border p-2">
+                            <td
+                              key={`${day.value}-${slot.startTime}`}
+                              className="h-[92px] align-top border p-2"
+                            >
                               <div className="space-y-1">
                                 {cellItems.map((item) => (
                                   <button
                                     key={item.id}
                                     type="button"
-                                    onClick={() => {
-                                      setSelectedSchedule(item)
-                                      setDetailOpen(true)
-                                    }}
+                                    onClick={() => { setSelectedSchedule(item); setDetailOpen(true) }}
                                     className="w-full rounded-md border bg-muted/30 p-2 text-left transition hover:opacity-90"
                                   >
                                     <p className="text-xs font-semibold">{item.teacher.name}</p>
                                     <p className="text-xs">{item.class.name}</p>
                                     <p className="text-xs">{item.subject}</p>
                                     {blockedTeachers.has(item.teacher.id) ? (
-                                      <Badge variant="destructive" className="mt-1">
-                                        Prof bloqué
-                                      </Badge>
+                                      <Badge variant="destructive" className="mt-1">Prof bloqué</Badge>
                                     ) : null}
                                   </button>
                                 ))}
@@ -690,13 +683,10 @@ export default function SchedulePage() {
               <Tabs value={mobileDay} onValueChange={setMobileDay}>
                 <TabsList className="grid w-full grid-cols-6">
                   {DAYS.map((day) => (
-                    <TabsTrigger key={day.value} value={String(day.value)}>
-                      {day.label}
-                    </TabsTrigger>
+                    <TabsTrigger key={day.value} value={String(day.value)}>{day.label}</TabsTrigger>
                   ))}
                 </TabsList>
               </Tabs>
-
               <div className="space-y-2">
                 {filteredSchedules
                   .filter((item) => String(item.dayOfWeek) === mobileDay)
@@ -704,25 +694,17 @@ export default function SchedulePage() {
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => {
-                        setSelectedSchedule(item)
-                        setDetailOpen(true)
-                      }}
+                      onClick={() => { setSelectedSchedule(item); setDetailOpen(true) }}
                       className="w-full rounded-lg border bg-muted/30 p-3 text-left"
                     >
                       <p className="text-xs font-semibold">{item.timeSlot.label}</p>
                       <p className="text-sm font-medium">{item.subject}</p>
-                      <p className="text-xs">
-                        {item.teacher.name} · {item.class.name}
-                      </p>
+                      <p className="text-xs">{item.teacher.name} · {item.class.name}</p>
                       {blockedTeachers.has(item.teacher.id) ? (
-                        <Badge variant="destructive" className="mt-1">
-                          Prof bloqué
-                        </Badge>
+                        <Badge variant="destructive" className="mt-1">Prof bloqué</Badge>
                       ) : null}
                     </button>
                   ))}
-
                 {filteredSchedules.filter((item) => String(item.dayOfWeek) === mobileDay).length === 0 ? (
                   <p className="text-sm text-muted-foreground">Aucun créneau pour ce jour.</p>
                 ) : null}
@@ -732,6 +714,7 @@ export default function SchedulePage() {
         </>
       ) : null}
 
+      {/* ── Dialog détail ────────────────────────────────────────────────────── */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent>
           <DialogHeader>
@@ -742,171 +725,181 @@ export default function SchedulePage() {
                 : ""}
             </DialogDescription>
           </DialogHeader>
-
           {selectedSchedule ? (
             <div className="space-y-2 text-sm">
-              <p>
-                <span className="font-medium">Matière:</span> {selectedSchedule.subject}
-              </p>
-              <p>
-                <span className="font-medium">Professeur:</span> {selectedSchedule.teacher.name}
-              </p>
-              <p>
-                <span className="font-medium">Classe:</span> {selectedSchedule.class.name}
-              </p>
-              <p>
-                <span className="font-medium">Salle:</span> {selectedSchedule.room.name}
-              </p>
+              <p><span className="font-medium">Matière :</span> {selectedSchedule.subject}</p>
+              <p><span className="font-medium">Professeur :</span> {selectedSchedule.teacher.name}</p>
+              <p><span className="font-medium">Classe :</span> {selectedSchedule.class.name}</p>
+              <p><span className="font-medium">Salle :</span> {selectedSchedule.room.name}</p>
+              <p><span className="font-medium">Horaire :</span> {selectedSchedule.timeSlot.startTime} → {selectedSchedule.timeSlot.endTime}</p>
             </div>
           ) : null}
-
           {canManage && selectedSchedule ? (
             <DialogFooter className="gap-2 sm:justify-between">
-              <Button
-                variant="destructive"
+              <Button variant="destructive"
                 onClick={() => void deleteMutation.mutateAsync(selectedSchedule.id)}
-                disabled={deleteMutation.isPending}
-              >
-                <DeleteIcon className="mr-2 h-4 w-4" />
-                Supprimer
+                disabled={deleteMutation.isPending}>
+                <DeleteIcon className="mr-2 h-4 w-4" />Supprimer
               </Button>
               <Button variant="outline" onClick={() => openEditModal(selectedSchedule)}>
-                <EditIcon className="mr-2 h-4 w-4" />
-                Modifier
+                <EditIcon className="mr-2 h-4 w-4" />Modifier
               </Button>
             </DialogFooter>
           ) : null}
         </DialogContent>
       </Dialog>
 
+      {/* ── Dialog formulaire ────────────────────────────────────────────────── */}
       <Dialog
         open={formOpen}
-        onOpenChange={(open) => {
-          setFormOpen(open)
-          if (!open) {
-            setEditingSchedule(null)
-          }
-        }}
+        onOpenChange={(open) => { setFormOpen(open); if (!open) setEditingSchedule(null) }}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle>{editingSchedule ? "Modifier un créneau" : "Ajouter un créneau"}</DialogTitle>
-            <DialogDescription>Choisissez le professeur, la classe, le jour et le créneau.</DialogDescription>
+            <DialogDescription>Choisissez le professeur, la classe, le jour et les horaires.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
+            {/* Période */}
+            <div className="space-y-1">
+              <Label>Période</Label>
+              <Select value={formState.schedulePeriodId}
+                onValueChange={(v) => setFormState((p) => ({ ...p, schedulePeriodId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Choisir une période" /></SelectTrigger>
+                <SelectContent>
+                  {data?.period ? (
+                    <SelectItem value={data.period.id}>
+                      {data.period.name}
+                    </SelectItem>
+                  ) : (
+                    <SelectItem value="__none__" disabled>Aucune période active</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Professeur */}
             <div className="space-y-1">
               <Label>Professeur</Label>
               <Select
                 value={formState.teacherId}
-                onValueChange={(value) => setFormState((prev) => ({ ...prev, teacherId: value }))}
+                onValueChange={(v) => setFormState((p) => ({ ...p, teacherId: v, subject: "" }))}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choisir" />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Choisir un professeur" /></SelectTrigger>
                 <SelectContent>
                   {(data?.catalog.teachers ?? []).map((teacher) => (
-                    <SelectItem key={teacher.id} value={teacher.id}>
-                      {teacher.name}
-                    </SelectItem>
+                    <SelectItem key={teacher.id} value={teacher.id}>{teacher.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-1">
-              <Label>Classe</Label>
-              <Select
-                value={formState.classId}
-                onValueChange={(value) => setFormState((prev) => ({ ...prev, classId: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choisir" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(data?.catalog.classes ?? []).map((klass) => (
-                    <SelectItem key={klass.id} value={klass.id}>
-                      {klass.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label>Jour</Label>
-                <Select
-                  value={formState.dayOfWeek}
-                  onValueChange={(value) => setFormState((prev) => ({ ...prev, dayOfWeek: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choisir" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DAYS.map((day) => (
-                      <SelectItem key={day.value} value={String(day.value)}>
-                        {day.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1">
-                <Label>Créneau</Label>
-                <Select
-                  value={formState.timeSlotId}
-                  onValueChange={(value) => setFormState((prev) => ({ ...prev, timeSlotId: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choisir" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(data?.catalog.timeSlots ?? []).map((slot) => (
-                      <SelectItem key={slot.id} value={slot.id}>
-                        {slot.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label>Salle</Label>
-              <Select
-                value={formState.roomId}
-                onValueChange={(value) => setFormState((prev) => ({ ...prev, roomId: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choisir" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(data?.catalog.rooms ?? []).map((room) => (
-                    <SelectItem key={room.id} value={room.id}>
-                      {room.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
+            {/* Matière — 3 états */}
             <div className="space-y-1">
               <Label>Matière</Label>
-              <Input
-                value={formState.subject}
-                onChange={(event) => setFormState((prev) => ({ ...prev, subject: event.target.value }))}
-                placeholder="Ex: Mathématiques"
-              />
+              {!formState.teacherId ? (
+                <Select disabled>
+                  <SelectTrigger><SelectValue placeholder="Sélectionnez d'abord un professeur" /></SelectTrigger>
+                  <SelectContent />
+                </Select>
+              ) : selectedTeacherSubjects.length > 0 ? (
+                <Select value={formState.subject}
+                  onValueChange={(v) => setFormState((p) => ({ ...p, subject: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Choisir une matière" /></SelectTrigger>
+                  <SelectContent>
+                    {selectedTeacherSubjects.map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="space-y-1">
+                  <Input
+                    value={formState.subject}
+                    onChange={(e) => setFormState((p) => ({ ...p, subject: e.target.value }))}
+                    placeholder="Ex: Mathématiques"
+                  />
+                  <p className="text-[11px] text-amber-600">
+                    Ce professeur n'a pas de matières configurées dans son profil.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Classe */}
+            <div className="space-y-1">
+              <Label>Classe</Label>
+              <Select value={formState.classId}
+                onValueChange={(v) => setFormState((p) => ({ ...p, classId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
+                <SelectContent>
+                  {(data?.catalog.classes ?? []).map((klass) => (
+                    <SelectItem key={klass.id} value={klass.id}>{klass.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Jour + Horaires */}
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1">
+                <Label>Jour</Label>
+                <Select value={formState.dayOfWeek}
+                  onValueChange={(v) => setFormState((p) => ({ ...p, dayOfWeek: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
+                  <SelectContent>
+                    {DAYS.map((day) => (
+                      <SelectItem key={day.value} value={String(day.value)}>{day.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Début</Label>
+                <Select value={formState.startTime}
+                  onValueChange={(v) => setFormState((p) => ({ ...p, startTime: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {TIME_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Fin</Label>
+                <Select value={formState.endTime}
+                  onValueChange={(v) => setFormState((p) => ({ ...p, endTime: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {TIME_OPTIONS.filter((opt) => opt.value > formState.startTime).map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Salle */}
+            <div className="space-y-1">
+              <Label>Salle</Label>
+              <Select value={formState.roomId}
+                onValueChange={(v) => setFormState((p) => ({ ...p, roomId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
+                <SelectContent>
+                  {(data?.catalog.rooms ?? []).map((room) => (
+                    <SelectItem key={room.id} value={room.id}>{room.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setFormOpen(false)}>
-              Annuler
-            </Button>
-            <Button onClick={() => void handleSubmit()} disabled={upsertMutation.isPending || !data?.period}>
+            <Button variant="outline" onClick={() => setFormOpen(false)}>Annuler</Button>
+            <Button onClick={() => void handleSubmit()}
+              disabled={upsertMutation.isPending || !formState.schedulePeriodId}>
               {upsertMutation.isPending ? "Enregistrement..." : "Enregistrer"}
             </Button>
           </DialogFooter>

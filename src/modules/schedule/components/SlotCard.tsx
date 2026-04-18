@@ -7,6 +7,8 @@ import { WarningIcon } from "@/shared/components/icons"
 interface SlotCardProps {
   slot: ScheduleRow
   height: number
+  /** Nombre de sous-colonnes du groupe de collision — détermine la densité d'info affichée */
+  columnCount?: number
   onClick: () => void
   isBlockedTeacher?: boolean
   className?: string
@@ -16,13 +18,23 @@ interface SlotCardProps {
 export default function SlotCard({
   slot,
   height,
+  columnCount = 1,
   onClick,
   isBlockedTeacher = false,
   className,
   style,
 }: SlotCardProps) {
-  const compact = height < 40
-  const showTeacher = height >= 80
+  /**
+   * FIX BUG 2 — Règles d'affichage adaptatif selon la densité :
+   *
+   * - compact  : height < 40 ou columnCount ≥ 4 → sujet seul
+   * - reduced  : height < 56 ou columnCount ≥ 3 → sujet + classe (pas de prof)
+   * - normal   : height ≥ 80 et columnCount ≤ 2 → sujet + classe + prof
+   */
+  const isNarrow = columnCount >= 3
+  const compact = height < 40 || columnCount >= 4
+  const showClass = !compact && height >= 36
+  const showTeacher = !isNarrow && height >= 80
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -39,8 +51,10 @@ export default function SlotCard({
       onKeyDown={handleKeyDown}
       style={style}
       className={cn(
-        "absolute left-1 right-1 rounded-md border border-l-2 p-1.5 text-[11px] leading-tight transition-all hover:brightness-95",
+        "absolute rounded-md border border-l-2 p-1 text-[10px] leading-tight transition-all hover:brightness-95",
         "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+        // FIX BUG 2 : taille de texte adaptative selon le nombre de colonnes
+        columnCount >= 3 ? "text-[9px]" : "text-[11px]",
         className
       )}
       aria-label={`${slot.subject} ${slot.class.name} ${slot.teacher.name}`}
@@ -49,9 +63,9 @@ export default function SlotCard({
         <WarningIcon className="absolute right-1 top-1 h-2.5 w-2.5 text-red-600" />
       ) : null}
 
-      <p className="truncate font-semibold">{slot.subject}</p>
+      <p className="truncate font-semibold leading-tight">{slot.subject}</p>
 
-      {!compact ? <p className="truncate opacity-75">{slot.class.name}</p> : null}
+      {showClass ? <p className="truncate opacity-75">{slot.class.name}</p> : null}
 
       {showTeacher ? <p className="truncate opacity-60">{slot.teacher.name}</p> : null}
     </div>

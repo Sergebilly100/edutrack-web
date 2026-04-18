@@ -69,7 +69,7 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: false,
   },
   {
-    label: "Salles & QR",
+    label: "Salles & QR Codes",
     href: "/rooms",
     icon: RoomIcon,
     roles: ["director", "secretary"],
