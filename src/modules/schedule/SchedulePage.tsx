@@ -255,17 +255,40 @@ const buildListStructure = (
     (a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
   )
 
-  // Pour chaque créneau, trouver la ligne catalog qui le contient
-  // Critère : catalogSlot.startTime ≤ schedule.startTime < catalogSlot.endTime
+  // Pour chaque créneau, trouver la ligne catalog qui le contient.
+  //
+  // Stratégie en deux passes pour éviter tout faux positif :
+  //
+  // Passe 1 — correspondance exacte :
+  //   Si schedule.startTime === slot.startTime, c'est la bonne ligne sans ambiguïté.
+  //   Ex : créneau "17:00" → ligne "17:00–17:30" ✓
+  //   Cela évite qu'un créneau dont le startTime coïncide avec le endTime d'une
+  //   ligne précédente (ex : "17:00" dans "16:30–17:00") soit mal affecté.
+  //
+  // Passe 2 — containment par plage stricte :
+  //   slot.startTime < schedule.startTime < slot.endTime
+  //   (les deux bornes sont STRICTES pour ne pas capturer les égalités
+  //    qui appartiennent à la passe 1)
+  //   Ex : créneau "08:00" → ligne "07:30–09:00" ✓
   const findContainingRow = (schedule: ScheduleRow): TimeSlotCatalogItem | null => {
     const schedStart = timeToMinutes(schedule.timeSlot.startTime)
+
+    // Passe 1 : correspondance exacte sur startTime
     for (const slot of sortedCatalog) {
-      const slotStart = timeToMinutes(slot.startTime)
-      const slotEnd = timeToMinutes(slot.endTime)
-      if (schedStart >= slotStart && schedStart < slotEnd) {
+      if (timeToMinutes(slot.startTime) === schedStart) {
         return slot
       }
     }
+
+    // Passe 2 : containment strict (startTime du créneau est ENTRE les bornes)
+    for (const slot of sortedCatalog) {
+      const slotStart = timeToMinutes(slot.startTime)
+      const slotEnd = timeToMinutes(slot.endTime)
+      if (schedStart > slotStart && schedStart < slotEnd) {
+        return slot
+      }
+    }
+
     return null
   }
 
