@@ -849,7 +849,7 @@ export default function SchedulePage() {
                 <SelectContent>
                   {data?.period ? (
                     <SelectItem value={data.period.id}>
-                      {data.period.name} ({data.period.validFrom} → {data.period.validTo})
+                      {data.period.name}
                     </SelectItem>
                   ) : (
                     <SelectItem value="__none__" disabled>Aucune période active</SelectItem>
