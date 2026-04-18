@@ -14,6 +14,9 @@ import { CalendarIcon } from "@/shared/components/icons"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
 import { useAuthStore } from "@/shared/store/auth.store"
 
+// JS getDay() : 0=Dim, 1=Lun, …, 6=Sam
+// ISO : 1=Lun, …, 6=Sam, 7=Dim
+// On garde 6 pour samedi (conforme à l'ISO), 7 pour dimanche (non affiché)
 const getDayOfWeek = (date: Date) => {
   const day = date.getDay()
   return day === 0 ? 7 : day
@@ -24,7 +27,6 @@ const formatDateRange = (start: Date, end: Date) => {
     day: "2-digit",
     month: "long",
   })
-
   return `${formatter.format(start)} au ${formatter.format(end)}`
 }
 
@@ -35,6 +37,7 @@ export default function TeacherSchedulePage() {
   const user = useAuthStore((state) => state.user)
   const { isOnline } = useNetworkStatus()
 
+  // Sélection automatique d'aujourd'hui à l'initialisation
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -52,6 +55,7 @@ export default function TeacherSchedulePage() {
     gcTime: 1000 * 60 * 30,
   })
 
+  // ── FIX : la route était /attendance/teacher/me — maintenant exposée côté backend ──
   const attendanceQuery = useQuery({
     queryKey: ["teacher-attendance", selectedDateKey],
     queryFn: () => teacherScheduleApi.getMyAttendanceForDate(selectedDateKey),
@@ -74,7 +78,8 @@ export default function TeacherSchedulePage() {
 
   const highlightDates = useMemo(() => {
     const weekStart = startOfWeekMonday(selectedDate)
-    const days = Array.from({ length: 5 }, (_, index) => {
+    // 6 jours : lundi (0) → samedi (5)
+    const days = Array.from({ length: 6 }, (_, index) => {
       const day = new Date(weekStart)
       day.setDate(weekStart.getDate() + index)
       day.setHours(0, 0, 0, 0)
@@ -85,9 +90,10 @@ export default function TeacherSchedulePage() {
     return days.filter((day) => daySet.has(getDayOfWeek(day)))
   }, [scheduleQuery.data, selectedDate])
 
+  // La semaine s'affiche du lundi au samedi
   const weekStart = startOfWeekMonday(selectedDate)
   const weekEnd = new Date(weekStart)
-  weekEnd.setDate(weekStart.getDate() + 4)
+  weekEnd.setDate(weekStart.getDate() + 5) // +5 = samedi
 
   if (!user) {
     return <Navigate to="/" replace />
@@ -126,7 +132,8 @@ export default function TeacherSchedulePage() {
         </Alert>
       ) : null}
 
-      {attendanceQuery.isError ? (
+      {/* On n'affiche l'erreur attendance que si le schedule est chargé — évite le double message au démarrage */}
+      {!scheduleQuery.isLoading && attendanceQuery.isError ? (
         <Alert variant="destructive">
           <AlertDescription>Impossible de charger vos statuts de pointage.</AlertDescription>
         </Alert>

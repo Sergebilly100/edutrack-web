@@ -1,6 +1,6 @@
 import { apiClient as api } from "@/shared/api/client"
 
-export type CheckInPayload = { schedule_id: string }
+export type CheckInPayload = { schedule_id: string; date?: string }
 export type CheckInResponse = { late_minutes?: number | null }
 
 export type QrScanPayload = {
@@ -44,17 +44,23 @@ export type TeacherAttendance = {
 const toRecord = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {}
 
-const toString = (value: unknown, fallback = ""): string => (typeof value === "string" ? value : fallback)
+const toString = (value: unknown, fallback = ""): string =>
+  typeof value === "string" ? value : fallback
 
-const toNumber = (value: unknown, fallback = 0): number => (typeof value === "number" ? value : fallback)
+const toNumber = (value: unknown, fallback = 0): number =>
+  typeof value === "number" ? value : fallback
 
 const toAttendanceStatus = (
   value: unknown
 ): "present" | "absent" | "late" | "excused" => {
-  if (value === "absent" || value === "late" || value === "excused" || value === "present") {
+  if (
+    value === "absent" ||
+    value === "late" ||
+    value === "excused" ||
+    value === "present"
+  ) {
     return value
   }
-
   return "present"
 }
 
@@ -72,8 +78,15 @@ const toScheduleSlot = (row: unknown): ScheduleSlot => {
     room_id: toString(item.room_id || item.roomId || roomRecord.id),
     room_name: toString(item.room_name || item.roomName || roomRecord.name),
     day_of_week: toNumber(item.day_of_week ?? item.dayOfWeek),
-    start_time: toString(item.start_time || item.startTime || timeSlotRecord.start_time || timeSlotRecord.startTime),
-    end_time: toString(item.end_time || item.endTime || timeSlotRecord.end_time || timeSlotRecord.endTime),
+    start_time: toString(
+      item.start_time ||
+        item.startTime ||
+        timeSlotRecord.start_time ||
+        timeSlotRecord.startTime
+    ),
+    end_time: toString(
+      item.end_time || item.endTime || timeSlotRecord.end_time || timeSlotRecord.endTime
+    ),
   }
 }
 
@@ -123,6 +136,7 @@ export const teacherScheduleApi = {
     return list.map(toScheduleSlot)
   },
 
+  // ── FIX : route /attendance/teacher/me maintenant exposée par le backend ──
   getMyAttendanceForDate: async (date: string) => {
     const response = await api.get<unknown>(`/attendance/teacher/me?date=${date}`)
     const payload = response.data
@@ -139,41 +153,53 @@ export const teacherScheduleApi = {
   },
 
   checkIn: async (body: { schedule_id: string; date: string }) => {
-    const response = await api.post<{ data?: { lateMinutes?: number | null }; late_minutes?: number | null }>(
-      "/attendance/check-in",
-      body
-    )
+    const response = await api.post<{
+      data?: { lateMinutes?: number | null }
+      late_minutes?: number | null
+    }>("/attendance/check-in", body)
 
     return {
       late_minutes: response.data?.data?.lateMinutes ?? response.data?.late_minutes ?? null,
     }
   },
 
-  scanQr: async (body: { qr_token: string; scan_type: "start" | "end"; schedule_id: string }) => {
-    const response = await api.post<{ data?: { roomMismatch?: boolean }; room_mismatch?: boolean }>(
-      "/attendance/qr-scan",
-      body
-    )
+  scanQr: async (body: {
+    qr_token: string
+    scan_type: "start" | "end"
+    schedule_id: string
+  }) => {
+    const response = await api.post<{
+      data?: { roomMismatch?: boolean }
+      room_mismatch?: boolean
+    }>("/attendance/qr-scan", body)
 
     return {
-      room_mismatch: response.data?.data?.roomMismatch ?? response.data?.room_mismatch ?? false,
+      room_mismatch:
+        response.data?.data?.roomMismatch ?? response.data?.room_mismatch ?? false,
     }
   },
 
+  // ── FIX : payload aligné avec le schema Zod backend (snake_case) ──────────
   submitStudentAttendance: async (body: {
     schedule_id: string
     date: string
     absent_student_ids: string[]
   }) => {
-    return api.post("/attendance/students/bulk", body)
+    const response = await api.post<{
+      data?: { upsertedCount?: number }
+    }>("/attendance/students/bulk", {
+      schedule_id: body.schedule_id,
+      date: body.date,
+      absent_student_ids: body.absent_student_ids,
+    })
+    return {
+      upsertedCount: response.data?.data?.upsertedCount ?? 0,
+    }
   },
 
   getStudentsByClass: async (classId: string) => {
     const response = await api.get<unknown>("/students", {
-      params: {
-        classId,
-        class_id: classId,
-      },
+      params: { class_id: classId },
     })
 
     const payload = response.data
@@ -187,6 +213,8 @@ export const teacherScheduleApi = {
   },
 }
 
+// ── Exports standalone (utilisés par TeacherFlow.tsx) ────────────────────────
+
 export const checkIn = (payload: CheckInPayload) =>
   api
     .post<{ data?: { lateMinutes?: number | null }; late_minutes?: number | null }>(
@@ -199,31 +227,36 @@ export const checkIn = (payload: CheckInPayload) =>
 
 export const qrScan = (payload: QrScanPayload) =>
   api
-    .post<{ data?: { roomMismatch?: boolean }; room_mismatch?: boolean }>("/attendance/qr-scan", payload)
+    .post<{ data?: { roomMismatch?: boolean }; room_mismatch?: boolean }>(
+      "/attendance/qr-scan",
+      payload
+    )
     .then((r) => ({
       room_mismatch: r.data?.data?.roomMismatch ?? r.data?.room_mismatch ?? false,
     }))
 
 export const bulkStudents = (payload: BulkStudentsPayload) =>
   api
-    .post<{ data?: { createdAttendances?: number } }>(
-      "/attendance/students/bulk",
-      {
-        scheduleId: payload.schedule_id,
-        date: payload.date,
-        absences: payload.absent_student_ids,
-      }
-    )
+    .post<{ data?: { upsertedCount?: number } }>("/attendance/students/bulk", {
+      schedule_id: payload.schedule_id,
+      date: payload.date,
+      absent_student_ids: payload.absent_student_ids,
+    })
     .then((r) => ({
-      success: (r.data?.data?.createdAttendances ?? 0) >= 0,
+      success: (r.data?.data?.upsertedCount ?? 0) >= 0,
     }))
 
 export const fetchStudents = (classId: string) =>
   api
-    .get<{ data?: Array<{ id: string; firstName?: string; lastName?: string; first_name?: string; last_name?: string }> }>(
-      "/students",
-      { params: { class_id: classId } }
-    )
+    .get<{
+      data?: Array<{
+        id: string
+        firstName?: string
+        lastName?: string
+        first_name?: string
+        last_name?: string
+      }>
+    }>("/students", { params: { class_id: classId } })
     .then((r) =>
       (r.data?.data ?? []).map((student) => ({
         id: student.id,
