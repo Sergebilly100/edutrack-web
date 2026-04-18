@@ -120,7 +120,7 @@ const toISODate = (date: Date) => {
 }
 
 const fromISODate = (value: string): Date => {
-  const [year, month, day] = value.split("-").map((part) => Number(part))
+  const [year, month, day] = value.split("-").map(Number)
   return new Date(year || 1970, (month || 1) - 1, day || 1)
 }
 
@@ -140,11 +140,17 @@ const getMondayForWeek = (weekOffset: 0 | 1): string => {
   return toISODate(monday)
 }
 
+/** "HH:MM" ou "HH:MM:SS" → minutes depuis minuit */
+const timeToMinutes = (t: string): number => {
+  const parts = t.split(":")
+  return (Number(parts[0]) || 0) * 60 + (Number(parts[1]) || 0)
+}
+
 const sortSchedules = (items: ScheduleRow[]) =>
   [...items].sort((a, b) => {
     if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek
-    if (a.timeSlot.sortOrder !== b.timeSlot.sortOrder)
-      return a.timeSlot.sortOrder - b.timeSlot.sortOrder
+    const diff = timeToMinutes(a.timeSlot.startTime) - timeToMinutes(b.timeSlot.startTime)
+    if (diff !== 0) return diff
     return a.teacher.name.localeCompare(b.teacher.name)
   })
 
@@ -181,17 +187,18 @@ const createOptimisticSchedule = (
   const room = data.catalog.rooms.find((item) => item.id === payload.roomId)
   if (!teacher || !klass || !room) return null
 
-  // Chercher un time_slot existant dans le catalog (startTime déjà normalisé "HH:MM")
-  const existingSlot = data.catalog.timeSlots.find(
-    (ts) => ts.startTime === payload.startTime && ts.endTime === payload.endTime
-  )
+  const start = payload.startTime ?? "00:00"
+  const end = payload.endTime ?? "00:00"
 
+  const existingSlot = data.catalog.timeSlots.find(
+    (ts) => ts.startTime === start && ts.endTime === end
+  )
   const timeSlot = existingSlot ?? {
     id: `optimistic-ts-${Date.now()}`,
-    label: `${payload.startTime ?? "?"} – ${payload.endTime ?? "?"}`,
-    startTime: payload.startTime ?? "00:00",
-    endTime: payload.endTime ?? "00:00",
-    sortOrder: 0,
+    label: `${start} – ${end}`,
+    startTime: start,
+    endTime: end,
+    sortOrder: timeToMinutes(start),
   }
 
   return {
@@ -213,47 +220,96 @@ const getInitialViewMode = (): ViewMode => {
   return window.matchMedia("(min-width: 768px)").matches ? "grid" : "list"
 }
 
+// ─── Logique de regroupement vue liste ────────────────────────────────────────
+
 /**
- * Construit les lignes de la vue liste en fusionnant le catalog de time_slots
- * avec les time_slots réellement utilisés par les créneaux.
+ * Construit les lignes de la vue liste et associe chaque créneau à sa ligne.
  *
- * Problème résolu : `findOrCreateTimeSlot` crée de nouveaux time_slots en base
- * pour les horaires libres. Ces nouveaux time_slots apparaissent dans
- * `catalog.timeSlots` MAIS avec des `startTime` différents des time_slots
- * préexistants (ex: "08:00" vs "07:30"). La vue liste affichait alors des
- * lignes séparées pour chaque time_slot, même ceux sans aucun créneau.
+ * PROBLÈME RÉSOLU :
+ * La vue liste itère sur les time_slots du catalog (ex : 07h30, 09h15, 11h00,
+ * 13h00). Les créneaux ajoutés avec horaires libres ont un startTime différent
+ * (ex : 08:00, 12:00). Avec une clé par égalité exacte de startTime, ces
+ * créneaux ne matchaient aucune ligne et créaient des lignes orphelines en bas.
  *
- * Solution : on construit les lignes en union de :
- * 1. Tous les time_slots du catalog (triés par sortOrder/startTime)
- * 2. Les time_slots des créneaux qui ne sont pas encore dans le catalog
- *    (cas optimistic update avec id synthétique)
+ * SOLUTION : algorithme d'affectation par plage horaire.
+ * Un créneau est affecté à la ligne dont le startTime est le plus proche
+ * par en-dessous (≤ startTime du créneau) ET dont le endTime est le plus
+ * proche par en-dessus (≥ startTime du créneau).
  *
- * On déduplique par `startTime` pour éviter les doublons entre time_slots
- * préexistants et ceux créés à la volée avec les mêmes horaires.
+ * Si aucune ligne du catalog ne contient le créneau, on crée une nouvelle
+ * ligne pour lui (tri par startTime → elle apparaît à la bonne position).
+ *
+ * Retourne :
+ * - `rows`   : time_slots ordonnés à afficher comme lignes du tableau
+ * - `assign` : Map<rowKey, Map<dayOfWeek, ScheduleRow[]>>
  */
-const buildListRows = (
-  catalogTimeSlots: TimeSlotCatalogItem[],
+const buildListStructure = (
+  catalogSlots: TimeSlotCatalogItem[],
   schedules: ScheduleRow[]
-): TimeSlotCatalogItem[] => {
-  // Index des time_slots du catalog par startTime (déjà normalisé "HH:MM")
-  const byStartTime = new Map<string, TimeSlotCatalogItem>()
-  for (const ts of catalogTimeSlots) {
-    byStartTime.set(ts.startTime, ts)
+): {
+  rows: TimeSlotCatalogItem[]
+  assign: Map<string, Map<number, ScheduleRow[]>>
+} => {
+  // Trier le catalog par startTime
+  const sortedCatalog = [...catalogSlots].sort(
+    (a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
+  )
+
+  // Pour chaque créneau, trouver la ligne catalog qui le contient
+  // Critère : catalogSlot.startTime ≤ schedule.startTime < catalogSlot.endTime
+  const findContainingRow = (schedule: ScheduleRow): TimeSlotCatalogItem | null => {
+    const schedStart = timeToMinutes(schedule.timeSlot.startTime)
+    for (const slot of sortedCatalog) {
+      const slotStart = timeToMinutes(slot.startTime)
+      const slotEnd = timeToMinutes(slot.endTime)
+      if (schedStart >= slotStart && schedStart < slotEnd) {
+        return slot
+      }
+    }
+    return null
   }
 
-  // Ajouter les time_slots des créneaux manquants dans le catalog
+  // Construire les lignes : catalog + lignes synthétiques pour les créneaux
+  // qui ne sont contenus dans aucune ligne catalog
+  const rowMap = new Map<string, TimeSlotCatalogItem>()
+  for (const slot of sortedCatalog) {
+    rowMap.set(slot.startTime, slot)
+  }
+
   for (const schedule of schedules) {
-    const key = schedule.timeSlot.startTime
-    if (!byStartTime.has(key)) {
-      byStartTime.set(key, schedule.timeSlot)
+    const containing = findContainingRow(schedule)
+    if (!containing) {
+      // Pas de ligne catalog correspondante → créer une ligne synthétique
+      const key = schedule.timeSlot.startTime
+      if (!rowMap.has(key)) {
+        rowMap.set(key, schedule.timeSlot)
+      }
     }
   }
 
-  // Trier : d'abord par sortOrder, puis par startTime lexicographique ("HH:MM")
-  return [...byStartTime.values()].sort((a, b) => {
-    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
-    return a.startTime.localeCompare(b.startTime)
-  })
+  // Trier les lignes par startTime
+  const rows = [...rowMap.values()].sort(
+    (a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
+  )
+
+  // Construire l'index d'affectation : rowKey → dayOfWeek → créneaux
+  const assign = new Map<string, Map<number, ScheduleRow[]>>()
+
+  for (const schedule of schedules) {
+    const containing = findContainingRow(schedule)
+    // Utiliser la ligne catalog si trouvée, sinon la ligne synthétique
+    const rowKey = containing ? containing.startTime : schedule.timeSlot.startTime
+
+    if (!assign.has(rowKey)) {
+      assign.set(rowKey, new Map())
+    }
+    const dayMap = assign.get(rowKey)!
+    const existing = dayMap.get(schedule.dayOfWeek) ?? []
+    existing.push(schedule)
+    dayMap.set(schedule.dayOfWeek, existing)
+  }
+
+  return { rows, assign }
 }
 
 // ─── Composant ──────────────────────────────────────────────────────────────────
@@ -278,8 +334,6 @@ export default function SchedulePage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingSchedule, setEditingSchedule] = useState<ScheduleRow | null>(null)
   const [formState, setFormState] = useState<SlotFormState>(emptyFormState)
-
-  // ── Queries ─────────────────────────────────────────────────────────────────
 
   const weeklyQueryKey = useMemo(
     () => ["schedule-weekly", selectedWeekMonday] as const,
@@ -318,7 +372,6 @@ export default function SchedulePage() {
     [teachersQuery.data?.data]
   )
 
-  // ── Matières du prof sélectionné ────────────────────────────────────────────
   const selectedTeacherSubjects = useMemo<string[]>(() => {
     if (!formState.teacherId || !data) return []
     const teacher = data.catalog.teachers.find((t) => t.id === formState.teacherId)
@@ -335,7 +388,6 @@ export default function SchedulePage() {
     }
   }, [formState.subject, selectedTeacherSubjects])
 
-  // ── Créneaux filtrés ────────────────────────────────────────────────────────
   const filteredSchedules = useMemo(() => {
     if (!data?.period) return []
     return sortSchedules(
@@ -347,31 +399,11 @@ export default function SchedulePage() {
     )
   }, [classFilter, data, teacherFilter])
 
-  /**
-   * Lignes de la vue liste : union catalog + time_slots des créneaux,
-   * dédupliqués par startTime normalisé.
-   */
-  const listRows = useMemo(
-    () => buildListRows(data?.catalog.timeSlots ?? [], filteredSchedules),
+  // Vue liste : lignes + index d'affectation par plage horaire
+  const { rows: listRows, assign: listAssign } = useMemo(
+    () => buildListStructure(data?.catalog.timeSlots ?? [], filteredSchedules),
     [data?.catalog.timeSlots, filteredSchedules]
   )
-
-  /**
-   * Index des créneaux par `${dayOfWeek}-${startTime}`.
-   * Les deux valeurs sont normalisées en "HH:MM" → clé toujours cohérente.
-   */
-  const scheduleByDayAndTime = useMemo(() => {
-    const map = new Map<string, ScheduleRow[]>()
-    for (const item of filteredSchedules) {
-      const key = `${item.dayOfWeek}-${item.timeSlot.startTime}`
-      const list = map.get(key) ?? []
-      list.push(item)
-      map.set(key, list)
-    }
-    return map
-  }, [filteredSchedules])
-
-  // ── Helpers formulaire ──────────────────────────────────────────────────────
 
   const setWeekFromIso = (weekIso: string) => {
     setSelectedWeekMonday(weekIso)
@@ -411,8 +443,6 @@ export default function SchedulePage() {
     setFormOpen(true)
   }
 
-  // ── Mutations ───────────────────────────────────────────────────────────────
-
   const upsertMutation = useMutation({
     mutationFn: async (values: { id?: string; payload: ScheduleCreatePayload }) => {
       if (values.id) return updateScheduleSlot(values.id, values.payload)
@@ -422,39 +452,28 @@ export default function SchedulePage() {
       await queryClient.cancelQueries({ queryKey: weeklyQueryKey })
       const previous = queryClient.getQueryData<WeeklyScheduleData>(weeklyQueryKey)
       if (!previous) return { previous }
-
       const optimisticId = values.id ?? `optimistic-${Date.now()}`
       const optimisticSchedule = createOptimisticSchedule(optimisticId, values.payload, previous)
       if (!optimisticSchedule) return { previous }
-
       const nextSchedules = values.id
-        ? previous.schedules.map((item) =>
-            item.id === values.id ? optimisticSchedule : item
-          )
+        ? previous.schedules.map((s) => (s.id === values.id ? optimisticSchedule : s))
         : [optimisticSchedule, ...previous.schedules]
-
       queryClient.setQueryData<WeeklyScheduleData>(weeklyQueryKey, {
         ...previous,
         schedules: nextSchedules,
       })
       return { previous }
     },
-    onError: (_error, _values, context) => {
-      if (context?.previous) queryClient.setQueryData(weeklyQueryKey, context.previous)
-      toast({
-        variant: "destructive",
-        title: "Action impossible",
-        description: "Impossible d'enregistrer ce créneau.",
-      })
+    onError: (_e, _v, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(weeklyQueryKey, ctx.previous)
+      toast({ variant: "destructive", title: "Action impossible", description: "Impossible d'enregistrer ce créneau." })
     },
     onSuccess: () => {
       toast({ title: editingSchedule ? "Créneau modifié" : "Créneau ajouté" })
       setFormOpen(false)
       setEditingSchedule(null)
     },
-    onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: weeklyQueryKey })
-    },
+    onSettled: async () => { await queryClient.invalidateQueries({ queryKey: weeklyQueryKey }) },
   })
 
   const deleteMutation = useMutation({
@@ -465,13 +484,13 @@ export default function SchedulePage() {
       if (previous) {
         queryClient.setQueryData<WeeklyScheduleData>(weeklyQueryKey, {
           ...previous,
-          schedules: previous.schedules.filter((item) => item.id !== id),
+          schedules: previous.schedules.filter((s) => s.id !== id),
         })
       }
       return { previous }
     },
-    onError: (_error, _id, context) => {
-      if (context?.previous) queryClient.setQueryData(weeklyQueryKey, context.previous)
+    onError: (_e, _id, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(weeklyQueryKey, ctx.previous)
       toast({ variant: "destructive", title: "Suppression impossible" })
     },
     onSuccess: () => {
@@ -479,23 +498,21 @@ export default function SchedulePage() {
       setDetailOpen(false)
       setSelectedSchedule(null)
     },
-    onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: weeklyQueryKey })
-    },
+    onSettled: async () => { await queryClient.invalidateQueries({ queryKey: weeklyQueryKey }) },
   })
 
   const handleSubmit = async () => {
     if (!formState.schedulePeriodId) {
-      toast({ variant: "destructive", title: "Aucune période", description: "Sélectionnez une période d'emploi du temps." })
+      toast({ variant: "destructive", title: "Aucune période", description: "Sélectionnez une période." })
       return
     }
     if (formState.startTime >= formState.endTime) {
-      toast({ variant: "destructive", title: "Horaire invalide", description: "L'heure de fin doit être après l'heure de début." })
+      toast({ variant: "destructive", title: "Horaire invalide", description: "La fin doit être après le début." })
       return
     }
     const payload = toPayload(formState)
     if (!payload.teacherId || !payload.classId || !payload.roomId || !payload.subject) {
-      toast({ variant: "destructive", title: "Formulaire incomplet", description: "Renseignez tous les champs requis." })
+      toast({ variant: "destructive", title: "Formulaire incomplet", description: "Renseignez tous les champs." })
       return
     }
     await upsertMutation.mutateAsync({ id: editingSchedule?.id, payload })
@@ -505,8 +522,6 @@ export default function SchedulePage() {
 
   const weekStartDate = fromISODate(selectedWeekMonday)
 
-  // ── Rendu ───────────────────────────────────────────────────────────────────
-
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
       <header className="space-y-4">
@@ -514,61 +529,11 @@ export default function SchedulePage() {
           nextWeekHasCoverage={nextWeekCoverageQuery.data ?? true}
           onNavigateToSchedule={() => { setWeekView("next"); setWeekFromIso(nextWeekMonday) }}
         />
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Emploi du temps</h1>
-          <p className="text-sm text-muted-foreground">Vue hebdomadaire et gestion des créneaux de cours.</p>
-        </div>
 
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <Tabs
-              value={weekView}
-              onValueChange={(value) => {
-                const next = value as "current" | "next"
-                setWeekView(next)
-                setWeekFromIso(next === "current" ? currentWeekMonday : nextWeekMonday)
-              }}
-            >
-              <TabsList className="grid grid-cols-2">
-                <TabsTrigger value="current">Semaine courante</TabsTrigger>
-                <TabsTrigger value="next">Semaine prochaine</TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            <div className="inline-flex items-center rounded-lg border bg-muted/40 p-1">
-              <button type="button" onClick={() => setViewMode("grid")}
-                className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition ${viewMode === "grid" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}>
-                <LayoutGridIcon className="h-4 w-4" />Grille
-              </button>
-              <button type="button" onClick={() => setViewMode("list")}
-                className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition ${viewMode === "list" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}>
-                <ListIcon className="h-4 w-4" />Liste
-              </button>
-            </div>
-
-            <Select value={teacherFilter} onValueChange={setTeacherFilter} disabled={!data}>
-              <SelectTrigger className="w-full md:w-[220px]">
-                <SelectValue placeholder="Filtrer par professeur" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les professeurs</SelectItem>
-                {(data?.catalog.teachers ?? []).map((teacher) => (
-                  <SelectItem key={teacher.id} value={teacher.id}>{teacher.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={classFilter} onValueChange={setClassFilter} disabled={!data}>
-              <SelectTrigger className="w-full md:w-[200px]">
-                <SelectValue placeholder="Filtrer par classe" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Toutes les classes</SelectItem>
-                {(data?.catalog.classes ?? []).map((klass) => (
-                  <SelectItem key={klass.id} value={klass.id}>{klass.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold tracking-tight">Emploi du temps</h1>
+            <p className="text-sm text-muted-foreground">Vue hebdomadaire et gestion des créneaux de cours.</p>
           </div>
 
           {canManage ? (
@@ -579,14 +544,119 @@ export default function SchedulePage() {
             <Badge variant="outline">Lecture seule</Badge>
           )}
         </div>
+
+        {/* ── Barre de contrôles ─────────────────────────────────────────── */}
+        <div className="flex flex-wrap items-center gap-2">
+
+          {/* Semaine */}
+          <Tabs
+            value={weekView}
+            onValueChange={(v) => {
+              const next = v as "current" | "next"
+              setWeekView(next)
+              setWeekFromIso(next === "current" ? currentWeekMonday : nextWeekMonday)
+            }}
+          >
+            <TabsList>
+              <TabsTrigger value="current">Cette semaine</TabsTrigger>
+              <TabsTrigger value="next">Semaine suivante</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {/* Séparateur visuel */}
+          <div className="h-7 w-px bg-border" aria-hidden="true" />
+
+          {/* Vue grille / liste */}
+          <div className="flex items-center rounded-md border bg-muted/40 p-0.5">
+            <Button
+              type="button"
+              variant={viewMode === "grid" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 gap-1.5 px-2.5 text-xs"
+              onClick={() => setViewMode("grid")}
+              aria-pressed={viewMode === "grid"}
+            >
+              <LayoutGridIcon className="h-3.5 w-3.5" />
+              Grille
+            </Button>
+            <Button
+              type="button"
+              variant={viewMode === "list" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 gap-1.5 px-2.5 text-xs"
+              onClick={() => setViewMode("list")}
+              aria-pressed={viewMode === "list"}
+            >
+              <ListIcon className="h-3.5 w-3.5" />
+              Liste
+            </Button>
+          </div>
+
+          {/* Séparateur visuel */}
+          <div className="h-7 w-px bg-border" aria-hidden="true" />
+
+          {/* Filtre professeur */}
+          <Select value={teacherFilter} onValueChange={setTeacherFilter} disabled={!data}>
+            <SelectTrigger className="h-8 w-auto min-w-[160px] text-xs">
+              <SelectValue placeholder="Tous les professeurs" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les professeurs</SelectItem>
+              {(data?.catalog.teachers ?? []).map((t) => (
+                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Filtre classe */}
+          <Select value={classFilter} onValueChange={setClassFilter} disabled={!data}>
+            <SelectTrigger className="h-8 w-auto min-w-[140px] text-xs">
+              <SelectValue placeholder="Toutes les classes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les classes</SelectItem>
+              {(data?.catalog.classes ?? []).map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Badges de filtres actifs */}
+          {teacherFilter !== "all" && (
+            <Badge
+              variant="secondary"
+              className="cursor-pointer gap-1 text-xs"
+              onClick={() => setTeacherFilter("all")}
+            >
+              {data?.catalog.teachers.find((t) => t.id === teacherFilter)?.name ?? "Prof"}
+              <span aria-hidden="true" className="opacity-60">✕</span>
+            </Badge>
+          )}
+          {classFilter !== "all" && (
+            <Badge
+              variant="secondary"
+              className="cursor-pointer gap-1 text-xs"
+              onClick={() => setClassFilter("all")}
+            >
+              {data?.catalog.classes.find((c) => c.id === classFilter)?.name ?? "Classe"}
+              <span aria-hidden="true" className="opacity-60">✕</span>
+            </Badge>
+          )}
+        </div>
       </header>
 
-      {scheduleQuery.isLoading ? <p className="text-sm text-muted-foreground">Chargement…</p> : null}
+      {scheduleQuery.isLoading ? (
+        <p className="text-sm text-muted-foreground">Chargement…</p>
+      ) : null}
       {scheduleQuery.isError ? (
-        <Alert variant="destructive"><AlertDescription>Impossible de charger l'emploi du temps.</AlertDescription></Alert>
+        <Alert variant="destructive">
+          <AlertDescription>Impossible de charger l'emploi du temps.</AlertDescription>
+        </Alert>
       ) : null}
       {!scheduleQuery.isLoading && data && !data.period && viewMode === "list" ? (
-        <Alert><AlertDescription>Aucune période active pour cette semaine.</AlertDescription></Alert>
+        <Alert>
+          <AlertDescription>Aucune période active pour cette semaine.</AlertDescription>
+        </Alert>
       ) : null}
 
       {!scheduleQuery.isLoading && data && viewMode === "grid" ? (
@@ -599,12 +669,13 @@ export default function SchedulePage() {
           onSlotAdd={(day, hour) => { if (!canManage) return; openCreateModal({ dayOfWeek: day, hour }) }}
           onWeekChange={(next) => setWeekFromIso(toISODate(next))}
           onToday={() => setWeekFromIso(currentWeekMonday)}
-          isBlockedTeacher={(teacherId) => blockedTeachers.has(teacherId)}
+          isBlockedTeacher={(id) => blockedTeachers.has(id)}
         />
       ) : null}
 
       {!scheduleQuery.isLoading && data && viewMode === "list" ? (
         <>
+          {/* Vue desktop */}
           <Card className="hidden md:block">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -620,31 +691,31 @@ export default function SchedulePage() {
               <div className="overflow-x-auto">
                 <table className="min-w-full border-collapse text-sm">
                   <thead>
-                    <tr>
-                      <th className="w-[140px] border p-2 text-left font-medium">Créneau</th>
+                    <tr className="bg-muted/40">
+                      <th className="w-[130px] border p-2 text-left text-xs font-semibold text-muted-foreground">
+                        Créneau
+                      </th>
                       {DAYS.map((day) => (
-                        <th key={day.value} className="border p-2 text-left font-medium">{day.label}</th>
+                        <th key={day.value} className="border p-2 text-left text-xs font-semibold text-muted-foreground">
+                          {day.label}
+                        </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {/*
-                      On itère sur `listRows` (union catalog + time_slots des créneaux)
-                      plutôt que sur `data.catalog.timeSlots` seul.
-                      Chaque ligne est identifiée par son `startTime` normalisé "HH:MM".
-                    */}
-                    {listRows.map((slot) => (
-                      <tr key={`${slot.id}-${slot.startTime}`}>
-                        <td className="align-top border p-2 font-medium text-muted-foreground">
-                          {slot.label}
+                    {listRows.map((row) => (
+                      <tr key={row.startTime} className="align-top hover:bg-muted/20">
+                        {/* Label de la ligne */}
+                        <td className="border p-2 text-xs font-medium text-muted-foreground whitespace-nowrap">
+                          {row.label}
                         </td>
                         {DAYS.map((day) => {
                           const cellItems =
-                            scheduleByDayAndTime.get(`${day.value}-${slot.startTime}`) ?? []
+                            listAssign.get(row.startTime)?.get(day.value) ?? []
                           return (
                             <td
-                              key={`${day.value}-${slot.startTime}`}
-                              className="h-[92px] align-top border p-2"
+                              key={`${day.value}-${row.startTime}`}
+                              className="min-h-[80px] border p-1.5 align-top"
                             >
                               <div className="space-y-1">
                                 {cellItems.map((item) => (
@@ -652,13 +723,21 @@ export default function SchedulePage() {
                                     key={item.id}
                                     type="button"
                                     onClick={() => { setSelectedSchedule(item); setDetailOpen(true) }}
-                                    className="w-full rounded-md border bg-muted/30 p-2 text-left transition hover:opacity-90"
+                                    className="w-full rounded-md border bg-muted/30 p-2 text-left text-xs transition hover:bg-muted/60"
                                   >
-                                    <p className="text-xs font-semibold">{item.teacher.name}</p>
-                                    <p className="text-xs">{item.class.name}</p>
-                                    <p className="text-xs">{item.subject}</p>
+                                    <p className="font-semibold leading-tight">{item.teacher.name}</p>
+                                    <p className="text-muted-foreground">{item.class.name}</p>
+                                    <p className="text-muted-foreground">{item.subject}</p>
+                                    {/* Afficher l'horaire réel si différent de la ligne */}
+                                    {item.timeSlot.startTime !== row.startTime && (
+                                      <p className="mt-0.5 text-[10px] text-amber-600">
+                                        {item.timeSlot.startTime} – {item.timeSlot.endTime}
+                                      </p>
+                                    )}
                                     {blockedTeachers.has(item.teacher.id) ? (
-                                      <Badge variant="destructive" className="mt-1">Prof bloqué</Badge>
+                                      <Badge variant="destructive" className="mt-1 text-[10px]">
+                                        Prof bloqué
+                                      </Badge>
                                     ) : null}
                                   </button>
                                 ))}
@@ -674,6 +753,7 @@ export default function SchedulePage() {
             </CardContent>
           </Card>
 
+          {/* Vue mobile */}
           <Card className="md:hidden">
             <CardHeader>
               <CardTitle>Vue mobile</CardTitle>
@@ -699,13 +779,13 @@ export default function SchedulePage() {
                     >
                       <p className="text-xs font-semibold">{item.timeSlot.label}</p>
                       <p className="text-sm font-medium">{item.subject}</p>
-                      <p className="text-xs">{item.teacher.name} · {item.class.name}</p>
+                      <p className="text-xs text-muted-foreground">{item.teacher.name} · {item.class.name}</p>
                       {blockedTeachers.has(item.teacher.id) ? (
                         <Badge variant="destructive" className="mt-1">Prof bloqué</Badge>
                       ) : null}
                     </button>
                   ))}
-                {filteredSchedules.filter((item) => String(item.dayOfWeek) === mobileDay).length === 0 ? (
+                {filteredSchedules.filter((s) => String(s.dayOfWeek) === mobileDay).length === 0 ? (
                   <p className="text-sm text-muted-foreground">Aucun créneau pour ce jour.</p>
                 ) : null}
               </div>
@@ -714,7 +794,7 @@ export default function SchedulePage() {
         </>
       ) : null}
 
-      {/* ── Dialog détail ────────────────────────────────────────────────────── */}
+      {/* ── Dialog détail ────────────────────────────────────────────────── */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent>
           <DialogHeader>
@@ -749,7 +829,7 @@ export default function SchedulePage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Dialog formulaire ────────────────────────────────────────────────── */}
+      {/* ── Dialog formulaire ────────────────────────────────────────────── */}
       <Dialog
         open={formOpen}
         onOpenChange={(open) => { setFormOpen(open); if (!open) setEditingSchedule(null) }}
@@ -761,7 +841,6 @@ export default function SchedulePage() {
           </DialogHeader>
 
           <div className="space-y-3">
-            {/* Période */}
             <div className="space-y-1">
               <Label>Période</Label>
               <Select value={formState.schedulePeriodId}
@@ -770,7 +849,7 @@ export default function SchedulePage() {
                 <SelectContent>
                   {data?.period ? (
                     <SelectItem value={data.period.id}>
-                      {data.period.name}
+                      {data.period.name} ({data.period.validFrom} → {data.period.validTo})
                     </SelectItem>
                   ) : (
                     <SelectItem value="__none__" disabled>Aucune période active</SelectItem>
@@ -779,23 +858,19 @@ export default function SchedulePage() {
               </Select>
             </div>
 
-            {/* Professeur */}
             <div className="space-y-1">
               <Label>Professeur</Label>
-              <Select
-                value={formState.teacherId}
-                onValueChange={(v) => setFormState((p) => ({ ...p, teacherId: v, subject: "" }))}
-              >
+              <Select value={formState.teacherId}
+                onValueChange={(v) => setFormState((p) => ({ ...p, teacherId: v, subject: "" }))}>
                 <SelectTrigger><SelectValue placeholder="Choisir un professeur" /></SelectTrigger>
                 <SelectContent>
-                  {(data?.catalog.teachers ?? []).map((teacher) => (
-                    <SelectItem key={teacher.id} value={teacher.id}>{teacher.name}</SelectItem>
+                  {(data?.catalog.teachers ?? []).map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Matière — 3 états */}
             <div className="space-y-1">
               <Label>Matière</Label>
               {!formState.teacherId ? (
@@ -827,21 +902,19 @@ export default function SchedulePage() {
               )}
             </div>
 
-            {/* Classe */}
             <div className="space-y-1">
               <Label>Classe</Label>
               <Select value={formState.classId}
                 onValueChange={(v) => setFormState((p) => ({ ...p, classId: v }))}>
                 <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
                 <SelectContent>
-                  {(data?.catalog.classes ?? []).map((klass) => (
-                    <SelectItem key={klass.id} value={klass.id}>{klass.name}</SelectItem>
+                  {(data?.catalog.classes ?? []).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Jour + Horaires */}
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-1">
                 <Label>Jour</Label>
@@ -881,15 +954,14 @@ export default function SchedulePage() {
               </div>
             </div>
 
-            {/* Salle */}
             <div className="space-y-1">
               <Label>Salle</Label>
               <Select value={formState.roomId}
                 onValueChange={(v) => setFormState((p) => ({ ...p, roomId: v }))}>
                 <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
                 <SelectContent>
-                  {(data?.catalog.rooms ?? []).map((room) => (
-                    <SelectItem key={room.id} value={room.id}>{room.name}</SelectItem>
+                  {(data?.catalog.rooms ?? []).map((r) => (
+                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
