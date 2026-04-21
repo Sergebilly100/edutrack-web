@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useNavigate, useParams } from "react-router-dom"
+import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { BookOpen, Clock3, MessageSquare, Phone, UserCheck } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -35,8 +35,23 @@ const recentSmsLabel: Record<"sent" | "failed" | "not_sent" | "none", string> = 
   none: "-",
 }
 
+const formatDate = (value: string) =>
+  new Intl.DateTimeFormat("fr-CI", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(`${value}T00:00:00Z`))
+
+const formatSlot = (startTime: string | null, endTime: string | null) => {
+  if (!startTime || !endTime) {
+    return "—"
+  }
+  return `${startTime.slice(0, 5)} - ${endTime.slice(0, 5)}`
+}
+
 export default function StudentDetailPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const { studentId = "" } = useParams<{ studentId: string }>()
@@ -48,6 +63,7 @@ export default function StudentDetailPage() {
   const [parentPhone2, setParentPhone2] = useState("")
   const [note, setNote] = useState("")
   const [noteStatus, setNoteStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
+  const [recentAbsencesPage, setRecentAbsencesPage] = useState(1)
 
   const lastSavedNoteRef = useRef("")
   const hydratedRef = useRef(false)
@@ -105,6 +121,7 @@ export default function StudentDetailPage() {
     lastSavedNoteRef.current = student.note ?? ""
     hydratedRef.current = true
     setNoteStatus("idle")
+    setRecentAbsencesPage(1)
   }, [studentQuery.data])
 
   useEffect(() => {
@@ -165,13 +182,24 @@ export default function StudentDetailPage() {
   }
 
   const student = studentQuery.data
+  const params = new URLSearchParams(location.search)
+  const returnTo = params.get("returnTo") || "/students"
+  const recentAbsencesPageSize = 8
+  const recentAbsencesTotalPages = Math.max(
+    1,
+    Math.ceil(student.recentAbsences.length / recentAbsencesPageSize)
+  )
+  const recentAbsenceRows = student.recentAbsences.slice(
+    (recentAbsencesPage - 1) * recentAbsencesPageSize,
+    recentAbsencesPage * recentAbsencesPageSize
+  )
 
   return (
     <PageLayout
       title={`Fiche ${studentLabel.toLowerCase()}`}
       subtitle={`${student.lastName} ${student.firstName}`.trim()}
       actions={
-        <Button variant="outline" onClick={() => navigate("/students")}>
+        <Button variant="outline" onClick={() => navigate(returnTo)}>
           <BackIcon className="mr-2 h-4 w-4" />
           Retour liste
         </Button>
@@ -286,33 +314,77 @@ export default function StudentDetailPage() {
               {student.recentAbsences.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Aucune absence récente.</p>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Matière</TableHead>
-                      <TableHead>Professeur</TableHead>
-                      <TableHead>SMS</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {student.recentAbsences.map((row, index) => {
-                      const statusKey = row.smsStatus ?? "none"
-                      return (
-                        <TableRow key={`${row.date}-${row.subject}-${index}`}>
-                          <TableCell>{row.date}</TableCell>
-                          <TableCell>{row.subject}</TableCell>
-                          <TableCell>{row.teacherName}</TableCell>
-                          <TableCell>
-                            <Badge variant={row.smsStatus === "failed" ? "destructive" : "secondary"}>
-                              {recentSmsLabel[statusKey]}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+                <div className="space-y-3">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Horaire</TableHead>
+                        <TableHead>Salle</TableHead>
+                        <TableHead>Matière</TableHead>
+                        <TableHead>Professeur</TableHead>
+                        <TableHead>Statut SMS</TableHead>
+                        <TableHead>Précision</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {recentAbsenceRows.map((row, index) => {
+                        const statusKey = row.smsStatus ?? "none"
+                        return (
+                          <TableRow key={`${row.date}-${row.subject}-${(recentAbsencesPage - 1) * recentAbsencesPageSize + index}`}>
+                            <TableCell className="font-medium">{formatDate(row.date)}</TableCell>
+                            <TableCell>{formatSlot(row.startTime, row.endTime)}</TableCell>
+                            <TableCell>{row.roomName ?? "—"}</TableCell>
+                            <TableCell>{row.subject}</TableCell>
+                            <TableCell>{row.teacherName}</TableCell>
+                            <TableCell>
+                              <Badge variant={row.smsStatus === "failed" ? "destructive" : "secondary"}>
+                                {recentSmsLabel[statusKey]}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {row.smsStatus === "sent" ? "Parent notifié" : row.smsStatus === "failed" ? "Échec envoi SMS" : "Aucune notification confirmée"}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      Page {recentAbsencesPage} / {recentAbsencesTotalPages}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="min-h-12"
+                        disabled={recentAbsencesPage <= 1}
+                        onClick={() =>
+                          setRecentAbsencesPage((current) => Math.max(1, current - 1))
+                        }
+                      >
+                        Précédent
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="min-h-12"
+                        disabled={recentAbsencesPage >= recentAbsencesTotalPages}
+                        onClick={() =>
+                          setRecentAbsencesPage((current) =>
+                            Math.min(recentAbsencesTotalPages, current + 1)
+                          )
+                        }
+                      >
+                        Suivant
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>

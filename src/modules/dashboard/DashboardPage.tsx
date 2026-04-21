@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { fetchSchoolInfo } from "@/modules/onboarding/onboarding.api"
+import { getStudentAbsenceStats, getTodayAbsences, type StudentAbsenceStat } from "@/modules/students/students.api"
 import {
   getAttendanceHistory,
   getCurrentMonthKey,
@@ -178,6 +179,78 @@ function TodayPresenceList({ courses }: { courses: DashboardCourseItem[] }) {
   )
 }
 
+type TodayStudentAbsenceItem = {
+  studentId: string
+  studentName: string
+  className: string
+  createdAt: string
+  smsStatus: "queued" | "sent" | "failed" | "delivered" | null
+}
+
+function TodayStudentAbsenceList({
+  items,
+  onOpenStudent,
+}: {
+  items: TodayStudentAbsenceItem[]
+  onOpenStudent: (studentId: string) => void
+}) {
+  if (items.length === 0) {
+    return (
+      <EmptyState
+        icon={emptyStateIcons.allGood}
+        title="Aucune absence aujourd'hui"
+        message="Aucun élève n'a été marqué absent pour le moment."
+      />
+    )
+  }
+
+  const statusClass = (status: TodayStudentAbsenceItem["smsStatus"]) => {
+    if (status === "sent" || status === "delivered") {
+      return "border-green-200 bg-green-50 text-green-700"
+    }
+    if (status === "failed") {
+      return "border-amber-200 bg-amber-50 text-amber-700"
+    }
+    return "border-red-200 bg-red-50 text-red-700"
+  }
+
+  const statusLabel = (status: TodayStudentAbsenceItem["smsStatus"]) => {
+    if (status === "sent" || status === "delivered") {
+      return "Notifié"
+    }
+    if (status === "failed") {
+      return "Échec"
+    }
+    return "Non notifié"
+  }
+
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <Button
+          key={`${item.studentId}-${item.createdAt}`}
+          type="button"
+          variant="ghost"
+          className="h-auto w-full justify-start rounded-lg border border-border p-3"
+          onClick={() => onOpenStudent(item.studentId)}
+        >
+          <div className="flex w-full items-center justify-between gap-2 text-left">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{item.studentName}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {item.className} • {new Date(item.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+              </p>
+            </div>
+            <Badge variant="outline" className={statusClass(item.smsStatus)}>
+              {statusLabel(item.smsStatus)}
+            </Badge>
+          </div>
+        </Button>
+      ))}
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -238,6 +311,35 @@ export default function DashboardPage() {
     staleTime: QUERY_STALE_TIME,
   })
 
+  const todayStudentAbsencesQuery = useQuery({
+    queryKey: ["dashboard", "today-student-absences"],
+    queryFn: getTodayAbsences,
+    staleTime: QUERY_STALE_TIME,
+    refetchInterval: TODAY_REFETCH_INTERVAL,
+  })
+
+  const currentMonthRange = useMemo(() => {
+    const now = new Date()
+    const start = new Date(now.getFullYear(), now.getMonth(), 1)
+    const today = new Date()
+    return {
+      from: start.toISOString().slice(0, 10),
+      to: today.toISOString().slice(0, 10),
+    }
+  }, [])
+
+  const riskStudentsQuery = useQuery({
+    queryKey: ["dashboard", "risk-students", currentMonthRange.from, currentMonthRange.to],
+    queryFn: () =>
+      getStudentAbsenceStats({
+        from: currentMonthRange.from,
+        to: currentMonthRange.to,
+        minAbsences: 1,
+      }),
+    staleTime: QUERY_STALE_TIME,
+    refetchInterval: TODAY_REFETCH_INTERVAL,
+  })
+
   const isInitialLoading =
     todayQuery.isLoading ||
     countsQuery.isLoading ||
@@ -246,7 +348,9 @@ export default function DashboardPage() {
     salarySummaryQuery.isLoading ||
     previousSalarySummaryQuery.isLoading ||
     riskTeachersQuery.isLoading ||
-    schoolQuery.isLoading
+    schoolQuery.isLoading ||
+    todayStudentAbsencesQuery.isLoading ||
+    riskStudentsQuery.isLoading
 
   const weeklyAbsenceCount = useMemo(() => {
     return (historyQuery.data ?? []).reduce((acc, row) => acc + row.absentCount, 0)
@@ -315,6 +419,27 @@ export default function DashboardPage() {
     .slice(0, 10)
   const riskTeachersLink =
     `/teachers?tab=analyse&run=1&from=${riskMonthStart}&to=${riskMonthEnd}&status_filter=absent`
+  const riskStudentsLink =
+    `/students?tab=absences&run=1&from=${currentMonthRange.from}&to=${currentMonthRange.to}&min_absences=1`
+
+  const todayStudentAbsenceItems = useMemo<TodayStudentAbsenceItem[]>(() => {
+    return (todayStudentAbsencesQuery.data ?? [])
+      .flatMap((group) =>
+        group.absences.map((absence) => ({
+          studentId: absence.studentId,
+          studentName: `${absence.studentLastName} ${absence.studentFirstName}`.trim(),
+          className: group.className,
+          createdAt: absence.createdAt,
+          smsStatus: absence.smsStatus,
+        }))
+      )
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  }, [todayStudentAbsencesQuery.data])
+
+  const topRiskStudents = useMemo<StudentAbsenceStat[]>(
+    () => (riskStudentsQuery.data ?? []).slice(0, 5),
+    [riskStudentsQuery.data]
+  )
 
   useEffect(() => {
     if (!refreshSuccess) return
@@ -379,6 +504,8 @@ export default function DashboardPage() {
                       previousSalarySummaryQuery.refetch(),
                       riskTeachersQuery.refetch(),
                       schoolQuery.refetch(),
+                      todayStudentAbsencesQuery.refetch(),
+                      riskStudentsQuery.refetch(),
                     ])
                     setRefreshSuccess(true)
                   } finally {
@@ -510,6 +637,72 @@ export default function DashboardPage() {
                               {teacher.absenceCount} absence(s) • {Math.round(teacher.attendanceRate)}% présence
                             </p>
                           </div>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg font-semibold">Absence élève/étudiant — Aujourd&apos;hui</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TodayStudentAbsenceList
+                items={todayStudentAbsenceItems}
+                onOpenStudent={(studentId) =>
+                  navigate(
+                    `/students/${studentId}?returnTo=${encodeURIComponent(
+                      `${location.pathname}${location.search}`
+                    )}`
+                  )
+                }
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-lg font-semibold">Élèves à risque</CardTitle>
+              <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-sm">
+                <Link to={riskStudentsLink}>Voir tous</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {topRiskStudents.length === 0 ? (
+                <EmptyState
+                  icon={emptyStateIcons.allGood}
+                  title="Aucun élève à risque"
+                  message="Aucune absence significative détectée ce mois-ci."
+                />
+              ) : (
+                <div className="space-y-2">
+                  {topRiskStudents.map((student) => (
+                    <Button
+                      key={student.student_id}
+                      type="button"
+                      variant="ghost"
+                      className="h-auto w-full justify-start rounded-lg border border-border p-3"
+                      onClick={() =>
+                        navigate(
+                          `/students/${student.student_id}?returnTo=${encodeURIComponent(
+                            `${location.pathname}${location.search}`
+                          )}`
+                        )
+                      }
+                    >
+                      <div className="flex w-full items-center justify-between">
+                        <div className="min-w-0 text-left">
+                          <p className="truncate text-sm font-medium">{student.student_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {student.class_name} • {student.absence_count} absence(s) • {student.absence_rate.toFixed(2)}%
+                          </p>
                         </div>
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       </div>

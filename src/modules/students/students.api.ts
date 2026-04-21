@@ -79,6 +79,9 @@ export type StudentDetail = {
     date: string
     subject: string
     teacherName: string
+    startTime: string | null
+    endTime: string | null
+    roomName: string | null
     smsStatus: "sent" | "failed" | "not_sent" | null
   }>
   documents: Array<{
@@ -141,9 +144,48 @@ export type TodayAbsenceGroup = {
     studentLastName: string
     scheduleId: string | null
     date: string
+    createdAt: string
     smsStatus: "queued" | "sent" | "failed" | "delivered" | null
     smsNotified: boolean
   }>
+}
+
+export type StudentAbsenceStat = {
+  student_id: string
+  student_name: string
+  class_name: string
+  class_id: string
+  parent_phone: string | null
+  parent_phone_2: string | null
+  absence_count: number
+  total_scheduled: number
+  absence_rate: number
+  sms_summary: "all_sent" | "partial" | "none"
+}
+
+export type StudentAbsenceRecord = {
+  date: string
+  subject: string
+  class_name: string
+  start_time: string
+  end_time: string
+  sms_phone_1: { phone: string | null; status: "sent" | "failed" | "not_sent"; sent_at: string | null }
+  sms_phone_2: { phone: string | null; status: "sent" | "failed" | "not_sent"; sent_at: string | null }
+}
+
+export type StudentAbsenceStatsQuery = {
+  from: string
+  to: string
+  classId?: string
+  subject?: string
+  smsStatus?: "sent" | "not_sent" | "failed"
+  minAbsences?: number
+}
+
+export type StudentAbsenceRecordsQuery = {
+  from: string
+  to: string
+  subject?: string
 }
 
 export const listStudents = (query: StudentsListQuery = {}) =>
@@ -227,3 +269,31 @@ export const getTodayAbsences = () =>
 
 export const getStudentById = (studentId: string) =>
   api.get<{ data: StudentDetail }>(`/students/${studentId}`).then((response) => response.data.data)
+
+export const getStudentAbsenceStats = (query: StudentAbsenceStatsQuery) =>
+  api
+    .get<StudentAbsenceStat[]>("/students/absence-stats", {
+      params: {
+        from: query.from,
+        to: query.to,
+        class_id: query.classId,
+        subject: query.subject,
+        sms_status: query.smsStatus,
+        min_absences: query.minAbsences ?? 1,
+      },
+    })
+    .then((response) => response.data)
+
+export const getStudentAbsenceRecords = (
+  studentId: string,
+  query: StudentAbsenceRecordsQuery
+) =>
+  api
+    .get<StudentAbsenceRecord[]>(`/students/${studentId}/absences`, {
+      params: {
+        from: query.from,
+        to: query.to,
+        subject: query.subject,
+      },
+    })
+    .then((response) => response.data)
