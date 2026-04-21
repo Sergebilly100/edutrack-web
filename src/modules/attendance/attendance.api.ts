@@ -146,16 +146,10 @@ export const teacherScheduleApi = {
    * React Query refetch automatiquement quand on navigue vers une autre semaine.
    */
   getMyScheduleWeek: async (date: string): Promise<ScheduleSlot[]> => {
-    try {
-      const response = await api.get<unknown>("/schedule/teacher/me/week", {
-        params: { date },
-      })
-      return extractList(response.data).map(toScheduleSlot)
-    } catch {
-      // Fallback : route /week pas encore déployée → appel /me (jour courant uniquement)
-      const response = await api.get<unknown>("/schedule/teacher/me")
-      return extractList(response.data).map(toScheduleSlot)
-    }
+    const response = await api.get<unknown>("/schedule/teacher/me/week", {
+      params: { date },
+    })
+    return extractList(response.data).map(toScheduleSlot)
   },
 
   getMyAttendanceForDate: async (date: string) => {

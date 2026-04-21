@@ -18,8 +18,8 @@ export interface WeekGridProps {
 }
 
 export const HOUR_HEIGHT = 64
-const GRID_START_HOUR = 7
-const GRID_END_HOUR = 18
+const DEFAULT_GRID_START_HOUR = 7
+const DEFAULT_GRID_END_HOUR = 18
 
 const SUBJECT_COLORS = [
   "bg-blue-100 border-blue-300 text-blue-800 dark:bg-blue-950 dark:border-blue-700 dark:text-blue-300",
@@ -92,6 +92,28 @@ export type SlotLayout = {
 const toMinutesFromTime = (time: string): number => {
   const [h, m] = time.split(":")
   return (Number(h) || 0) * 60 + (Number(m) || 0)
+}
+
+const toGridHourRange = (slots: ScheduleRow[]): { startHour: number; endHour: number } => {
+  if (slots.length === 0) {
+    return {
+      startHour: DEFAULT_GRID_START_HOUR,
+      endHour: DEFAULT_GRID_END_HOUR,
+    }
+  }
+
+  const starts = slots.map((slot) => toMinutesFromTime(slot.timeSlot.startTime))
+  const ends = slots.map((slot) => toMinutesFromTime(slot.timeSlot.endTime))
+
+  const minStart = Math.min(...starts)
+  const maxEnd = Math.max(...ends)
+  const startHour = Math.max(0, Math.floor(minStart / 60))
+  const endHour = Math.min(23, Math.ceil(maxEnd / 60))
+
+  return {
+    startHour: Math.min(startHour, DEFAULT_GRID_START_HOUR),
+    endHour: Math.max(endHour, DEFAULT_GRID_END_HOUR),
+  }
 }
 
 export const computeSlotLayouts = (slots: ScheduleRow[]): Map<string, SlotLayout> => {
@@ -178,9 +200,10 @@ export default function WeekGrid({
   onToday,
   isBlockedTeacher,
 }: WeekGridProps) {
+  const { startHour: gridStartHour, endHour: gridEndHour } = toGridHourRange(slots)
   const hours = Array.from(
-    { length: GRID_END_HOUR - GRID_START_HOUR + 1 },
-    (_, index) => GRID_START_HOUR + index
+    { length: gridEndHour - gridStartHour + 1 },
+    (_, index) => gridStartHour + index
   )
   const days = DAYS.map((day, index) => ({
     ...day,
@@ -269,8 +292,8 @@ export default function WeekGrid({
                   slots={(slotsByDay.get(day.value) ?? []).sort(
                     (a, b) => a.timeSlot.sortOrder - b.timeSlot.sortOrder
                   )}
-                  gridStartHour={GRID_START_HOUR}
-                  gridEndHour={GRID_END_HOUR}
+                  gridStartHour={gridStartHour}
+                  gridEndHour={gridEndHour}
                   hourHeight={HOUR_HEIGHT}
                   onSlotClick={onSlotClick}
                   onSlotAdd={onSlotAdd}
