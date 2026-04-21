@@ -12,6 +12,8 @@ export type SalarySummaryItem = {
   totalFcfa: number | null
   status: SalaryStatus
   salaryRecordId: string | null
+  isPartiallyPaid: boolean
+  paidAt: string | null
 }
 
 export type SalarySummaryResponse = {
@@ -44,6 +46,20 @@ export type SalaryTeacherDetails = {
     hoursDone: number
     totalFcfa: number | null
     status: SalaryStatus
+    absenceHours: number
+    remainingPlannedHours: number
+    currentEarnedAmount: number | null
+    amountAlreadyPaid: number | null
+    amountRemainingToPayNow: number | null
+    remainingPotentialAmount: number | null
+    absenceAmount: number | null
+    isPartiallyPaid: boolean
+  }
+  payment: {
+    paidAt: string | null
+    paidBy: string | null
+    paidByName: string | null
+    notes: string | null
   }
   rows: SalaryDetailRow[]
 }
@@ -131,6 +147,8 @@ const parseSalaryItem = (value: unknown): SalarySummaryItem => {
     totalFcfa: row.totalFcfa === null ? null : asNumber(row.totalFcfa, 0),
     status: parseSalaryStatus(row.status),
     salaryRecordId: asNullableString(row.salaryRecordId),
+    isPartiallyPaid: Boolean(row.isPartiallyPaid),
+    paidAt: asNullableString(row.paidAt),
   }
 }
 
@@ -196,6 +214,7 @@ export const getTeacherSalaryDetails = async (
   const payload = isRecord(response.data) ? response.data : {}
   const teacher = isRecord(payload.teacher) ? payload.teacher : {}
   const summary = isRecord(payload.summary) ? payload.summary : {}
+  const payment = isRecord(payload.payment) ? payload.payment : {}
   const rowsRaw = Array.isArray(payload.rows) ? payload.rows : []
 
   return {
@@ -210,6 +229,22 @@ export const getTeacherSalaryDetails = async (
       hoursDone: asNumber(summary.hoursDone, 0),
       totalFcfa: summary.totalFcfa === null ? null : asNumber(summary.totalFcfa, 0),
       status: parseSalaryStatus(summary.status),
+      absenceHours: asNumber(summary.absenceHours, 0),
+      remainingPlannedHours: asNumber(summary.remainingPlannedHours, 0),
+      currentEarnedAmount: summary.currentEarnedAmount === null ? null : asNumber(summary.currentEarnedAmount, 0),
+      amountAlreadyPaid: summary.amountAlreadyPaid === null ? null : asNumber(summary.amountAlreadyPaid, 0),
+      amountRemainingToPayNow:
+        summary.amountRemainingToPayNow === null ? null : asNumber(summary.amountRemainingToPayNow, 0),
+      remainingPotentialAmount:
+        summary.remainingPotentialAmount === null ? null : asNumber(summary.remainingPotentialAmount, 0),
+      absenceAmount: summary.absenceAmount === null ? null : asNumber(summary.absenceAmount, 0),
+      isPartiallyPaid: Boolean(summary.isPartiallyPaid),
+    },
+    payment: {
+      paidAt: asNullableString(payment.paidAt),
+      paidBy: asNullableString(payment.paidBy),
+      paidByName: asNullableString(payment.paidByName),
+      notes: asNullableString(payment.notes),
     },
     rows: rowsRaw.map((entry) => {
       const row = isRecord(entry) ? entry : {}

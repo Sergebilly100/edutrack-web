@@ -18,6 +18,8 @@ export interface SalaryRowPeriodSummary {
   amountFcfa: number
   status: SalaryStatus
   canMarkPaid?: boolean
+  statusLabel?: string
+  statusClassName?: string
 }
 
 export interface SalaryRowProps {
@@ -146,10 +148,13 @@ export function SalaryRow({ teacher, periodSummary, onMarkPaid, onDetails, dataT
       <TableCell>
         <Badge
           variant="outline"
-          className={cn("text-xs font-medium", statusMeta[periodSummary.status].className)}
+          className={cn(
+            "text-xs font-medium",
+            periodSummary.statusClassName ?? statusMeta[periodSummary.status].className
+          )}
           data-testid={dataTestIdPrefix ? `${dataTestIdPrefix}-status-${teacher.id}` : undefined}
         >
-          {statusMeta[periodSummary.status].label}
+          {periodSummary.statusLabel ?? statusMeta[periodSummary.status].label}
         </Badge>
       </TableCell>
 

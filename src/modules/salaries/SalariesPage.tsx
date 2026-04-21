@@ -78,6 +78,23 @@ function SalaryTableSkeleton() {
 }
 
 const formatHours = (value: number): string => `${Math.round(value * 100) / 100}h`
+const formatSalaryDescriptor = (row: SalarySummaryItem | null, details: SalaryTeacherDetails | null): string => {
+  if (!row) {
+    return ""
+  }
+
+  const hourlyRate = details?.teacher.hourlyRate ?? row.hourlyRate
+  if (hourlyRate !== null) {
+    return `${formatFcfa(hourlyRate)} / heure`
+  }
+
+  const monthlyFixedAmount = details?.summary.totalFcfa ?? row.totalFcfa
+  if (monthlyFixedAmount !== null) {
+    return `${formatFcfa(monthlyFixedAmount)} / mois`
+  }
+
+  return "Salaire fixe (mensuel)"
+}
 
 const toDisplayedStatus = (row: SalarySummaryItem, details: SalaryTeacherDetails | null): string => {
   if (row.status === "Salaire fixe") {
@@ -87,12 +104,38 @@ const toDisplayedStatus = (row: SalarySummaryItem, details: SalaryTeacherDetails
     return "Litige"
   }
   if (row.status === "paid") {
-    if (details && details.summary.hoursDone < details.summary.hoursPlanned) {
+    if (details?.summary.isPartiallyPaid || row.isPartiallyPaid) {
       return "Payé partiellement"
     }
     return "Payé"
   }
   return "En attente"
+}
+
+const attendanceStatusMeta: Record<
+  SalaryTeacherDetails["rows"][number]["attendanceStatus"],
+  { label: string; className: string }
+> = {
+  present: {
+    label: "Présent",
+    className: "border-green-200 bg-green-50 text-green-700",
+  },
+  late: {
+    label: "En retard",
+    className: "border-amber-200 bg-amber-50 text-amber-700",
+  },
+  absent: {
+    label: "Absent",
+    className: "border-red-200 bg-red-50 text-red-700",
+  },
+  excused: {
+    label: "Absence justifiée",
+    className: "border-blue-200 bg-blue-50 text-blue-700",
+  },
+  not_marked: {
+    label: "Non pointé",
+    className: "border-slate-200 bg-slate-50 text-slate-700",
+  },
 }
 
 export default function SalariesPage() {
@@ -523,6 +566,12 @@ export default function SalariesPage() {
                           hoursPlanned: row.hoursPlanned,
                           amountFcfa: row.totalFcfa ?? 0,
                           status,
+                          statusLabel:
+                            row.status === "paid" && row.isPartiallyPaid ? "Payé partiellement" : undefined,
+                          statusClassName:
+                            row.status === "paid" && row.isPartiallyPaid
+                              ? "border-amber-200 bg-amber-50 text-amber-700"
+                              : undefined,
                           canMarkPaid: Boolean(row.salaryRecordId),
                         }}
                         onMarkPaid={() => openMarkPaidDialog(row)}
@@ -634,7 +683,12 @@ export default function SalariesPage() {
           <DialogHeader>
             <DialogTitle>Détails salaire professeur</DialogTitle>
             <DialogDescription>
-              {detailsRow ? `${detailsRow.teacherName} • ${formatMonthLabel(selectedMonth)}` : ""}
+              {detailsRow
+                ? `${detailsRow.teacherName} • ${formatMonthLabel(selectedMonth)} - ${formatSalaryDescriptor(
+                    detailsRow,
+                    detailsMutation.data ?? null
+                  )}`
+                : ""}
             </DialogDescription>
           </DialogHeader>
 
@@ -642,75 +696,156 @@ export default function SalariesPage() {
             <SalaryTableSkeleton />
           ) : detailsMutation.data && detailsRow ? (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <div className="rounded-lg border border-border bg-muted/20 p-3">
-                  <p className="text-xs text-muted-foreground">Heures totales prévues</p>
-                  <p className="text-lg font-semibold">{formatHours(detailsMutation.data.summary.hoursPlanned)}</p>
-                </div>
-                <div className="rounded-lg border border-border bg-muted/20 p-3">
-                  <p className="text-xs text-muted-foreground">Heures effectuées (hors absences)</p>
-                  <p className="text-lg font-semibold">{formatHours(detailsMutation.data.summary.hoursDone)}</p>
-                </div>
-                <div className="rounded-lg border border-border bg-muted/20 p-3">
-                  <p className="text-xs text-muted-foreground">Montant / heure</p>
-                  <p className="text-lg font-semibold">
-                    {detailsMutation.data.teacher.hourlyRate === null
-                      ? "Salaire fixe"
-                      : formatFcfa(detailsMutation.data.teacher.hourlyRate)}
+              {detailsMutation.data.teacher.type === "permanent" ? (
+                <>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                      <p className="text-xs text-blue-700">Heures prévues (mois)</p>
+                      <p className="text-lg font-semibold text-blue-900">
+                        {formatHours(detailsMutation.data.summary.hoursPlanned)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                      <p className="text-xs text-green-700">Heures effectuées</p>
+                      <p className="text-lg font-semibold text-green-900">
+                        {formatHours(detailsMutation.data.summary.hoursDone)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                      <p className="text-xs text-red-700">Heures manquées</p>
+                      <p className="text-lg font-semibold text-red-900">
+                        {formatHours(detailsMutation.data.summary.absenceHours)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div className="rounded-lg border border-violet-200 bg-violet-50 p-3">
+                      <p className="text-xs text-violet-700">Statut paie</p>
+                      <p className="text-base font-semibold text-violet-900">{toDisplayedStatus(detailsRow, detailsMutation.data)}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-xs text-slate-700">Paiement déjà effectué</p>
+                      <p className="text-base font-semibold text-slate-900">
+                        {detailsMutation.data.payment.paidAt ? "Oui" : "Non"}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                      <p className="text-xs text-amber-700">Montant fixe mensuel</p>
+                      <p className="text-base font-semibold text-amber-900">
+                        {detailsMutation.data.summary.totalFcfa !== null
+                          ? formatFcfa(detailsMutation.data.summary.totalFcfa)
+                          : "Non renseigné"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 rounded-lg border border-border bg-muted/10 p-3 text-sm">
+                    <p className="text-xs text-muted-foreground">
+                      Dernier paiement:{" "}
+                      {detailsMutation.data.payment.paidAt
+                        ? new Date(detailsMutation.data.payment.paidAt).toLocaleString("fr-FR")
+                        : "Aucun paiement enregistré sur la période."}
+                      {detailsMutation.data.payment.paidAt && detailsMutation.data.payment.paidByName
+                        ? ` • par ${detailsMutation.data.payment.paidByName}`
+                        : ""}
+                      {detailsMutation.data.payment.paidAt && detailsMutation.data.payment.notes
+                        ? ` • note: ${detailsMutation.data.payment.notes}`
+                        : ""}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                      <p className="text-xs text-blue-700">Heures totales prévues (mois)</p>
+                      <p className="text-lg font-semibold text-blue-900">
+                        {formatHours(detailsMutation.data.summary.hoursPlanned)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                      <p className="text-xs text-green-700">Heures effectuées (hors absences)</p>
+                      <p className="text-lg font-semibold text-green-900">
+                        {formatHours(detailsMutation.data.summary.hoursDone)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                      <p className="text-xs text-red-700">Absences constatées</p>
+                      <p className="text-lg font-semibold text-red-900">
+                        {formatHours(detailsMutation.data.summary.absenceHours)}
+                      </p>
+                    </div>
+                    {/* <div className="rounded-lg border border-border bg-card p-3">
+                      <p className="text-xs text-muted-foreground">Montant / heure</p>
+                      <p className="text-lg font-semibold text-foreground">
+                        {detailsMutation.data.teacher.hourlyRate === null
+                          ? "Salaire fixe"
+                          : formatFcfa(detailsMutation.data.teacher.hourlyRate)}
+                      </p>
+                    </div> */}
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div className="rounded-lg border border-violet-200 bg-blue-50 p-3">
+                      <p className="text-xs text-blue-700">Statut paie</p>
+                      <p className="text-base font-semibold text-violet-900">{toDisplayedStatus(detailsRow, detailsMutation.data)}</p>
+                    </div>
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                      <p className="text-xs text-emerald-700">Salaire actuel (heures réellement faites)</p>
+                      <p className="text-base font-semibold text-emerald-900">
+                        {formatFcfa(detailsMutation.data.summary.currentEarnedAmount ?? 0)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-orange-200 bg-red-50 p-3">
+                      <p className="text-xs text-red-700">Montant retranché (absences)</p>
+                      <p className="text-base font-semibold text-red-900">
+                        {formatFcfa(detailsMutation.data.summary.absenceAmount ?? 0)}
+                      </p>
+                    </div>
+                  </div>
+
+                <div className="space-y-2 rounded-lg border border-border bg-muted/10 p-3 text-sm">
+                  <p>
+                    Salaire déjà payé: <span className="font-semibold">{formatFcfa(detailsMutation.data.summary.amountAlreadyPaid ?? 0)}</span>
                   </p>
-                </div>
-              </div>
-
-              {detailsMutation.data.teacher.hourlyRate !== null ? (
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div className="rounded-lg border border-border p-3">
-                    <p className="text-xs text-muted-foreground">Absences (heures / montant retranché)</p>
-                    <p className="text-base font-semibold">
-                      {formatHours(Math.max(0, detailsMutation.data.summary.hoursPlanned - detailsMutation.data.summary.hoursDone))}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatFcfa(
-                        Math.max(0, detailsMutation.data.summary.hoursPlanned - detailsMutation.data.summary.hoursDone) *
-                          detailsMutation.data.teacher.hourlyRate
-                      )}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-border p-3">
-                    <p className="text-xs text-muted-foreground">Statut paie</p>
-                    <p className="text-base font-semibold">{toDisplayedStatus(detailsRow, detailsMutation.data)}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Salaire actuel selon heures réellement faites: {formatFcfa(detailsMutation.data.summary.totalFcfa ?? 0)}
-                    </p>
-                  </div>
-                </div>
-              ) : null}
-
-              {detailsMutation.data.teacher.hourlyRate !== null ? (
-                <div className="rounded-lg border border-border p-3 text-xs text-muted-foreground">
-                  <p>Salaire déjà payé: {detailsRow.status === "paid" ? formatFcfa(detailsMutation.data.summary.totalFcfa ?? 0) : "0 FCFA"}</p>
-                  <p>Salaire restant à payer: {detailsRow.status === "paid" ? "0 FCFA" : formatFcfa(detailsMutation.data.summary.totalFcfa ?? 0)}</p>
+                  <p>
+                    Salaire restant à payer (depuis le dernier paiement):{" "}
+                    <span className="font-semibold text-red-700">
+                      {formatFcfa(detailsMutation.data.summary.amountRemainingToPayNow ?? 0)}
+                    </span>
+                  </p>
                   <p>
                     Salaire à obtenir sur les heures restantes prévues:{" "}
-                    {formatFcfa(
-                      Math.max(0, detailsMutation.data.summary.hoursPlanned - detailsMutation.data.summary.hoursDone) *
-                        detailsMutation.data.teacher.hourlyRate
-                    )}
+                    <span className="font-semibold text-blue-700">
+                      {formatFcfa(detailsMutation.data.summary.remainingPotentialAmount ?? 0)}
+                    </span>
                   </p>
+                  <p className="text-xs text-muted-foreground">
+                    Heures restantes prévues (hors absences):{" "}
+                    {formatHours(detailsMutation.data.summary.remainingPlannedHours)}
+                  </p>
+                  {detailsMutation.data.payment.paidAt ? (
+                    <p className="text-xs text-muted-foreground">
+                      Dernier paiement:{" "}
+                      {new Date(detailsMutation.data.payment.paidAt).toLocaleString("fr-FR")}{" "}
+                      {detailsMutation.data.payment.paidByName ? `• par ${detailsMutation.data.payment.paidByName}` : ""}
+                      {detailsMutation.data.payment.notes ? ` • note: ${detailsMutation.data.payment.notes}` : ""}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Aucun paiement enregistré pour cette période.</p>
+                  )}
                 </div>
-              ) : (
-                <div className="rounded-lg border border-border p-3 text-xs text-muted-foreground">
-                  <p>Professeur permanent: ce tableau détaille l'activité horaire, pas une paie variable.</p>
-                </div>
+                </>
               )}
 
               <div className="max-h-64 overflow-y-auto rounded-lg border border-border">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Cours</TableHead>
-                      <TableHead>Heures</TableHead>
-                      <TableHead>Statut</TableHead>
+                      <TableHead className="sticky top-0 z-10 bg-background">Date</TableHead>
+                      <TableHead className="sticky top-0 z-10 bg-background">Cours</TableHead>
+                      <TableHead className="sticky top-0 z-10 bg-background">Statut</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -721,9 +856,13 @@ export default function SalariesPage() {
                           {row.subject} • {row.className} ({row.startTime}-{row.endTime})
                         </TableCell>
                         <TableCell className="font-normal">
-                          {formatHours(row.hoursDone)} / {formatHours(row.hoursPlanned)}
+                          <Badge
+                            variant="outline"
+                            className={cn("text-xs font-medium", attendanceStatusMeta[row.attendanceStatus].className)}
+                          >
+                            {attendanceStatusMeta[row.attendanceStatus].label}
+                          </Badge>
                         </TableCell>
-                        <TableCell className="font-normal">{row.attendanceStatus}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
