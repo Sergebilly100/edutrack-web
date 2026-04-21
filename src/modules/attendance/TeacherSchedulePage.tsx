@@ -14,19 +14,14 @@ import { CalendarIcon } from "@/shared/components/icons"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
 import { useAuthStore } from "@/shared/store/auth.store"
 
-// JS getDay() : 0=Dim, 1=Lun, …, 6=Sam
-// ISO : 1=Lun, …, 6=Sam, 7=Dim
-// On garde 6 pour samedi (conforme à l'ISO), 7 pour dimanche (non affiché)
+// JS getDay() : 0=Dim → remap ISO 1=Lun … 6=Sam, 7=Dim
 const getDayOfWeek = (date: Date) => {
   const day = date.getDay()
   return day === 0 ? 7 : day
 }
 
 const formatDateRange = (start: Date, end: Date) => {
-  const formatter = new Intl.DateTimeFormat("fr-FR", {
-    day: "2-digit",
-    month: "long",
-  })
+  const formatter = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "long" })
   return `${formatter.format(start)} au ${formatter.format(end)}`
 }
 
@@ -37,7 +32,6 @@ export default function TeacherSchedulePage() {
   const user = useAuthStore((state) => state.user)
   const { isOnline } = useNetworkStatus()
 
-  // Sélection automatique d'aujourd'hui à l'initialisation
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -47,15 +41,31 @@ export default function TeacherSchedulePage() {
 
   const selectedDateKey = toDateKey(selectedDate)
 
+  /**
+   * ── FIX créneaux infinis ────────────────────────────────────────────────
+   *
+   * Ancienne version (bug) :
+   *   queryKey: ["teacher-schedule", "week"]  ← jamais invalidé
+   *   queryFn: getMyScheduleWeek()            ← sans argument de date
+   *   → backend résolvait la période active d'AUJOURD'HUI dans tous les cas
+   *   → naviguer vers une autre semaine n'invalidait pas le cache
+   *   → si la semaine naviguée n'est pas couverte par la période active d'aujourd'hui
+   *     les créneaux d'aujourd'hui s'affichaient quand même à l'infini
+   *
+   * Correction :
+   *   queryKey: ["teacher-schedule", "week", selectedDateKey]
+   *   → React Query refetch automatiquement quand selectedDate change
+   *   queryFn: getMyScheduleWeek(selectedDateKey)
+   *   → backend résout la période active POUR LA DATE SÉLECTIONNÉE
+   *   → si aucune période ne couvre cette date → résultat [] → EmptyState
+   */
   const scheduleQuery = useQuery({
-    queryKey: ["teacher-schedule", "me"],
-    queryFn: teacherScheduleApi.getMySchedule,
-    refetchInterval: 60000,
+    queryKey: ["teacher-schedule", "week", selectedDateKey],
+    queryFn: () => teacherScheduleApi.getMyScheduleWeek(selectedDateKey),
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
   })
 
-  // ── FIX : la route était /attendance/teacher/me — maintenant exposée côté backend ──
   const attendanceQuery = useQuery({
     queryKey: ["teacher-attendance", selectedDateKey],
     queryFn: () => teacherScheduleApi.getMyAttendanceForDate(selectedDateKey),
@@ -76,28 +86,28 @@ export default function TeacherSchedulePage() {
       .sort(sortByTime)
   }, [scheduleQuery.data, selectedDateKey, selectedDayOfWeek])
 
+  /**
+   * Les points highlighted dans le DayPicker = jours de la semaine affichée
+   * qui ont au moins 1 cours dans la période active de cette semaine.
+   * Si la semaine n'a pas de période → scheduleQuery.data = [] → aucun highlight.
+   */
   const highlightDates = useMemo(() => {
     const weekStart = startOfWeekMonday(selectedDate)
-    // 6 jours : lundi (0) → samedi (5)
     const days = Array.from({ length: 6 }, (_, index) => {
       const day = new Date(weekStart)
       day.setDate(weekStart.getDate() + index)
       day.setHours(0, 0, 0, 0)
       return day
     })
-
     const daySet = new Set((scheduleQuery.data ?? []).map((slot) => slot.day_of_week))
     return days.filter((day) => daySet.has(getDayOfWeek(day)))
   }, [scheduleQuery.data, selectedDate])
 
-  // La semaine s'affiche du lundi au samedi
   const weekStart = startOfWeekMonday(selectedDate)
   const weekEnd = new Date(weekStart)
-  weekEnd.setDate(weekStart.getDate() + 5) // +5 = samedi
+  weekEnd.setDate(weekStart.getDate() + 5) // samedi
 
-  if (!user) {
-    return <Navigate to="/" replace />
-  }
+  if (!user) return <Navigate to="/" replace />
 
   if (user.role !== "teacher") {
     return (
@@ -111,12 +121,18 @@ export default function TeacherSchedulePage() {
     <div className="space-y-6" data-testid="teacher-schedule-page">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Mon planning</h1>
-        <p className="text-sm font-medium text-muted-foreground">Semaine du {formatDateRange(weekStart, weekEnd)}</p>
+        <p className="text-sm font-medium text-muted-foreground">
+          Semaine du {formatDateRange(weekStart, weekEnd)}
+        </p>
       </header>
 
       {!isOnline ? <OfflineIndicator forceState="offline" /> : <OfflineIndicator />}
 
-      <DayPicker selectedDate={selectedDate} onChange={setSelectedDate} highlightDates={highlightDates} />
+      <DayPicker
+        selectedDate={selectedDate}
+        onChange={setSelectedDate}
+        highlightDates={highlightDates}
+      />
 
       {scheduleQuery.isLoading ? (
         <div className="space-y-3">
@@ -132,7 +148,6 @@ export default function TeacherSchedulePage() {
         </Alert>
       ) : null}
 
-      {/* On n'affiche l'erreur attendance que si le schedule est chargé — évite le double message au démarrage */}
       {!scheduleQuery.isLoading && attendanceQuery.isError ? (
         <Alert variant="destructive">
           <AlertDescription>Impossible de charger vos statuts de pointage.</AlertDescription>
@@ -143,7 +158,7 @@ export default function TeacherSchedulePage() {
         <EmptyState
           icon={CalendarIcon}
           title="Pas de cours ce jour"
-          description="Sélectionnez un autre jour pour consulter votre planning."
+          description="Aucun planning actif pour cette période. Sélectionnez un autre jour."
         />
       ) : null}
 
@@ -164,9 +179,7 @@ export default function TeacherSchedulePage() {
         <TeacherCheckInFlow
           open={Boolean(activeSlot)}
           slot={activeSlot}
-          onClose={() => {
-            setActiveSlot(null)
-          }}
+          onClose={() => setActiveSlot(null)}
         />
       ) : null}
     </div>

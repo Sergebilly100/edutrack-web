@@ -37,10 +37,15 @@ const isSameDay = (left: Date, right: Date) => toDateKey(left) === toDateKey(rig
 
 export default function DayPicker({ selectedDate, onChange, highlightDates = [] }: DayPickerProps) {
   const weekStart = startOfWeekMonday(selectedDate)
+
+  // today est calculé UNE seule fois et comparé par date exacte (année+mois+jour)
+  // isSameDay compare toDateKey → "2025-04-18" === "2025-04-18"
+  // Sans ça, `day` (lundi de la semaine N) aurait le même getDay() que
+  // `day` (lundi de la semaine N+1) → isToday = true sur toutes les semaines
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  // 6 jours : lundi (0) → samedi (5)
+  // 6 jours : lundi (index 0) → samedi (index 5)
   const days = Array.from({ length: 6 }, (_, index) => addDays(weekStart, index))
   const highlights = new Set(highlightDates.map(toDateKey))
 
@@ -58,10 +63,12 @@ export default function DayPicker({ selectedDate, onChange, highlightDates = [] 
           <ChevronLeftIcon className="h-4 w-4" />
         </Button>
 
-        {/* Les 6 boutons remplissent l'espace disponible avec flex-1 — pas de scroll */}
+        {/* flex-1 sur chaque bouton jour → se répartissent équitablement, jamais de scroll */}
         <div className="flex flex-1 gap-1">
           {days.map((day, index) => {
             const selected = isSameDay(day, selectedDate)
+            // ✅ FIX bug 3 : compare la date complète (année/mois/jour), pas juste le jour de semaine
+            // isSameDay("2025-04-21") === isSameDay("2025-04-28") → false ✓
             const isToday = isSameDay(day, today)
             const highlighted = highlights.has(toDateKey(day))
 
@@ -82,6 +89,7 @@ export default function DayPicker({ selectedDate, onChange, highlightDates = [] 
                   className={cn(
                     "text-[10px] font-medium leading-none",
                     selected ? "text-primary-foreground/90" : "",
+                    // "Auj." en couleur primaire uniquement sur la vraie date d'aujourd'hui
                     isToday && !selected ? "text-primary font-semibold" : ""
                   )}
                 >

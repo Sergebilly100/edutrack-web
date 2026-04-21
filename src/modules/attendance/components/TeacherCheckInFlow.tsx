@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
 import { useOfflineMutation } from "@/shared/hooks/useOfflineMutation"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
+import { useRollCallStore } from "@/shared/store/rollCall.store"
 import { CheckIcon } from "@/shared/components/icons"
 import { cn } from "@/lib/utils"
 
@@ -54,43 +55,64 @@ const formatTime = (time: string) => {
 const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
 export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheckInFlowProps) {
-  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const attendanceDate = slot.date ?? toDateKey(new Date())
+
+  const rollCallStore = useRollCallStore()
+  const flowState = rollCallStore.getFlowState(slot.id, attendanceDate)
+  const isRollCallPending = flowState === "rollcall_pending"
+  const isCheckinQrDone = flowState === "checkin_qr_done"
+
+  /**
+   * Étape de départ selon l'état du flow :
+   * - rollcall_pending  → directement à l'étape 3 (appel)
+   * - checkin_qr_done   → reprend à l'étape 3 (même comportement que pending)
+   * - null (nouveau)    → étape 1
+   */
+  const initialStep: 1 | 2 | 3 =
+    isRollCallPending || isCheckinQrDone ? 3 : 1
+
+  const [step, setStep] = useState<1 | 2 | 3>(initialStep)
+
+  /**
+   * Point 4 — La présence n'est confirmée qu'après l'étape 2 (QR).
+   * On stocke les données de check-in localement jusqu'à la validation QR.
+   * checkInScheduled = true signifie que le prof a cliqué "Je suis présent(e)"
+   * mais que la mutation n'a pas encore été envoyée au backend.
+   */
+  const [checkInScheduled, setCheckInScheduled] = useState(false)
   const [lateMinutes, setLateMinutes] = useState<number | null>(null)
   const [manualQrCode, setManualQrCode] = useState("")
   const [qrWarning, setQrWarning] = useState<string | null>(null)
   const [qrValidated, setQrValidated] = useState(false)
-  // Map studentId → "unmarked" | "present" | "absent"
-  // Par défaut tous non-marqués (ni présent ni absent)
-  const [studentStatuses, setStudentStatuses] = useState<Map<string, StudentRollCallStatus>>(new Map())
-  // Contrôle la modale "faire l'appel maintenant ?"
+  const [studentStatuses, setStudentStatuses] = useState<Map<string, StudentRollCallStatus>>(
+    new Map()
+  )
   const [showRollCallPrompt, setShowRollCallPrompt] = useState(false)
 
   const { toast } = useToast()
   const { isOnline } = useNetworkStatus()
   const queryClient = useQueryClient()
 
-  const attendanceDate = slot.date ?? toDateKey(new Date())
-
+  // Reset à la fermeture
   useEffect(() => {
     if (!open) {
-      setStep(1)
       setLateMinutes(null)
       setManualQrCode("")
       setQrWarning(null)
       setQrValidated(false)
       setStudentStatuses(new Map())
       setShowRollCallPrompt(false)
+      setCheckInScheduled(false)
+      const currentFlow = rollCallStore.getFlowState(slot.id, attendanceDate)
+      setStep(currentFlow === "rollcall_pending" || currentFlow === "checkin_qr_done" ? 3 : 1)
     }
-  }, [open, slot.id])
+  }, [open, slot.id, attendanceDate, rollCallStore])
 
-  const checkInMutation = useOfflineMutation(
-    teacherScheduleApi.checkIn,
-    { queueKey: "attendance-checkin" }
-  )
-
-  const qrMutation = useMutation({
-    mutationFn: teacherScheduleApi.scanQr,
+  const checkInMutation = useOfflineMutation(teacherScheduleApi.checkIn, {
+    queueKey: "attendance-checkin",
   })
+
+  const qrMutation = useMutation({ mutationFn: teacherScheduleApi.scanQr })
 
   const studentsQuery = useQuery({
     queryKey: ["students", slot.class_id],
@@ -104,20 +126,20 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
     mutationFn: teacherScheduleApi.submitStudentAttendance,
   })
 
-  // Calcul des compteurs à partir des statuts
   const { absentCount, presentCount, unmarkedCount } = useMemo(() => {
-    let absent = 0
-    let present = 0
-    let unmarked = 0
-    for (const status of studentStatuses.values()) {
-      if (status === "absent") absent++
-      else if (status === "present") present++
+    let absent = 0; let present = 0; let unmarked = 0
+    for (const s of studentStatuses.values()) {
+      if (s === "absent") absent++
+      else if (s === "present") present++
       else unmarked++
     }
     return { absentCount: absent, presentCount: present, unmarkedCount: unmarked }
   }, [studentStatuses])
 
-  // Initialiser les statuts quand la liste charge (tous unmarked)
+  // Tous les élèves marqués = présents + absents = total
+  const totalStudents = studentsQuery.data?.length ?? 0
+  const allStudentsMarked = totalStudents > 0 && unmarkedCount === 0
+
   useEffect(() => {
     if (studentsQuery.data) {
       setStudentStatuses(
@@ -126,68 +148,93 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
     }
   }, [studentsQuery.data])
 
+  // ── Étape 1 — Le prof indique sa présence (local uniquement) ─────────────
+  /**
+   * Point 4 : on ne fait PAS encore la mutation vers le backend ici.
+   * On marque juste l'intention localement → passage à l'étape 2.
+   * La mutation réelle se fait dans handleQrSuccess après validation QR.
+   */
   const handleCheckIn = async () => {
-    try {
-      const result = await checkInMutation.mutateAsync({
-        schedule_id: slot.id,
-        date: attendanceDate,
-      })
-
-      const resolvedLateMinutes = result?.late_minutes ?? null
-      setLateMinutes(resolvedLateMinutes)
-
-      toast({
-        title: "Pointage enregistré",
-        description:
-          resolvedLateMinutes && resolvedLateMinutes > 0
-            ? `En retard de ${resolvedLateMinutes} min.`
-            : isOnline
-              ? "Présence confirmée."
-              : "Mode hors ligne : synchronisation auto.",
-      })
-
-      await wait(1500)
-      setStep(2)
-    } catch {
-      toast({
-        title: "Échec du pointage",
-        description: "Impossible d'enregistrer votre présence pour le moment.",
-        variant: "destructive",
-      })
-    }
+    setCheckInScheduled(true)
+    toast({
+      title: "Présence notée",
+      description: "Scannez maintenant le QR code de votre salle pour confirmer.",
+    })
+    await wait(800)
+    setStep(2)
   }
 
+  // ── Étape 2 — Scan QR + envoi checkIn vers backend ───────────────────────
+  /**
+   * Point 4 : c'est ici que la présence est réellement confirmée.
+   * On chaîne : checkIn (backend) → qrScan (backend) → résultat.
+   */
   const handleQrSubmit = async (token: string) => {
     const qrToken = token.trim()
     if (!qrToken) return
 
     try {
-      const response = await qrMutation.mutateAsync({
+      // ── 1. Envoyer le checkIn au backend (présence confirmée) ──
+      const checkInResult = await checkInMutation.mutateAsync({
+        schedule_id: slot.id,
+        date: attendanceDate,
+      })
+      const resolvedLateMinutes = checkInResult?.late_minutes ?? null
+      setLateMinutes(resolvedLateMinutes)
+
+      // ── 2. Valider le scan QR ──
+      const qrResult = await qrMutation.mutateAsync({
         qr_token: qrToken,
         scan_type: "start",
         schedule_id: slot.id,
       })
 
-      if (response.room_mismatch) {
-        setQrWarning("Vous n'êtes pas dans la bonne salle.")
-      } else {
-        setQrWarning(null)
-      }
-
+      setQrWarning(qrResult.room_mismatch ? "Vous n'êtes pas dans la bonne salle." : null)
       setQrValidated(true)
-      toast({ title: "Salle vérifiée", description: "Le scan QR est validé." })
+
+      const lateMsg =
+        resolvedLateMinutes && resolvedLateMinutes > 0
+          ? ` En retard de ${resolvedLateMinutes} min.`
+          : ""
+
+      toast({
+        title: "Présence confirmée",
+        description: `Salle vérifiée.${lateMsg}${!isOnline ? " (hors ligne, sync auto)" : ""}`,
+      })
 
       await wait(800)
-      // Après le scan, afficher la modale "appel maintenant ou plus tard ?"
       setShowRollCallPrompt(true)
     } catch {
       toast({
-        title: "Scan QR invalide",
-        description: "Le code saisi ou scanné est invalide.",
+        title: "Échec de la validation",
+        description: "Impossible de confirmer votre présence ou de valider la salle.",
         variant: "destructive",
       })
     }
   }
+
+  // Passer l'étape QR sans scanner (bouton "Passer cette étape")
+  const handleSkipQr = async () => {
+    // Le prof saute le QR : on envoie quand même le checkIn si pas encore fait
+    if (checkInScheduled && !checkInMutation.isSuccess) {
+      try {
+        const result = await checkInMutation.mutateAsync({
+          schedule_id: slot.id,
+          date: attendanceDate,
+        })
+        setLateMinutes(result?.late_minutes ?? null)
+      } catch {
+        toast({
+          title: "Pointage non enregistré",
+          description: "Le pointage sera synchronisé automatiquement.",
+          variant: "destructive",
+        })
+      }
+    }
+    setShowRollCallPrompt(true)
+  }
+
+  // ── Modale appel maintenant / plus tard ──────────────────────────────────
 
   const handleRollCallNow = () => {
     setShowRollCallPrompt(false)
@@ -196,30 +243,64 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
 
   const handleRollCallLater = () => {
     setShowRollCallPrompt(false)
+    rollCallStore.markRollCallPending(slot.id, attendanceDate)
     toast({
       title: "Appel reporté",
-      description: `Pensez à faire l'appel avant ${formatTime(slot.end_time)}.`,
+      description: `Pensez à faire le pointage avant ${formatTime(slot.end_time)}.`,
     })
     onClose()
   }
 
+  /**
+   * Point 5 — Fermeture du sheet AVANT la fin du process.
+   * Si étapes 1+2 sont faites (checkInScheduled + qrValidated ou checkIn envoyé)
+   * mais appel pas encore soumis → on marque "checkin_qr_done" dans le store.
+   * CourseCard affichera "Poursuivre le pointage".
+   */
+  const handleSheetClose = () => {
+    const checkinSent = checkInMutation.isSuccess || checkInMutation.isPending
+    const pastStep1 = checkInScheduled || checkinSent
+
+    if (pastStep1 && step < 3 && !isRollCallPending) {
+      // Étape 1 faite, QR pas encore validé → fermeture avant confirmation
+      rollCallStore.markCheckinQrDone(slot.id, attendanceDate)
+    } else if ((step === 3 || qrValidated) && !isRollCallPending) {
+      // Étapes 1+2 faites, appel pas lancé → fermeture après QR
+      rollCallStore.markCheckinQrDone(slot.id, attendanceDate)
+    }
+    // Si rollcall_pending déjà dans le store → laisser tel quel
+    onClose()
+  }
+
+  // ── Étape 3 — Appel élèves ────────────────────────────────────────────────
+
   const markStudent = (studentId: string, status: StudentRollCallStatus) => {
     setStudentStatuses((prev) => {
       const next = new Map(prev)
-      // Toggle : si on reclique sur le même bouton déjà actif → retour à "unmarked"
       next.set(studentId, prev.get(studentId) === status ? "unmarked" : status)
       return next
     })
   }
 
   const handleSubmitStudents = async () => {
+    /**
+     * Point 3 — Impossible d'envoyer si des élèves sont encore "unmarked".
+     * Le bouton est désactivé si unmarkedCount > 0, mais on double-vérifie ici.
+     */
+    if (unmarkedCount > 0) {
+      toast({
+        title: "Appel incomplet",
+        description: `${unmarkedCount} élève${unmarkedCount > 1 ? "s" : ""} non marqué${unmarkedCount > 1 ? "s" : ""}. Marquez tous les élèves avant de valider.`,
+        variant: "destructive",
+      })
+      return
+    }
+
     const students = studentsQuery.data ?? []
     const absentStudentIds = students
       .filter((s) => studentStatuses.get(s.id) === "absent")
       .map((s) => s.id)
 
-    // Les élèves non marqués sont traités comme présents côté backend
-    // (le prof n'a pas explicitement marqué leur absence)
     try {
       await submitStudentsMutation.mutateAsync({
         schedule_id: slot.id,
@@ -227,10 +308,8 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
         absent_student_ids: absentStudentIds,
       })
 
-      toast({
-        title: `Appel enregistré — ${absentCount} absent(s)`,
-      })
-
+      rollCallStore.markDone(slot.id, attendanceDate)
+      toast({ title: `Appel enregistré — ${absentCount} absent(s)` })
       void queryClient.invalidateQueries({ queryKey: ["teacher-attendance", attendanceDate] })
       onClose()
     } catch {
@@ -242,77 +321,109 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
     }
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
+
   const stepIndex = useMemo(() => [1, 2, 3] as const, [])
+  const isResuming = isRollCallPending || isCheckinQrDone
 
   return (
     <>
-      <Sheet open={open} onOpenChange={(nextOpen) => (nextOpen ? undefined : onClose())}>
+      <Sheet
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) handleSheetClose()
+        }}
+      >
         <SheetContent
           side="bottom"
           data-testid="teacher-checkin-flow"
           className="max-h-[92vh] space-y-4 overflow-y-auto rounded-t-2xl px-4 pb-6 pt-4 md:mx-auto md:max-w-3xl"
         >
           <SheetHeader className="space-y-1 text-left">
-            <SheetTitle>Pointage du cours</SheetTitle>
+            <SheetTitle>
+              {isRollCallPending
+                ? "Pointage des élèves"
+                : isCheckinQrDone
+                  ? "Poursuivre le pointage"
+                  : "Pointage du cours"}
+            </SheetTitle>
             <SheetDescription>
-              {slot.subject_name} - {slot.class_name} ({formatTime(slot.start_time)} - {formatTime(slot.end_time)})
+              {slot.subject_name} - {slot.class_name} ({formatTime(slot.start_time)} -{" "}
+              {formatTime(slot.end_time)})
             </SheetDescription>
           </SheetHeader>
 
-          {/* Indicateur d'étapes */}
-          <div className="flex items-center justify-between gap-2 py-1">
-            {stepIndex.map((item) => {
-              const completed = item < step
-              const current = item === step
-              return (
-                <div key={item} className="flex flex-1 items-center gap-2">
-                  <div
-                    className={cn(
-                      "flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium transition-colors duration-200",
-                      current && "bg-primary text-primary-foreground",
-                      completed && "bg-green-100 text-green-700",
-                      !current && !completed && "bg-muted text-muted-foreground"
-                    )}
-                  >
-                    {completed ? <CheckIcon className="h-4 w-4" /> : item}
+          {/* Indicateur d'étapes — masqué en mode reprise */}
+          {!isResuming ? (
+            <div className="flex items-center justify-between gap-2 py-1">
+              {stepIndex.map((item) => {
+                const completed = item < step
+                const current = item === step
+                return (
+                  <div key={item} className="flex flex-1 items-center gap-2">
+                    <div
+                      className={cn(
+                        "flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium transition-colors duration-200",
+                        current && "bg-primary text-primary-foreground",
+                        completed && "bg-green-100 text-green-700",
+                        !current && !completed && "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {completed ? <CheckIcon className="h-4 w-4" /> : item}
+                    </div>
+                    {item < 3 ? <div className="h-px flex-1 bg-border" /> : null}
                   </div>
-                  {item < 3 ? <div className="h-px flex-1 bg-border" /> : null}
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          ) : null}
 
-          {/* ── Étape 1 — Pointage prof ─────────────────────────────────────── */}
+          {/* ── Step 1 — Déclaration de présence (local) ────────────────── */}
           {step === 1 ? (
-            <section className="space-y-4 rounded-xl border p-4" data-testid="teacher-checkin-step-1">
+            <section
+              className="space-y-4 rounded-xl border p-4"
+              data-testid="teacher-checkin-step-1"
+            >
               <div className="space-y-1 text-sm">
                 <p><span className="font-medium">Matière :</span> {slot.subject_name}</p>
                 <p><span className="font-medium">Classe :</span> {slot.class_name}</p>
-                <p><span className="font-medium">Heure :</span> {formatTime(slot.start_time)} - {formatTime(slot.end_time)}</p>
+                <p>
+                  <span className="font-medium">Heure :</span> {formatTime(slot.start_time)} -{" "}
+                  {formatTime(slot.end_time)}
+                </p>
               </div>
 
-              {checkInMutation.isSuccess ? (
-                <Badge className="bg-green-600 text-white hover:bg-green-600">
-                  {lateMinutes && lateMinutes > 0 ? `En retard — ${lateMinutes}min` : "Pointage enregistré"}
-                </Badge>
-              ) : null}
+              {/* Note explicative sur le process 2 étapes */}
+              <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+                Votre présence sera confirmée après le scan du QR code de la salle (étape 2).
+              </p>
 
               <Button
                 type="button"
                 size="lg"
                 className="w-full min-h-[72px] active:scale-95 transition-transform"
                 data-testid="teacher-checkin-submit"
-                disabled={checkInMutation.isPending}
+                disabled={checkInScheduled}
                 onClick={() => { void handleCheckIn() }}
               >
-                {checkInMutation.isPending ? "Enregistrement..." : "Je suis présent(e)"}
+                {checkInScheduled ? "En attente du scan QR..." : "Je suis présent(e)"}
               </Button>
             </section>
           ) : null}
 
-          {/* ── Étape 2 — Scan QR ──────────────────────────────────────────── */}
+          {/* ── Step 2 — Scan QR + confirmation présence ────────────────── */}
           {step === 2 ? (
-            <section className="space-y-4 rounded-xl border p-4" data-testid="teacher-checkin-step-2">
+            <section
+              className="space-y-4 rounded-xl border p-4"
+              data-testid="teacher-checkin-step-2"
+            >
+              {/* Rappel : le check-in sera envoyé ICI */}
+              <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2">
+                <p className="text-xs font-medium text-blue-800">
+                  Scannez le QR code de la salle pour confirmer définitivement votre présence.
+                </p>
+              </div>
+
               <QRScanner
                 scheduleId={slot.id}
                 scanType="start"
@@ -324,7 +435,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                 <div className="flex gap-2">
                   <Input
                     value={manualQrCode}
-                    onChange={(event) => setManualQrCode(event.target.value)}
+                    onChange={(e) => setManualQrCode(e.target.value)}
                     placeholder="Code QR"
                     data-testid="teacher-checkin-manual-qr-input"
                   />
@@ -333,10 +444,10 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                     variant="secondary"
                     className="min-h-[48px]"
                     data-testid="teacher-checkin-manual-qr-submit"
-                    disabled={qrMutation.isPending}
+                    disabled={checkInMutation.isPending || qrMutation.isPending}
                     onClick={() => { void handleQrSubmit(manualQrCode) }}
                   >
-                    Valider
+                    {checkInMutation.isPending || qrMutation.isPending ? "..." : "Valider"}
                   </Button>
                 </div>
               </div>
@@ -348,7 +459,11 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
               ) : null}
 
               {qrValidated ? (
-                <Badge className="bg-green-600 text-white hover:bg-green-600">Salle vérifiée</Badge>
+                <Badge className="bg-green-600 text-white hover:bg-green-600">
+                  {lateMinutes && lateMinutes > 0
+                    ? `Présence confirmée — retard ${lateMinutes}min`
+                    : "Présence confirmée"}
+                </Badge>
               ) : null}
 
               <Button
@@ -356,37 +471,47 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                 variant="outline"
                 className="w-full"
                 data-testid="teacher-checkin-skip-qr"
-                onClick={() => setShowRollCallPrompt(true)}
+                disabled={checkInMutation.isPending}
+                onClick={() => { void handleSkipQr() }}
               >
                 Passer cette étape
               </Button>
             </section>
           ) : null}
 
-          {/* ── Étape 3 — Appel élèves ─────────────────────────────────────── */}
+          {/* ── Step 3 — Appel élèves ────────────────────────────────────── */}
           {step === 3 ? (
-            <section className="space-y-4 rounded-xl border p-4" data-testid="teacher-checkin-step-3">
-              {/* Compteurs rapides */}
-              <div className="flex gap-2">
-                <span className="flex items-center gap-1.5 rounded-md bg-green-50 border border-green-200 px-2.5 py-1 text-xs font-medium text-green-700">
+            <section
+              className="space-y-4 rounded-xl border p-4"
+              data-testid="teacher-checkin-step-3"
+            >
+              {/* Compteurs */}
+              <div className="flex flex-wrap gap-2">
+                <span className="flex items-center gap-1.5 rounded-md border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
                   <span className="h-2 w-2 rounded-full bg-green-500" />
                   {presentCount} présent{presentCount > 1 ? "s" : ""}
                 </span>
-                <span className="flex items-center gap-1.5 rounded-md bg-red-50 border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700">
+                <span className="flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700">
                   <span className="h-2 w-2 rounded-full bg-red-500" />
                   {absentCount} absent{absentCount > 1 ? "s" : ""}
                 </span>
                 {unmarkedCount > 0 ? (
-                  <span className="flex items-center gap-1.5 rounded-md bg-slate-50 border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600">
-                    {unmarkedCount} non marqué{unmarkedCount > 1 ? "s" : ""}
+                  <span className="flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                    <span className="h-2 w-2 rounded-full bg-amber-400" />
+                    {unmarkedCount} à marquer
                   </span>
-                ) : null}
+                ) : (
+                  <span className="flex items-center gap-1.5 rounded-md border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
+                    <span className="h-2 w-2 rounded-full bg-green-400" />
+                    Tous les élèves marqués ✓
+                  </span>
+                )}
               </div>
 
               {studentsQuery.isLoading ? (
                 <div className="space-y-2">
-                  {Array.from({ length: 6 }).map((_, index) => (
-                    <Skeleton key={index} className="h-[52px] w-full rounded-xl" />
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <Skeleton key={i} className="h-[52px] w-full rounded-xl" />
                   ))}
                 </div>
               ) : null}
@@ -412,25 +537,23 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                         key={student.id}
                         data-testid={`teacher-student-row-${student.id}`}
                         className={cn(
-                          "flex min-h-[52px] items-center justify-between gap-2 rounded-xl border px-3 py-2 transition-colors duration-200",
+                          "flex min-h-[52px] items-center justify-between gap-2 rounded-xl border px-3 py-2 transition-colors duration-150",
                           isPresent && "border-green-200 bg-green-50",
                           isAbsent && "border-red-200 bg-red-50",
-                          !isPresent && !isAbsent && "border-border bg-card"
+                          !isPresent && !isAbsent && "border-amber-200 bg-amber-50/60"
                         )}
                       >
-                        {/* Nom de l'élève */}
                         <span
                           className={cn(
                             "flex-1 text-sm font-medium",
                             isPresent && "text-green-800",
                             isAbsent && "text-red-800",
-                            !isPresent && !isAbsent && "text-foreground"
+                            !isPresent && !isAbsent && "text-amber-800"
                           )}
                         >
                           {student.full_name}
                         </span>
 
-                        {/* Boutons Présent / Absent */}
                         <div className="flex gap-1.5">
                           <Button
                             type="button"
@@ -469,43 +592,43 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                 </div>
               ) : null}
 
+              {/* Point 3 — Bouton désactivé tant que tous les élèves ne sont pas marqués */}
               <Button
                 type="button"
                 size="lg"
                 className="w-full min-h-[56px]"
                 data-testid="teacher-students-submit"
-                disabled={submitStudentsMutation.isPending}
+                disabled={submitStudentsMutation.isPending || !allStudentsMarked}
                 onClick={() => { void handleSubmitStudents() }}
               >
                 {submitStudentsMutation.isPending
                   ? "Envoi en cours..."
-                  : `Terminer l'appel — ${absentCount} absent${absentCount > 1 ? "s" : ""}`}
+                  : !allStudentsMarked
+                    ? `Marquer encore ${unmarkedCount} élève${unmarkedCount > 1 ? "s" : ""}`
+                    : `Valider l'appel — ${absentCount} absent${absentCount > 1 ? "s" : ""}`}
               </Button>
             </section>
           ) : null}
         </SheetContent>
       </Sheet>
 
-      {/* ── Modale "Faire l'appel maintenant ou plus tard ?" ───────────────── */}
+      {/* ── Modale "appel maintenant ou plus tard ?" ─────────────────── */}
       <AlertDialog open={showRollCallPrompt} onOpenChange={setShowRollCallPrompt}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Faire l'appel maintenant ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Vous pouvez faire l'appel des élèves maintenant ou le reporter à plus tard.
-              {"\n\n"}
-              <span className="font-medium text-amber-700">
-                ⚠ L'appel doit être effectué avant la fin du cours ({formatTime(slot.end_time)}).
-              </span>
+            <AlertDialogTitle>Faire le pointage des élèves maintenant ?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>Votre présence est confirmée. Souhaitez-vous faire le pointage des élèves maintenant ou plus tard ?</p>
+                <p className="font-medium text-amber-700">
+                  ⚠ Le pointage doit être effectué avant {formatTime(slot.end_time)}.
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleRollCallLater}>
-              Non, plus tard
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleRollCallNow}>
-              Oui, maintenant
-            </AlertDialogAction>
+            <AlertDialogCancel onClick={handleRollCallLater}>Non, plus tard</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRollCallNow}>Oui, maintenant</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

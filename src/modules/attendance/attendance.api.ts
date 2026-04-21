@@ -120,36 +120,47 @@ const toStudentItem = (row: unknown): StudentItem => {
   }
 }
 
+const extractList = (payload: unknown): unknown[] => {
+  if (Array.isArray(payload)) return payload
+  const rec = toRecord(payload)
+  if (Array.isArray(rec.data)) return rec.data as unknown[]
+  if (Array.isArray(rec.schedules)) return rec.schedules as unknown[]
+  return []
+}
+
 export const teacherScheduleApi = {
   getMySchedule: async () => {
     const response = await api.get<unknown>("/schedule/teacher/me")
-    const payload = response.data
-
-    const list = Array.isArray(payload)
-      ? payload
-      : Array.isArray(toRecord(payload).data)
-        ? (toRecord(payload).data as unknown[])
-        : Array.isArray(toRecord(payload).schedules)
-          ? (toRecord(payload).schedules as unknown[])
-          : []
-
-    return list.map(toScheduleSlot)
+    return extractList(response.data).map(toScheduleSlot)
   },
 
-  // ── FIX : route /attendance/teacher/me maintenant exposée par le backend ──
+  /**
+   * Retourne TOUS les créneaux de la période active qui couvre `date`
+   * (tous les day_of_week, sans filtre sur le jour de semaine).
+   *
+   * `date` = n'importe quel jour de la semaine affichée dans le DayPicker
+   * (typiquement `selectedDateKey`). Le backend résout la période active
+   * pour CETTE date → si aucune période ne couvre cette semaine, retourne [].
+   *
+   * Le queryKey dans TeacherSchedulePage doit inclure `date` pour que
+   * React Query refetch automatiquement quand on navigue vers une autre semaine.
+   */
+  getMyScheduleWeek: async (date: string): Promise<ScheduleSlot[]> => {
+    try {
+      const response = await api.get<unknown>("/schedule/teacher/me/week", {
+        params: { date },
+      })
+      return extractList(response.data).map(toScheduleSlot)
+    } catch {
+      // Fallback : route /week pas encore déployée → appel /me (jour courant uniquement)
+      const response = await api.get<unknown>("/schedule/teacher/me")
+      return extractList(response.data).map(toScheduleSlot)
+    }
+  },
+
   getMyAttendanceForDate: async (date: string) => {
     const response = await api.get<unknown>(`/attendance/teacher/me?date=${date}`)
-    const payload = response.data
-
-    const list = Array.isArray(payload)
-      ? payload
-      : Array.isArray(toRecord(payload).data)
-        ? (toRecord(payload).data as unknown[])
-        : Array.isArray(toRecord(payload).rows)
-          ? (toRecord(payload).rows as unknown[])
-          : []
-
-    return list.map(toTeacherAttendance)
+    return extractList(response.data).map(toTeacherAttendance)
   },
 
   checkIn: async (body: { schedule_id: string; date: string }) => {
@@ -179,7 +190,6 @@ export const teacherScheduleApi = {
     }
   },
 
-  // ── FIX : payload aligné avec le schema Zod backend (snake_case) ──────────
   submitStudentAttendance: async (body: {
     schedule_id: string
     date: string
