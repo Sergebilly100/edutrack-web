@@ -92,6 +92,22 @@ export const getDocumentDownloadUrl = async (documentId: string): Promise<string
   return typeof response.data?.url === "string" ? response.data.url : ""
 }
 
+export const downloadDocumentFile = async (
+  documentId: string
+): Promise<{ blob: Blob; fileName: string | null }> => {
+  const response = await apiClient.get<Blob>(`/documents/${documentId}/download`, {
+    params: { raw: "true" },
+    responseType: "blob",
+  })
+
+  const disposition = response.headers["content-disposition"]
+  const match = typeof disposition === "string" ? disposition.match(/filename="?([^";]+)"?/i) : null
+  return {
+    blob: response.data,
+    fileName: match?.[1] ?? null,
+  }
+}
+
 export const deleteDocument = async (documentId: string): Promise<void> => {
   await apiClient.delete(`/documents/${documentId}`)
 }

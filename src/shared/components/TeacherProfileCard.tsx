@@ -16,7 +16,9 @@ import {
 type TeacherProfile = {
   id: string
   name: string
-  username: string
+  username?: string
+  phone?: string | null
+  subjects?: string[]
   type: "vacataire" | "permanent"
   blockReason?: string
 }
@@ -84,7 +86,12 @@ export function TeacherProfileCard({
             {getInitials(teacher.name)}
           </div>
           <h3 className="mt-3 text-lg font-semibold">{teacher.name}</h3>
-          <p className="text-sm text-muted-foreground">@{teacher.username}</p>
+          <p className="text-sm text-muted-foreground">
+            {(teacher.subjects ?? []).length > 0 ? (teacher.subjects ?? []).join(", ") : "Aucune matière"}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {teacher.phone?.trim() || "Téléphone non renseigné"}
+          </p>
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
             <Badge
               variant="outline"

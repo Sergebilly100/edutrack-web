@@ -1,7 +1,7 @@
-import { useMemo, useRef } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Bell, CheckCircle2, ChevronRight, GraduationCap, RefreshCw, Users, Wallet } from "lucide-react"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -180,6 +180,10 @@ function TodayPresenceList({ courses }: { courses: DashboardCourseItem[] }) {
 
 export default function DashboardPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const queryClient = useQueryClient()
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [refreshSuccess, setRefreshSuccess] = useState(false)
   const user = useAuthStore((state) => state.user)
   const currentMonth = useMemo(() => getCurrentMonthKey(new Date()), [])
   const previousMonth = useMemo(() => getPreviousMonthKey(new Date()), [])
@@ -312,6 +316,12 @@ export default function DashboardPage() {
   const riskTeachersLink =
     `/teachers?tab=analyse&run=1&from=${riskMonthStart}&to=${riskMonthEnd}&status_filter=absent`
 
+  useEffect(() => {
+    if (!refreshSuccess) return
+    const timer = window.setTimeout(() => setRefreshSuccess(false), 1200)
+    return () => window.clearTimeout(timer)
+  }, [refreshSuccess])
+
   if (isInitialLoading) {
     return (
       <>
@@ -333,40 +343,67 @@ export default function DashboardPage() {
               <p className="text-sm capitalize text-muted-foreground">{formatToday(new Date())}</p>
               <Badge variant="outline" className="mt-1">{schoolName}</Badge>
             </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              aria-label="Voir les notifications"
-              onClick={() => alertsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-              className="relative"
-            >
-              <Bell className="h-4 w-4" />
-              {activeAlertsCount > 0 ? (
-                <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-white">
-                  {activeAlertsCount}
-                </span>
-              ) : null}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              aria-label="Mettre à jour les données"
-              onClick={() => {
-                void todayQuery.refetch()
-                void countsQuery.refetch()
-                void historyQuery.refetch()
-                void coverageQuery.refetch()
-                void salarySummaryQuery.refetch()
-                void previousSalarySummaryQuery.refetch()
-                void riskTeachersQuery.refetch()
-                void schoolQuery.refetch()
-              }}
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Voir les notifications"
+                onClick={() => alertsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                className="relative"
+              >
+                <Bell className="h-4 w-4" />
+                {activeAlertsCount > 0 ? (
+                  <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-white">
+                    {activeAlertsCount}
+                  </span>
+                ) : null}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-label="Mettre à jour les données"
+                disabled={isRefreshing}
+                onClick={async () => {
+                  try {
+                    setIsRefreshing(true)
+                    setRefreshSuccess(false)
+                    await queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+                    await Promise.all([
+                      todayQuery.refetch(),
+                      countsQuery.refetch(),
+                      historyQuery.refetch(),
+                      coverageQuery.refetch(),
+                      salarySummaryQuery.refetch(),
+                      previousSalarySummaryQuery.refetch(),
+                      riskTeachersQuery.refetch(),
+                      schoolQuery.refetch(),
+                    ])
+                    setRefreshSuccess(true)
+                  } finally {
+                    setIsRefreshing(false)
+                  }
+                }}
+              >
+                {isRefreshing ? (
+                  <>
+                    <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
+                    Chargement...
+                  </>
+                ) : refreshSuccess ? (
+                  <>
+                    <CheckCircle2 className="mr-1 h-4 w-4 text-green-600" />
+                    OK
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-1 h-4 w-4" />
+                    Actualiser
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </header>
 
@@ -451,20 +488,32 @@ export default function DashboardPage() {
               ) : (
                 <div className="space-y-2">
                   {(riskTeachersQuery.data ?? []).map((teacher) => (
-                    <div key={teacher.teacherId} className="animate-fade-in flex items-center justify-between rounded-lg border border-border p-3">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <Avatar className="h-9 w-9">
-                          <AvatarFallback className="text-xs font-semibold">{getInitials(teacher.teacherName)}</AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">{teacher.teacherName}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {teacher.absenceCount} absence(s) • {Math.round(teacher.attendanceRate)}% présence
-                          </p>
+                    <Button
+                      key={teacher.teacherId}
+                      type="button"
+                      variant="ghost"
+                      className="h-auto w-full justify-start rounded-lg border border-border p-3"
+                      onClick={() =>
+                        navigate(
+                          `/teachers/${teacher.teacherId}?returnTo=${encodeURIComponent(location.pathname + location.search)}`
+                        )
+                      }
+                    >
+                      <div className="animate-fade-in flex w-full items-center justify-between">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <Avatar className="h-9 w-9">
+                            <AvatarFallback className="text-xs font-semibold">{getInitials(teacher.teacherName)}</AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0 text-left">
+                            <p className="truncate text-sm font-medium">{teacher.teacherName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {teacher.absenceCount} absence(s) • {Math.round(teacher.attendanceRate)}% présence
+                            </p>
+                          </div>
                         </div>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
+                    </Button>
                   ))}
                 </div>
               )}

@@ -72,6 +72,9 @@ export type TeacherMonthlyAttendanceRow = {
   attendanceStatus: TeacherMonthlyAttendanceStatus
   checkedInAt: string | null
   lateMinutes: number | null
+  roomMismatch: boolean
+  rollcallDone: boolean
+  rollcallMissing: boolean
   hoursPlanned: number
   hoursDone: number
 }
@@ -412,6 +415,9 @@ export async function getTeacherMonthlyAttendance(
       attendanceStatus: toAttendanceStatus(row.attendanceStatus),
       checkedInAt: toNullableString(row.checkedInAt),
       lateMinutes: row.lateMinutes === null ? null : toNumber(row.lateMinutes, 0),
+      roomMismatch: toBoolean(row.roomMismatch, false),
+      rollcallDone: toBoolean(row.rollcallDone, false),
+      rollcallMissing: toBoolean(row.rollcallMissing, false),
       hoursPlanned: toNumber(row.hoursPlanned, 0),
       hoursDone: toNumber(row.hoursDone, 0),
     }

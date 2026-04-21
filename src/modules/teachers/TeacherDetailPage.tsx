@@ -15,6 +15,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -24,7 +31,6 @@ import {
   blockTeacher,
   getTeacherById,
   getTeacherMonthlyAttendance,
-  getTeacherStats,
   unblockTeacher,
   type TeacherUpsertPayload,
   updateTeacher,
@@ -45,6 +51,16 @@ const getCurrentMonth = () => {
   return `${now.getFullYear()}-${month}`
 }
 
+const getRecentMonthOptions = (count = 12): Array<{ value: string; label: string }> => {
+  const now = new Date()
+  return Array.from({ length: count }).map((_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - index, 1)
+    const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+    const label = date.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+    return { value, label }
+  })
+}
+
 const statusLabel: Record<string, string> = {
   present: "Présent",
   absent: "Absent",
@@ -61,26 +77,55 @@ const statusBadgeClass: Record<string, string> = {
   not_marked: "border-slate-200 bg-slate-50 text-slate-600",
 }
 
+const dayMeta: Record<number, { label: string; className: string }> = {
+  1: { label: "Lundi", className: "border-blue-200 bg-blue-50 text-blue-700" },
+  2: { label: "Mardi", className: "border-indigo-200 bg-indigo-50 text-indigo-700" },
+  3: { label: "Mercredi", className: "border-violet-200 bg-violet-50 text-violet-700" },
+  4: { label: "Jeudi", className: "border-amber-200 bg-amber-50 text-amber-700" },
+  5: { label: "Vendredi", className: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+  6: { label: "Samedi", className: "border-rose-200 bg-rose-50 text-rose-700" },
+  7: { label: "Dimanche", className: "border-slate-200 bg-slate-50 text-slate-700" },
+}
+
 function WeeklyScheduleCard({ teacherId }: { teacherId: string }) {
+  const [showFullWeek, setShowFullWeek] = useState(false)
   const weeklyScheduleQuery = useQuery({
     queryKey: ["schedule", "weekly", teacherId],
     queryFn: fetchWeeklySchedule,
   })
 
+  const todayIsoDow = (() => {
+    const jsDay = new Date().getDay()
+    return jsDay === 0 ? 7 : jsDay
+  })()
+  const tomorrowIsoDow = todayIsoDow === 7 ? 1 : todayIsoDow + 1
+
   const rows = useMemo(() => {
     const schedules = weeklyScheduleQuery.data?.schedules ?? []
-    return schedules
+    const filtered = schedules
       .filter((item) => item.teacher.id === teacherId)
+      .filter((item) => showFullWeek || item.dayOfWeek === todayIsoDow || item.dayOfWeek === tomorrowIsoDow)
       .sort((a, b) => {
         if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek
         return a.timeSlot.sortOrder - b.timeSlot.sortOrder
       })
-  }, [teacherId, weeklyScheduleQuery.data?.schedules])
+    return filtered
+  }, [showFullWeek, teacherId, todayIsoDow, tomorrowIsoDow, weeklyScheduleQuery.data?.schedules])
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">EDT de la semaine</CardTitle>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-base">EDT de la semaine</CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            className="min-h-12"
+            onClick={() => setShowFullWeek((value) => !value)}
+          >
+            {showFullWeek ? "Afficher moins" : "Voir EDT semaine complète"}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {weeklyScheduleQuery.isLoading ? (
@@ -96,9 +141,17 @@ function WeeklyScheduleCard({ teacherId }: { teacherId: string }) {
           <div className="space-y-2">
             {rows.map((row) => (
               <div key={row.id} className="rounded-lg border border-border p-3">
-                <p className="text-sm font-medium">{row.subject}</p>
-                <p className="text-xs text-muted-foreground">
-                  Jour {row.dayOfWeek} • {row.timeSlot.label} • {row.class.name} • {row.room.name}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className={dayMeta[row.dayOfWeek]?.className ?? "border-slate-200 bg-slate-50 text-slate-700"}
+                  >
+                    {dayMeta[row.dayOfWeek]?.label ?? `Jour ${row.dayOfWeek}`}
+                  </Badge>
+                  <p className="text-sm font-medium">{row.subject}</p>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {row.timeSlot.label} • {row.class.name} • {row.room.name}
                 </p>
               </div>
             ))}
@@ -113,6 +166,7 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
   const [month, setMonth] = useState(getCurrentMonth())
   const [page, setPage] = useState(1)
   const pageSize = 12
+  const monthOptions = useMemo(() => getRecentMonthOptions(18), [])
 
   const monthlyQuery = useQuery({
     queryKey: ["teacher", teacherId, "monthly-attendance", month],
@@ -138,14 +192,39 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
   }
 
   const data = monthlyQuery.data
-  const now = new Date()
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const toSortableTime = (value: string) => {
+    const trimmed = value.trim()
+    if (/^\d{2}:\d{2}:\d{2}$/.test(trimmed)) return trimmed.slice(0, 5)
+    if (/^\d{2}:\d{2}$/.test(trimmed)) return trimmed
+    return "00:00"
+  }
   const rowsSorted = [...data.rows]
-    .filter((row) => new Date(`${row.date}T${row.startTime || "00:00"}:00`).getTime() <= now.getTime())
+    .filter((row) => row.date <= todayIso)
     .sort((a, b) => {
-      const aTs = new Date(`${a.date}T${a.startTime || "00:00"}:00`).getTime()
-      const bTs = new Date(`${b.date}T${b.startTime || "00:00"}:00`).getTime()
-      return bTs - aTs
+      if (a.date !== b.date) return b.date.localeCompare(a.date)
+      return toSortableTime(b.startTime).localeCompare(toSortableTime(a.startTime))
     })
+
+  const now = new Date()
+  const allRows = [...data.rows]
+  const absenceHours = allRows.reduce((acc, row) => {
+    const rowDateTime = new Date(`${row.date}T${toSortableTime(row.endTime)}:00`)
+    if (
+      rowDateTime.getTime() <= now.getTime() &&
+      (row.attendanceStatus === "absent" || row.attendanceStatus === "not_marked")
+    ) {
+      return acc + row.hoursPlanned
+    }
+    return acc
+  }, 0)
+  const remainingHours = allRows.reduce((acc, row) => {
+    const rowDateTime = new Date(`${row.date}T${toSortableTime(row.startTime)}:00`)
+    if (rowDateTime.getTime() > now.getTime()) {
+      return acc + row.hoursPlanned
+    }
+    return acc
+  }, 0)
 
   const totalPages = Math.max(1, Math.ceil(rowsSorted.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -158,12 +237,21 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
         <CardContent className="pt-4">
           <div className="max-w-60 space-y-2">
             <p className="text-sm font-medium">Mois analysé</p>
-            <Input
-              type="month"
+            <Select
               value={month}
-              className="min-h-12"
-              onChange={(event) => setMonth(event.target.value || getCurrentMonth())}
-            />
+              onValueChange={(value) => setMonth(value || getCurrentMonth())}
+            >
+              <SelectTrigger className="min-h-12">
+                <SelectValue placeholder="Choisir un mois" />
+              </SelectTrigger>
+              <SelectContent>
+                {monthOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -174,7 +262,7 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-5">
         <Card>
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground">Heures prévues</p>
@@ -188,6 +276,22 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
             <p className="text-xs text-muted-foreground">Heures faites</p>
             <p className="text-lg font-semibold tabular-nums">
               {data.summary.hoursDone.toFixed(1)}h
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-xs text-muted-foreground">Heures d'absence</p>
+            <p className="text-lg font-semibold tabular-nums text-red-700">
+              {absenceHours.toFixed(1)}h
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-xs text-muted-foreground">Heures restantes</p>
+            <p className="text-lg font-semibold tabular-nums text-amber-700">
+              {remainingHours.toFixed(1)}h
             </p>
           </CardContent>
         </Card>
@@ -222,6 +326,8 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
                     <TableHead>Statut</TableHead>
                     <TableHead>Check-in</TableHead>
                     <TableHead>Retard</TableHead>
+                    <TableHead>Salle</TableHead>
+                    <TableHead>Pointage élèves</TableHead>
                     <TableHead>Prévu</TableHead>
                     <TableHead>Fait</TableHead>
                   </TableRow>
@@ -247,6 +353,22 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
                       </TableCell>
                       <TableCell>{row.checkedInAt ? row.checkedInAt.slice(11, 16) : "—"}</TableCell>
                       <TableCell>{row.lateMinutes ? `${row.lateMinutes} min` : "—"}</TableCell>
+                      <TableCell>
+                        {row.roomMismatch ? (
+                          <Badge variant="destructive">Incorrecte</Badge>
+                        ) : (
+                          <Badge className="border-green-200 bg-green-50 text-green-700">Correcte</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {row.rollcallMissing ? (
+                          <Badge className="border-amber-200 bg-amber-50 text-amber-700">Manquant</Badge>
+                        ) : row.rollcallDone ? (
+                          <Badge className="border-green-200 bg-green-50 text-green-700">Effectué</Badge>
+                        ) : (
+                          <Badge variant="outline">N/A</Badge>
+                        )}
+                      </TableCell>
                       <TableCell>{row.hoursPlanned.toFixed(2)}h</TableCell>
                       <TableCell>{row.hoursDone.toFixed(2)}h</TableCell>
                     </TableRow>
@@ -363,20 +485,21 @@ function InfosPanel({ teacherId }: { teacherId: string }) {
         <CardTitle className="text-base">Informations du professeur</CardTitle>
       </CardHeader>
       <CardContent>
-        <TeacherForm
-          initialValues={{
-            firstName: teacher.firstName,
-            lastName: teacher.lastName,
-            phone: teacher.phone,
-            type: teacher.type,
-            subjects: teacher.subjects,
-            hourlyRate: teacher.hourlyRate,
-          }}
-          isPending={updateMutation.isPending}
-          submitLabel="Enregistrer"
-          onSubmit={async (payload) => {
-            await updateMutation.mutateAsync({ teacherId, payload })
-          }}
+      <TeacherForm
+        initialValues={{
+          firstName: teacher.firstName,
+          lastName: teacher.lastName,
+          phone: teacher.phone,
+          type: teacher.type,
+          subjects: teacher.subjects,
+          hourlyRate: teacher.hourlyRate,
+        }}
+        lockSubjects
+        isPending={updateMutation.isPending}
+        submitLabel="Enregistrer"
+        onSubmit={async (payload) => {
+          await updateMutation.mutateAsync({ teacherId, payload })
+        }}
         />
       </CardContent>
     </Card>
@@ -392,10 +515,7 @@ export default function TeacherDetailPage() {
 
   const [blockDialogOpen, setBlockDialogOpen] = useState(false)
   const [blockReason, setBlockReason] = useState("")
-  const [desktopTab, setDesktopTab] = useState<"presences" | "documents" | "infos">("presences")
-  const [mobileTab, setMobileTab] = useState<"profil" | "presences" | "documents" | "infos">(
-    "profil"
-  )
+  const [detailTab, setDetailTab] = useState<"presences" | "documents" | "infos">("presences")
 
   const teacherQuery = useQuery({
     queryKey: ["teacher", teacherId],
@@ -403,18 +523,10 @@ export default function TeacherDetailPage() {
     enabled: teacherId.trim().length > 0,
   })
 
-  const statsQuery = useQuery({
-    queryKey: ["teacher", teacherId, "stats"],
-    queryFn: () => {
-      const now = new Date()
-      const start = new Date(now.getFullYear(), now.getMonth(), 1)
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-      return getTeacherStats(
-        teacherId,
-        start.toISOString().slice(0, 10),
-        end.toISOString().slice(0, 10)
-      )
-    },
+  const currentMonth = useMemo(() => getCurrentMonth(), [])
+  const currentMonthAttendanceQuery = useQuery({
+    queryKey: ["teacher", teacherId, "monthly-attendance", currentMonth],
+    queryFn: () => getTeacherMonthlyAttendance(teacherId, currentMonth),
     enabled: teacherId.trim().length > 0,
   })
 
@@ -483,65 +595,45 @@ export default function TeacherDetailPage() {
 
   const teacher = teacherQuery.data
   const returnTo = searchParams.get("returnTo")
+  const currentMonthRows = currentMonthAttendanceQuery.data?.rows ?? []
+  const currentMonthSummary = currentMonthAttendanceQuery.data?.summary
+  const presentLikeCount = currentMonthRows.filter(
+    (row) =>
+      row.attendanceStatus === "present" ||
+      row.attendanceStatus === "late" ||
+      row.attendanceStatus === "excused"
+  ).length
+  const attendanceRate =
+    currentMonthRows.length > 0 ? (presentLikeCount / currentMonthRows.length) * 100 : 0
 
   const monthStats = {
-    hours_done: Math.round((statsQuery.data?.hoursWorked ?? 0) * 10) / 10,
-    hours_planned: Math.max(Math.round((statsQuery.data?.hoursWorked ?? 0) * 10) / 10, 0),
-    attendance_rate: Math.round(statsQuery.data?.attendanceRate ?? 0),
+    hours_done: Math.round((currentMonthSummary?.hoursDone ?? 0) * 10) / 10,
+    hours_planned: Math.round((currentMonthSummary?.hoursPlanned ?? 0) * 10) / 10,
+    attendance_rate: Math.round(attendanceRate),
     status: teacher.isBlocked ? "blocked" : "active",
   } as const
 
   const profileSection = (
-    <div className="space-y-4">
-      <TeacherProfileCard
-        teacher={{
-          id: teacher.id,
-          name: teacher.fullName,
-          username: teacher.username,
-          type: teacher.type,
-          blockReason: teacher.blockReason ?? undefined,
-        }}
-        monthStats={monthStats}
-        onBlock={async () => {
-          setBlockDialogOpen(true)
-        }}
-        onUnblock={async () => {
-          await unblockMutation.mutateAsync()
-        }}
-        onViewDocuments={() => {
-          setDesktopTab("documents")
-          setMobileTab("documents")
-        }}
-      />
-
-      <WeeklyScheduleCard teacherId={teacher.id} />
-    </div>
-  )
-
-  const rightTabs = (
-    <Tabs
-      value={desktopTab}
-      onValueChange={(value) =>
-        setDesktopTab(value as "presences" | "documents" | "infos")
-      }
-      className="space-y-4"
-    >
-      <TabsList className="grid w-full grid-cols-3">
-        <TabsTrigger value="presences">Présences</TabsTrigger>
-        <TabsTrigger value="documents">Documents</TabsTrigger>
-        <TabsTrigger value="infos">Infos</TabsTrigger>
-      </TabsList>
-
-      <TabsContent value="presences">
-        <AttendancePanel teacherId={teacher.id} />
-      </TabsContent>
-      <TabsContent value="documents">
-        <DocumentsPanel teacherId={teacher.id} />
-      </TabsContent>
-      <TabsContent value="infos">
-        <InfosPanel teacherId={teacher.id} />
-      </TabsContent>
-    </Tabs>
+    <TeacherProfileCard
+      teacher={{
+        id: teacher.id,
+        name: teacher.fullName,
+        phone: teacher.phone,
+        subjects: teacher.subjects,
+        type: teacher.type,
+        blockReason: teacher.blockReason ?? undefined,
+      }}
+      monthStats={monthStats}
+      onBlock={async () => {
+        setBlockDialogOpen(true)
+      }}
+      onUnblock={async () => {
+        await unblockMutation.mutateAsync()
+      }}
+      onViewDocuments={() => {
+        setDetailTab("documents")
+      }}
+    />
   )
 
   return (
@@ -575,36 +667,23 @@ export default function TeacherDetailPage() {
         </Alert>
       ) : null}
 
-      {/* Desktop layout */}
-      <div
-        className="hidden gap-6 lg:grid lg:grid-cols-[360px_minmax(0,1fr)]"
-        data-testid="teacher-detail-desktop-layout"
-      >
+      <div className="grid gap-4 lg:grid-cols-[420px_minmax(0,1fr)]">
         {profileSection}
-        {rightTabs}
+        <WeeklyScheduleCard teacherId={teacher.id} />
       </div>
 
-      {/* Mobile layout */}
-      <div className="space-y-4 lg:hidden">
+      <div className="space-y-4">
         <Tabs
-          value={mobileTab}
-          onValueChange={(value) =>
-            setMobileTab(value as "profil" | "presences" | "documents" | "infos")
-          }
+          value={detailTab}
+          onValueChange={(value) => setDetailTab(value as "presences" | "documents" | "infos")}
           className="space-y-4"
         >
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="profil">Profil</TabsTrigger>
-            <TabsTrigger value="presences">Présences</TabsTrigger>
-            <TabsTrigger value="documents" data-testid="teacher-documents-tab-mobile">
-              Documents
-            </TabsTrigger>
-            <TabsTrigger value="infos">Infos</TabsTrigger>
+          <TabsList className="grid h-auto min-h-12 w-full grid-cols-3">
+            <TabsTrigger value="presences" className="min-h-12">Présences</TabsTrigger>
+            <TabsTrigger value="documents" className="min-h-12">Documents</TabsTrigger>
+            <TabsTrigger value="infos" className="min-h-12">Infos</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="profil" className="space-y-4">
-            {profileSection}
-          </TabsContent>
           <TabsContent value="presences">
             <AttendancePanel teacherId={teacher.id} />
           </TabsContent>

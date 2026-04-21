@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { deleteDocument, getDocumentDownloadUrl, listDocuments, type DocumentEntityType } from "@/shared/api/documents.api"
+import { deleteDocument, downloadDocumentFile, listDocuments, type DocumentEntityType } from "@/shared/api/documents.api"
 import { EmptyState } from "@/shared/components/EmptyState"
 
 type DocumentListProps = {
@@ -121,12 +121,16 @@ export function DocumentList({ entityType, entityId }: DocumentListProps) {
                       variant="outline"
                       size="sm"
                       onClick={async () => {
-                        const signedUrl = await getDocumentDownloadUrl(document.id)
                         if (typeof window !== "undefined") {
-                          const target = signedUrl || document.url
-                          if (target) {
-                            window.open(target, "_blank", "noopener,noreferrer")
-                          }
+                          const payload = await downloadDocumentFile(document.id)
+                          const url = window.URL.createObjectURL(payload.blob)
+                          const link = window.document.createElement("a")
+                          link.href = url
+                          link.download = payload.fileName ?? document.name
+                          window.document.body.appendChild(link)
+                          link.click()
+                          link.remove()
+                          window.URL.revokeObjectURL(url)
                         }
                       }}
                     >

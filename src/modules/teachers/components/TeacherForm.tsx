@@ -73,6 +73,7 @@ type TeacherFormProps = {
   initialValues?: TeacherFormInitialValues
   isPending?: boolean
   submitLabel?: string
+  lockSubjects?: boolean
   onSubmit: (payload: TeacherUpsertPayload) => Promise<void> | void
 }
 
@@ -86,6 +87,7 @@ export default function TeacherForm({
   initialValues,
   isPending = false,
   submitLabel = "Enregistrer",
+  lockSubjects = false,
   onSubmit,
 }: TeacherFormProps) {
   const form = useForm<TeacherFormValues>({
@@ -199,13 +201,20 @@ export default function TeacherForm({
                   {...field}
                   rows={3}
                   placeholder="Mathématiques, Physique, SVT"
+                  readOnly={lockSubjects}
                   className={cn(
                     "flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-sm transition-colors",
                     "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                    "disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                    "disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+                    lockSubjects ? "bg-muted cursor-not-allowed" : ""
                   )}
                 />
               </FormControl>
+              {lockSubjects ? (
+                <p className="text-xs text-muted-foreground">
+                  Les matières enseignées sont gérées depuis l'emploi du temps/import.
+                </p>
+              ) : null}
               <FormMessage />
             </FormItem>
           )}

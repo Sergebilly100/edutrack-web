@@ -49,7 +49,6 @@ import {
   BlockIcon,
   ChevronRightIcon,
   ExportIcon,
-  FilterIcon,
   MoreIcon,
   TeachersIcon,
   UnblockIcon,
@@ -205,6 +204,16 @@ export default function TeachersPage() {
   })
 
   const teachers = teachersQuery.data?.data ?? []
+  const subjectOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const teacher of teachers) {
+      for (const subject of teacher.subjects) {
+        const clean = subject.trim()
+        if (clean.length > 0) set.add(clean)
+      }
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "fr"))
+  }, [teachers])
 
   const statsQueries = useQueries({
     queries: teachers.map((teacher) => ({
@@ -430,7 +439,7 @@ export default function TeachersPage() {
           <TabsTrigger value="analyse" className="min-h-12">Analyse présence</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="liste" className="space-y-6" forceMount>
+        <TabsContent value="liste" className="space-y-6">
           {/* ── Filtres ── */}
           <div
             className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-sm"
@@ -465,16 +474,22 @@ export default function TeachersPage() {
                 </SelectContent>
               </Select>
 
-              <div className="relative">
-                <FilterIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  className="pl-9"
-                  value={subjectFilter}
-                  onChange={(event) => setSubjectFilter(event.target.value)}
-                  placeholder="Filtrer par matière"
-                  data-testid="teachers-subject-filter-input"
-                />
-              </div>
+              <Select
+                value={subjectFilter || "all"}
+                onValueChange={(value) => setSubjectFilter(value === "all" ? "" : value)}
+              >
+                <SelectTrigger data-testid="teachers-subject-filter-input">
+                  <SelectValue placeholder="Filtrer par matière" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes les matières</SelectItem>
+                  {subjectOptions.map((subject) => (
+                    <SelectItem key={subject} value={subject}>
+                      {subject}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -671,7 +686,7 @@ export default function TeachersPage() {
           </Dialog>
         </TabsContent>
 
-        <TabsContent value="analyse" forceMount>
+        <TabsContent value="analyse">
           <TeacherAnalysisPanel />
         </TabsContent>
       </Tabs>
