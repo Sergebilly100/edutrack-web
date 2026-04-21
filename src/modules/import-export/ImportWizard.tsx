@@ -1,5 +1,14 @@
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { isAxiosError } from "axios"
+import {
+  AlertTriangle,
+  CalendarDays,
+  Check,
+  Download,
+  GraduationCap,
+  type LucideIcon,
+  UserSquare,
+} from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -9,54 +18,53 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { useConfirmImport, useDryRun } from "@/modules/import/import.hooks"
 import { downloadTemplate, type ImportIssue, type ImportMode, type ImportType } from "./import-export.api"
-import {
-  DownloadIcon,
-  ScheduleIcon,
-  SpreadsheetIcon,
-  StudentsIcon,
-  TeacherIdentityIcon,
-  UploadCloudIcon,
-  WarningIcon,
-} from "@/shared/components/icons"
-import { Spinner } from "@/shared/components"
-
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
-const VALID_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-const touchFeedbackClass = "active:scale-95 transition-transform duration-100"
+import { DropZone } from "@/shared/components/DropZone"
+import { Spinner } from "@/shared/components/Spinner"
 
 type WizardStep = 1 | 2 | 3
 
-type ImportTypeOption = {
-  type: ImportType
+type StepStatus = "completed" | "active" | "pending"
+
+type Step = {
+  id: number
   label: string
-  description: string
-  icon: typeof StudentsIcon
+  status: StepStatus
 }
 
-const importTypeOptions: ImportTypeOption[] = [
-  {
-    type: "students",
+type ImportWizardProps = {
+  selectedImportType?: ImportType
+  onImportTypeChange?: (type: ImportType) => void
+}
+
+const touchFeedbackClass = "active:scale-95 transition-transform duration-100"
+
+const tabConfig: Record<ImportType, { label: string; icon: LucideIcon; description: string }> = {
+  students: {
     label: "Élèves",
-    description: "Importer les élèves avec classe et contact parent.",
-    icon: StudentsIcon
+    icon: GraduationCap,
+    description: "Importer les élèves avec classe et contacts parent",
   },
-  {
-    type: "teachers",
+  teachers: {
     label: "Professeurs",
-    description: "Importer les enseignants, matières et type de contrat.",
-    icon: TeacherIdentityIcon
+    icon: UserSquare,
+    description: "Importer les enseignants, matières et type de contrat",
   },
-  {
-    type: "schedule",
+  schedule: {
     label: "Emploi du temps",
-    description: "Importer les créneaux, classes, salles et matières.",
-    icon: ScheduleIcon
-  }
-]
+    icon: CalendarDays,
+    description: "Importer les créneaux, classes, salles et matières",
+  },
+}
+
+const importTypeValues: ImportType[] = ["students", "teachers", "schedule"]
+
+const isImportType = (value: string): value is ImportType =>
+  importTypeValues.includes(value as ImportType)
 
 function getRequestErrorMessage(error: unknown, fallback: string) {
   if (isAxiosError(error)) {
@@ -89,7 +97,7 @@ function ErrorList({ issues }: { issues: ImportIssue[] }) {
                 : "border-red-200 bg-red-50 text-red-800"
             )}
           >
-            <p className="font-medium break-words">
+            <p className="break-words font-medium">
               {issue.sheet ? `Feuille ${issue.sheet} · ` : ""}Ligne {issue.row} · {issue.column}
             </p>
             <p className="break-words">{issue.message}</p>
@@ -100,17 +108,146 @@ function ErrorList({ issues }: { issues: ImportIssue[] }) {
   )
 }
 
-export default function ImportWizard() {
+function ImportStepper({ step }: { step: WizardStep }) {
+  const steps: Step[] = [
+    {
+      id: 1,
+      label: "Upload",
+      status: step === 1 ? "active" : "completed",
+    },
+    {
+      id: 2,
+      label: "Validation",
+      status: step === 2 ? "active" : step > 2 ? "completed" : "pending",
+    },
+    {
+      id: 3,
+      label: "Confirmation",
+      status: step === 3 ? "active" : "pending",
+    },
+  ]
+
+  return (
+    <div className="flex items-center">
+      {steps.map((item, index) => (
+        <div key={item.id} className="flex min-w-0 flex-1 items-center">
+          <div className="flex min-w-0 items-center gap-2">
+            <div
+              className={cn(
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+                item.status === "completed" && "bg-primary text-primary-foreground",
+                item.status === "active" && "bg-primary text-primary-foreground ring-2 ring-primary/30",
+                item.status === "pending" && "bg-muted text-muted-foreground"
+              )}
+            >
+              {item.status === "completed" ? <Check className="h-4 w-4" /> : item.id}
+            </div>
+            <p className="hidden text-xs text-muted-foreground sm:block">{item.label}</p>
+          </div>
+
+          {index < steps.length - 1 ? (
+            <div
+              className={cn(
+                "mx-2 h-0.5 flex-1 rounded-full",
+                item.status === "completed" ? "bg-primary" : "bg-border"
+              )}
+            />
+          ) : null}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+type ImportTypeTabsProps = {
+  importType: ImportType
+  isDownloadingTemplate: boolean
+  isFileLoading: boolean
+  onImportTypeChange: (type: ImportType) => void
+  onTemplateDownload: (type: ImportType) => Promise<void>
+  onFileSelected: (file: File) => void
+}
+
+function ImportTypeTabs({
+  importType,
+  isDownloadingTemplate,
+  isFileLoading,
+  onImportTypeChange,
+  onTemplateDownload,
+  onFileSelected,
+}: ImportTypeTabsProps) {
+  return (
+    <Tabs
+      value={importType}
+      onValueChange={(value) => {
+        if (isImportType(value)) {
+          onImportTypeChange(value)
+        }
+      }}
+      className="space-y-4"
+    >
+      <TabsList className="grid h-auto w-full grid-cols-1 gap-2 bg-transparent p-0 md:grid-cols-3 md:gap-0 md:rounded-lg md:bg-muted md:p-1">
+        {importTypeValues.map((type) => {
+          const Icon = tabConfig[type].icon
+
+          return (
+            <TabsTrigger
+              key={type}
+              value={type}
+              className={cn(
+                "min-h-[48px] w-full whitespace-normal px-3 py-3",
+                "justify-start text-left md:justify-center",
+                "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              )}
+            >
+              <div className="flex w-full items-start gap-2 md:items-center md:justify-center">
+                <Icon className="mt-0.5 h-4 w-4 shrink-0 md:mt-0" />
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium leading-tight">{tabConfig[type].label}</p>
+                  <p className="text-xs leading-tight data-[state=active]:text-primary-foreground/90">
+                    {tabConfig[type].description}
+                  </p>
+                </div>
+              </div>
+            </TabsTrigger>
+          )
+        })}
+      </TabsList>
+
+      {importTypeValues.map((type) => (
+        <TabsContent key={type} value={type} className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
+            <p className="text-sm text-muted-foreground">
+              Téléchargez le modèle {tabConfig[type].label.toLowerCase()} puis importez votre fichier.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-h-[48px]"
+              onClick={() => void onTemplateDownload(type)}
+              disabled={isDownloadingTemplate}
+            >
+              {isDownloadingTemplate ? <Spinner size="sm" className="mr-2" /> : <Download className="mr-2 h-4 w-4" />}
+              Télécharger le modèle
+            </Button>
+          </div>
+
+          <DropZone onFileSelected={onFileSelected} isLoading={isFileLoading} />
+        </TabsContent>
+      ))}
+    </Tabs>
+  )
+}
+
+export default function ImportWizard({ selectedImportType, onImportTypeChange }: ImportWizardProps) {
   const { toast } = useToast()
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const [step, setStep] = useState<WizardStep>(1)
-  const [importType, setImportType] = useState<ImportType | null>(null)
+  const [importType, setImportType] = useState<ImportType>(selectedImportType ?? "students")
   const [file, setFile] = useState<File | null>(null)
-  const [isDragging, setIsDragging] = useState(false)
 
   const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false)
-  const [fileError, setFileError] = useState<string | null>(null)
   const [templateError, setTemplateError] = useState<string | null>(null)
   const [importMode, setImportMode] = useState<ImportMode>("merge")
   const [weekStart, setWeekStart] = useState("")
@@ -128,6 +265,18 @@ export default function ImportWizard() {
   const issues = dryRunReport?.errors ?? []
   const blockingIssues = useMemo(() => issues.filter((item) => item.severity === "error"), [issues])
   const warningIssues = useMemo(() => issues.filter((item) => item.severity === "warning"), [issues])
+  const blockingRowsCount = useMemo(() => new Set(blockingIssues.map((item) => item.row)).size, [blockingIssues])
+
+  const blockingIssuesByRow = useMemo(() => {
+    const byRow = new Map<number, ImportIssue[]>()
+
+    for (const issue of blockingIssues) {
+      const existing = byRow.get(issue.row) ?? []
+      byRow.set(issue.row, [...existing, issue])
+    }
+
+    return byRow
+  }, [blockingIssues])
 
   const validationError = dryRunMutation.isError
     ? getRequestErrorMessage(dryRunMutation.error, "Validation impossible. Vérifiez votre fichier puis réessayez.")
@@ -136,6 +285,12 @@ export default function ImportWizard() {
   const importError = confirmMutation.isError
     ? getRequestErrorMessage(confirmMutation.error, "Échec de l'import. Corrigez le fichier puis relancez.")
     : null
+
+  useEffect(() => {
+    if (selectedImportType) {
+      setImportType(selectedImportType)
+    }
+  }, [selectedImportType])
 
   const resetAfterUploadChange = () => {
     setTemplateError(null)
@@ -178,62 +333,42 @@ export default function ImportWizard() {
     return true
   }
 
-  const validateFile = (candidate: File): string | null => {
-    if (candidate.type && candidate.type !== VALID_MIME) {
-      return "Format invalide: seuls les fichiers .xlsx sont acceptés."
-    }
-
-    if (!candidate.name.toLowerCase().endsWith(".xlsx")) {
-      return "Format invalide: seuls les fichiers .xlsx sont acceptés."
-    }
-
-    if (candidate.size > MAX_FILE_SIZE_BYTES) {
-      return "Fichier trop volumineux: taille maximale autorisée 5Mo."
-    }
-
-    return null
-  }
-
-  const applySelectedFile = (candidate: File | null) => {
-    if (!candidate) {
-      setFile(null)
-      setFileError(null)
-      resetAfterUploadChange()
-      return
-    }
-
-    const error = validateFile(candidate)
-    if (error) {
-      setFile(null)
-      setFileError(error)
-      resetAfterUploadChange()
-      return
-    }
-
-    setFile(candidate)
-    setFileError(null)
+  const handleImportTypeValueChange = (nextType: ImportType) => {
+    setImportType(nextType)
+    onImportTypeChange?.(nextType)
+    setFile(null)
+    setWeekStart("")
+    setWeekEnd("")
+    setPeriodError(null)
+    setConflictAcknowledged(false)
     resetAfterUploadChange()
   }
 
-  const handleTemplateDownload = async () => {
-    if (!importType) {
-      setTemplateError("Choisissez d'abord un type d'import avant de télécharger le modèle.")
-      return
-    }
+  const handleFileSelected = (selectedFile: File) => {
+    setFile(selectedFile)
+    resetAfterUploadChange()
+  }
 
+  const handleTemplateDownload = async (type: ImportType) => {
     try {
       setTemplateError(null)
       setIsDownloadingTemplate(true)
-      await downloadTemplate(importType)
+      await downloadTemplate(type)
     } catch (error) {
-      setTemplateError(getRequestErrorMessage(error, "Impossible de télécharger le modèle Excel."))
+      const message = getRequestErrorMessage(error, "Impossible de télécharger le modèle Excel.")
+      setTemplateError(message)
+      toast({
+        variant: "destructive",
+        title: "Téléchargement impossible",
+        description: message,
+      })
     } finally {
       setIsDownloadingTemplate(false)
     }
   }
 
   const handleGoToValidation = () => {
-    if (!file || !importType) return
+    if (!file) return
     if (!validateSchedulePeriod()) return
 
     setStep(2)
@@ -248,13 +383,20 @@ export default function ImportWizard() {
             : undefined,
       },
       {
-        onSuccess: () => setStep(2)
+        onSuccess: () => setStep(2),
+        onError: (error) => {
+          toast({
+            variant: "destructive",
+            title: "Validation impossible",
+            description: getRequestErrorMessage(error, "Le fichier n'a pas pu être validé."),
+          })
+        },
       }
     )
   }
 
   const handleConfirmImport = () => {
-    if (!file || !importType) return
+    if (!file) return
     if (importType === "schedule" && hasConflicts && !conflictAcknowledged) return
 
     setStep(3)
@@ -275,18 +417,25 @@ export default function ImportWizard() {
             title: data.errors.length
               ? `Import partiel : ${data.imported + data.updated} importés`
               : `✓ ${data.imported + data.updated} enregistrements importés`,
-            duration: 3000
+            duration: 3000,
           })
-        }
+        },
+        onError: (error) => {
+          toast({
+            variant: "destructive",
+            title: "Import impossible",
+            description: getRequestErrorMessage(error, "L'import a échoué."),
+          })
+        },
       }
     )
   }
 
   const handleFinish = () => {
     setStep(1)
-    setImportType(null)
+    setImportType(selectedImportType ?? "students")
+    onImportTypeChange?.(selectedImportType ?? "students")
     setFile(null)
-    setFileError(null)
     setTemplateError(null)
     setPeriodError(null)
     setImportMode("merge")
@@ -295,9 +444,10 @@ export default function ImportWizard() {
     setConflictAcknowledged(false)
     dryRunMutation.reset()
     confirmMutation.reset()
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
-    }
+  }
+
+  const getIssuesForPreviewRow = (rowIndex: number) => {
+    return blockingIssuesByRow.get(rowIndex + 2) ?? blockingIssuesByRow.get(rowIndex + 1) ?? []
   }
 
   const totalImported = (confirmReport?.imported ?? 0) + (confirmReport?.updated ?? 0)
@@ -305,35 +455,16 @@ export default function ImportWizard() {
 
   return (
     <Card className="w-full">
-      <CardHeader>
+      <CardHeader className="space-y-4">
         <CardTitle>Assistant d'import Excel</CardTitle>
         <CardDescription>Upload → Validation → Confirmation</CardDescription>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Badge
-            variant={step === 1 ? "default" : "outline"}
-            aria-current={step === 1 ? "step" : undefined}
-          >
-            1. Upload
-          </Badge>
-          <Badge
-            variant={step === 2 ? "default" : "outline"}
-            aria-current={step === 2 ? "step" : undefined}
-          >
-            2. Validation
-          </Badge>
-          <Badge
-            variant={step === 3 ? "default" : "outline"}
-            aria-current={step === 3 ? "step" : undefined}
-          >
-            3. Confirmation
-          </Badge>
-        </div>
+        <ImportStepper step={step} />
       </CardHeader>
 
       <CardContent className="space-y-6">
         {templateError ? (
           <Alert variant="destructive">
-            <WarningIcon className="h-4 w-4" />
+            <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Action impossible</AlertTitle>
             <AlertDescription>{templateError}</AlertDescription>
           </Alert>
@@ -341,35 +472,14 @@ export default function ImportWizard() {
 
         {step === 1 ? (
           <div className="space-y-6">
-            <div className="grid gap-3 md:grid-cols-3">
-              {importTypeOptions.map((option) => {
-                const Icon = option.icon
-                const selected = importType === option.type
-
-                return (
-                  <Button
-                    key={option.type}
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      setImportType(option.type)
-                      setTemplateError(null)
-                    }}
-                    className={cn(
-                      "h-auto rounded-lg border p-4 text-left transition-colors",
-                      "hover:border-primary/60",
-                      selected ? "border-primary bg-primary/5" : "border-border"
-                    )}
-                  >
-                    <div className="mb-2 flex items-center gap-2">
-                      <Icon className="h-5 w-5 text-primary" />
-                      <p className="font-medium">{option.label}</p>
-                    </div>
-                    <p className="text-sm text-muted-foreground">{option.description}</p>
-                  </Button>
-                )
-              })}
-            </div>
+            <ImportTypeTabs
+              importType={importType}
+              isDownloadingTemplate={isDownloadingTemplate}
+              isFileLoading={dryRunMutation.isPending}
+              onImportTypeChange={handleImportTypeValueChange}
+              onTemplateDownload={handleTemplateDownload}
+              onFileSelected={handleFileSelected}
+            />
 
             {(importType === "students" || importType === "teachers") ? (
               <div className="space-y-2 rounded-lg border p-4">
@@ -379,6 +489,7 @@ export default function ImportWizard() {
                     type="button"
                     variant={importMode === "merge" ? "default" : "outline"}
                     onClick={() => setImportMode("merge")}
+                    className="min-h-[48px]"
                   >
                     Fusion
                   </Button>
@@ -386,6 +497,7 @@ export default function ImportWizard() {
                     type="button"
                     variant={importMode === "replace" ? "default" : "outline"}
                     onClick={() => setImportMode("replace")}
+                    className="min-h-[48px]"
                   >
                     Remplacement
                   </Button>
@@ -404,90 +516,39 @@ export default function ImportWizard() {
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="week-start">Semaine de début (lundi)</Label>
-                    <Input id="week-start" type="date" value={weekStart} onChange={(event) => setWeekStart(event.target.value)} />
+                    <Input
+                      id="week-start"
+                      type="date"
+                      value={weekStart}
+                      onChange={(event) => setWeekStart(event.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="week-end">Semaine de fin (lundi)</Label>
-                    <Input id="week-end" type="date" value={weekEnd} onChange={(event) => setWeekEnd(event.target.value)} />
+                    <Input
+                      id="week-end"
+                      type="date"
+                      value={weekEnd}
+                      onChange={(event) => setWeekEnd(event.target.value)}
+                    />
                   </div>
                 </div>
                 {weekStart && weekEnd ? (
-                  <p className="text-xs text-muted-foreground">Cet EDT sera appliqué du {weekStart} au {weekEnd}.</p>
+                  <p className="text-xs text-muted-foreground">
+                    Cet EDT sera appliqué du {weekStart} au {weekEnd}.
+                  </p>
                 ) : null}
                 {periodError ? (
-                  <p className="text-sm text-destructive break-words overflow-hidden">{periodError}</p>
+                  <p className="break-words text-sm text-destructive">{periodError}</p>
                 ) : null}
               </div>
             ) : null}
-
-            <Button
-              type="button"
-              variant="link"
-              onClick={() => void handleTemplateDownload()}
-              disabled={isDownloadingTemplate}
-              className={cn("px-0", touchFeedbackClass)}
-            >
-              {isDownloadingTemplate ? (
-                <Spinner size="sm" className="mr-2" />
-              ) : (
-                <DownloadIcon className="mr-2 h-4 w-4" />
-              )}
-              📥 Télécharger le modèle Excel
-            </Button>
-
-            <div
-              onDragOver={(event) => {
-                event.preventDefault()
-                setIsDragging(true)
-              }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={(event) => {
-                event.preventDefault()
-                setIsDragging(false)
-                const droppedFile = event.dataTransfer.files?.[0] ?? null
-                applySelectedFile(droppedFile)
-              }}
-              className={cn(
-                "flex min-h-[200px] flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 text-center transition-colors",
-                isDragging ? "border-primary bg-primary/5" : "border-border"
-              )}
-            >
-              <UploadCloudIcon className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-              <p className="text-sm font-medium">Glissez-déposez votre fichier .xlsx ici</p>
-              <p className="mb-4 text-xs text-muted-foreground">Taille maximale: 5Mo</p>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx"
-                className="hidden"
-                onChange={(event) => applySelectedFile(event.target.files?.[0] ?? null)}
-              />
-
-              <Button
-                type="button"
-                variant="outline"
-                className={cn(touchFeedbackClass, "min-h-[48px]")}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                Parcourir
-              </Button>
-
-              {file ? (
-                <div className="mt-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-                  <p className="font-medium">Fichier sélectionné</p>
-                  <p className="break-all">{file.name}</p>
-                </div>
-              ) : null}
-
-              {fileError ? <p className="mt-3 overflow-hidden break-words text-sm font-medium text-red-600">{fileError}</p> : null}
-            </div>
 
             <div className="flex justify-end">
               <Button
                 type="button"
                 onClick={handleGoToValidation}
-                disabled={!file || !importType || dryRunMutation.isPending}
+                disabled={!file || dryRunMutation.isPending}
                 className={cn(touchFeedbackClass, "min-h-[48px]")}
               >
                 {dryRunMutation.isPending ? (
@@ -505,8 +566,8 @@ export default function ImportWizard() {
 
         {step === 2 ? (
           <div className="space-y-6">
-            {step === 2 && dryRunMutation.isPending ? (
-              <div className="flex items-center gap-2 rounded-md border p-4 text-sm">
+            {dryRunMutation.isPending ? (
+              <div className="flex min-h-[72px] items-center gap-2 rounded-md border p-4 text-sm">
                 <Spinner size="sm" />
                 <span>Analyse du fichier...</span>
               </div>
@@ -514,15 +575,16 @@ export default function ImportWizard() {
 
             {validationError ? (
               <Alert variant="destructive">
-                <WarningIcon className="h-4 w-4" />
-                <AlertDescription className="break-words overflow-hidden">{validationError}</AlertDescription>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="break-words">{validationError}</AlertDescription>
               </Alert>
             ) : null}
 
             {dryRunReport && !dryRunMutation.isPending ? (
               <>
-                <div className="rounded-md border border-green-200 bg-green-50 p-4 text-green-700">
-                  <p className="font-medium">✓ {dryRunReport.valid} lignes valides</p>
+                <div className="flex flex-wrap items-center gap-3 rounded-md border p-4 text-sm">
+                  <p className="font-medium text-green-700">{dryRunReport.valid} lignes valides</p>
+                  <p className="font-medium text-destructive">{blockingRowsCount} erreurs</p>
                 </div>
 
                 {(importType === "students" || importType === "teachers") ? (
@@ -551,7 +613,7 @@ export default function ImportWizard() {
                 {hasConflicts ? (
                   <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
                     <Alert>
-                      <WarningIcon className="h-4 w-4" />
+                      <AlertTriangle className="h-4 w-4" />
                       <AlertTitle>Modification d&apos;un EDT existant</AlertTitle>
                       <AlertDescription>
                         Les semaines suivantes ont déjà un emploi du temps défini :
@@ -568,7 +630,7 @@ export default function ImportWizard() {
                         checked={conflictAcknowledged}
                         onCheckedChange={(checked) => setConflictAcknowledged(Boolean(checked))}
                       />
-                      <Label htmlFor="conflict-ack">
+                      <Label htmlFor="conflict-ack" className="leading-tight">
                         Je confirme vouloir remplacer l&apos;EDT existant pour ces semaines
                       </Label>
                     </div>
@@ -597,10 +659,7 @@ export default function ImportWizard() {
                   </div>
 
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <SpreadsheetIcon className="h-4 w-4 text-muted-foreground" />
-                      <p className="text-sm font-medium">Aperçu des 5 premières lignes</p>
-                    </div>
+                    <p className="text-sm font-medium">Aperçu des 5 premières lignes</p>
 
                     {dryRunReport.preview.length ? (
                       <div className="overflow-x-auto rounded-md border">
@@ -612,18 +671,49 @@ export default function ImportWizard() {
                                   {column}
                                 </TableHead>
                               ))}
+                              <TableHead className="whitespace-nowrap">Statut</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {dryRunReport.preview.slice(0, 5).map((row, rowIndex) => (
-                              <TableRow key={rowIndex}>
-                                {Object.entries(row).map(([column, value]) => (
-                                  <TableCell key={`${rowIndex}-${column}`} className="max-w-[280px] min-w-0 break-words align-top">
-                                    {String(value)}
+                            {dryRunReport.preview.slice(0, 5).map((row, rowIndex) => {
+                              const rowIssues = getIssuesForPreviewRow(rowIndex)
+                              const hasRowError = rowIssues.length > 0
+
+                              return (
+                                <TableRow key={rowIndex}>
+                                  {Object.entries(row).map(([column, value]) => {
+                                    const matchingIssue = rowIssues.find(
+                                      (issue) =>
+                                        issue.column.trim().toLowerCase() === column.trim().toLowerCase()
+                                    )
+
+                                    return (
+                                      <TableCell
+                                        key={`${rowIndex}-${column}`}
+                                        className="max-w-[260px] min-w-[140px] align-top"
+                                      >
+                                        <p className="break-words text-sm">{String(value)}</p>
+                                        {matchingIssue ? (
+                                          <p className="text-xs text-muted-foreground">{matchingIssue.message}</p>
+                                        ) : null}
+                                      </TableCell>
+                                    )
+                                  })}
+                                  <TableCell className="align-top">
+                                    {hasRowError ? (
+                                      <Badge variant="destructive">Erreur</Badge>
+                                    ) : (
+                                      <Badge
+                                        variant="default"
+                                        className="bg-green-600 text-white hover:bg-green-600"
+                                      >
+                                        Valide
+                                      </Badge>
+                                    )}
                                   </TableCell>
-                                ))}
-                              </TableRow>
-                            ))}
+                                </TableRow>
+                              )
+                            })}
                           </TableBody>
                         </Table>
                       </div>
@@ -656,7 +746,14 @@ export default function ImportWizard() {
                 }
                 className={cn(touchFeedbackClass, "min-h-[48px]")}
               >
-                Importer →
+                {confirmMutation.isPending ? (
+                  <>
+                    <Spinner size="sm" className="mr-2" />
+                    Import en cours...
+                  </>
+                ) : (
+                  "Importer →"
+                )}
               </Button>
             </div>
           </div>
@@ -675,15 +772,15 @@ export default function ImportWizard() {
 
             {importError ? (
               <Alert variant="destructive">
-                <WarningIcon className="h-4 w-4" />
-                <AlertDescription className="break-words overflow-hidden">{importError}</AlertDescription>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="break-words">{importError}</AlertDescription>
               </Alert>
             ) : null}
 
             {!confirmMutation.isPending && confirmReport ? (
               <>
                 {!hasPartialErrors ? (
-                  <div className="animate-in fade-in duration-300 rounded-md border border-green-200 bg-green-50 p-4 text-green-700">
+                  <div className="animate-in fade-in rounded-md border border-green-200 bg-green-50 p-4 text-green-700 duration-300">
                     <p className="font-medium">✓ {totalImported} enregistrements importés avec succès</p>
                     {confirmReport.updated > 0 ? (
                       <p className="text-sm">

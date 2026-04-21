@@ -318,29 +318,29 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
-                    <TableHead>Début</TableHead>
-                    <TableHead>Fin</TableHead>
+                    <TableHead>Créneau</TableHead>
+                    {/* <TableHead>Début</TableHead>
+                    <TableHead>Fin</TableHead> */}
                     <TableHead>Matière</TableHead>
                     <TableHead>Classe</TableHead>
-                    <TableHead>Créneau</TableHead>
                     <TableHead>Statut</TableHead>
                     <TableHead>Check-in</TableHead>
                     <TableHead>Retard</TableHead>
                     <TableHead>Salle</TableHead>
                     <TableHead>Pointage élèves</TableHead>
-                    <TableHead>Prévu</TableHead>
-                    <TableHead>Fait</TableHead>
+                    {/* <TableHead>Prévu</TableHead>
+                    <TableHead>Fait</TableHead> */}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {pagedRows.map((row, index) => (
                     <TableRow key={`${row.date}-${row.slotLabel}-${index}`}>
                       <TableCell>{row.date}</TableCell>
-                      <TableCell>{row.startTime}</TableCell>
-                      <TableCell>{row.endTime}</TableCell>
+                      <TableCell>{row.slotLabel}</TableCell>
+                      {/* <TableCell>{row.startTime}</TableCell>
+                      <TableCell>{row.endTime}</TableCell> */}
                       <TableCell>{row.subject}</TableCell>
                       <TableCell>{row.className}</TableCell>
-                      <TableCell>{row.slotLabel}</TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"
@@ -369,8 +369,8 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
                           <Badge variant="outline">N/A</Badge>
                         )}
                       </TableCell>
-                      <TableCell>{row.hoursPlanned.toFixed(2)}h</TableCell>
-                      <TableCell>{row.hoursDone.toFixed(2)}h</TableCell>
+                      {/* <TableCell>{row.hoursPlanned.toFixed(2)}h</TableCell>
+                      <TableCell>{row.hoursDone.toFixed(2)}h</TableCell> */}
                     </TableRow>
                   ))}
                 </TableBody>

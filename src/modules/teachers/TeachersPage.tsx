@@ -347,28 +347,28 @@ export default function TeachersPage() {
           </Badge>
         ),
       },
-      {
-        accessorKey: "attendanceRate",
-        header: ({ column }) => <SortableHeader column={column} label="Présence" />,
-        cell: ({ row }) => (
-          <div className="flex items-center gap-2">
-            <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
-              <div
-                className={cn(
-                  "h-full rounded-full",
-                  row.original.attendanceRate >= 90
-                    ? "bg-green-500"
-                    : row.original.attendanceRate >= 70
-                      ? "bg-amber-500"
-                      : "bg-red-500"
-                )}
-                style={{ width: `${row.original.attendanceRate}%` }}
-              />
-            </div>
-            <span className="text-xs tabular-nums">{row.original.attendanceRate}%</span>
-          </div>
-        ),
-      },
+      // {
+      //   accessorKey: "attendanceRate",
+      //   header: ({ column }) => <SortableHeader column={column} label="Présence" />,
+      //   cell: ({ row }) => (
+      //     <div className="flex items-center gap-2">
+      //       <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
+      //         <div
+      //           className={cn(
+      //             "h-full rounded-full",
+      //             row.original.attendanceRate >= 90
+      //               ? "bg-green-500"
+      //               : row.original.attendanceRate >= 70
+      //                 ? "bg-amber-500"
+      //                 : "bg-red-500"
+      //           )}
+      //           style={{ width: `${row.original.attendanceRate}%` }}
+      //         />
+      //       </div>
+      //       <span className="text-xs tabular-nums">{row.original.attendanceRate}%</span>
+      //     </div>
+      //   ),
+      // },
       {
         accessorKey: "isBlocked",
         header: "Statut",
@@ -434,9 +434,9 @@ export default function TeachersPage() {
         }}
         className="space-y-4"
       >
-        <TabsList className="h-auto min-h-12">
-          <TabsTrigger value="liste" className="min-h-12">Liste</TabsTrigger>
-          <TabsTrigger value="analyse" className="min-h-12">Analyse présence</TabsTrigger>
+        <TabsList className="grid h-auto w-full grid-cols-2 rounded-xl border border-border bg-muted/50 p-1 sm:w-full md:w-[420px]">
+          <TabsTrigger value="liste" className="min-h-12 rounded-lg text-sm font-medium">Liste</TabsTrigger>
+          <TabsTrigger value="analyse" className="min-h-12 rounded-lg text-sm font-medium">Analyse présence</TabsTrigger>
         </TabsList>
 
         <TabsContent value="liste" className="space-y-6">

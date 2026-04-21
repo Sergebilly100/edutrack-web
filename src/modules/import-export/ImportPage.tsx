@@ -1,19 +1,16 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { Download } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { cn } from "@/lib/utils"
 import { downloadTemplate, type ImportType } from "@/modules/import-export/import-export.api"
 import { fetchImportHistory } from "@/modules/schedule/schedule.api"
-import {
-  CalendarClockIcon,
-  ClassIcon,
-  DownloadIcon,
-  SpreadsheetIcon,
-  TeacherIdentityIcon,
-} from "@/shared/components/icons"
+import { CalendarClockIcon, ClassIcon, SpreadsheetIcon, TeacherIdentityIcon } from "@/shared/components/icons"
+import { Spinner } from "@/shared/components/Spinner"
 import ImportWizard from "./ImportWizard"
 
 type TemplateItem = {
@@ -28,20 +25,20 @@ const TEMPLATE_ITEMS: TemplateItem[] = [
     type: "students",
     label: "Modèle élèves",
     description: "Classes, identité et contacts parent",
-    icon: ClassIcon
+    icon: ClassIcon,
   },
   {
     type: "teachers",
     label: "Modèle professeurs",
     description: "Type, matières et taux horaire",
-    icon: TeacherIdentityIcon
+    icon: TeacherIdentityIcon,
   },
   {
     type: "schedule",
     label: "Modèle emploi du temps",
     description: "Jour, créneau, professeur, classe, salle",
-    icon: SpreadsheetIcon
-  }
+    icon: SpreadsheetIcon,
+  },
 ]
 
 const formatDateTime = (value: string) =>
@@ -50,22 +47,23 @@ const formatDateTime = (value: string) =>
     month: "2-digit",
     year: "numeric",
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
   })
 
 const labelByType: Record<ImportType, string> = {
   students: "Élèves",
   teachers: "Professeurs",
-  schedule: "Emploi du temps"
+  schedule: "Emploi du temps",
 }
 
 export default function ImportPage() {
+  const [activeImportType, setActiveImportType] = useState<ImportType>("students")
   const [downloadingType, setDownloadingType] = useState<ImportType | null>(null)
   const [templateError, setTemplateError] = useState<string | null>(null)
 
   const historyQuery = useQuery({
     queryKey: ["import-history", 20],
-    queryFn: () => fetchImportHistory(20)
+    queryFn: () => fetchImportHistory(20),
   })
 
   const handleDownload = async (type: ImportType) => {
@@ -91,48 +89,7 @@ export default function ImportPage() {
         </p>
       </header>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Télécharger les modèles</CardTitle>
-          <CardDescription>Commencez par un fichier conforme au format EduTrack.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {templateError ? (
-            <Alert variant="destructive">
-              <AlertDescription>{templateError}</AlertDescription>
-            </Alert>
-          ) : null}
-
-          <div className="grid gap-3 md:grid-cols-3">
-            {TEMPLATE_ITEMS.map((item) => {
-              const Icon = item.icon
-              return (
-                <Button
-                  key={item.type}
-                  variant="outline"
-                  className="h-auto items-start justify-between gap-3 p-4 text-left"
-                  onClick={() => void handleDownload(item.type)}
-                  disabled={downloadingType !== null}
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      <Icon className="h-4 w-4 text-primary" />
-                      {item.label}
-                    </div>
-                    <p className="text-xs text-muted-foreground">{item.description}</p>
-                  </div>
-                  <span className="inline-flex items-center text-xs">
-                    <DownloadIcon className="mr-1 h-3 w-3" />
-                    {downloadingType === item.type ? "Chargement..." : "Télécharger"}
-                  </span>
-                </Button>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      <ImportWizard />
+      <ImportWizard selectedImportType={activeImportType} onImportTypeChange={setActiveImportType} />
 
       <Card>
         <CardHeader>
