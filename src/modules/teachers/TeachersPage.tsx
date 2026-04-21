@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import type { ColumnDef, Column } from "@tanstack/react-table"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -29,8 +29,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
+import TeacherAnalysisPanel from "@/modules/teachers/components/TeacherAnalysisPanel"
 import TeacherForm from "@/modules/teachers/components/TeacherForm"
 import {
   blockTeacher,
@@ -172,6 +174,7 @@ function TeacherRowActions({
 
 export default function TeachersPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const user = useAuthStore((state) => state.user)
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -185,6 +188,7 @@ export default function TeachersPage() {
   const [teacherForExport, setTeacherForExport] = useState<TeacherListItem | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [exportPeriod, setExportPeriod] = useState(getDefaultExportPeriod)
+  const activeTab = searchParams.get("tab") === "analyse" ? "analyse" : "liste"
 
   const last30Days = useMemo(() => getLast30DaysPeriod(), [])
 
@@ -412,244 +416,265 @@ export default function TeachersPage() {
         </Button>
       }
     >
-      {/* ── Filtres ── */}
-      <div
-        className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-sm"
-        data-testid="teachers-filters"
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => {
+          const next = new URLSearchParams(searchParams)
+          next.set("tab", value)
+          setSearchParams(next, { replace: true })
+        }}
+        className="space-y-4"
       >
-        <div className="grid gap-3 md:grid-cols-3">
-          <Select
-            value={typeFilter}
-            onValueChange={(value: "all" | "vacataire" | "permanent") => setTypeFilter(value)}
+        <TabsList className="h-auto min-h-12">
+          <TabsTrigger value="liste" className="min-h-12">Liste</TabsTrigger>
+          <TabsTrigger value="analyse" className="min-h-12">Analyse présence</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="liste" className="space-y-6" forceMount>
+          {/* ── Filtres ── */}
+          <div
+            className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-sm"
+            data-testid="teachers-filters"
           >
-            <SelectTrigger>
-              <SelectValue placeholder="Type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les types</SelectItem>
-              <SelectItem value="vacataire">Vacataires</SelectItem>
-              <SelectItem value="permanent">Permanents</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={statusFilter}
-            onValueChange={(value: "all" | "active" | "inactive") => setStatusFilter(value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Statut" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les statuts</SelectItem>
-              <SelectItem value="active">Actifs</SelectItem>
-              <SelectItem value="inactive">Bloqués</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <div className="relative">
-            <FilterIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-9"
-              value={subjectFilter}
-              onChange={(event) => setSubjectFilter(event.target.value)}
-              placeholder="Filtrer par matière"
-              data-testid="teachers-subject-filter-input"
-            />
-          </div>
-        </div>
-      </div>
-
-      {teachersQuery.isError ? (
-        <Alert variant="destructive">
-          <AlertDescription>Impossible de charger la liste des professeurs.</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {!teachersQuery.isError ? (
-        <div data-testid="teachers-list-table">
-          <DataTable
-            columns={columns}
-            data={tableData}
-            isLoading={teachersQuery.isLoading}
-            searchKey="name"
-            searchPlaceholder="Rechercher un professeur"
-            pageSize={20}
-            onRowClick={(teacher) => navigate(`/teachers/${teacher.id}`)}
-            emptyState={
-              <EmptyState
-                icon={<AppIcon icon={TeachersIcon} size="md" className="text-muted-foreground" />}
-                title="Aucun professeur"
-                message="Ajoutez un professeur ou ajustez les filtres pour afficher des résultats."
-                action={{ label: "Ajouter un prof", onClick: () => setCreateOpen(true) }}
-              />
-            }
-            mobileCard={(teacher) => (
-              <button
-                type="button"
-                className="flex w-full items-center gap-3 rounded-xl border bg-card p-4 text-left shadow-sm"
-                onClick={() => navigate(`/teachers/${teacher.id}`)}
-                data-testid="teacher-mobile-card"
+            <div className="grid gap-3 md:grid-cols-3">
+              <Select
+                value={typeFilter}
+                onValueChange={(value: "all" | "vacataire" | "permanent") => setTypeFilter(value)}
               >
-                <Avatar className="h-10 w-10 flex-shrink-0">
-                  <AvatarFallback className="text-sm">{initials(teacher.name)}</AvatarFallback>
-                </Avatar>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{teacher.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {teacher.subjects.join(", ")}
-                  </p>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <Badge
-                    variant={teacher.isBlocked ? "destructive" : "secondary"}
-                    className="text-xs"
+                <SelectTrigger>
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les types</SelectItem>
+                  <SelectItem value="vacataire">Vacataires</SelectItem>
+                  <SelectItem value="permanent">Permanents</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={statusFilter}
+                onValueChange={(value: "all" | "active" | "inactive") => setStatusFilter(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Statut" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les statuts</SelectItem>
+                  <SelectItem value="active">Actifs</SelectItem>
+                  <SelectItem value="inactive">Bloqués</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="relative">
+                <FilterIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="pl-9"
+                  value={subjectFilter}
+                  onChange={(event) => setSubjectFilter(event.target.value)}
+                  placeholder="Filtrer par matière"
+                  data-testid="teachers-subject-filter-input"
+                />
+              </div>
+            </div>
+          </div>
+
+          {teachersQuery.isError ? (
+            <Alert variant="destructive">
+              <AlertDescription>Impossible de charger la liste des professeurs.</AlertDescription>
+            </Alert>
+          ) : null}
+
+          {!teachersQuery.isError ? (
+            <div data-testid="teachers-list-table">
+              <DataTable
+                columns={columns}
+                data={tableData}
+                isLoading={teachersQuery.isLoading}
+                searchKey="name"
+                searchPlaceholder="Rechercher un professeur"
+                pageSize={20}
+                onRowClick={(teacher) => navigate(`/teachers/${teacher.id}`)}
+                emptyState={
+                  <EmptyState
+                    icon={<AppIcon icon={TeachersIcon} size="md" className="text-muted-foreground" />}
+                    title="Aucun professeur"
+                    message="Ajoutez un professeur ou ajustez les filtres pour afficher des résultats."
+                    action={{ label: "Ajouter un prof", onClick: () => setCreateOpen(true) }}
+                  />
+                }
+                mobileCard={(teacher) => (
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 rounded-xl border bg-card p-4 text-left shadow-sm"
+                    onClick={() => navigate(`/teachers/${teacher.id}`)}
+                    data-testid="teacher-mobile-card"
                   >
-                    {teacher.isBlocked ? "Bloqué" : "Actif"}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">{teacher.attendanceRate}%</span>
-                </div>
-                <ChevronRightIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-              </button>
-            )}
-          />
-        </div>
-      ) : null}
-
-      {/* ── Modal : créer un professeur ── */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Ajouter un professeur</DialogTitle>
-            <DialogDescription>
-              Renseignez les informations du nouveau professeur.
-            </DialogDescription>
-          </DialogHeader>
-          <TeacherForm
-            isPending={createMutation.isPending}
-            submitLabel="Créer le professeur"
-            onSubmit={async (payload) => {
-              await createMutation.mutateAsync(payload)
-            }}
-          />
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Modal : bloquer / débloquer ── */}
-      <Dialog
-        open={Boolean(teacherForStatusChange)}
-        onOpenChange={(open) => { if (!open) closeStatusDialog() }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {teacherForStatusChange?.isBlocked
-                ? "Débloquer le professeur"
-                : "Bloquer le professeur"}
-            </DialogTitle>
-            <DialogDescription>
-              {teacherForStatusChange?.isBlocked
-                ? "Le professeur retrouvera l'accès à ses actions habituelles."
-                : "Saisissez le motif du blocage pour continuer."}
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* Motif uniquement pour le blocage */}
-          {!teacherForStatusChange?.isBlocked ? (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Raison du blocage</p>
-              <Input
-                value={blockReasonInput}
-                onChange={(event) => setBlockReasonInput(event.target.value)}
-                placeholder="Ex: Dossier RH incomplet"
-                data-testid="teachers-list-block-reason-input"
+                    <Avatar className="h-10 w-10 flex-shrink-0">
+                      <AvatarFallback className="text-sm">{initials(teacher.name)}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{teacher.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {teacher.subjects.join(", ")}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge
+                        variant={teacher.isBlocked ? "destructive" : "secondary"}
+                        className="text-xs"
+                      >
+                        {teacher.isBlocked ? "Bloqué" : "Actif"}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">{teacher.attendanceRate}%</span>
+                    </div>
+                    <ChevronRightIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                  </button>
+                )}
               />
             </div>
           ) : null}
 
-          <DialogFooter>
-            <Button variant="outline" onClick={closeStatusDialog}>
-              Annuler
-            </Button>
-            <Button
-              variant={teacherForStatusChange?.isBlocked ? "secondary" : "destructive"}
-              disabled={
-                toggleBlockMutation.isPending ||
-                (!teacherForStatusChange?.isBlocked && blockReasonInput.trim().length === 0)
-              }
-              onClick={() => {
-                if (!teacherForStatusChange) return
-                void toggleBlockMutation.mutateAsync({
-                  teacher: teacherForStatusChange,
-                  reason: blockReasonInput.trim(),
-                })
-              }}
-            >
-              {toggleBlockMutation.isPending
-                ? "Traitement..."
-                : teacherForStatusChange?.isBlocked
-                  ? "Débloquer"
-                  : "Bloquer"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Modal : export heures ── */}
-      <Dialog
-        open={Boolean(teacherForExport)}
-        onOpenChange={(open) => !open && setTeacherForExport(null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Exporter PDF</DialogTitle>
-            <DialogDescription>
-              Sélectionnez la période d'export pour {teacherForExport?.fullName}.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Date de début</p>
-              <Input
-                type="date"
-                value={exportPeriod.dateFrom}
-                onChange={(event) =>
-                  setExportPeriod((current) => ({ ...current, dateFrom: event.target.value }))
-                }
+          {/* ── Modal : créer un professeur ── */}
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Ajouter un professeur</DialogTitle>
+                <DialogDescription>
+                  Renseignez les informations du nouveau professeur.
+                </DialogDescription>
+              </DialogHeader>
+              <TeacherForm
+                isPending={createMutation.isPending}
+                submitLabel="Créer le professeur"
+                onSubmit={async (payload) => {
+                  await createMutation.mutateAsync(payload)
+                }}
               />
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Date de fin</p>
-              <Input
-                type="date"
-                value={exportPeriod.dateTo}
-                onChange={(event) =>
-                  setExportPeriod((current) => ({ ...current, dateTo: event.target.value }))
-                }
-              />
-            </div>
-          </div>
+            </DialogContent>
+          </Dialog>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setTeacherForExport(null)}>
-              Annuler
-            </Button>
-            <Button
-              disabled={exportMutation.isPending}
-              onClick={() => {
-                if (!teacherForExport) return
-                void exportMutation.mutateAsync({
-                  teacherId: teacherForExport.id,
-                  dateFrom: exportPeriod.dateFrom,
-                  dateTo: exportPeriod.dateTo,
-                })
-              }}
-            >
-              {exportMutation.isPending ? "Export..." : "Exporter"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          {/* ── Modal : bloquer / débloquer ── */}
+          <Dialog
+            open={Boolean(teacherForStatusChange)}
+            onOpenChange={(open) => { if (!open) closeStatusDialog() }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {teacherForStatusChange?.isBlocked
+                    ? "Débloquer le professeur"
+                    : "Bloquer le professeur"}
+                </DialogTitle>
+                <DialogDescription>
+                  {teacherForStatusChange?.isBlocked
+                    ? "Le professeur retrouvera l'accès à ses actions habituelles."
+                    : "Saisissez le motif du blocage pour continuer."}
+                </DialogDescription>
+              </DialogHeader>
+
+              {/* Motif uniquement pour le blocage */}
+              {!teacherForStatusChange?.isBlocked ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Raison du blocage</p>
+                  <Input
+                    value={blockReasonInput}
+                    onChange={(event) => setBlockReasonInput(event.target.value)}
+                    placeholder="Ex: Dossier RH incomplet"
+                    data-testid="teachers-list-block-reason-input"
+                  />
+                </div>
+              ) : null}
+
+              <DialogFooter>
+                <Button variant="outline" onClick={closeStatusDialog}>
+                  Annuler
+                </Button>
+                <Button
+                  variant={teacherForStatusChange?.isBlocked ? "secondary" : "destructive"}
+                  disabled={
+                    toggleBlockMutation.isPending ||
+                    (!teacherForStatusChange?.isBlocked && blockReasonInput.trim().length === 0)
+                  }
+                  onClick={() => {
+                    if (!teacherForStatusChange) return
+                    void toggleBlockMutation.mutateAsync({
+                      teacher: teacherForStatusChange,
+                      reason: blockReasonInput.trim(),
+                    })
+                  }}
+                >
+                  {toggleBlockMutation.isPending
+                    ? "Traitement..."
+                    : teacherForStatusChange?.isBlocked
+                      ? "Débloquer"
+                      : "Bloquer"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* ── Modal : export heures ── */}
+          <Dialog
+            open={Boolean(teacherForExport)}
+            onOpenChange={(open) => !open && setTeacherForExport(null)}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Exporter PDF</DialogTitle>
+                <DialogDescription>
+                  Sélectionnez la période d'export pour {teacherForExport?.fullName}.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Date de début</p>
+                  <Input
+                    type="date"
+                    value={exportPeriod.dateFrom}
+                    onChange={(event) =>
+                      setExportPeriod((current) => ({ ...current, dateFrom: event.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Date de fin</p>
+                  <Input
+                    type="date"
+                    value={exportPeriod.dateTo}
+                    onChange={(event) =>
+                      setExportPeriod((current) => ({ ...current, dateTo: event.target.value }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setTeacherForExport(null)}>
+                  Annuler
+                </Button>
+                <Button
+                  disabled={exportMutation.isPending}
+                  onClick={() => {
+                    if (!teacherForExport) return
+                    void exportMutation.mutateAsync({
+                      teacherId: teacherForExport.id,
+                      dateFrom: exportPeriod.dateFrom,
+                      dateTo: exportPeriod.dateTo,
+                    })
+                  }}
+                >
+                  {exportMutation.isPending ? "Export..." : "Exporter"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </TabsContent>
+
+        <TabsContent value="analyse" forceMount>
+          <TeacherAnalysisPanel />
+        </TabsContent>
+      </Tabs>
     </PageLayout>
   )
 }

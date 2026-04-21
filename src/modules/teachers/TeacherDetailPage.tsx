@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useNavigate, useParams } from "react-router-dom"
+import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -110,12 +110,18 @@ function WeeklyScheduleCard({ teacherId }: { teacherId: string }) {
 }
 
 function AttendancePanel({ teacherId }: { teacherId: string }) {
-  const month = getCurrentMonth()
+  const [month, setMonth] = useState(getCurrentMonth())
+  const [page, setPage] = useState(1)
+  const pageSize = 12
 
   const monthlyQuery = useQuery({
     queryKey: ["teacher", teacherId, "monthly-attendance", month],
     queryFn: () => getTeacherMonthlyAttendance(teacherId, month),
   })
+
+  useEffect(() => {
+    setPage(1)
+  }, [month])
 
   if (monthlyQuery.isLoading) {
     return (
@@ -132,9 +138,36 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
   }
 
   const data = monthlyQuery.data
+  const now = new Date()
+  const rowsSorted = [...data.rows]
+    .filter((row) => new Date(`${row.date}T${row.startTime || "00:00"}:00`).getTime() <= now.getTime())
+    .sort((a, b) => {
+      const aTs = new Date(`${a.date}T${a.startTime || "00:00"}:00`).getTime()
+      const bTs = new Date(`${b.date}T${b.startTime || "00:00"}:00`).getTime()
+      return bTs - aTs
+    })
+
+  const totalPages = Math.max(1, Math.ceil(rowsSorted.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const start = (currentPage - 1) * pageSize
+  const pagedRows = rowsSorted.slice(start, start + pageSize)
 
   return (
     <div className="space-y-4">
+      <Card>
+        <CardContent className="pt-4">
+          <div className="max-w-60 space-y-2">
+            <p className="text-sm font-medium">Mois analysé</p>
+            <Input
+              type="month"
+              value={month}
+              className="min-h-12"
+              onChange={(event) => setMonth(event.target.value || getCurrentMonth())}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardContent className="pt-6">
           <PresenceHeatmap month={data.month} rows={data.rows} />
@@ -171,42 +204,82 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
           <CardTitle className="text-base">Détail des présences</CardTitle>
         </CardHeader>
         <CardContent>
-          {data.rows.length === 0 ? (
+          {rowsSorted.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Aucune présence enregistrée pour ce mois.
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Matière</TableHead>
-                  <TableHead>Classe</TableHead>
-                  <TableHead>Créneau</TableHead>
-                  <TableHead>Statut</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.rows.map((row, index) => (
-                  <TableRow key={`${row.date}-${row.slotLabel}-${index}`}>
-                    <TableCell>{row.date}</TableCell>
-                    <TableCell>{row.subject}</TableCell>
-                    <TableCell>{row.className}</TableCell>
-                    <TableCell>{row.slotLabel}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={
-                          statusBadgeClass[row.attendanceStatus] ?? statusBadgeClass.not_marked
-                        }
-                      >
-                        {statusLabel[row.attendanceStatus] ?? statusLabel.not_marked}
-                      </Badge>
-                    </TableCell>
+            <div className="space-y-3">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Début</TableHead>
+                    <TableHead>Fin</TableHead>
+                    <TableHead>Matière</TableHead>
+                    <TableHead>Classe</TableHead>
+                    <TableHead>Créneau</TableHead>
+                    <TableHead>Statut</TableHead>
+                    <TableHead>Check-in</TableHead>
+                    <TableHead>Retard</TableHead>
+                    <TableHead>Prévu</TableHead>
+                    <TableHead>Fait</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {pagedRows.map((row, index) => (
+                    <TableRow key={`${row.date}-${row.slotLabel}-${index}`}>
+                      <TableCell>{row.date}</TableCell>
+                      <TableCell>{row.startTime}</TableCell>
+                      <TableCell>{row.endTime}</TableCell>
+                      <TableCell>{row.subject}</TableCell>
+                      <TableCell>{row.className}</TableCell>
+                      <TableCell>{row.slotLabel}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={
+                            statusBadgeClass[row.attendanceStatus] ?? statusBadgeClass.not_marked
+                          }
+                        >
+                          {statusLabel[row.attendanceStatus] ?? statusLabel.not_marked}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{row.checkedInAt ? row.checkedInAt.slice(11, 16) : "—"}</TableCell>
+                      <TableCell>{row.lateMinutes ? `${row.lateMinutes} min` : "—"}</TableCell>
+                      <TableCell>{row.hoursPlanned.toFixed(2)}h</TableCell>
+                      <TableCell>{row.hoursDone.toFixed(2)}h</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Page {currentPage} / {totalPages} • {rowsSorted.length} ligne(s)
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="min-h-12"
+                    disabled={currentPage <= 1}
+                    onClick={() => setPage((value) => Math.max(1, value - 1))}
+                  >
+                    Précédent
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="min-h-12"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                  >
+                    Suivant
+                  </Button>
+                </div>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -312,6 +385,7 @@ function InfosPanel({ teacherId }: { teacherId: string }) {
 
 export default function TeacherDetailPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { teacherId = "" } = useParams<{ teacherId: string }>()
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -408,6 +482,7 @@ export default function TeacherDetailPage() {
   }
 
   const teacher = teacherQuery.data
+  const returnTo = searchParams.get("returnTo")
 
   const monthStats = {
     hours_done: Math.round((statsQuery.data?.hoursWorked ?? 0) * 10) / 10,
@@ -474,7 +549,16 @@ export default function TeacherDetailPage() {
       title="Détail professeur"
       subtitle={teacher.fullName}
       actions={
-        <Button variant="outline" onClick={() => navigate("/teachers")}>
+        <Button
+          variant="outline"
+          onClick={() => {
+            if (returnTo) {
+              navigate(returnTo)
+              return
+            }
+            navigate(-1)
+          }}
+        >
           <BackIcon className="mr-2 h-4 w-4" />
           Retour liste
         </Button>

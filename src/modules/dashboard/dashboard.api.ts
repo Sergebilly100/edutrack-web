@@ -190,6 +190,7 @@ export type DashboardQRAlertItem = {
 }
 
 type TeacherSalaryDetailRow = {
+  date: string
   attendanceStatus: "present" | "absent" | "late" | "excused" | "not_marked"
 }
 
@@ -511,6 +512,7 @@ const normalizeTeacherSalaryDetails = (payload: unknown): TeacherSalaryDetailRes
     const status = asString(row.attendanceStatus)
 
     return {
+      date: asString(row.date),
       attendanceStatus:
         status === "present" ||
         status === "absent" ||
@@ -590,9 +592,16 @@ export const getTopRiskTeachers = async (month: string): Promise<DashboardRiskTe
   const details = await Promise.all(
     teacherRows.map(async (teacher) => {
       const payload = await getTeacherSalaryDetails(teacher.teacherId, month)
-      const totalRows = payload.rows.length
-      const absenceCount = payload.rows.filter((row) => row.attendanceStatus === "absent").length
-      const presentLikeCount = payload.rows.filter(
+      const now = new Date()
+      const effectiveRows = payload.rows.filter((row) => {
+        const [year, monthRaw, day] = row.date.split("-").map((part: string) => Number(part))
+        const rowDate = new Date(year ?? 1970, (monthRaw ?? 1) - 1, day ?? 1)
+        return rowDate.getTime() <= now.getTime()
+      })
+
+      const totalRows = effectiveRows.length
+      const absenceCount = effectiveRows.filter((row) => row.attendanceStatus === "absent").length
+      const presentLikeCount = effectiveRows.filter(
         (row) => row.attendanceStatus === "present" || row.attendanceStatus === "late" || row.attendanceStatus === "excused"
       ).length
 

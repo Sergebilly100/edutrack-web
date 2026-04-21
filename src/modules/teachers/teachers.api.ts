@@ -25,6 +25,34 @@ export type TeacherStats = {
   amountDue: number
 }
 
+export type TeacherAttendanceStats = {
+  teacher_id: string
+  teacher_name: string
+  teacher_type: "vacataire" | "permanent"
+  subjects: string[]
+  total_scheduled: number
+  present_count: number
+  absent_count: number
+  late_count: number
+  room_mismatch_count: number
+  rollcall_done_count: number
+  rollcall_missing_count: number
+  attendance_rate: number
+  hours_scheduled: number
+  hours_done: number
+}
+
+export type ClassOption = {
+  id: string
+  name: string
+}
+
+export type TeacherOption = {
+  id: string
+  name: string
+  subjects: string[]
+}
+
 export type TeacherMonthlyAttendanceStatus =
   | "present"
   | "absent"
@@ -34,13 +62,18 @@ export type TeacherMonthlyAttendanceStatus =
 
 export type TeacherMonthlyAttendanceRow = {
   date: string
+  scheduleId: string | null
   className: string
   subject: string
+  dayOfWeek?: number
   slotLabel: string
   startTime: string
   endTime: string
   attendanceStatus: TeacherMonthlyAttendanceStatus
+  checkedInAt: string | null
   lateMinutes: number | null
+  hoursPlanned: number
+  hoursDone: number
 }
 
 export type TeacherMonthlyAttendanceSummary = {
@@ -369,13 +402,18 @@ export async function getTeacherMonthlyAttendance(
     const row = toRecord(item)
     return {
       date: toString(row.date),
+      scheduleId: toNullableString(row.scheduleId),
       className: toString(row.className, "--"),
       subject: toString(row.subject, "--"),
+      dayOfWeek: toNumber(row.dayOfWeek, 0),
       slotLabel: toString(row.slotLabel, "--"),
       startTime: toString(row.startTime, "--"),
       endTime: toString(row.endTime, "--"),
       attendanceStatus: toAttendanceStatus(row.attendanceStatus),
+      checkedInAt: toNullableString(row.checkedInAt),
       lateMinutes: row.lateMinutes === null ? null : toNumber(row.lateMinutes, 0),
+      hoursPlanned: toNumber(row.hoursPlanned, 0),
+      hoursDone: toNumber(row.hoursDone, 0),
     }
   })
 
@@ -411,4 +449,58 @@ export async function exportTeacherHours(input: ExportTeacherHoursInput): Promis
       extractFilename(response.headers["content-disposition"]) ??
       `edutrack-heures-${input.teacherId}.xlsx`,
   }
+}
+
+export const fetchTeacherAttendanceStats = async (params: {
+  from: string
+  to: string
+  subject?: string
+  class_id?: string
+  teacher_id?: string
+  status_filter?: "absent" | "room_mismatch" | "rollcall_missing" | "late"
+}): Promise<TeacherAttendanceStats[]> => {
+  const response = await api.get("/teachers/attendance-stats", { params })
+  const payload = response.data
+  return Array.isArray(payload)
+    ? (payload as TeacherAttendanceStats[])
+    : Array.isArray((payload as Record<string, unknown>).data)
+      ? ((payload as Record<string, unknown>).data as TeacherAttendanceStats[])
+      : []
+}
+
+export const fetchClasses = async (): Promise<ClassOption[]> => {
+  const extractClassList = (payload: unknown): unknown[] => {
+    if (Array.isArray(payload)) return payload
+    const record = toRecord(payload)
+    if (Array.isArray(record.data)) return record.data as unknown[]
+    return []
+  }
+
+  let data: unknown[] = []
+
+  try {
+    const response = await api.get("/classes")
+    data = extractClassList(response.data)
+  } catch {
+    const fallback = await api.get("/schedule/weekly")
+    const payload = toRecord(fallback.data)
+    data = Array.isArray(payload.classes) ? payload.classes : []
+  }
+
+  return data.map((item) => {
+    const row = toRecord(item)
+    return {
+      id: toString(row.id),
+      name: toString(row.name),
+    }
+  })
+}
+
+export const fetchTeacherOptions = async (): Promise<TeacherOption[]> => {
+  const response = await getTeachers({ page: 1, limit: 200, is_active: true })
+  return response.data.map((teacher) => ({
+    id: teacher.id,
+    name: teacher.fullName,
+    subjects: teacher.subjects,
+  }))
 }

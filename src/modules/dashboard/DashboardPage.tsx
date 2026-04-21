@@ -1,6 +1,6 @@
 import { useMemo, useRef } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Bell, CheckCircle2, ChevronRight, GraduationCap, Users, Wallet } from "lucide-react"
+import { Bell, CheckCircle2, ChevronRight, GraduationCap, RefreshCw, Users, Wallet } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -131,7 +131,15 @@ function DashboardSkeleton() {
 }
 
 function TodayPresenceList({ courses }: { courses: DashboardCourseItem[] }) {
-  if (courses.length === 0) {
+  const sortedCourses = useMemo(() => {
+    return [...courses].sort((a, b) => {
+      const aTime = a.checkedInAt ? new Date(a.checkedInAt).getTime() : new Date(`1970-01-01T${a.startTime}`).getTime()
+      const bTime = b.checkedInAt ? new Date(b.checkedInAt).getTime() : new Date(`1970-01-01T${b.startTime}`).getTime()
+      return bTime - aTime
+    })
+  }, [courses])
+
+  if (sortedCourses.length === 0) {
     return (
       <EmptyState
         icon={emptyStateIcons.noCourses}
@@ -143,7 +151,7 @@ function TodayPresenceList({ courses }: { courses: DashboardCourseItem[] }) {
 
   return (
     <div className="space-y-2" data-testid="dashboard-today-presence-list">
-      {courses.map((course) => {
+      {sortedCourses.map((course) => {
         const status = courseStatusMeta[course.status ?? "default"] ?? courseStatusMeta.default
         return (
           <div
@@ -293,6 +301,16 @@ export default function DashboardPage() {
     (coverageQuery.data?.nextWeekHasCoverage === false ? 1 : 0) + (weeklyAbsenceCount > 3 ? 1 : 0)
 
   const schoolName = schoolQuery.data?.name?.trim() || "École"
+  const riskMonthStart = `${currentMonth}-01`
+  const riskMonthEnd = new Date(
+    Number(currentMonth.slice(0, 4)),
+    Number(currentMonth.slice(5, 7)),
+    0
+  )
+    .toISOString()
+    .slice(0, 10)
+  const riskTeachersLink =
+    `/teachers?tab=analyse&run=1&from=${riskMonthStart}&to=${riskMonthEnd}&status_filter=absent`
 
   if (isInitialLoading) {
     return (
@@ -330,6 +348,24 @@ export default function DashboardPage() {
                   {activeAlertsCount}
                 </span>
               ) : null}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label="Mettre à jour les données"
+              onClick={() => {
+                void todayQuery.refetch()
+                void countsQuery.refetch()
+                void historyQuery.refetch()
+                void coverageQuery.refetch()
+                void salarySummaryQuery.refetch()
+                void previousSalarySummaryQuery.refetch()
+                void riskTeachersQuery.refetch()
+                void schoolQuery.refetch()
+              }}
+            >
+              <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
         </header>
@@ -402,7 +438,7 @@ export default function DashboardPage() {
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg font-semibold">Profs à risque</CardTitle>
               <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-sm">
-                <Link to="/teachers" data-testid="dashboard-risk-see-all">Voir tous</Link>
+                <Link to={riskTeachersLink} data-testid="dashboard-risk-see-all">Voir tous</Link>
               </Button>
             </CardHeader>
             <CardContent>
