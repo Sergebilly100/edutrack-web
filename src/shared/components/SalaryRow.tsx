@@ -24,7 +24,7 @@ export interface SalaryRowProps {
   teacher: SalaryRowTeacher
   periodSummary: SalaryRowPeriodSummary
   onMarkPaid: (teacherId: string) => void
-  onExportPDF: (teacherId: string) => void
+  onDetails: (teacherId: string) => void
   dataTestIdPrefix?: string
 }
 
@@ -94,7 +94,7 @@ const getProgressColor = (ratio: number) => {
   return "bg-red-500"
 }
 
-export function SalaryRow({ teacher, periodSummary, onMarkPaid, onExportPDF, dataTestIdPrefix }: SalaryRowProps) {
+export function SalaryRow({ teacher, periodSummary, onMarkPaid, onDetails, dataTestIdPrefix }: SalaryRowProps) {
   const progressRatio =
     periodSummary.hoursPlanned > 0
       ? Math.max(0, Math.min(100, (periodSummary.hoursDone / periodSummary.hoursPlanned) * 100))
@@ -169,10 +169,10 @@ export function SalaryRow({ teacher, periodSummary, onMarkPaid, onExportPDF, dat
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => onExportPDF(teacher.id)}
+            onClick={() => onDetails(teacher.id)}
             data-testid={dataTestIdPrefix ? `${dataTestIdPrefix}-export-${teacher.id}` : undefined}
           >
-            Export PDF
+            Détails
           </Button>
         </div>
       </TableCell>

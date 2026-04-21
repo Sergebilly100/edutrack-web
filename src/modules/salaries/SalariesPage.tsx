@@ -15,7 +15,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import {
@@ -28,10 +28,11 @@ import {
   getPreviousMonth,
   getRecentMonthOptions,
   getSalarySummary,
+  getTeacherSalaryDetails,
   isFutureMonth,
   queueBulkSalaryExport,
-  queueTeacherSalaryExport,
   updateSalaryStatus,
+  type SalaryTeacherDetails,
   type SalarySummaryItem,
 } from "@/modules/salaries/salaries.api"
 import { EmptyState, OfflineIndicator, SalaryRow, StatCard, emptyStateIcons } from "@/shared/components"
@@ -76,6 +77,24 @@ function SalaryTableSkeleton() {
   )
 }
 
+const formatHours = (value: number): string => `${Math.round(value * 100) / 100}h`
+
+const toDisplayedStatus = (row: SalarySummaryItem, details: SalaryTeacherDetails | null): string => {
+  if (row.status === "Salaire fixe") {
+    return "Salaire fixe"
+  }
+  if (row.status === "disputed") {
+    return "Litige"
+  }
+  if (row.status === "paid") {
+    if (details && details.summary.hoursDone < details.summary.hoursPlanned) {
+      return "Payé partiellement"
+    }
+    return "Payé"
+  }
+  return "En attente"
+}
+
 export default function SalariesPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -91,6 +110,11 @@ export default function SalariesPage() {
   const [bulkPeriodFrom, setBulkPeriodFrom] = useState(getCurrentMonth)
   const [bulkPeriodTo, setBulkPeriodTo] = useState(getCurrentMonth)
   const [isDownloadingExport, setIsDownloadingExport] = useState(false)
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
+  const [detailsRow, setDetailsRow] = useState<SalarySummaryItem | null>(null)
+  const [vacatairePage, setVacatairePage] = useState(1)
+  const [fixedPage, setFixedPage] = useState(1)
+  const pageSize = 10
 
   const monthOptions = useMemo(() => getRecentMonthOptions(getCurrentMonth(), 18), [])
 
@@ -177,19 +201,8 @@ export default function SalariesPage() {
     },
   })
 
-  const exportTeacherMutation = useMutation({
-    mutationFn: (teacherId: string) => queueTeacherSalaryExport(teacherId, selectedMonth),
-    onSuccess: ({ jobId }) => {
-      setExportJobId(jobId)
-      toast({ title: "Export professeur lancé" })
-    },
-    onError: () => {
-      toast({
-        title: "Erreur",
-        description: "Impossible de lancer l'export du professeur.",
-        variant: "destructive",
-      })
-    },
+  const detailsMutation = useMutation({
+    mutationFn: (teacherId: string) => getTeacherSalaryDetails(teacherId, selectedMonth),
   })
 
   const items = salarySummaryQuery.data?.items ?? []
@@ -203,6 +216,18 @@ export default function SalariesPage() {
     () => items.filter((item) => item.teacherType === "permanent" || item.status === "Salaire fixe"),
     [items]
   )
+  const vacataireTotalPages = Math.max(1, Math.ceil(vacataireRows.length / pageSize))
+  const fixedTotalPages = Math.max(1, Math.ceil(permanentRows.length / pageSize))
+  const vacataireCurrentPage = Math.min(vacatairePage, vacataireTotalPages)
+  const fixedCurrentPage = Math.min(fixedPage, fixedTotalPages)
+  const pagedVacataireRows = useMemo(() => {
+    const start = (vacataireCurrentPage - 1) * pageSize
+    return vacataireRows.slice(start, start + pageSize)
+  }, [vacataireCurrentPage, vacataireRows])
+  const pagedPermanentRows = useMemo(() => {
+    const start = (fixedCurrentPage - 1) * pageSize
+    return permanentRows.slice(start, start + pageSize)
+  }, [fixedCurrentPage, permanentRows])
 
   const totalPending = useMemo(
     () =>
@@ -247,6 +272,20 @@ export default function SalariesPage() {
     setSelectedSalaryRow(row)
     setPaymentNotes("")
     setPayDialogOpen(true)
+  }
+
+  const openDetailsDialog = async (row: SalarySummaryItem) => {
+    setDetailsRow(row)
+    setDetailsDialogOpen(true)
+    try {
+      await detailsMutation.mutateAsync(row.teacherId)
+    } catch {
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les détails du salaire.",
+        variant: "destructive",
+      })
+    }
   }
 
   const exportFileName = useMemo(
@@ -464,7 +503,7 @@ export default function SalariesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {vacataireRows.map((row) => {
+                  {pagedVacataireRows.map((row) => {
                     const status = toSalaryRowStatus(row.status)
                     if (!status) {
                       return null
@@ -487,12 +526,37 @@ export default function SalariesPage() {
                           canMarkPaid: Boolean(row.salaryRecordId),
                         }}
                         onMarkPaid={() => openMarkPaidDialog(row)}
-                        onExportPDF={() => exportTeacherMutation.mutate(row.teacherId)}
+                        onDetails={() => void openDetailsDialog(row)}
                       />
                     )
                   })}
                 </TableBody>
               </Table>
+              <div className="mt-4 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span>
+                  Page {vacataireCurrentPage}/{vacataireTotalPages} • {vacataireRows.length} ligne(s)
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setVacatairePage((value) => Math.max(1, value - 1))}
+                    disabled={vacataireCurrentPage <= 1}
+                  >
+                    Précédent
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setVacatairePage((value) => Math.min(vacataireTotalPages, value + 1))}
+                    disabled={vacataireCurrentPage >= vacataireTotalPages}
+                  >
+                    Suivant
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
         </section>
@@ -506,25 +570,171 @@ export default function SalariesPage() {
           {permanentRows.length === 0 ? (
             <p className="text-sm text-muted-foreground">Aucun professeur permanent pour ce mois.</p>
           ) : (
-            <div className="space-y-2">
-              {permanentRows.map((row) => (
-                <div
-                  key={row.teacherId}
-                  className="animate-fade-in flex items-center justify-between rounded-lg border border-border p-3"
-                >
-                  <div>
-                    <p className="text-sm font-medium">{row.teacherName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {row.hoursDone}h réalisées / {row.hoursPlanned}h prévues
-                    </p>
-                  </div>
-                  <Badge variant="outline">Salaire fixe</Badge>
+            <div className="overflow-x-auto">
+              <Table data-testid="salaries-fixed-table">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Professeur</TableHead>
+                    <TableHead>Progression</TableHead>
+                    <TableHead>Statut</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pagedPermanentRows.map((row) => (
+                    <TableRow key={row.teacherId}>
+                      <TableCell className="font-medium">{row.teacherName}</TableCell>
+                      <TableCell className="font-normal">
+                        {formatHours(row.hoursDone)} / {formatHours(row.hoursPlanned)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">Salaire fixe</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button type="button" size="sm" variant="outline" onClick={() => void openDetailsDialog(row)}>
+                          Détails
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <div className="mt-4 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span>
+                  Page {fixedCurrentPage}/{fixedTotalPages} • {permanentRows.length} ligne(s)
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setFixedPage((value) => Math.max(1, value - 1))}
+                    disabled={fixedCurrentPage <= 1}
+                  >
+                    Précédent
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setFixedPage((value) => Math.min(fixedTotalPages, value + 1))}
+                    disabled={fixedCurrentPage >= fixedTotalPages}
+                  >
+                    Suivant
+                  </Button>
                 </div>
-              ))}
+              </div>
             </div>
           )}
         </section>
       </div>
+
+      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Détails salaire professeur</DialogTitle>
+            <DialogDescription>
+              {detailsRow ? `${detailsRow.teacherName} • ${formatMonthLabel(selectedMonth)}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          {detailsMutation.isPending ? (
+            <SalaryTableSkeleton />
+          ) : detailsMutation.data && detailsRow ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="rounded-lg border border-border bg-muted/20 p-3">
+                  <p className="text-xs text-muted-foreground">Heures totales prévues</p>
+                  <p className="text-lg font-semibold">{formatHours(detailsMutation.data.summary.hoursPlanned)}</p>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/20 p-3">
+                  <p className="text-xs text-muted-foreground">Heures effectuées (hors absences)</p>
+                  <p className="text-lg font-semibold">{formatHours(detailsMutation.data.summary.hoursDone)}</p>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/20 p-3">
+                  <p className="text-xs text-muted-foreground">Montant / heure</p>
+                  <p className="text-lg font-semibold">
+                    {detailsMutation.data.teacher.hourlyRate === null
+                      ? "Salaire fixe"
+                      : formatFcfa(detailsMutation.data.teacher.hourlyRate)}
+                  </p>
+                </div>
+              </div>
+
+              {detailsMutation.data.teacher.hourlyRate !== null ? (
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="rounded-lg border border-border p-3">
+                    <p className="text-xs text-muted-foreground">Absences (heures / montant retranché)</p>
+                    <p className="text-base font-semibold">
+                      {formatHours(Math.max(0, detailsMutation.data.summary.hoursPlanned - detailsMutation.data.summary.hoursDone))}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatFcfa(
+                        Math.max(0, detailsMutation.data.summary.hoursPlanned - detailsMutation.data.summary.hoursDone) *
+                          detailsMutation.data.teacher.hourlyRate
+                      )}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-border p-3">
+                    <p className="text-xs text-muted-foreground">Statut paie</p>
+                    <p className="text-base font-semibold">{toDisplayedStatus(detailsRow, detailsMutation.data)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Salaire actuel selon heures réellement faites: {formatFcfa(detailsMutation.data.summary.totalFcfa ?? 0)}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
+              {detailsMutation.data.teacher.hourlyRate !== null ? (
+                <div className="rounded-lg border border-border p-3 text-xs text-muted-foreground">
+                  <p>Salaire déjà payé: {detailsRow.status === "paid" ? formatFcfa(detailsMutation.data.summary.totalFcfa ?? 0) : "0 FCFA"}</p>
+                  <p>Salaire restant à payer: {detailsRow.status === "paid" ? "0 FCFA" : formatFcfa(detailsMutation.data.summary.totalFcfa ?? 0)}</p>
+                  <p>
+                    Salaire à obtenir sur les heures restantes prévues:{" "}
+                    {formatFcfa(
+                      Math.max(0, detailsMutation.data.summary.hoursPlanned - detailsMutation.data.summary.hoursDone) *
+                        detailsMutation.data.teacher.hourlyRate
+                    )}
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-border p-3 text-xs text-muted-foreground">
+                  <p>Professeur permanent: ce tableau détaille l'activité horaire, pas une paie variable.</p>
+                </div>
+              )}
+
+              <div className="max-h-64 overflow-y-auto rounded-lg border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Cours</TableHead>
+                      <TableHead>Heures</TableHead>
+                      <TableHead>Statut</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {detailsMutation.data.rows.map((row, index) => (
+                      <TableRow key={`${row.date}-${index}`}>
+                        <TableCell className="font-normal">{row.date}</TableCell>
+                        <TableCell className="font-normal">
+                          {row.subject} • {row.className} ({row.startTime}-{row.endTime})
+                        </TableCell>
+                        <TableCell className="font-normal">
+                          {formatHours(row.hoursDone)} / {formatHours(row.hoursPlanned)}
+                        </TableCell>
+                        <TableCell className="font-normal">{row.attendanceStatus}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Aucun détail disponible.</p>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={computeDialogOpen} onOpenChange={setComputeDialogOpen}>
         <DialogContent>

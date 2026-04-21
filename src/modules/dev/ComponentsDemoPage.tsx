@@ -555,7 +555,7 @@ export default function ComponentsDemoPage() {
                     teacher={row.teacher}
                     periodSummary={row.periodSummary}
                     onMarkPaid={() => undefined}
-                    onExportPDF={() => undefined}
+                    onDetails={() => undefined}
                   />
                 ))}
               </TableBody>

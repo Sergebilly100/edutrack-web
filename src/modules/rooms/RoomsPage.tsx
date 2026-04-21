@@ -2,6 +2,16 @@ import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Pencil, Plus, QrCode, RefreshCw, Trash2 } from "lucide-react"
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -49,8 +59,13 @@ export default function RoomsPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [form, setForm] = useState<RoomFormState>(EMPTY_FORM)
   const [selectedRoom, setSelectedRoom] = useState<RoomListItem | null>(null)
+  const [roomPendingDelete, setRoomPendingDelete] = useState<RoomListItem | null>(null)
+  const [roomPendingQrRegenerate, setRoomPendingQrRegenerate] = useState<RoomListItem | null>(null)
+  const [confirmEditOpen, setConfirmEditOpen] = useState(false)
   const [selectedQr, setSelectedQr] = useState<RoomQrPayload | null>(null)
   const [qrDialogOpen, setQrDialogOpen] = useState(false)
+  const [page, setPage] = useState(1)
+  const pageSize = 10
 
   const roomsQuery = useQuery({
     queryKey: QUERY_KEY,
@@ -60,6 +75,13 @@ export default function RoomsPage() {
   const sortedRooms = useMemo(() => {
     return [...(roomsQuery.data ?? [])].sort((a, b) => a.name.localeCompare(b.name, "fr"))
   }, [roomsQuery.data])
+
+  const totalPages = Math.max(1, Math.ceil(sortedRooms.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const pagedRooms = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return sortedRooms.slice(start, start + pageSize)
+  }, [currentPage, sortedRooms])
 
   const createMutation = useMutation({
     mutationFn: createRoom,
@@ -106,7 +128,7 @@ export default function RoomsPage() {
     onError: () => {
       toast({
         title: "Erreur",
-        description: "Impossible de supprimer la salle (vérifiez les EDT futurs).",
+        description: "Impossible de supprimer la salle: elle est encore utilisée dans des créneaux.",
         variant: "destructive",
       })
     },
@@ -163,15 +185,12 @@ export default function RoomsPage() {
   }
 
   const regenerateQr = (roomId: string) => {
-    regenerateQrMutation.mutate(roomId)
+    const room = sortedRooms.find((item) => item.id === roomId) ?? null
+    setRoomPendingQrRegenerate(room)
   }
 
   const handleDelete = (room: RoomListItem) => {
-    const confirmed = window.confirm(`Supprimer la salle "${room.name}" ?`)
-    if (!confirmed) {
-      return
-    }
-    deleteMutation.mutate(room.id)
+    setRoomPendingDelete(room)
   }
 
   const handleCreateSubmit = () => {
@@ -228,14 +247,7 @@ export default function RoomsPage() {
       return
     }
 
-    updateMutation.mutate({
-      roomId: selectedRoom.id,
-      payload: {
-        name,
-        building: form.building.trim() || null,
-        capacity,
-      },
-    })
+    setConfirmEditOpen(true)
   }
 
   return (
@@ -277,7 +289,7 @@ export default function RoomsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sortedRooms.map((room) => (
+                  {pagedRooms.map((room) => (
                     <TableRow key={room.id}>
                       <TableCell className="font-medium">{room.name}</TableCell>
                       <TableCell>{room.building || "-"}</TableCell>
@@ -308,6 +320,31 @@ export default function RoomsPage() {
                   ))}
                 </TableBody>
               </Table>
+              <div className="mt-4 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span>
+                  Page {currentPage}/{totalPages} • {sortedRooms.length} salle(s)
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                  >
+                    Précédent
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages}
+                  >
+                    Suivant
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
         </CardContent>
@@ -347,6 +384,96 @@ export default function RoomsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={confirmEditOpen} onOpenChange={setConfirmEditOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la modification de la salle</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette modification peut impacter les emplois du temps (EDT) et la cohérence des cours planifiés.
+              Vérifiez les informations avant de continuer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!selectedRoom) return
+                const name = form.name.trim()
+                const capacity = toNullableCapacity(form.capacity)
+                updateMutation.mutate({
+                  roomId: selectedRoom.id,
+                  payload: {
+                    name,
+                    building: form.building.trim() || null,
+                    capacity,
+                  },
+                })
+              }}
+            >
+              Confirmer la modification
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={Boolean(roomPendingQrRegenerate)}
+        onOpenChange={(open) => {
+          if (!open) setRoomPendingQrRegenerate(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Régénérer le QR code de salle ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action remplace immédiatement le QR code actuel de{" "}
+              <span className="font-medium">{roomPendingQrRegenerate?.name ?? "la salle"}</span>. Le QR imprimé dans
+              la salle devra être remplacé pour éviter les scans invalides.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!roomPendingQrRegenerate) return
+                regenerateQrMutation.mutate(roomPendingQrRegenerate.id)
+                setRoomPendingQrRegenerate(null)
+              }}
+            >
+              Régénérer le QR
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={Boolean(roomPendingDelete)}
+        onOpenChange={(open) => {
+          if (!open) setRoomPendingDelete(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer cette salle ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est définitive. La suppression sera refusée si la salle est utilisée dans un créneau.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!roomPendingDelete) return
+                deleteMutation.mutate(roomPendingDelete.id)
+                setRoomPendingDelete(null)
+              }}
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>

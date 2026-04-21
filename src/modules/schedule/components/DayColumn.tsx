@@ -7,6 +7,7 @@ import { computeSlotLayouts } from "./WeekGrid"
 
 type DayColumnProps = {
   day: { value: number; label: string; date: Date }
+  isToday: boolean
   slots: ScheduleRow[]
   gridStartHour: number
   gridEndHour: number
@@ -30,6 +31,7 @@ const formatDate = (date: Date) =>
 
 export default function DayColumn({
   day,
+  isToday,
   slots,
   gridStartHour,
   gridEndHour,
@@ -56,9 +58,17 @@ export default function DayColumn({
 
   return (
     <div className="min-w-[170px] flex-1">
-      <div className="sticky top-0 z-20 border-b bg-background/95 px-2 py-2 text-center backdrop-blur">
+      <div
+        className={cn(
+          "sticky top-0 z-20 border-b bg-background/95 px-2 py-2 text-center backdrop-blur",
+          isToday ? "border-primary bg-primary/5" : ""
+        )}
+      >
         <p className="text-xs font-semibold">{day.label}</p>
-        <p className="text-[11px] text-muted-foreground">{formatDate(day.date)}</p>
+        <p className="text-[11px] text-muted-foreground">
+          {formatDate(day.date)}
+          {isToday ? " • Aujourd'hui" : ""}
+        </p>
       </div>
 
       <div className="relative border-l" style={{ height: gridHeight }}>

@@ -15,6 +15,8 @@ const getPreviousMonthKeyMock = vi.fn()
 const getTeacherTrendFromSummariesMock = vi.fn()
 const getTotalPendingSalariesMock = vi.fn()
 const fetchSchoolInfoMock = vi.fn()
+const getTodayAbsencesMock = vi.fn()
+const getStudentAbsenceStatsMock = vi.fn()
 
 const navigateMock = vi.fn()
 
@@ -45,6 +47,13 @@ vi.mock("@/modules/dashboard/dashboard.api", () => {
 vi.mock("@/modules/onboarding/onboarding.api", () => {
   return {
     fetchSchoolInfo: () => fetchSchoolInfoMock(),
+  }
+})
+
+vi.mock("@/modules/students/students.api", () => {
+  return {
+    getTodayAbsences: () => getTodayAbsencesMock(),
+    getStudentAbsenceStats: () => getStudentAbsenceStatsMock(),
   }
 })
 
@@ -159,6 +168,8 @@ describe("DashboardPage", () => {
     getTotalPendingSalariesMock.mockReturnValue({ totalFcfa: 45000, count: 1 })
 
     fetchSchoolInfoMock.mockResolvedValue({ name: "École Sainte Marie" })
+    getTodayAbsencesMock.mockResolvedValue([])
+    getStudentAbsenceStatsMock.mockResolvedValue([] as const)
   })
 
   it("renders C1 dashboard sections with real data", async () => {

@@ -29,6 +29,8 @@ import { getTeachers } from "@/modules/teachers/teachers.api"
 import { WeekCoverageAlert } from "@/shared/components"
 import {
   AddIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   DeleteIcon,
   EditIcon,
   LayoutGridIcon,
@@ -138,6 +140,27 @@ const getMondayForWeek = (weekOffset: 0 | 1): string => {
   const monday = getMonday(today)
   monday.setDate(monday.getDate() + weekOffset * 7)
   return toISODate(monday)
+}
+
+const shiftWeekIso = (weekIso: string, deltaWeeks: number): string => {
+  const next = fromISODate(weekIso)
+  next.setDate(next.getDate() + deltaWeeks * 7)
+  return toISODate(next)
+}
+
+const formatWeekRange = (weekStartIso: string) => {
+  const weekStart = fromISODate(weekStartIso)
+  const weekEnd = new Date(weekStart)
+  weekEnd.setDate(weekStart.getDate() + 4)
+
+  const dayFormatter = new Intl.DateTimeFormat("fr-FR", { day: "2-digit" })
+  const monthFormatter = new Intl.DateTimeFormat("fr-FR", { month: "short" })
+  return `Semaine du ${dayFormatter.format(weekStart)} au ${dayFormatter.format(weekEnd)} ${monthFormatter.format(weekEnd)}.`
+}
+
+const isoDayOfWeek = (date: Date) => {
+  const day = date.getDay()
+  return day === 0 ? 7 : day
 }
 
 /** "HH:MM" ou "HH:MM:SS" → minutes depuis minuit */
@@ -345,7 +368,6 @@ export default function SchedulePage() {
   const [teacherFilter, setTeacherFilter] = useState("all")
   const [classFilter, setClassFilter] = useState("all")
   const [mobileDay, setMobileDay] = useState("1")
-  const [weekView, setWeekView] = useState<"current" | "next">("current")
   const [viewMode, setViewMode] = useState<ViewMode>(() => getInitialViewMode())
 
   const currentWeekMonday = useMemo(() => getMondayForWeek(0), [])
@@ -430,8 +452,6 @@ export default function SchedulePage() {
 
   const setWeekFromIso = (weekIso: string) => {
     setSelectedWeekMonday(weekIso)
-    if (weekIso === currentWeekMonday) { setWeekView("current"); return }
-    if (weekIso === nextWeekMonday) setWeekView("next")
   }
 
   const openCreateModal = (prefill?: SlotCreatePrefill) => {
@@ -544,13 +564,17 @@ export default function SchedulePage() {
   if (!user) return <Navigate to="/" replace />
 
   const weekStartDate = fromISODate(selectedWeekMonday)
+  const today = new Date()
+  const mondayKey = toISODate(weekStartDate)
+  const currentMondayKey = toISODate(getMonday(today))
+  const todayDayValue = mondayKey === currentMondayKey ? isoDayOfWeek(today) : null
 
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
       <header className="space-y-4">
         <WeekCoverageAlert
           nextWeekHasCoverage={nextWeekCoverageQuery.data ?? true}
-          onNavigateToSchedule={() => { setWeekView("next"); setWeekFromIso(nextWeekMonday) }}
+          onNavigateToSchedule={() => setWeekFromIso(nextWeekMonday)}
         />
 
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -570,23 +594,38 @@ export default function SchedulePage() {
 
         {/* ── Barre de contrôles ─────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setWeekFromIso(shiftWeekIso(selectedWeekMonday, -1))}
+              aria-label="Semaine précédente"
+            >
+              <ChevronLeftIcon className="h-4 w-4" />
+            </Button>
+            <p className="text-sm font-medium">{formatWeekRange(selectedWeekMonday)}</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setWeekFromIso(shiftWeekIso(selectedWeekMonday, 1))}
+              aria-label="Semaine suivante"
+            >
+              <ChevronRightIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setWeekFromIso(currentWeekMonday)}
+            >
+              Aujourd&apos;hui
+            </Button>
+          </div>
 
-          {/* Semaine */}
-          <Tabs
-            value={weekView}
-            onValueChange={(v) => {
-              const next = v as "current" | "next"
-              setWeekView(next)
-              setWeekFromIso(next === "current" ? currentWeekMonday : nextWeekMonday)
-            }}
-          >
-            <TabsList>
-              <TabsTrigger value="current">Cette semaine</TabsTrigger>
-              <TabsTrigger value="next">Semaine suivante</TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          {/* Séparateur visuel */}
           <div className="h-7 w-px bg-border" aria-hidden="true" />
 
           {/* Vue grille / liste */}
@@ -712,15 +751,21 @@ export default function SchedulePage() {
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse text-sm">
+                <table className="min-w-full table-fixed border-collapse text-sm">
                   <thead>
                     <tr className="bg-muted/40">
-                      <th className="w-[130px] border p-2 text-left text-xs font-semibold text-muted-foreground">
+                      <th className="w-32 border p-2 text-left text-xs font-semibold text-muted-foreground">
                         Créneau
                       </th>
                       {DAYS.map((day) => (
-                        <th key={day.value} className="border p-2 text-left text-xs font-semibold text-muted-foreground">
+                        <th
+                          key={day.value}
+                          className="w-[14.66%] border p-2 text-left text-xs font-semibold text-muted-foreground"
+                        >
                           {day.label}
+                          {todayDayValue === day.value ? (
+                            <span className="ml-1 text-primary">• Aujourd&apos;hui</span>
+                          ) : null}
                         </th>
                       ))}
                     </tr>
@@ -738,7 +783,7 @@ export default function SchedulePage() {
                           return (
                             <td
                               key={`${day.value}-${row.startTime}`}
-                              className="min-h-[80px] border p-1.5 align-top"
+                              className="w-[14.66%] min-h-[80px] border p-1.5 align-top"
                             >
                               <div className="space-y-1">
                                 {cellItems.map((item) => (
@@ -746,7 +791,7 @@ export default function SchedulePage() {
                                     key={item.id}
                                     type="button"
                                     onClick={() => { setSelectedSchedule(item); setDetailOpen(true) }}
-                                    className="w-full rounded-md border bg-muted/30 p-2 text-left text-xs transition hover:bg-muted/60"
+                                    className="w-full rounded-md border bg-muted/30 p-2 text-left text-xs whitespace-normal break-words transition hover:bg-muted/60"
                                   >
                                     <p className="font-semibold leading-tight">{item.teacher.name}</p>
                                     <p className="text-muted-foreground">{item.class.name}</p>
@@ -786,7 +831,10 @@ export default function SchedulePage() {
               <Tabs value={mobileDay} onValueChange={setMobileDay}>
                 <TabsList className="grid w-full grid-cols-6">
                   {DAYS.map((day) => (
-                    <TabsTrigger key={day.value} value={String(day.value)}>{day.label}</TabsTrigger>
+                    <TabsTrigger key={day.value} value={String(day.value)}>
+                      {day.label}
+                      {todayDayValue === day.value ? "*" : ""}
+                    </TabsTrigger>
                   ))}
                 </TabsList>
               </Tabs>

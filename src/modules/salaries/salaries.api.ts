@@ -19,6 +19,35 @@ export type SalarySummaryResponse = {
   items: SalarySummaryItem[]
 }
 
+export type SalaryDetailAttendanceStatus = "present" | "absent" | "late" | "excused" | "not_marked"
+
+export type SalaryDetailRow = {
+  date: string
+  className: string
+  subject: string
+  startTime: string
+  endTime: string
+  attendanceStatus: SalaryDetailAttendanceStatus
+  hoursPlanned: number
+  hoursDone: number
+}
+
+export type SalaryTeacherDetails = {
+  teacher: {
+    id: string
+    name: string
+    type: "vacataire" | "permanent"
+    hourlyRate: number | null
+  }
+  summary: {
+    hoursPlanned: number
+    hoursDone: number
+    totalFcfa: number | null
+    status: SalaryStatus
+  }
+  rows: SalaryDetailRow[]
+}
+
 export type ComputeSalaryResponse = {
   month: string
   updatedCount: number
@@ -147,6 +176,54 @@ export const getSalarySummary = async (month: string): Promise<SalarySummaryResp
   return {
     month: asString(payload.month, month),
     items,
+  }
+}
+
+const parseAttendanceStatus = (value: unknown): SalaryDetailAttendanceStatus => {
+  if (value === "present" || value === "absent" || value === "late" || value === "excused" || value === "not_marked") {
+    return value
+  }
+  return "not_marked"
+}
+
+export const getTeacherSalaryDetails = async (
+  teacherId: string,
+  month: string
+): Promise<SalaryTeacherDetails> => {
+  const response = await api.get(`/billing/salary/${teacherId}`, {
+    params: { month },
+  })
+  const payload = isRecord(response.data) ? response.data : {}
+  const teacher = isRecord(payload.teacher) ? payload.teacher : {}
+  const summary = isRecord(payload.summary) ? payload.summary : {}
+  const rowsRaw = Array.isArray(payload.rows) ? payload.rows : []
+
+  return {
+    teacher: {
+      id: asString(teacher.id, teacherId),
+      name: asString(teacher.name, "Professeur"),
+      type: asString(teacher.type) === "permanent" ? "permanent" : "vacataire",
+      hourlyRate: teacher.hourlyRate === null ? null : asNumber(teacher.hourlyRate, 0),
+    },
+    summary: {
+      hoursPlanned: asNumber(summary.hoursPlanned, 0),
+      hoursDone: asNumber(summary.hoursDone, 0),
+      totalFcfa: summary.totalFcfa === null ? null : asNumber(summary.totalFcfa, 0),
+      status: parseSalaryStatus(summary.status),
+    },
+    rows: rowsRaw.map((entry) => {
+      const row = isRecord(entry) ? entry : {}
+      return {
+        date: asString(row.date),
+        className: asString(row.className),
+        subject: asString(row.subject),
+        startTime: asString(row.startTime).slice(0, 5),
+        endTime: asString(row.endTime).slice(0, 5),
+        attendanceStatus: parseAttendanceStatus(row.attendanceStatus),
+        hoursPlanned: asNumber(row.hoursPlanned, 0),
+        hoursDone: asNumber(row.hoursDone, 0),
+      }
+    }),
   }
 }
 

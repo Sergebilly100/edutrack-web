@@ -1,7 +1,5 @@
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { ScheduleRow } from "@/modules/schedule/schedule.api"
-import { ChevronLeftIcon, ChevronRightIcon } from "@/shared/components/icons"
 
 import DayColumn from "./DayColumn"
 
@@ -42,16 +40,6 @@ const DAYS = [
   { value: 5, label: "Ven" },
   { value: 6, label: "Sam" },
 ] as const
-
-const formatWeekRange = (weekStart: Date) => {
-  const weekEnd = new Date(weekStart)
-  weekEnd.setDate(weekStart.getDate() + 4)
-
-  const dayFormatter = new Intl.DateTimeFormat("fr-FR", { day: "2-digit" })
-  const monthFormatter = new Intl.DateTimeFormat("fr-FR", { month: "short" })
-
-  return `Semaine du ${dayFormatter.format(weekStart)} au ${dayFormatter.format(weekEnd)} ${monthFormatter.format(weekEnd)}.`
-}
 
 const addDays = (date: Date, amount: number) => {
   const copy = new Date(date)
@@ -196,8 +184,8 @@ export default function WeekGrid({
   isLoading = false,
   onSlotClick,
   onSlotAdd,
-  onWeekChange,
-  onToday,
+  onWeekChange: _onWeekChange,
+  onToday: _onToday,
   isBlockedTeacher,
 }: WeekGridProps) {
   const { startHour: gridStartHour, endHour: gridEndHour } = toGridHourRange(slots)
@@ -209,6 +197,8 @@ export default function WeekGrid({
     ...day,
     date: addDays(weekStart, index),
   }))
+  const today = new Date()
+  const todayKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`
 
   const slotsByDay = new Map<number, ScheduleRow[]>()
   for (const slot of slots) {
@@ -219,36 +209,6 @@ export default function WeekGrid({
 
   return (
     <div className="space-y-3 rounded-lg border bg-card p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => onWeekChange?.(addDays(weekStart, -7))}
-            aria-label="Semaine précédente"
-          >
-            <ChevronLeftIcon className="h-4 w-4" />
-          </Button>
-          <p className="text-sm font-medium">{formatWeekRange(weekStart)}</p>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => onWeekChange?.(addDays(weekStart, 7))}
-            aria-label="Semaine suivante"
-          >
-            <ChevronRightIcon className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <Button type="button" variant="secondary" size="sm" onClick={onToday}>
-          Aujourd'hui
-        </Button>
-      </div>
-
       {/* État de chargement — skeleton overlay léger */}
       {isLoading ? (
         <div className="flex h-24 items-center justify-center rounded-md border bg-muted/30">
@@ -289,6 +249,7 @@ export default function WeekGrid({
                 <DayColumn
                   key={day.value}
                   day={day}
+                  isToday={`${day.date.getFullYear()}-${day.date.getMonth()}-${day.date.getDate()}` === todayKey}
                   slots={(slotsByDay.get(day.value) ?? []).sort(
                     (a, b) => a.timeSlot.sortOrder - b.timeSlot.sortOrder
                   )}

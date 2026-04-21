@@ -758,7 +758,7 @@ export default function DashboardPage() {
                             canMarkPaid: row.status === "pending",
                           }}
                           onMarkPaid={() => navigate("/salaries")}
-                          onExportPDF={() => navigate("/salaries")}
+                          onDetails={() => navigate("/salaries")}
                         />
                       ))}
                     </TableBody>
