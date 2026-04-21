@@ -61,6 +61,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
   const flowState = rollCallStore.getFlowState(slot.id, attendanceDate)
   const isRollCallPending = flowState === "rollcall_pending"
   const isCheckinQrDone = flowState === "checkin_qr_done"
+  const isReadyToFinish = flowState === "ready_to_finish"
 
   /**
    * Étape de départ selon l'état du flow :
@@ -68,10 +69,10 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
    * - checkin_qr_done   → reprend à l'étape 3 (même comportement que pending)
    * - null (nouveau)    → étape 1
    */
-  const initialStep: 1 | 2 | 3 =
-    isRollCallPending || isCheckinQrDone ? 3 : 1
+  const initialStep: 1 | 2 | 3 | 4 =
+    isReadyToFinish ? 4 : isRollCallPending || isCheckinQrDone ? 3 : 1
 
-  const [step, setStep] = useState<1 | 2 | 3>(initialStep)
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(initialStep)
 
   /**
    * Point 4 — La présence n'est confirmée qu'après l'étape 2 (QR).
@@ -104,7 +105,11 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
       setShowRollCallPrompt(false)
       setCheckInScheduled(false)
       const currentFlow = rollCallStore.getFlowState(slot.id, attendanceDate)
-      setStep(currentFlow === "rollcall_pending" || currentFlow === "checkin_qr_done" ? 3 : 1)
+      if (currentFlow === "ready_to_finish") {
+        setStep(4)
+      } else {
+        setStep(currentFlow === "rollcall_pending" || currentFlow === "checkin_qr_done" ? 3 : 1)
+      }
     }
   }, [open, slot.id, attendanceDate, rollCallStore])
 
@@ -258,6 +263,11 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
    * CourseCard affichera "Poursuivre le pointage".
    */
   const handleSheetClose = () => {
+    if (isReadyToFinish || step === 4) {
+      onClose()
+      return
+    }
+
     const checkinSent = checkInMutation.isSuccess || checkInMutation.isPending
     const pastStep1 = checkInScheduled || checkinSent
 
@@ -308,8 +318,11 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
         absent_student_ids: absentStudentIds,
       })
 
-      rollCallStore.markDone(slot.id, attendanceDate)
-      toast({ title: `Appel enregistré — ${absentCount} absent(s)` })
+      rollCallStore.markReadyToFinish(slot.id, attendanceDate)
+      toast({
+        title: `Appel enregistré — ${absentCount} absent(s)`,
+        description: "Terminez le cours en scannant à nouveau le QR de la salle.",
+      })
       void queryClient.invalidateQueries({ queryKey: ["teacher-attendance", attendanceDate] })
       onClose()
     } catch {
@@ -321,10 +334,34 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
     }
   }
 
+  const handleFinishCourse = async (token: string) => {
+    const qrToken = token.trim()
+    if (!qrToken) return
+
+    try {
+      await qrMutation.mutateAsync({
+        qr_token: qrToken,
+        scan_type: "end",
+        schedule_id: slot.id,
+      })
+
+      rollCallStore.markDone(slot.id, attendanceDate)
+      toast({ title: "Cours terminé", description: "Heure de fin enregistrée." })
+      void queryClient.invalidateQueries({ queryKey: ["teacher-attendance", attendanceDate] })
+      onClose()
+    } catch {
+      toast({
+        title: "Échec de la clôture",
+        description: "Impossible d'enregistrer la fin du cours.",
+        variant: "destructive",
+      })
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   const stepIndex = useMemo(() => [1, 2, 3] as const, [])
-  const isResuming = isRollCallPending || isCheckinQrDone
+  const isResuming = isRollCallPending || isCheckinQrDone || isReadyToFinish
 
   return (
     <>
@@ -343,6 +380,8 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
             <SheetTitle>
               {isRollCallPending
                 ? "Pointage des élèves"
+                : isReadyToFinish
+                  ? "Terminer le cours"
                 : isCheckinQrDone
                   ? "Poursuivre le pointage"
                   : "Pointage du cours"}
@@ -607,6 +646,44 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                     ? `Marquer encore ${unmarkedCount} élève${unmarkedCount > 1 ? "s" : ""}`
                     : `Valider l'appel — ${absentCount} absent${absentCount > 1 ? "s" : ""}`}
               </Button>
+            </section>
+          ) : null}
+
+          {step === 4 ? (
+            <section className="space-y-4 rounded-xl border p-4" data-testid="teacher-checkin-step-4">
+              <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2">
+                <p className="text-xs font-medium text-green-800">
+                  Scannez le QR de la salle pour terminer le cours.
+                </p>
+              </div>
+
+              <QRScanner
+                scheduleId={slot.id}
+                scanType="end"
+                onTokenDetected={(token) => { void handleFinishCourse(token) }}
+              />
+
+              <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
+                <p className="text-sm font-medium text-amber-800">Entrer le code manuellement</p>
+                <div className="flex gap-2">
+                  <Input
+                    value={manualQrCode}
+                    onChange={(e) => setManualQrCode(e.target.value)}
+                    placeholder="Code QR"
+                    data-testid="teacher-finish-manual-qr-input"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="min-h-[48px]"
+                    data-testid="teacher-finish-manual-qr-submit"
+                    disabled={qrMutation.isPending}
+                    onClick={() => { void handleFinishCourse(manualQrCode) }}
+                  >
+                    {qrMutation.isPending ? "..." : "Valider"}
+                  </Button>
+                </div>
+              </div>
             </section>
           ) : null}
         </SheetContent>

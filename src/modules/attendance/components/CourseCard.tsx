@@ -11,7 +11,7 @@ interface CourseCardProps {
   onStartCourse: (slot: ScheduleSlot) => void
 }
 
-type CourseStatus = "upcoming" | "now" | "done" | "missed"
+type CourseStatus = "upcoming" | "starting_soon" | "now" | "done" | "missed"
 
 const toDateKey = (date: Date) => {
   const year = date.getFullYear()
@@ -40,6 +40,7 @@ const getStatus = (
   const courseDateKey = slot.date ?? toDateKey(now)
   const start = toDateTime(courseDateKey, slot.start_time)
   const end = toDateTime(courseDateKey, slot.end_time)
+  const startWindow = new Date(start.getTime() - 5 * 60 * 1000)
 
   const hasCheckIn =
     attendance?.status === "present" ||
@@ -47,6 +48,7 @@ const getStatus = (
     attendance?.status === "excused"
 
   if (hasCheckIn && now >= end) return "done"
+  if (now >= startWindow && now < start) return "starting_soon"
   if (now >= start && now <= end) return "now"
   if (now > end) return "missed"
   return "upcoming"
@@ -58,6 +60,7 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
 
   const courseDateKey = slot.date ?? toDateKey(now)
   const end = toDateTime(courseDateKey, slot.end_time)
+  const finishWindowEnd = new Date(end.getTime() + 30 * 60 * 1000)
   const rollCallStillOpen = now <= end
 
   const alreadyCheckedIn =
@@ -68,6 +71,7 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
   const flowState = useRollCallStore((s) => s.getFlowState(slot.id, courseDateKey))
   const rollCallPending = flowState === "rollcall_pending"
   const checkinQrDone = flowState === "checkin_qr_done"
+  const readyToFinish = flowState === "ready_to_finish"
 
   // ── Règles d'affichage des boutons ────────────────────────────────────────
 
@@ -78,7 +82,11 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
    *              + aucun flow en cours (pas de "Poursuivre")
    */
   const canStart =
-    status === "now" && !alreadyCheckedIn && !checkinQrDone && !rollCallPending
+    (status === "now" || status === "starting_soon") &&
+    !alreadyCheckedIn &&
+    !checkinQrDone &&
+    !rollCallPending &&
+    !readyToFinish
 
   /**
    * Point 5 — "Poursuivre le pointage" : étapes 1+2 faites, sheet fermé sans finir.
@@ -93,12 +101,20 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
    */
   const canDoRollCall = rollCallPending && rollCallStillOpen
 
+  const canFinishCourse =
+    readyToFinish &&
+    now <= finishWindowEnd &&
+    !attendance?.room_scan_end_at
+
   return (
     <li
       data-testid={`teacher-course-card-${slot.id}`}
       className={cn(
         "min-h-[80px] rounded-xl border bg-card p-4 shadow-sm",
-        status === "now" && !rollCallPending && !checkinQrDone && "border-primary",
+        (status === "now" || status === "starting_soon") &&
+          !rollCallPending &&
+          !checkinQrDone &&
+          "border-primary",
         status === "missed" && "border-red-300",
         status === "done" && "bg-muted/30",
         rollCallPending && rollCallStillOpen && "border-amber-300 bg-amber-50/40",
@@ -120,10 +136,10 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
           </p>
 
           {/* En cours normal */}
-          {status === "now" && !rollCallPending && !checkinQrDone ? (
+          {(status === "now" || status === "starting_soon") && !rollCallPending && !checkinQrDone ? (
             <p className="flex items-center gap-2 text-xs font-medium text-green-600">
               <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
-              En cours
+              {status === "starting_soon" ? "Démarrage imminent" : "En cours"}
             </p>
           ) : null}
 
@@ -240,6 +256,19 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
               onClick={() => onStartCourse(slot)}
             >
               Faire le pointage des élèves
+            </Button>
+          ) : null}
+
+          {canFinishCourse ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-green-300 bg-green-50 text-green-700 hover:bg-green-100 active:scale-95 transition-transform"
+              data-testid={`teacher-finish-course-${slot.id}`}
+              onClick={() => onStartCourse(slot)}
+            >
+              Terminer le cours
             </Button>
           ) : null}
         </div>

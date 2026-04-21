@@ -12,12 +12,15 @@
  *                         (fermeture accidentelle, swipe, bouton X)
  *                         CourseCard → bouton "Poursuivre le pointage" (outline)
  *
+ *   "ready_to_finish"   → appel élèves validé, cours à clôturer par scan QR de fin
+ *                         CourseCard → bouton "Terminer le cours"
+ *
  *   absent (clé inexistante ou supprimée) → workflow non commencé ou terminé
  */
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
-export type FlowState = "rollcall_pending" | "checkin_qr_done"
+export type FlowState = "rollcall_pending" | "checkin_qr_done" | "ready_to_finish"
 
 type FlowKey = string // `${scheduleId}:${date}`
 
@@ -29,6 +32,9 @@ interface RollCallStore {
 
   /** Étapes 1+2 faites, sheet fermé sans terminer (fermeture accidentelle) */
   markCheckinQrDone: (scheduleId: string, date: string) => void
+
+  /** Appel élèves validé, en attente du scan QR de fin */
+  markReadyToFinish: (scheduleId: string, date: string) => void
 
   /** Appel soumis ou workflow complet → nettoyer */
   markDone: (scheduleId: string, date: string) => void
@@ -54,6 +60,11 @@ export const useRollCallStore = create<RollCallStore>()(
       markCheckinQrDone: (scheduleId, date) =>
         set((s) => ({
           flows: { ...s.flows, [`${scheduleId}:${date}`]: "checkin_qr_done" },
+        })),
+
+      markReadyToFinish: (scheduleId, date) =>
+        set((s) => ({
+          flows: { ...s.flows, [`${scheduleId}:${date}`]: "ready_to_finish" },
         })),
 
       markDone: (scheduleId, date) =>

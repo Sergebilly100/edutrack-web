@@ -39,6 +39,8 @@ export type TeacherAttendance = {
   status: "present" | "absent" | "late" | "excused"
   late_minutes?: number | null
   date?: string
+  room_scan_start_at?: string | null
+  room_scan_end_at?: string | null
 }
 
 const toRecord = (value: unknown): Record<string, unknown> =>
@@ -104,6 +106,18 @@ const toTeacherAttendance = (row: unknown): TeacherAttendance => {
           ? item.lateMinutes
           : null,
     date: toString(item.date),
+    room_scan_start_at:
+      typeof item.room_scan_start_at === "string"
+        ? item.room_scan_start_at
+        : typeof item.roomScanStartAt === "string"
+          ? item.roomScanStartAt
+          : null,
+    room_scan_end_at:
+      typeof item.room_scan_end_at === "string"
+        ? item.room_scan_end_at
+        : typeof item.roomScanEndAt === "string"
+          ? item.roomScanEndAt
+          : null,
   }
 }
 

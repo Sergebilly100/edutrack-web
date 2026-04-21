@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Navigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 
@@ -13,6 +13,7 @@ import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { CalendarIcon } from "@/shared/components/icons"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
 import { useAuthStore } from "@/shared/store/auth.store"
+import { useRollCallStore } from "@/shared/store/rollCall.store"
 
 // JS getDay() : 0=Dim → remap ISO 1=Lun … 6=Sam, 7=Dim
 const getDayOfWeek = (date: Date) => {
@@ -77,6 +78,8 @@ export default function TeacherSchedulePage() {
     return new Map((attendanceQuery.data ?? []).map((entry) => [entry.schedule_id, entry]))
   }, [attendanceQuery.data])
 
+  const markFlowDone = useRollCallStore((state) => state.markDone)
+
   const selectedDayOfWeek = getDayOfWeek(selectedDate)
 
   const daySlots = useMemo(() => {
@@ -85,6 +88,31 @@ export default function TeacherSchedulePage() {
       .map((slot) => ({ ...slot, date: selectedDateKey }))
       .sort(sortByTime)
   }, [scheduleQuery.data, selectedDateKey, selectedDayOfWeek])
+
+  useEffect(() => {
+    const now = new Date()
+
+    for (const slot of daySlots) {
+      const flowState = useRollCallStore.getState().getFlowState(slot.id, selectedDateKey)
+      if (flowState !== "ready_to_finish") {
+        continue
+      }
+
+      const attendance = attendanceBySchedule.get(slot.id)
+      if (attendance?.room_scan_end_at) {
+        markFlowDone(slot.id, selectedDateKey)
+        continue
+      }
+
+      const [hours, minutes] = slot.end_time.split(":")
+      const endDate = new Date(selectedDate)
+      endDate.setHours(Number(hours) || 0, Number(minutes) || 0, 0, 0)
+      const autoCloseAt = new Date(endDate.getTime() + 30 * 60 * 1000)
+      if (now > autoCloseAt) {
+        markFlowDone(slot.id, selectedDateKey)
+      }
+    }
+  }, [attendanceBySchedule, daySlots, markFlowDone, selectedDate, selectedDateKey])
 
   /**
    * Les points highlighted dans le DayPicker = jours de la semaine affichée

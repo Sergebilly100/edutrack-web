@@ -148,6 +148,35 @@ const shiftWeekIso = (weekIso: string, deltaWeeks: number): string => {
   return toISODate(next)
 }
 
+const isPastScheduleSelection = (
+  selectedWeekMonday: string,
+  dayOfWeek: number,
+  startTime: string,
+  now: Date
+) => {
+  const selectedMonday = fromISODate(selectedWeekMonday)
+  const currentMonday = getMonday(now)
+
+  if (selectedMonday < currentMonday) {
+    return true
+  }
+  if (selectedMonday > currentMonday) {
+    return false
+  }
+
+  const nowIsoDay = isoDayOfWeek(now)
+  if (dayOfWeek < nowIsoDay) {
+    return true
+  }
+  if (dayOfWeek > nowIsoDay) {
+    return false
+  }
+
+  const nowMinutes = now.getHours() * 60 + now.getMinutes()
+  const startMinutes = timeToMinutes(startTime)
+  return startMinutes <= nowMinutes
+}
+
 const formatWeekRange = (weekStartIso: string) => {
   const weekStart = fromISODate(weekStartIso)
   const weekEnd = new Date(weekStart)
@@ -556,6 +585,14 @@ export default function SchedulePage() {
     const payload = toPayload(formState)
     if (!payload.teacherId || !payload.classId || !payload.roomId || !payload.subject) {
       toast({ variant: "destructive", title: "Formulaire incomplet", description: "Renseignez tous les champs." })
+      return
+    }
+    if (isPastScheduleSelection(selectedWeekMonday, payload.dayOfWeek, payload.startTime ?? "", new Date())) {
+      toast({
+        variant: "destructive",
+        title: "Créneau passé",
+        description: "Les créneaux peuvent être ajoutés uniquement sur des dates/heures futures.",
+      })
       return
     }
     await upsertMutation.mutateAsync({ id: editingSchedule?.id, payload })
