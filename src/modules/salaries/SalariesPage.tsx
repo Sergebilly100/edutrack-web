@@ -20,6 +20,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import {
   computeSalaries,
+  downloadSalaryExportFile,
   formatMonthLabel,
   getCurrentMonth,
   getExportJobStatus,
@@ -89,6 +90,7 @@ export default function SalariesPage() {
   const [bulkExportTarget, setBulkExportTarget] = useState<string>("all")
   const [bulkPeriodFrom, setBulkPeriodFrom] = useState(getCurrentMonth)
   const [bulkPeriodTo, setBulkPeriodTo] = useState(getCurrentMonth)
+  const [isDownloadingExport, setIsDownloadingExport] = useState(false)
 
   const monthOptions = useMemo(() => getRecentMonthOptions(getCurrentMonth(), 18), [])
 
@@ -252,6 +254,34 @@ export default function SalariesPage() {
     [exportJobQuery.data?.downloadUrl]
   )
 
+  const handleDownloadExport = async () => {
+    const downloadUrl = exportJobQuery.data?.downloadUrl
+    if (!downloadUrl) {
+      return
+    }
+
+    setIsDownloadingExport(true)
+    try {
+      const { blob, fileName } = await downloadSalaryExportFile(downloadUrl)
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = objectUrl
+      link.download = fileName || exportFileName || "export-salaires.pdf"
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch {
+      toast({
+        title: "Erreur",
+        description: "Impossible de télécharger le fichier d'export.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDownloadingExport(false)
+    }
+  }
+
   return (
     <>
       <OfflineIndicator />
@@ -353,12 +383,13 @@ export default function SalariesPage() {
                 <Button
                   size="sm"
                   variant="secondary"
-                  onClick={() => {
-                    window.open(exportJobQuery.data?.downloadUrl ?? "", "_blank", "noopener,noreferrer")
-                  }}
+                  onClick={handleDownloadExport}
+                  disabled={isDownloadingExport}
                 >
                     <Download className="mr-2 h-4 w-4" />
-                    <span data-testid="salaries-export-download-link">Télécharger</span>
+                    <span data-testid="salaries-export-download-link">
+                      {isDownloadingExport ? "Téléchargement..." : "Télécharger"}
+                    </span>
                 </Button>
               ) : null}
 

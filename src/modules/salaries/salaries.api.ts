@@ -313,3 +313,19 @@ export const getExportJobStatus = async (jobId: string): Promise<ExportJobStatus
   const response = await api.get(`/jobs/${jobId}/status`)
   return parseJobPayload(response.data)
 }
+
+export const downloadSalaryExportFile = async (
+  downloadUrl: string
+): Promise<{ blob: Blob; fileName: string | null }> => {
+  const response = await api.get<Blob>(downloadUrl, {
+    responseType: "blob",
+  })
+
+  const disposition = response.headers["content-disposition"]
+  const match = typeof disposition === "string" ? disposition.match(/filename="?([^";]+)"?/i) : null
+
+  return {
+    blob: response.data,
+    fileName: match?.[1] ?? null,
+  }
+}
