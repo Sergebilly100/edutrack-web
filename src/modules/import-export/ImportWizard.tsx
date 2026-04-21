@@ -218,7 +218,7 @@ function ImportTypeTabs({
         <TabsContent key={type} value={type} className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
             <p className="text-sm text-muted-foreground">
-              Téléchargez le modèle {tabConfig[type].label.toLowerCase()} puis importez votre fichier.
+              Téléchargez le modèle {tabConfig[type].label.toLowerCase()} conforme au format EduTrack puis importez votre fichier.
             </p>
             <Button
               type="button"
@@ -507,6 +507,16 @@ export default function ImportWizard({ selectedImportType, onImportTypeChange }:
                     ? "Fusion: ajoute et met à jour, sans désactiver les absents du fichier."
                     : "Remplacement: ajoute, met à jour, puis désactive les absents du fichier."}
                 </p>
+                {importMode === "replace" ? (
+                  <Alert variant="destructive" className="mt-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Mode sensible: remplacement</AlertTitle>
+                    <AlertDescription className="text-sm">
+                      Les enregistrements actifs absents du fichier seront désactivés pendant l&apos;import.
+                      Vérifiez le fichier, le périmètre et la sauvegarde avant confirmation.
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
               </div>
             ) : null}
 
