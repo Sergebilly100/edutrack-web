@@ -90,6 +90,7 @@ export type SchoolDetailsResponse = {
     paidCurrentPeriodFcfa: number
     remainingCurrentPeriodFcfa: number
     nextDueDate: string | null
+    lastPaymentReminderAt: string | null
     lastConnection: string | null
   }
   connectionHistory30d: Array<{
@@ -295,6 +296,11 @@ export type AddSchoolPaymentPayload = {
   period_to?: string
 }
 
+export type SchoolPaymentReminderResponse = {
+  sentAt: string
+  recipientPhone: string
+}
+
 export type MaintenanceConfigResponse = {
   maintenanceMode: boolean
   maintenanceMessage: string
@@ -441,6 +447,9 @@ export const getSchoolPayments = (tenantId: string) =>
 
 export const addSchoolPayment = (tenantId: string, payload: AddSchoolPaymentPayload) =>
   api.post<{ success: boolean }>(`/admin/schools/${tenantId}/payments`, payload).then((response) => response.data)
+
+export const sendSchoolPaymentReminder = (tenantId: string) =>
+  api.post<SchoolPaymentReminderResponse>(`/admin/schools/${tenantId}/payments/reminder`).then((response) => response.data)
 
 export const getSmsDashboard = () =>
   api.get<SmsDashboardResponse>("/admin/sms/dashboard").then((response) => response.data)

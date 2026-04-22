@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from "react"
+import { useEffect, useState } from "react"
 import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowLeft, KeyRound, Users } from "lucide-react"
+import { ArrowLeft, KeyRound, Send, Users } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -20,41 +20,18 @@ import {
   getSchoolDetails,
   getSchoolPayments,
   getSchoolUsers,
-  getSmsDashboard,
-  getTenantSmsTemplates,
-  resetTenantSmsTemplate,
+  sendSchoolPaymentReminder,
   type SchoolDetailsResponse,
-  type SmsTemplateType,
   type TenantPlan,
   type TenantStatus,
   type TeachingType,
   updateSchoolConfig,
-  updateTenantSmsTemplate,
 } from "@/modules/admin/admin.api"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 const PLAN_OPTIONS: TenantPlan[] = ["essential", "pro", "establishment"]
 const TEACHING_OPTIONS: TeachingType[] = ["primaire", "secondaire", "superieur", "mixte"]
 const STATUS_OPTIONS: TenantStatus[] = ["trial", "active", "suspended", "cancelled"]
-const SMS_TEMPLATE_OPTIONS: Array<{ type: SmsTemplateType; label: string }> = [
-  { type: "student_absent_parent", label: "Absence élève -> parent" },
-  { type: "teacher_absent_director", label: "Prof absent -> direction" },
-  { type: "teacher_late_director", label: "Prof en retard -> direction" },
-  { type: "payment_reminder", label: "Relance paiement" },
-  { type: "custom", label: "Template libre" },
-]
-const DEFAULT_SMS_TEMPLATES: Record<SmsTemplateType, string> = {
-  student_absent_parent:
-    "Bonjour, votre enfant {studentName} est absent(e) au cours de {subject} ce {date}. Merci de contacter l'école.",
-  teacher_absent_director:
-    "Alerte EduTrack: le professeur {teacherName} est absent pour le créneau {slotLabel} ({subject}, {className}).",
-  teacher_late_director:
-    "Alerte EduTrack: le professeur {teacherName} a {lateMinutes} min de retard pour {subject} ({className}).",
-  payment_reminder:
-    "Rappel EduTrack: merci de régulariser le paiement de la période {period}. Contact: {schoolPhone}.",
-  custom: "Message EduTrack: {message}",
-}
-
 type CreatedDirectorCredentials = {
   userId: string
   name: string
@@ -73,6 +50,19 @@ const formatFcfa = (value: number) =>
 const formatDate = (value: string | null) => (value ? new Date(value).toLocaleDateString("fr-FR") : "-")
 const formatDateTime = (value: string | null) => (value ? new Date(value).toLocaleString("fr-FR") : "-")
 const credentialLabel = (phone: string | null, email: string | null) => email ?? phone ?? "-"
+const toBarWidthClass = (pct: number) => {
+  if (pct >= 100) return "w-full"
+  if (pct >= 90) return "w-11/12"
+  if (pct >= 80) return "w-5/6"
+  if (pct >= 70) return "w-4/5"
+  if (pct >= 60) return "w-3/5"
+  if (pct >= 50) return "w-1/2"
+  if (pct >= 40) return "w-2/5"
+  if (pct >= 30) return "w-1/3"
+  if (pct >= 20) return "w-1/4"
+  if (pct >= 10) return "w-1/6"
+  return "w-1/12"
+}
 
 export default function AdminSchoolDetailPage() {
   const user = useAuthStore((state) => state.user)
@@ -99,16 +89,6 @@ export default function AdminSchoolDetailPage() {
     queryFn: () => getSchoolPayments(tenantId as string),
     enabled: Boolean(tenantId),
   })
-  const smsDashboardQuery = useQuery({
-    queryKey: ["admin", "sms", "dashboard"],
-    queryFn: getSmsDashboard,
-    enabled: Boolean(tenantId),
-  })
-  const tenantTemplatesQuery = useQuery({
-    queryKey: ["admin", "sms", "templates", tenantId],
-    queryFn: () => getTenantSmsTemplates(tenantId as string),
-    enabled: Boolean(tenantId),
-  })
 
   const [config, setConfig] = useState({
     plan: "essential" as TenantPlan,
@@ -130,17 +110,6 @@ export default function AdminSchoolDetailPage() {
     periodFrom: "",
     periodTo: "",
   })
-  const [selectedTemplateType, setSelectedTemplateType] = useState<SmsTemplateType>("student_absent_parent")
-  const [templateText, setTemplateText] = useState("")
-  const currentTemplate = useMemo(
-    () => tenantTemplatesQuery.data?.find((item) => item.type === selectedTemplateType),
-    [selectedTemplateType, tenantTemplatesQuery.data]
-  )
-  const effectiveTemplateText = templateText || currentTemplate?.messageTemplate || DEFAULT_SMS_TEMPLATES[selectedTemplateType]
-  const schoolSmsHistory = useMemo(
-    () => (smsDashboardQuery.data?.history ?? []).filter((item) => item.tenantId === tenantId),
-    [smsDashboardQuery.data?.history, tenantId]
-  )
 
   useEffect(() => {
     if (!schoolQuery.data) return
@@ -158,10 +127,6 @@ export default function AdminSchoolDetailPage() {
       canExportData: metadata.canExportData,
     })
   }, [schoolQuery.data])
-
-  useEffect(() => {
-    setTemplateText(currentTemplate?.messageTemplate ?? "")
-  }, [currentTemplate?.messageTemplate])
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -207,31 +172,6 @@ export default function AdminSchoolDetailPage() {
       toast({ title: "Erreur", description: "Impossible d'enregistrer le paiement", variant: "destructive" })
     },
   })
-  const updateTemplateMutation = useMutation({
-    mutationFn: () =>
-      updateTenantSmsTemplate(tenantId as string, selectedTemplateType, {
-        message_template: effectiveTemplateText,
-        variables: currentTemplate?.variables ?? [],
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["admin", "sms", "templates", tenantId] })
-      toast({ title: "Template SMS mis à jour" })
-    },
-    onError: () => {
-      toast({ title: "Erreur", description: "Impossible de mettre à jour le template SMS", variant: "destructive" })
-    },
-  })
-  const resetTemplateMutation = useMutation({
-    mutationFn: () => resetTenantSmsTemplate(tenantId as string, selectedTemplateType),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["admin", "sms", "templates", tenantId] })
-      setTemplateText(DEFAULT_SMS_TEMPLATES[selectedTemplateType])
-      toast({ title: "Template SMS remis par défaut" })
-    },
-    onError: () => {
-      toast({ title: "Erreur", description: "Impossible de réinitialiser le template", variant: "destructive" })
-    },
-  })
   const toggleTemplateCustomizationMutation = useMutation({
     mutationFn: (enabled: boolean) =>
       updateSchoolConfig(tenantId as string, {
@@ -243,6 +183,20 @@ export default function AdminSchoolDetailPage() {
     },
     onError: () => {
       toast({ title: "Erreur", description: "Impossible de mettre à jour ce paramètre", variant: "destructive" })
+    },
+  })
+  const paymentReminderMutation = useMutation({
+    mutationFn: () => sendSchoolPaymentReminder(tenantId as string),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin", "school-detail", tenantId] })
+      toast({ title: "Relance paiement SMS envoyée" })
+    },
+    onError: (error) => {
+      const description =
+        error instanceof Error && error.message.length > 0
+          ? error.message
+          : "Impossible d'envoyer la relance paiement."
+      toast({ title: "Erreur", description, variant: "destructive" })
     },
   })
 
@@ -262,6 +216,30 @@ export default function AdminSchoolDetailPage() {
 
   const school: SchoolDetailsResponse | undefined = schoolQuery.data
   const canSubmitPayment = Number(payment.amount) > 0 && payment.date.length > 0
+  const dueDateMs = school?.usageStats.nextDueDate ? new Date(school.usageStats.nextDueDate).getTime() : Number.NaN
+  const isPaymentOverdue =
+    school !== undefined &&
+    Number.isFinite(dueDateMs) &&
+    dueDateMs < Date.now() &&
+    school.usageStats.remainingCurrentPeriodFcfa > 0
+  const activeUsersRatePct =
+    school && school.usageStats.nbUsers > 0
+      ? Math.min(100, Math.max(0, Math.round((school.usageStats.activeUsers7d / school.usageStats.nbUsers) * 100)))
+      : 0
+  const studentsPerTeacher =
+    school && school.usageStats.teachersCount > 0
+      ? Number((school.usageStats.studentsCount / school.usageStats.teachersCount).toFixed(1))
+      : 0
+  const dataQualityAlerts = school
+    ? [
+        school.usageStats.activeUsers7d > school.usageStats.nbUsers
+          ? "Incohérence: actifs 7j > utilisateurs totaux."
+          : null,
+        school.usageStats.remainingCurrentPeriodFcfa > school.usageStats.mrrFcfa
+          ? "Incohérence: reste à verser > montant attendu."
+          : null,
+      ].filter((item): item is string => item !== null)
+    : []
 
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
@@ -490,8 +468,10 @@ export default function AdminSchoolDetailPage() {
           <TabsContent value="sms" className="space-y-4">
             <Card className="shadow-sm">
               <CardHeader>
-                <CardTitle>Configuration SMS école</CardTitle>
-                <CardDescription>Activer ou désactiver la personnalisation des templates pour cette école.</CardDescription>
+                <CardTitle>Accès SMS côté école</CardTitle>
+                <CardDescription>
+                  Ce paramètre autorise (ou non) le menu de personnalisation SMS dans le dashboard Directeur/Staff de l&apos;école.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-center gap-2">
@@ -511,82 +491,9 @@ export default function AdminSchoolDetailPage() {
                   Enregistrer ce paramètre
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  Usage actuel: les SMS opérationnels actifs concernent principalement l&apos;absence élève vers parent.
+                  Les templates “Prof absent/retard” et “Template libre” ne sont pas activés dans ce périmètre.
+                  La relance paiement SMS est gérée dans l&apos;onglet Abonnement.
                 </p>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle>Templates SMS</CardTitle>
-                <CardDescription>Templates par défaut fournis, personnalisables si la fonction est activée.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  {SMS_TEMPLATE_OPTIONS.map((item) => (
-                    <Button key={item.type} type="button" variant={selectedTemplateType === item.type ? "default" : "outline"} onClick={() => setSelectedTemplateType(item.type)}>
-                      {item.label}
-                    </Button>
-                  ))}
-                </div>
-
-                <textarea
-                  value={effectiveTemplateText}
-                  onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setTemplateText(event.target.value)}
-                  rows={6}
-                  placeholder="Template SMS"
-                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
-                  disabled={!config.canEditSmsTemplate}
-                />
-
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs text-muted-foreground">{effectiveTemplateText.length} caractères</p>
-                  <div className="flex gap-2">
-                    <Button type="button" variant="outline" onClick={() => resetTemplateMutation.mutate()} disabled={resetTemplateMutation.isPending || !config.canEditSmsTemplate}>
-                      Restaurer défaut
-                    </Button>
-                    <Button type="button" onClick={() => updateTemplateMutation.mutate()} disabled={updateTemplateMutation.isPending || !config.canEditSmsTemplate || effectiveTemplateText.trim().length < 5}>
-                      Enregistrer
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle>Historique SMS école</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Destinataire</TableHead>
-                        <TableHead>Statut</TableHead>
-                        <TableHead>Message</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {schoolSmsHistory.map((row) => (
-                        <TableRow key={row.id}>
-                          <TableCell>{new Date(row.date).toLocaleString("fr-FR")}</TableCell>
-                          <TableCell>{row.type}</TableCell>
-                          <TableCell>{row.recipientMasked}</TableCell>
-                          <TableCell>{row.status}</TableCell>
-                          <TableCell className="max-w-[360px] truncate">{row.message}</TableCell>
-                        </TableRow>
-                      ))}
-                      {!smsDashboardQuery.isLoading && schoolSmsHistory.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-sm text-muted-foreground">Aucun SMS enregistré pour cette école.</TableCell>
-                        </TableRow>
-                      ) : null}
-                    </TableBody>
-                  </Table>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -608,6 +515,36 @@ export default function AdminSchoolDetailPage() {
                 <p>Montant attendu: <strong>{formatFcfa(school.usageStats.mrrFcfa)}</strong></p>
                 <p>Déjà payé: <strong>{formatFcfa(school.usageStats.paidCurrentPeriodFcfa)}</strong></p>
                 <p>Prochaine échéance: <strong>{formatDate(school.usageStats.nextDueDate)}</strong></p>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle>Relance paiement SMS</CardTitle>
+                <CardDescription>
+                  Envoie un SMS au responsable école uniquement si l&apos;échéance est dépassée et qu&apos;un reste est dû.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid gap-3 text-sm md:grid-cols-2">
+                  <p>État échéance: <strong>{isPaymentOverdue ? "Dépassée" : "À jour / non dépassée"}</strong></p>
+                  <p>Dernière relance: <strong>{formatDateTime(school.usageStats.lastPaymentReminderAt)}</strong></p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => paymentReminderMutation.mutate()}
+                  disabled={!isPaymentOverdue || paymentReminderMutation.isPending}
+                >
+                  <Send className="h-4 w-4" />
+                  Relance paiement SMS
+                </Button>
+                {!isPaymentOverdue ? (
+                  <p className="text-xs text-muted-foreground">
+                    Le bouton est actif uniquement quand la date d&apos;échéance est passée et qu&apos;un montant reste à verser.
+                  </p>
+                ) : null}
               </CardContent>
             </Card>
 
@@ -700,20 +637,71 @@ export default function AdminSchoolDetailPage() {
               <Card className="shadow-sm"><CardHeader className="pb-2"><CardDescription>Élèves</CardDescription><CardTitle>{school.usageStats.studentsCount}</CardTitle></CardHeader></Card>
               <Card className="shadow-sm"><CardHeader className="pb-2"><CardDescription>Pointages 30j</CardDescription><CardTitle>{school.usageStats.attendanceRecords30d}</CardTitle></CardHeader></Card>
             </section>
+            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardDescription>Taux d&apos;activation 7j</CardDescription>
+                  <CardTitle>{activeUsersRatePct}%</CardTitle>
+                </CardHeader>
+                <CardContent className="text-xs text-muted-foreground">
+                  {school.usageStats.activeUsers7d} actifs / {school.usageStats.nbUsers} utilisateurs
+                </CardContent>
+              </Card>
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardDescription>Élèves / professeur</CardDescription>
+                  <CardTitle>{studentsPerTeacher}</CardTitle>
+                </CardHeader>
+                <CardContent className="text-xs text-muted-foreground">
+                  Ratio calculé sur les effectifs actuels.
+                </CardContent>
+              </Card>
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardDescription>Total utilisateurs</CardDescription>
+                  <CardTitle>{school.usageStats.nbUsers}</CardTitle>
+                </CardHeader>
+                <CardContent className="text-xs text-muted-foreground">
+                  Dernière connexion: {formatDateTime(school.usageStats.lastConnection)}
+                </CardContent>
+              </Card>
+            </section>
             <Card className="shadow-sm">
               <CardHeader>
-                <CardTitle>Activité récente</CardTitle>
+                <CardTitle>Activité 30 jours (connexions)</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <p>Dernière connexion: <strong>{formatDateTime(school.usageStats.lastConnection)}</strong></p>
-                <p>Utilisateurs totaux: <strong>{school.usageStats.nbUsers}</strong></p>
+              <CardContent className="space-y-2">
+                {(school.connectionHistory30d ?? []).length > 0 ? (
+                  school.connectionHistory30d.map((row) => {
+                    const max = Math.max(...school.connectionHistory30d.map((item) => item.uniqueUsers), 1)
+                    const widthPct = Math.round((row.uniqueUsers / max) * 100)
+                    return (
+                      <div key={row.date} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">{row.date}</span>
+                          <span className="font-medium">{row.uniqueUsers}</span>
+                        </div>
+                        <div className="h-2 rounded bg-muted">
+                          <div className={`h-2 rounded bg-primary ${toBarWidthClass(widthPct)}`} />
+                        </div>
+                      </div>
+                    )
+                  })
+                ) : (
+                  <p className="text-sm text-muted-foreground">Aucune connexion enregistrée sur 30 jours.</p>
+                )}
               </CardContent>
             </Card>
+            {dataQualityAlerts.length > 0 ? (
+              <Alert variant="destructive">
+                <AlertDescription>{dataQualityAlerts.join(" ")}</AlertDescription>
+              </Alert>
+            ) : null}
           </TabsContent>
         </Tabs>
       ) : null}
 
-      {schoolUsersQuery.isError || paymentsQuery.isError || tenantTemplatesQuery.isError ? (
+      {schoolUsersQuery.isError || paymentsQuery.isError ? (
         <Alert variant="destructive">
           <AlertDescription>Certaines données de configuration école n&apos;ont pas pu être chargées.</AlertDescription>
         </Alert>
