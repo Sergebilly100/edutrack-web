@@ -5,6 +5,7 @@ import axios from "axios"
 import AdminPage from "@/modules/admin/AdminPage"
 import AdminAccountPage from "@/modules/admin/AdminAccountPage"
 import AdminMaintenancePage from "@/modules/admin/AdminMaintenancePage"
+import AdminPlansPage from "@/modules/admin/AdminPlansPage"
 import AdminRevenuePage from "@/modules/admin/AdminRevenuePage"
 import AdminSchoolDetailPage from "@/modules/admin/AdminSchoolDetailPage"
 import AdminSmsPage from "@/modules/admin/AdminSmsPage"
@@ -278,6 +279,7 @@ export default function App() {
         <Route path="/admin/schools" element={<AdminPage />} />
         <Route path="/admin/schools/:tenantId" element={<AdminSchoolDetailPage />} />
         <Route path="/admin/revenue" element={<AdminRevenuePage />} />
+        <Route path="/admin/plans" element={<AdminPlansPage />} />
         <Route path="/admin/sms" element={<AdminSmsPage />} />
         <Route path="/admin/maintenance" element={<AdminMaintenancePage />} />
         <Route path="/admin/account" element={<AdminAccountPage />} />

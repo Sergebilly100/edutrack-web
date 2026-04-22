@@ -12,7 +12,7 @@ import {
   StudentsIcon,
   TeachersIcon,
 } from "@/shared/components/icons"
-import { Building2, MessageSquare, Settings2, TrendingUp, User } from "lucide-react"
+import { Building2, MessageSquare, ReceiptText, Settings2, TrendingUp, User } from "lucide-react"
 
 import { isStaffRole, type AuthRole, type PermissionKey } from "@/shared/store/auth.store"
 
@@ -116,6 +116,13 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Revenus",
     href: "/admin/revenue",
     icon: TrendingUp,
+    roles: ["super_admin"],
+    mobileVisible: true,
+  },
+  {
+    label: "Plan & Tarifs",
+    href: "/admin/plans",
+    icon: ReceiptText,
     roles: ["super_admin"],
     mobileVisible: true,
   },

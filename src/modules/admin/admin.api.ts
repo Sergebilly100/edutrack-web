@@ -83,6 +83,12 @@ export type SchoolDetailsResponse = {
     studentsCount: number
     attendanceRecords30d: number
     mrrFcfa: number
+    subscriptionStartedAt: string | null
+    currentPeriodStart: string | null
+    currentPeriodEnd: string | null
+    billingCycle: "monthly" | "annual" | null
+    paidCurrentPeriodFcfa: number
+    remainingCurrentPeriodFcfa: number
     nextDueDate: string | null
     lastConnection: string | null
   }
@@ -106,6 +112,44 @@ export type UpdateSchoolConfigPayload = {
   logo_url?: string | null
   plan?: TenantPlan
   status?: TenantStatus
+}
+
+export type SchoolUserItem = {
+  id: string
+  role: "director" | "secretary" | "staff" | "teacher"
+  name: string
+  phone: string | null
+  email: string | null
+  username: string | null
+  positions: string[]
+  lastLoginAt: string | null
+  isActive: boolean
+}
+
+export type SchoolUsersResponse = {
+  director: SchoolUserItem | null
+  staff: SchoolUserItem[]
+  teachers: SchoolUserItem[]
+}
+
+export type PlanCatalogItem = {
+  plan: TenantPlan
+  monthlyPriceFcfa: number
+  annualPriceFcfa: number
+  defaultBillingCycle: "monthly" | "annual"
+  maxUsers: number
+  maxAdminPositions: number
+  maxSmsPerMonth: number
+  updatedAt: string
+}
+
+export type UpdatePlanCatalogPayload = {
+  monthly_price_fcfa?: number
+  annual_price_fcfa?: number
+  default_billing_cycle?: "monthly" | "annual"
+  max_users?: number
+  max_admin_positions?: number
+  max_sms_per_month?: number
 }
 
 export type AdminMetricsResponse = {
@@ -350,6 +394,9 @@ export const createSchool = (payload: CreateSchoolPayload) =>
 export const getSchoolDetails = (tenantId: string) =>
   api.get<SchoolDetailsResponse>(`/admin/schools/${tenantId}`).then((response) => response.data)
 
+export const getSchoolUsers = (tenantId: string) =>
+  api.get<SchoolUsersResponse>(`/admin/schools/${tenantId}/users`).then((response) => response.data)
+
 export const updateSchoolConfig = (tenantId: string, payload: UpdateSchoolConfigPayload) =>
   api.patch<{ success: boolean }>(`/admin/schools/${tenantId}/config`, payload).then((response) => response.data)
 
@@ -361,6 +408,12 @@ export const getRevenueMetrics = () =>
 
 export const getRevenueSummary = () =>
   api.get<RevenueSummaryResponse>("/admin/revenue/summary").then((response) => response.data)
+
+export const getPlanCatalog = () =>
+  api.get<{ items: PlanCatalogItem[] }>("/admin/plans").then((response) => response.data.items)
+
+export const updatePlanCatalog = (plan: TenantPlan, payload: UpdatePlanCatalogPayload) =>
+  api.patch<{ success: boolean }>(`/admin/plans/${plan}`, payload).then((response) => response.data)
 
 export const getTenants = (query: TenantListQuery = {}) =>
   api
