@@ -27,7 +27,7 @@ import { TeacherTopBar } from "@/shared/components/layout/TeacherTopBar"
 import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
 import { useAutoSync } from "@/shared/hooks/useAutoSync"
 import { useRestoreSession } from "@/shared/hooks/useRestoreSession"
-import { useAuthStore } from "@/shared/store/auth.store"
+import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
 import LoginPage from "./modules/auth/LoginPage"
 import MaintenancePage from "./modules/auth/MaintenancePage"
 import ComponentsDemoPage from "./modules/dev/ComponentsDemoPage"
@@ -49,7 +49,7 @@ function DashboardRoute() {
   if (user?.role === "teacher") {
     return <TeacherDashboardPage />
   }
-  if (user?.role === "secretary") {
+  if (isStaffRole(user?.role)) {
     return <AdministrativeDashboardPage />
   }
 
@@ -72,7 +72,7 @@ function RoleRedirect() {
     return <Navigate to="/admin" replace />
   }
 
-  if (user.role === "secretary") {
+  if (isStaffRole(user.role)) {
     const firstAllowed = getNavItemsByRole(user.role, permissions)[0]?.href
     return <Navigate to={firstAllowed ?? "/dashboard"} replace />
   }

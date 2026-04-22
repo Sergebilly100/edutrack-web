@@ -16,7 +16,7 @@ import StudentAbsencePanel from "@/modules/students/components/StudentAbsencePan
 import { getAttendanceHistory, listStudents, type StudentItem } from "@/modules/students/students.api"
 import { DataTable, EmptyState, PageLayout } from "@/shared/components"
 import { AddIcon, AppIcon, ChevronRightIcon, FilterIcon, StudentsIcon } from "@/shared/components/icons"
-import { useAuthStore } from "@/shared/store/auth.store"
+import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
 import { useStudentLabel } from "@/shared/hooks/useStudentLabel"
 
 type StudentTableRow = StudentItem & {
@@ -209,11 +209,11 @@ export default function StudentsPage() {
     return null
   }
 
-  if (user.role !== "director" && user.role !== "secretary") {
+  if (user.role !== "director" && !isStaffRole(user.role)) {
     return (
       <div className="p-4 md:p-6">
         <Alert variant="destructive">
-          <AlertDescription>Cette page est réservée au secrétariat et à la direction.</AlertDescription>
+          <AlertDescription>Cette page est réservée au staff et à la direction.</AlertDescription>
         </Alert>
       </div>
     )

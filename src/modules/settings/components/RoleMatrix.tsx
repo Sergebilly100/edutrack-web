@@ -1,4 +1,5 @@
 import { useMemo } from "react"
+import { ShieldCheck } from "lucide-react"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -99,63 +100,119 @@ export default function RoleMatrix({ position, onChange, className }: RoleMatrix
   }
 
   return (
-    <div className={cn("rounded-lg border border-border", className)}>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[180px] text-sm">Action</TableHead>
-            {PERMISSION_COLUMNS.map((column) => {
-              const selected = column.permissions.reduce((count, permission) => {
-                return count + (permissionSet.has(permission) ? 1 : 0)
-              }, 0)
-              const total = column.permissions.length
-              const checkedState = selected === 0 ? false : selected === total ? true : "indeterminate"
+    <div className={cn("overflow-hidden rounded-xl border border-border bg-card shadow-sm", className)}>
+      <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-primary" />
+          <span className="text-sm font-semibold">Matrice de permissions</span>
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {position.permissions.length} permission{position.permissions.length !== 1 ? "s" : ""} activée
+          {position.permissions.length !== 1 ? "s" : ""}
+        </span>
+      </div>
 
-              return (
-                <TableHead key={column.key} className="min-w-[130px] text-center text-sm">
-                  <div className="flex items-center justify-center gap-2">
-                    <Checkbox
-                      checked={checkedState}
-                      onCheckedChange={(checked) => toggleColumn(column, checked === true)}
-                      aria-label={`Tout sélectionner ${column.label}`}
-                    />
-                    <span>{column.label}</span>
-                  </div>
-                </TableHead>
-              )
-            })}
-          </TableRow>
-        </TableHeader>
-
-        <TableBody>
-          {PERMISSION_ROWS.map((row, index) => (
-            <TableRow key={row.key} className={cn(index % 2 === 0 ? "bg-muted/20" : "bg-background", "hover:bg-muted/40")}>
-              <TableCell className="font-medium text-sm">{row.label}</TableCell>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="border-b bg-muted/20 hover:bg-muted/20">
+              <TableHead className="w-[160px] py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Action
+              </TableHead>
               {PERMISSION_COLUMNS.map((column) => {
-                const permission = resolvePermissionKey(column, row.key)
-
-                if (!permission) {
-                  return (
-                    <TableCell key={`${column.key}.${row.key}`} className="text-center text-muted-foreground">
-                      -
-                    </TableCell>
-                  )
-                }
+                const selected = column.permissions.reduce(
+                  (count, permission) => count + (permissionSet.has(permission) ? 1 : 0),
+                  0,
+                )
+                const total = column.permissions.length
+                const checkedState = selected === 0 ? false : selected === total ? true : "indeterminate"
+                const allChecked = selected === total
 
                 return (
-                  <TableCell key={permission} className="text-center">
-                    <Checkbox
-                      checked={permissionSet.has(permission)}
-                      onCheckedChange={(checked) => togglePermission(permission, checked === true)}
-                      aria-label={`${column.label} ${row.label}`}
-                    />
-                  </TableCell>
+                  <TableHead key={column.key} className="py-3 text-center align-bottom">
+                    <div className="flex flex-col items-center gap-1.5">
+                      <div
+                        className={cn(
+                          "flex h-7 w-7 items-center justify-center rounded-md border transition-colors",
+                          allChecked ? "border-blue-200 bg-blue-50" : "border-border bg-muted",
+                        )}
+                      >
+                        <Checkbox
+                          checked={checkedState}
+                          onCheckedChange={(checked) => toggleColumn(column, checked === true)}
+                          aria-label={`Tout sélectionner ${column.label}`}
+                        />
+                      </div>
+                      <span className={cn("text-[11px] font-medium", allChecked ? "text-blue-700" : "text-muted-foreground")}>
+                        {column.label}
+                      </span>
+                      <div className="h-0.5 w-10 overflow-hidden rounded-full bg-border">
+                        <div
+                          className="h-full rounded-full bg-blue-500 transition-all duration-300"
+                          style={{ width: `${(selected / total) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  </TableHead>
                 )
               })}
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+
+          <TableBody>
+            {PERMISSION_ROWS.map((row, index) => (
+              <TableRow
+                key={row.key}
+                className={cn(
+                  "transition-colors",
+                  index % 2 === 0 ? "bg-background" : "bg-muted/10",
+                  "hover:bg-primary/5",
+                )}
+              >
+                <TableCell className="py-2.5 pl-4">
+                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    {row.label}
+                  </span>
+                </TableCell>
+                {PERMISSION_COLUMNS.map((column) => {
+                  const permission = resolvePermissionKey(column, row.key)
+
+                  if (!permission) {
+                    return (
+                      <TableCell key={`${column.key}.${row.key}`} className="text-center">
+                        <div className="flex justify-center">
+                          <div className="h-1.5 w-1.5 rounded-full bg-border" />
+                        </div>
+                      </TableCell>
+                    )
+                  }
+
+                  const isChecked = permissionSet.has(permission)
+
+                  return (
+                    <TableCell key={permission} className="text-center">
+                      <div className="flex justify-center">
+                        <div
+                          className={cn(
+                            "flex h-6 w-6 items-center justify-center rounded-md border transition-colors",
+                            isChecked ? "border-blue-200 bg-blue-50" : "border-border hover:bg-muted",
+                          )}
+                        >
+                          <Checkbox
+                            checked={isChecked}
+                            onCheckedChange={(checked) => togglePermission(permission, checked === true)}
+                            aria-label={`${column.label} ${row.label}`}
+                          />
+                        </div>
+                      </div>
+                    </TableCell>
+                  )
+                })}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   )
 }

@@ -8,7 +8,7 @@ type LoginResponse = {
   expiresIn: string;
   user: {
     id: string;
-    role: 'director' | 'secretary' | 'teacher' | 'super_admin';
+    role: 'director' | 'staff' | 'secretary' | 'teacher' | 'super_admin';
     name: string;
     phone: string | null;
     email: string | null;

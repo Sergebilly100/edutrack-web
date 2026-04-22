@@ -1,6 +1,7 @@
 import { useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { ShieldCheck } from "lucide-react"
 import { useForm, useWatch } from "react-hook-form"
 import { z } from "zod"
 
@@ -116,46 +117,78 @@ export default function PositionFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>{isEditMode ? "Modifier un poste" : "Nouveau poste"}</DialogTitle>
-          <DialogDescription>
-            Définissez le poste et ses permissions opérationnelles.
-          </DialogDescription>
+      <DialogContent className="flex max-h-[85vh] max-w-4xl flex-col gap-0 p-0">
+        <DialogHeader className="shrink-0 border-b px-6 py-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <DialogTitle className="text-base">
+                {isEditMode ? "Modifier un poste" : "Nouveau poste"}
+              </DialogTitle>
+              <DialogDescription className="mt-0.5 text-xs">
+                Définissez le poste et ses permissions opérationnelles.
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
         <Form {...form}>
-          <form className="space-y-4" onSubmit={form.handleSubmit(handleSubmit)}>
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nom du poste</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ex: Censeur" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <form onSubmit={form.handleSubmit(handleSubmit)}>
+            <div className="space-y-5 overflow-y-auto px-6 py-5">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center justify-between">
+                      <FormLabel>Nom du poste</FormLabel>
+                      {permissions.length > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                          <ShieldCheck className="h-3 w-3" />
+                          {permissions.length} permission{permissions.length !== 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
+                    <FormControl>
+                      <Input
+                        placeholder="Ex: Censeur, Surveillant général…"
+                        className="max-w-sm"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <RoleMatrix
-              position={{ permissions }}
-              onChange={(permissions) => {
-                form.setValue("permissions", permissions, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }}
-            />
+              <RoleMatrix
+                position={{ permissions }}
+                onChange={(permissions) => {
+                  form.setValue("permissions", permissions, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }}
+              />
+            </div>
 
-            <DialogFooter>
+            <DialogFooter className="shrink-0 border-t bg-muted/30 px-6 py-4">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Annuler
               </Button>
-              <Button type="submit" disabled={mutation.isPending}>
-                {mutation.isPending ? "Sauvegarde..." : "Sauvegarder"}
+              <Button type="submit" disabled={mutation.isPending} className="min-w-[120px]">
+                {mutation.isPending ? (
+                  <span className="flex items-center gap-2">
+                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
+                    Sauvegarde…
+                  </span>
+                ) : isEditMode ? (
+                  "Mettre à jour"
+                ) : (
+                  "Créer le poste"
+                )}
               </Button>
             </DialogFooter>
           </form>

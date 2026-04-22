@@ -1,6 +1,9 @@
 import { create } from "zustand"
 
-export type AuthRole = "director" | "secretary" | "teacher" | "super_admin"
+export type AuthRole = "director" | "staff" | "secretary" | "teacher" | "super_admin"
+
+export const isStaffRole = (role: AuthRole | undefined): role is "staff" | "secretary" =>
+  role === "staff" || role === "secretary"
 
 export type AuthUser = {
   id: string

@@ -14,7 +14,7 @@ import {
 } from "@/shared/components/icons"
 import { Building2, MessageSquare, Settings2, TrendingUp, User } from "lucide-react"
 
-import type { AuthRole, PermissionKey } from "@/shared/store/auth.store"
+import { isStaffRole, type AuthRole, type PermissionKey } from "@/shared/store/auth.store"
 
 export interface NavItem {
   label: string
@@ -32,14 +32,14 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Tableau de bord",
     href: "/dashboard",
     icon: DashboardIcon,
-    roles: ["director", "secretary"],
+    roles: ["director", "staff", "secretary"],
     mobileVisible: true,
   },
   {
     label: "Emploi du temps",
     href: "/schedule",
     icon: ScheduleIcon,
-    roles: ["director", "secretary"],
+    roles: ["director", "staff", "secretary"],
     requiredPermissions: ["schedule.view"],
     mobileVisible: true,
   },
@@ -47,7 +47,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Professeurs",
     href: "/teachers",
     icon: TeachersIcon,
-    roles: ["director", "secretary"],
+    roles: ["director", "staff", "secretary"],
     requiredPermissions: ["teachers.view"],
     mobileVisible: false,
   },
@@ -55,7 +55,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Élèves",
     href: "/students",
     icon: StudentsIcon,
-    roles: ["director", "secretary"],
+    roles: ["director", "staff", "secretary"],
     requiredPermissions: ["students.view"],
     mobileVisible: false,
   },
@@ -78,7 +78,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Salles & QR Codes",
     href: "/rooms",
     icon: RoomIcon,
-    roles: ["director", "secretary"],
+    roles: ["director", "staff", "secretary"],
     requiredPermissions: ["schedule.edit"],
     mobileVisible: false,
   },
@@ -171,6 +171,10 @@ export function getNavItemsByRole(
 
   const roleItems = NAV_ITEMS.filter((item) => item.roles.includes(role))
   if (role === "director" || role === "super_admin" || role === "teacher") {
+    return roleItems
+  }
+
+  if (!isStaffRole(role)) {
     return roleItems
   }
 

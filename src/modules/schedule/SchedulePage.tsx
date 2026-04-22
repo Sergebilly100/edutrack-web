@@ -37,7 +37,7 @@ import {
   ListIcon,
   ScheduleIcon,
 } from "@/shared/components/icons"
-import { useAuthStore, type AuthRole } from "@/shared/store/auth.store"
+import { isStaffRole, useAuthStore, type AuthRole } from "@/shared/store/auth.store"
 
 import WeekGrid from "./components/WeekGrid"
 import {
@@ -112,7 +112,7 @@ const emptyFormState: SlotFormState = {
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
 const canManageSchedule = (role: AuthRole | undefined) =>
-  role === "director" || role === "secretary"
+  role === "director" || isStaffRole(role)
 
 const toISODate = (date: Date) => {
   const year = date.getFullYear()

@@ -21,7 +21,8 @@ interface UserMenuProps {
 
 const roleLabels: Record<string, string> = {
   director: "Directeur",
-  secretary: "Secrétaire",
+  staff: "Staff",
+  secretary: "Staff",
   teacher: "Professeur",
   super_admin: "Super admin",
 }

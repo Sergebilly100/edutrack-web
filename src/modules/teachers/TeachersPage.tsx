@@ -55,7 +55,7 @@ import {
   ViewIcon,
 } from "@/shared/components/icons"
 import { DataTable, EmptyState, PageLayout } from "@/shared/components"
-import { useAuthStore } from "@/shared/store/auth.store"
+import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
 
 const THIRTY_DAYS_MS = 1000 * 60 * 60 * 24 * 30
 
@@ -401,12 +401,12 @@ export default function TeachersPage() {
 
   if (!user) return null
 
-  if (user.role !== "director" && user.role !== "secretary") {
+  if (user.role !== "director" && !isStaffRole(user.role)) {
     return (
       <div className="p-4 md:p-6">
         <Alert variant="destructive">
           <AlertDescription>
-            Cette page est réservée à la direction et au secrétariat.
+            Cette page est réservée à la direction et au staff.
           </AlertDescription>
         </Alert>
       </div>

@@ -1,16 +1,20 @@
 import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import axios from "axios"
-import { ChevronDown, Pencil, Plus, Trash2, UserPlus } from "lucide-react"
+import { Building2, KeyRound, Pencil, Plus, Settings2, Shield, Trash2, UserPlus, Users } from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -28,26 +32,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { useToast } from "@/components/ui/use-toast"
 import PositionFormModal, { type PositionPayload } from "@/modules/settings/components/PositionFormModal"
 import {
   assignUserToPosition,
   createAdministrativeUser,
+  deleteAdministrativeUser,
   deletePosition,
   fetchSchoolConfig,
+  resetAdministrativeUserPassword,
+  type AssignableUser,
   type CreateAdministrativeUserInput,
   type PositionItem,
+  updateAdministrativeUser,
   updateSchoolInfo,
   updateSchoolLimit,
 } from "@/modules/settings/settings.api"
+import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 const SETTINGS_QUERY_KEY = ["settings", "school-config"] as const
@@ -56,11 +57,6 @@ export default function SchoolConfigPanel() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const user = useAuthStore((state) => state.user)
-
-  const [informationOpen, setInformationOpen] = useState(true)
-  const [positionsOpen, setPositionsOpen] = useState(true)
-  const [usersOpen, setUsersOpen] = useState(true)
-  const [limitsOpen, setLimitsOpen] = useState(true)
 
   const [positionModalOpen, setPositionModalOpen] = useState(false)
   const [positionToEdit, setPositionToEdit] = useState<PositionPayload | null>(null)
@@ -73,6 +69,14 @@ export default function SchoolConfigPanel() {
   const [newUserEmail, setNewUserEmail] = useState("")
   const [newUserPhone, setNewUserPhone] = useState("")
   const [newUserPassword, setNewUserPassword] = useState("")
+  const [editingUserId, setEditingUserId] = useState<string | null>(null)
+  const [resetPasswordTarget, setResetPasswordTarget] = useState<AssignableUser | null>(null)
+  const [resetPasswordValue, setResetPasswordValue] = useState("")
+  const [deleteTarget, setDeleteTarget] = useState<
+    | { type: "position"; id: string; name: string }
+    | { type: "user"; id: string; name: string }
+    | null
+  >(null)
 
   const schoolConfigQuery = useQuery({
     queryKey: SETTINGS_QUERY_KEY,
@@ -150,16 +154,73 @@ export default function SchoolConfigPanel() {
     },
   })
 
-  const deleteMutation = useMutation({
-    mutationFn: deletePosition,
+  const updateUserMutation = useMutation({
+    mutationFn: (payload: { id: string; name: string; email: string | null; phone: string | null }) =>
+      updateAdministrativeUser(payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY })
-      toast({ title: "Poste supprimé" })
+      setEditingUserId(null)
+      setNewUserName("")
+      setNewUserEmail("")
+      setNewUserPhone("")
+      setNewUserPassword("")
+      toast({ title: "Utilisateur administratif mis à jour" })
     },
+    onError: (error) => {
+      const description =
+        axios.isAxiosError(error) && typeof error.response?.data?.error === "string"
+          ? error.response.data.error
+          : "Impossible de mettre à jour l'utilisateur."
+      toast({
+        title: "Erreur",
+        description,
+        variant: "destructive",
+      })
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: deletePosition,
     onError: () => {
       toast({
         title: "Erreur",
         description: "Impossible de supprimer le poste.",
+        variant: "destructive",
+      })
+    },
+  })
+
+  const deleteUserMutation = useMutation({
+    mutationFn: deleteAdministrativeUser,
+    onError: (error) => {
+      const description =
+        axios.isAxiosError(error) && typeof error.response?.data?.error === "string"
+          ? error.response.data.error
+          : "Impossible de supprimer l'utilisateur."
+      toast({
+        title: "Erreur",
+        description,
+        variant: "destructive",
+      })
+    },
+  })
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: ({ userId, newPassword }: { userId: string; newPassword: string }) =>
+      resetAdministrativeUserPassword(userId, newPassword),
+    onSuccess: () => {
+      setResetPasswordTarget(null)
+      setResetPasswordValue("")
+      toast({ title: "Mot de passe réinitialisé" })
+    },
+    onError: (error) => {
+      const description =
+        axios.isAxiosError(error) && typeof error.response?.data?.error === "string"
+          ? error.response.data.error
+          : "Impossible de réinitialiser le mot de passe."
+      toast({
+        title: "Erreur",
+        description,
         variant: "destructive",
       })
     },
@@ -198,12 +259,7 @@ export default function SchoolConfigPanel() {
   const school = schoolConfigQuery.data?.school
 
   const handleDeletePosition = (position: PositionPayload) => {
-    const confirmed = window.confirm(`Supprimer le poste ${position.name} ?`)
-    if (!confirmed) {
-      return
-    }
-
-    deleteMutation.mutate(position.id)
+    setDeleteTarget({ type: "position", id: position.id, name: position.name })
   }
 
   const openAssignDialog = (position: PositionItem) => {
@@ -228,7 +284,7 @@ export default function SchoolConfigPanel() {
       return
     }
 
-    if (password.length < 8) {
+    if (!editingUserId && password.length < 8) {
       toast({
         title: "Mot de passe invalide",
         description: "Le mot de passe doit contenir au moins 8 caractères.",
@@ -246,11 +302,86 @@ export default function SchoolConfigPanel() {
       return
     }
 
+    if (editingUserId) {
+      updateUserMutation.mutate({
+        id: editingUserId,
+        name,
+        email: email || null,
+        phone: phone || null,
+      })
+      return
+    }
+
     createUserMutation.mutate({
       name,
       ...(email ? { email } : {}),
       ...(phone ? { phone } : {}),
       password,
+    })
+  }
+
+  const handleEditAdministrativeUser = (schoolUser: AssignableUser) => {
+    setEditingUserId(schoolUser.id)
+    setNewUserName(schoolUser.name)
+    setNewUserEmail(schoolUser.email ?? "")
+    setNewUserPhone(schoolUser.phone ?? "")
+    setNewUserPassword("")
+  }
+
+  const handleDeleteAdministrativeUser = (schoolUser: AssignableUser) => {
+    setDeleteTarget({ type: "user", id: schoolUser.id, name: schoolUser.name })
+  }
+
+  const confirmDeleteTarget = () => {
+    if (!deleteTarget) {
+      return
+    }
+
+    if (deleteTarget.type === "position") {
+      deleteMutation.mutate(deleteTarget.id, {
+        onSuccess: async () => {
+          await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY })
+          setDeleteTarget(null)
+          toast({ title: "Poste supprimé" })
+        },
+      })
+      return
+    }
+
+    deleteUserMutation.mutate(deleteTarget.id, {
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY })
+        if (editingUserId === deleteTarget.id) {
+          setEditingUserId(null)
+          setNewUserName("")
+          setNewUserEmail("")
+          setNewUserPhone("")
+          setNewUserPassword("")
+        }
+        setDeleteTarget(null)
+        toast({ title: "Utilisateur administratif supprimé" })
+      },
+    })
+  }
+
+  const handleResetPassword = () => {
+    const newPassword = resetPasswordValue.trim()
+    if (!resetPasswordTarget) {
+      return
+    }
+
+    if (newPassword.length < 8) {
+      toast({
+        title: "Mot de passe invalide",
+        description: "Le mot de passe doit contenir au moins 8 caractères.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    resetPasswordMutation.mutate({
+      userId: resetPasswordTarget.id,
+      newPassword,
     })
   }
 
@@ -272,49 +403,64 @@ export default function SchoolConfigPanel() {
 
   return (
     <>
-      <div className="space-y-4">
-        <Collapsible open={informationOpen} onOpenChange={setInformationOpen} className="rounded-lg border border-border">
-          <CollapsibleTrigger className="flex w-full items-center justify-between p-4 text-left">
-            <div>
-              <h3 className="text-lg font-semibold">Informations école</h3>
-              <p className="text-sm text-muted-foreground">Nom, ville et type d&apos;enseignement.</p>
+      <div className="space-y-5">
+        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+          <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background">
+                <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Informations école</p>
+                <p className="text-xs text-muted-foreground">Vue synthétique et identité visuelle.</p>
+              </div>
             </div>
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          </CollapsibleTrigger>
-          <CollapsibleContent className="border-t border-border p-4">
-            <div className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-3">
-                <div>
-                  <p className="text-xs text-muted-foreground">École</p>
-                  <p className="text-sm font-medium">{school?.name || "-"}</p>
+          </div>
+          <div className="p-5">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.5fr_1fr]">
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Nom de l&apos;école
+                    </Label>
+                    <Input value={school?.name ?? "-"} readOnly />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Ville
+                    </Label>
+                    <Input value={school?.city ?? "-"} readOnly />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Sous-domaine
+                    </Label>
+                    <Input value={school?.subdomain ?? "-"} readOnly />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Type d&apos;enseignement
+                    </Label>
+                    <Input value={teachingTypeLabel} readOnly />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Année scolaire
+                    </Label>
+                    <Input value={school?.activeSchoolYear ?? "-"} readOnly />
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Plan</p>
-                  <p className="text-sm font-medium">{planLabel}</p>
+                <div className="grid grid-cols-1 gap-3 text-xs text-muted-foreground sm:grid-cols-3">
+                  <p>Plan actif: <span className="font-medium text-foreground">{planLabel}</span></p>
+                  <p>Utilisateurs administratifs: <span className="font-medium text-foreground">{school ? `${school.adminUsersCount}` : "-"}</span></p>
+                  <p>Gestion: centralisée par EduTrack CI</p>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Utilisateurs administratifs</p>
-                  <p className="text-sm font-medium">{school ? `${school.adminUsersCount}` : "-"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Sous-domaine</p>
-                  <p className="text-sm font-medium">{school?.subdomain || "-"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Ville</p>
-                  <p className="text-sm font-medium">{school?.city || "-"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Type d&apos;enseignement</p>
-                  <p className="text-sm font-medium">{teachingTypeLabel}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Année scolaire active</p>
-                  <p className="text-sm font-medium">{school?.activeSchoolYear ?? "-"}</p>
-                </div>
-                <div className="md:col-span-2">
-                  <p className="text-xs text-muted-foreground">Logo école</p>
-                  <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
+              </div>
+
+              <div className="rounded-lg border border-border bg-background p-4">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
                     {logoUrlDraft ? (
                       <img
                         src={logoUrlDraft}
@@ -326,58 +472,60 @@ export default function SchoolConfigPanel() {
                         Logo
                       </div>
                     )}
-                    <div className="flex-1 space-y-2">
-                      <Input
-                        value={logoUrlDraft}
-                        onChange={(event) => setLogoUrlDraft(event.target.value)}
-                        placeholder="URL du logo ou image importée"
-                      />
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={(event) => {
-                          const file = event.target.files?.[0]
-                          if (!file) {
-                            return
-                          }
-                          const reader = new FileReader()
-                          reader.onload = () => {
-                            const result = typeof reader.result === "string" ? reader.result : ""
-                            setLogoUrlDraft(result)
-                          }
-                          reader.readAsDataURL(file)
-                        }}
-                      />
-                    </div>
-                    <Button
-                      variant="outline"
-                      disabled={saveSchoolInfoMutation.isPending || !school}
-                      onClick={() => saveSchoolInfoMutation.mutate({ logoUrl: logoUrlDraft || null })}
-                    >
-                      {saveSchoolInfoMutation.isPending ? "Sauvegarde..." : "Enregistrer"}
-                    </Button>
+                    <p className="text-xs text-muted-foreground">Logo de l&apos;établissement</p>
                   </div>
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      URL du logo
+                    </Label>
+                    <Input
+                      value={logoUrlDraft}
+                      onChange={(event) => setLogoUrlDraft(event.target.value)}
+                      placeholder="URL du logo ou image importée"
+                    />
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0]
+                        if (!file) {
+                          return
+                        }
+                        const reader = new FileReader()
+                        reader.onload = () => {
+                          const result = typeof reader.result === "string" ? reader.result : ""
+                          setLogoUrlDraft(result)
+                        }
+                        reader.readAsDataURL(file)
+                      }}
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={saveSchoolInfoMutation.isPending || !school}
+                    onClick={() => saveSchoolInfoMutation.mutate({ logoUrl: logoUrlDraft || null })}
+                  >
+                    {saveSchoolInfoMutation.isPending ? "Sauvegarde..." : "Enregistrer"}
+                  </Button>
                 </div>
               </div>
-
-              <p className="text-sm text-muted-foreground">
-                Le logo peut être ajusté ici. Les autres informations sont gérées par l&apos;administrateur EduTrack CI.
-              </p>
             </div>
-          </CollapsibleContent>
-        </Collapsible>
+          </div>
+        </div>
 
-        <Collapsible open={positionsOpen} onOpenChange={setPositionsOpen} className="rounded-lg border border-border">
-          <CollapsibleTrigger className="flex w-full items-center justify-between p-4 text-left">
-            <div>
-              <h3 className="text-lg font-semibold">Postes administratifs</h3>
-              <p className="text-sm text-muted-foreground">Créez, assignez et modifiez les postes.</p>
-            </div>
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          </CollapsibleTrigger>
-
-          <CollapsibleContent className="space-y-4 border-t border-border p-4">
-            <div className="flex justify-end">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[2fr_1fr]">
+          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+            <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background">
+                  <Shield className="h-3.5 w-3.5 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Postes administratifs</p>
+                  <p className="text-xs text-muted-foreground">Créez, assignez et modifiez les postes.</p>
+                </div>
+              </div>
               <Button
                 onClick={() => {
                   setPositionToEdit(null)
@@ -389,218 +537,290 @@ export default function SchoolConfigPanel() {
                 Nouveau poste
               </Button>
             </div>
-
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Poste</TableHead>
-                  <TableHead className="w-[130px]">Nb permissions</TableHead>
-                  <TableHead className="w-[170px]">Nb utilisateurs assignés</TableHead>
-                  <TableHead className="w-[220px] text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {positions.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
-                      Aucun poste créé.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  positions.map((position) => (
-                    <TableRow key={position.id}>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <p className="font-medium">{position.name}</p>
-                          <div className="flex flex-wrap gap-1">
-                            {position.permissions.slice(0, 3).map((permission) => (
-                              <Badge key={permission} variant="outline" className="text-[11px]">
-                                {permission}
-                              </Badge>
-                            ))}
-                            {position.permissions.length > 3 ? (
-                              <Badge variant="outline" className="text-[11px]">+{position.permissions.length - 3}</Badge>
-                            ) : null}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{position.permissions.length}</TableCell>
-                      <TableCell>{position.assignmentsCount}</TableCell>
-                      <TableCell>
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-2"
-                            onClick={() => openAssignDialog(position)}
-                          >
-                            <UserPlus className="h-4 w-4" />
-                            Assigner
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-2"
-                            onClick={() => {
-                              setPositionToEdit(position)
-                              setPositionModalOpen(true)
-                            }}
-                          >
-                            <Pencil className="h-4 w-4" />
-                            Éditer
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-2"
-                            onClick={() => handleDeletePosition(position)}
-                            disabled={deleteMutation.isPending}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            Supprimer
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CollapsibleContent>
-        </Collapsible>
-
-        <Collapsible open={usersOpen} onOpenChange={setUsersOpen} className="rounded-lg border border-border">
-          <CollapsibleTrigger className="flex w-full items-center justify-between p-4 text-left">
             <div>
-              <h3 className="text-lg font-semibold">Utilisateurs administratifs</h3>
-              <p className="text-sm text-muted-foreground">
-                Créez des comptes administratifs et transmettez leurs accès.
-              </p>
-            </div>
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          </CollapsibleTrigger>
-
-          <CollapsibleContent className="space-y-4 border-t border-border p-4">
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="new-admin-name">Nom complet</Label>
-                <Input
-                  id="new-admin-name"
-                  value={newUserName}
-                  onChange={(event) => setNewUserName(event.target.value)}
-                  placeholder="Ex: Kouamé Fatou"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-admin-password">Mot de passe provisoire</Label>
-                <Input
-                  id="new-admin-password"
-                  type="password"
-                  value={newUserPassword}
-                  onChange={(event) => setNewUserPassword(event.target.value)}
-                  placeholder="Minimum 8 caractères"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-admin-email">Email (optionnel)</Label>
-                <Input
-                  id="new-admin-email"
-                  type="email"
-                  value={newUserEmail}
-                  onChange={(event) => setNewUserEmail(event.target.value)}
-                  placeholder="admin@ecole.ci"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-admin-phone">Téléphone (optionnel)</Label>
-                <Input
-                  id="new-admin-phone"
-                  value={newUserPhone}
-                  onChange={(event) => setNewUserPhone(event.target.value)}
-                  placeholder="+2250700000000"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground">
-                Compteurs utilisateurs actifs: {school ? `${school.adminUsersCount}` : "-"}
-              </p>
-              <Button
-                onClick={handleCreateAdministrativeUser}
-                disabled={createUserMutation.isPending}
-                className="gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                {createUserMutation.isPending ? "Création..." : "Ajouter l'utilisateur"}
-              </Button>
-            </div>
-
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nom</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Téléphone</TableHead>
-                  <TableHead>Rôle</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {assignableUsers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
-                      Aucun utilisateur administratif pour le moment.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  assignableUsers.map((schoolUser) => (
-                    <TableRow key={schoolUser.id}>
-                      <TableCell className="font-medium">{schoolUser.name}</TableCell>
-                      <TableCell>{schoolUser.email ?? "-"}</TableCell>
-                      <TableCell>{schoolUser.phone ?? "-"}</TableCell>
-                      <TableCell>{schoolUser.role}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CollapsibleContent>
-        </Collapsible>
-
-        <Collapsible open={limitsOpen} onOpenChange={setLimitsOpen} className="rounded-lg border border-border">
-          <CollapsibleTrigger className="flex w-full items-center justify-between p-4 text-left">
-            <div>
-              <h3 className="text-lg font-semibold">Limites</h3>
-              <p className="text-sm text-muted-foreground">Maximum de postes administratifs autorisés.</p>
-            </div>
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          </CollapsibleTrigger>
-
-          <CollapsibleContent className="border-t border-border p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div className="w-full max-w-xs space-y-2">
-                <Label htmlFor="max-admin-positions">max_admin_positions</Label>
-                <Input
-                  id="max-admin-positions"
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={maxAdminPositions}
-                  readOnly={!canEditLimits}
-                  onChange={(event) => setMaxAdminPositions(event.target.value)}
-                />
-              </div>
-
-              {!canEditLimits ? (
-                <p className="text-xs text-muted-foreground">Seul le super admin peut modifier cette limite.</p>
+              {positions.length === 0 ? (
+                <p className="px-5 py-6 text-center text-sm text-muted-foreground">Aucun poste créé.</p>
               ) : (
-                <Button onClick={() => saveLimitMutation.mutate()} disabled={saveLimitMutation.isPending}>
-                  {saveLimitMutation.isPending ? "Sauvegarde..." : "Mettre à jour"}
-                </Button>
+                positions.map((position, index) => (
+                  <div
+                    key={position.id}
+                    className="flex cursor-pointer items-center justify-between border-b border-border px-5 py-3.5 transition-colors last:border-0 hover:bg-muted/20"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={cn(
+                          "flex h-8 w-8 items-center justify-center rounded-lg text-xs font-medium",
+                          index % 3 === 0 && "bg-blue-50 text-blue-700",
+                          index % 3 === 1 && "bg-green-50 text-green-700",
+                          index % 3 === 2 && "bg-amber-50 text-amber-700",
+                        )}
+                      >
+                        {position.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{position.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {position.assignmentsCount ?? 0} personne{(position.assignmentsCount ?? 0) !== 1 ? "s" : ""} assignée
+                          {(position.assignmentsCount ?? 0) !== 1 ? "s" : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+                        {position.permissions.length} permission{position.permissions.length !== 1 ? "s" : ""}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => openAssignDialog(position)}
+                      >
+                        <UserPlus className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => {
+                          setPositionToEdit(position)
+                          setPositionModalOpen(true)
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => handleDeletePosition(position)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
-          </CollapsibleContent>
-        </Collapsible>
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+            <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background">
+                  <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Limites</p>
+                  <p className="text-xs text-muted-foreground">Maximum de postes administratifs autorisés.</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-5">
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="max-admin-positions" className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">max_admin_positions</Label>
+                  <Input
+                    id="max-admin-positions"
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={maxAdminPositions}
+                    readOnly={!canEditLimits}
+                    onChange={(event) => setMaxAdminPositions(event.target.value)}
+                  />
+                </div>
+
+                {!canEditLimits ? (
+                  <p className="text-xs text-muted-foreground">Seul le super admin peut modifier cette limite.</p>
+                ) : (
+                  <Button onClick={() => saveLimitMutation.mutate()} disabled={saveLimitMutation.isPending} className="w-full">
+                    {saveLimitMutation.isPending ? "Sauvegarde..." : "Mettre à jour"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+          <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background">
+                <Users className="h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Utilisateurs administratifs</p>
+                <p className="text-xs text-muted-foreground">Créez des comptes et suivez leur affectation.</p>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-2">
+            <div className="space-y-4 rounded-lg border border-border bg-background p-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="new-admin-name" className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Nom complet</Label>
+                  <Input
+                    id="new-admin-name"
+                    value={newUserName}
+                    onChange={(event) => setNewUserName(event.target.value)}
+                    placeholder="Ex: Kouamé Fatou"
+                  />
+                </div>
+                {!editingUserId ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="new-admin-password" className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Mot de passe provisoire</Label>
+                    <Input
+                      id="new-admin-password"
+                      type="password"
+                      value={newUserPassword}
+                      onChange={(event) => setNewUserPassword(event.target.value)}
+                      placeholder="Minimum 8 caractères"
+                    />
+                  </div>
+                ) : null}
+                <div className="space-y-2">
+                  <Label htmlFor="new-admin-email" className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Email</Label>
+                  <Input
+                    id="new-admin-email"
+                    type="email"
+                    value={newUserEmail}
+                    onChange={(event) => setNewUserEmail(event.target.value)}
+                    placeholder="admin@ecole.ci"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-admin-phone" className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Téléphone</Label>
+                  <Input
+                    id="new-admin-phone"
+                    value={newUserPhone}
+                    onChange={(event) => setNewUserPhone(event.target.value)}
+                    placeholder="+2250700000000"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={handleCreateAdministrativeUser}
+                  disabled={createUserMutation.isPending || updateUserMutation.isPending}
+                  className="gap-2"
+                >
+                  {editingUserId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                  {editingUserId
+                    ? updateUserMutation.isPending
+                      ? "Mise à jour..."
+                      : "Mettre à jour l'utilisateur"
+                    : createUserMutation.isPending
+                      ? "Création..."
+                      : "Ajouter l'utilisateur"}
+                </Button>
+                {editingUserId ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setEditingUserId(null)
+                      setNewUserName("")
+                      setNewUserEmail("")
+                      setNewUserPhone("")
+                      setNewUserPassword("")
+                    }}
+                  >
+                    Annuler
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-border bg-background p-4">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">
+                  Compteurs utilisateurs actifs: {school ? `${school.adminUsersCount}` : "-"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Accès visibles: postes assignés + total des permissions héritées.
+                </p>
+              </div>
+              <div className="overflow-hidden rounded-lg border border-border">
+                {assignableUsers.length === 0 ? (
+                  <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+                    Aucun utilisateur administratif pour le moment.
+                  </p>
+                ) : (
+                  assignableUsers.map((schoolUser) => (
+                    <div key={schoolUser.id} className="grid grid-cols-1 gap-2 border-b border-border px-4 py-3 text-sm last:border-0 sm:grid-cols-[2fr_2fr_2fr_1fr_auto] sm:items-center sm:gap-2">
+                      <div className="space-y-1">
+                        <p className="font-medium">{schoolUser.name}</p>
+                        <div className="flex flex-wrap items-center gap-1">
+                          {schoolUser.positions.length > 0 ? (
+                            <>
+                              {schoolUser.positions.slice(0, 2).map((positionName) => (
+                                <span
+                                  key={`${schoolUser.id}-${positionName}`}
+                                  className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+                                >
+                                  {positionName}
+                                </span>
+                              ))}
+                              {schoolUser.positions.length > 2 ? (
+                                <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                  +{schoolUser.positions.length - 2}
+                                </span>
+                              ) : null}
+                            </>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                              Aucun poste
+                            </span>
+                          )}
+                          {/* <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                            {schoolUser.permissions.length} permission{schoolUser.permissions.length !== 1 ? "s" : ""}
+                          </span> */}
+                        </div>
+                      </div>
+                      <p className="text-muted-foreground">{schoolUser.email ?? "-"}</p>
+                      <p className="text-muted-foreground">{schoolUser.phone ?? "-"}</p>
+                      <p>{schoolUser.role === "secretary" || schoolUser.role === "staff" ? "staff" : schoolUser.role}</p>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => {
+                            setResetPasswordTarget(schoolUser)
+                            setResetPasswordValue("")
+                          }}
+                        >
+                          <KeyRound className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => handleEditAdministrativeUser(schoolUser)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          disabled={deleteUserMutation.isPending || deleteTarget?.type === "user"}
+                          onClick={() => handleDeleteAdministrativeUser(schoolUser)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
 
         <PositionFormModal
           open={positionModalOpen}
@@ -608,6 +828,82 @@ export default function SchoolConfigPanel() {
           initialPosition={positionToEdit}
         />
       </div>
+
+      <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteTarget?.type === "position"
+                ? "Supprimer ce poste administratif ?"
+                : "Supprimer cet utilisateur administratif ?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.type === "position"
+                ? `Le poste "${deleteTarget.name}" sera retiré définitivement. Cette action est irréversible.`
+                : `L'utilisateur "${deleteTarget?.name ?? ""}" sera désactivé et retiré des affectations de poste.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteTarget}
+              disabled={deleteMutation.isPending || deleteUserMutation.isPending}
+            >
+              {deleteMutation.isPending || deleteUserMutation.isPending ? "Suppression..." : "Confirmer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog
+        open={resetPasswordTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setResetPasswordTarget(null)
+            setResetPasswordValue("")
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Réinitialiser le mot de passe</DialogTitle>
+            <DialogDescription>
+              {resetPasswordTarget
+                ? `Définissez un nouveau mot de passe pour ${resetPasswordTarget.name}.`
+                : "Définissez un nouveau mot de passe."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="reset-password">Nouveau mot de passe</Label>
+            <Input
+              id="reset-password"
+              type="password"
+              value={resetPasswordValue}
+              onChange={(event) => setResetPasswordValue(event.target.value)}
+              placeholder="Minimum 8 caractères"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setResetPasswordTarget(null)
+                setResetPasswordValue("")
+              }}
+            >
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              onClick={handleResetPassword}
+              disabled={resetPasswordMutation.isPending}
+            >
+              {resetPasswordMutation.isPending ? "Réinitialisation..." : "Réinitialiser"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
         <DialogContent>

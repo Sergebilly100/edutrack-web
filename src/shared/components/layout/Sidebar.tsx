@@ -38,7 +38,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/shared/hooks/useTheme"
-import type { AuthRole, PermissionKey } from "@/shared/store/auth.store"
+import { isStaffRole, type AuthRole, type PermissionKey } from "@/shared/store/auth.store"
 import { useAuthStore } from "@/shared/store/auth.store"
 import { useSidebarStore } from "@/shared/store/sidebar.store"
 
@@ -54,26 +54,26 @@ type NavItem = {
 }
 
 const navItems: NavItem[] = [
-  { label: "Tableau de bord", icon: LayoutDashboard, href: "/dashboard", roles: ["director", "secretary"] },
+  { label: "Tableau de bord", icon: LayoutDashboard, href: "/dashboard", roles: ["director", "staff", "secretary"] },
   {
     label: "Emploi du temps",
     icon: CalendarDays,
     href: "/schedule",
-    roles: ["director", "secretary"],
+    roles: ["director", "staff", "secretary"],
     requiredPermissions: ["schedule.view"],
   },
   {
     label: "Professeurs",
     icon: Users,
     href: "/teachers",
-    roles: ["director", "secretary"],
+    roles: ["director", "staff", "secretary"],
     requiredPermissions: ["teachers.view"],
   },
   {
     label: "Élèves",
     icon: GraduationCap,
     href: "/students",
-    roles: ["director", "secretary"],
+    roles: ["director", "staff", "secretary"],
     requiredPermissions: ["students.view"],
   },
   { label: "Salaires", icon: Wallet, href: "/salaries", roles: ["director"] },
@@ -82,7 +82,7 @@ const navItems: NavItem[] = [
     label: "Salles & QR Codes",
     icon: QrCode,
     href: "/rooms",
-    roles: ["director", "secretary"],
+    roles: ["director", "staff", "secretary"],
     requiredPermissions: ["schedule.edit"],
   },
   { label: "Paramètres", icon: Settings2, href: "/settings", roles: ["director"] },
@@ -105,7 +105,7 @@ function canAccessItem(item: NavItem, role: UserRole, permissions: PermissionKey
     return false
   }
 
-  if (role !== "secretary" || !item.requiredPermissions || item.requiredPermissions.length === 0) {
+  if (!isStaffRole(role) || !item.requiredPermissions || item.requiredPermissions.length === 0) {
     return true
   }
 
@@ -114,7 +114,7 @@ function canAccessItem(item: NavItem, role: UserRole, permissions: PermissionKey
 }
 
 function isSidebarRole(role: AuthRole | undefined): role is UserRole {
-  return role === "director" || role === "secretary" || role === "super_admin"
+  return role === "director" || isStaffRole(role) || role === "super_admin"
 }
 
 function NavItemComponent({ item, collapsed }: { item: NavItem; collapsed: boolean }) {

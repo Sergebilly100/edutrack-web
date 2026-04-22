@@ -18,6 +18,8 @@ export type AssignableUser = {
   role: string
   email: string | null
   phone: string | null
+  positions: string[]
+  permissions: string[]
 }
 
 export type SchoolConfigData = {
@@ -53,6 +55,13 @@ export type CreateAdministrativeUserInput = {
   password: string
 }
 
+export type UpdateAdministrativeUserInput = {
+  id: string
+  name?: string
+  email?: string | null
+  phone?: string | null
+}
+
 type UnknownRecord = Record<string, unknown>
 
 const isRecord = (value: unknown): value is UnknownRecord =>
@@ -63,6 +72,9 @@ const asString = (value: unknown, fallback = ""): string =>
 
 const asNullableString = (value: unknown): string | null =>
   typeof value === "string" && value.length > 0 ? value : null
+
+const asStringArray = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
 
 const asNumber = (value: unknown, fallback = 0): number => {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -125,6 +137,8 @@ const parseUser = (value: unknown): AssignableUser => {
     role: asString(row.role, "user"),
     email: asNullableString(row.email),
     phone: asNullableString(row.phone),
+    positions: asStringArray(row.positions ?? row.positionNames ?? row.position_names),
+    permissions: asStringArray(row.permissions),
   }
 }
 
@@ -248,6 +262,31 @@ export const createAdministrativeUser = async (
   const response = await apiClient.post("/permissions/users", payload)
   const envelope = isRecord(response.data) ? response.data : {}
   return parseUser(envelope.user)
+}
+
+export const updateAdministrativeUser = async (
+  payload: UpdateAdministrativeUserInput
+): Promise<AssignableUser> => {
+  const response = await apiClient.put(`/permissions/users/${payload.id}`, {
+    ...(payload.name !== undefined ? { name: payload.name } : {}),
+    ...(payload.email !== undefined ? { email: payload.email } : {}),
+    ...(payload.phone !== undefined ? { phone: payload.phone } : {}),
+  })
+  const envelope = isRecord(response.data) ? response.data : {}
+  return parseUser(envelope.user)
+}
+
+export const deleteAdministrativeUser = async (userId: string): Promise<void> => {
+  await apiClient.delete(`/permissions/users/${userId}`)
+}
+
+export const resetAdministrativeUserPassword = async (
+  userId: string,
+  newPassword: string
+): Promise<void> => {
+  await apiClient.post(`/permissions/users/${userId}/reset-password`, {
+    newPassword,
+  })
 }
 
 export const changePassword = async (payload: ChangePasswordInput): Promise<void> => {
