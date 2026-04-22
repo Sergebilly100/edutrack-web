@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import axios from "axios"
-import { Building2, KeyRound, Pencil, Plus, Settings2, Shield, Trash2, UserPlus, Users } from "lucide-react"
+import { Building2, KeyRound, Pencil, Plus, Settings2, Shield, Trash2, UserPlus, Users, X } from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
@@ -41,6 +41,7 @@ import {
   deletePosition,
   fetchSchoolConfig,
   resetAdministrativeUserPassword,
+  unassignUserFromPosition,
   type AssignableUser,
   type CreateAdministrativeUserInput,
   type PositionItem,
@@ -72,6 +73,11 @@ export default function SchoolConfigPanel() {
   const [editingUserId, setEditingUserId] = useState<string | null>(null)
   const [resetPasswordTarget, setResetPasswordTarget] = useState<AssignableUser | null>(null)
   const [resetPasswordValue, setResetPasswordValue] = useState("")
+  const [criticalActionTarget, setCriticalActionTarget] = useState<
+    | { type: "reset_credentials"; userId: string; userName: string; newPassword: string }
+    | { type: "unassign_role"; userId: string; userName: string; positionId: string; positionName: string }
+    | null
+  >(null)
   const [deleteTarget, setDeleteTarget] = useState<
     | { type: "position"; id: string; name: string }
     | { type: "user"; id: string; name: string }
@@ -253,6 +259,26 @@ export default function SchoolConfigPanel() {
     },
   })
 
+  const unassignMutation = useMutation({
+    mutationFn: ({ positionId, userId }: { positionId: string; userId: string }) =>
+      unassignUserFromPosition(positionId, userId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY })
+      toast({ title: "Rôle retiré" })
+    },
+    onError: (error) => {
+      const description =
+        axios.isAxiosError(error) && typeof error.response?.data?.error === "string"
+          ? error.response.data.error
+          : "Impossible de retirer ce rôle."
+      toast({
+        title: "Erreur",
+        description,
+        variant: "destructive",
+      })
+    },
+  })
+
   const positions = schoolConfigQuery.data?.positions ?? []
   const assignableUsers = schoolConfigQuery.data?.users ?? []
   const canEditLimits = user?.role === "super_admin"
@@ -379,10 +405,48 @@ export default function SchoolConfigPanel() {
       return
     }
 
-    resetPasswordMutation.mutate({
+    setCriticalActionTarget({
+      type: "reset_credentials",
       userId: resetPasswordTarget.id,
+      userName: resetPasswordTarget.name,
       newPassword,
     })
+  }
+
+  const handleUnassignPosition = (payload: {
+    positionId: string
+    userId: string
+    userName: string
+    positionName: string
+  }) => {
+    setCriticalActionTarget({
+      type: "unassign_role",
+      userId: payload.userId,
+      userName: payload.userName,
+      positionId: payload.positionId,
+      positionName: payload.positionName,
+    })
+  }
+
+  const confirmCriticalAction = () => {
+    if (!criticalActionTarget) {
+      return
+    }
+
+    if (criticalActionTarget.type === "reset_credentials") {
+      resetPasswordMutation.mutate({
+        userId: criticalActionTarget.userId,
+        newPassword: criticalActionTarget.newPassword,
+      })
+      setCriticalActionTarget(null)
+      return
+    }
+
+    unassignMutation.mutate({
+      userId: criticalActionTarget.userId,
+      positionId: criticalActionTarget.positionId,
+    })
+    setCriticalActionTarget(null)
   }
 
   const planLabel = school?.plan === "pro" ? "Pro" : school?.plan === "establishment" ? "Establishment" : "Essential"
@@ -752,21 +816,34 @@ export default function SchoolConfigPanel() {
                       <div className="space-y-1">
                         <p className="font-medium">{schoolUser.name}</p>
                         <div className="flex flex-wrap items-center gap-1">
-                          {schoolUser.positions.length > 0 ? (
+                          {schoolUser.assignedPositions.length > 0 ? (
                             <>
-                              {schoolUser.positions.slice(0, 2).map((positionName) => (
+                              {schoolUser.assignedPositions.map((assignedPosition) => (
                                 <span
-                                  key={`${schoolUser.id}-${positionName}`}
-                                  className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+                                  key={`${schoolUser.id}-${assignedPosition.id}`}
+                                  className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
                                 >
-                                  {positionName}
+                                  {assignedPosition.name}
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-3.5 w-3.5"
+                                    onClick={() =>
+                                      handleUnassignPosition({
+                                        positionId: assignedPosition.id,
+                                        userId: schoolUser.id,
+                                        userName: schoolUser.name,
+                                        positionName: assignedPosition.name,
+                                      })
+                                    }
+                                    disabled={unassignMutation.isPending}
+                                    aria-label={`Retirer ${assignedPosition.name} de ${schoolUser.name}`}
+                                  >
+                                    <X className="h-2.5 w-2.5" />
+                                  </Button>
                                 </span>
                               ))}
-                              {schoolUser.positions.length > 2 ? (
-                                <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                                  +{schoolUser.positions.length - 2}
-                                </span>
-                              ) : null}
                             </>
                           ) : (
                             <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
@@ -780,7 +857,7 @@ export default function SchoolConfigPanel() {
                       </div>
                       <p className="text-muted-foreground">{schoolUser.email ?? "-"}</p>
                       <p className="text-muted-foreground">{schoolUser.phone ?? "-"}</p>
-                      <p>{schoolUser.role === "secretary" || schoolUser.role === "staff" ? "staff" : schoolUser.role}</p>
+                      {/* <p>{schoolUser.role === "secretary" || schoolUser.role === "staff" ? "staff" : schoolUser.role}</p> */}
                       <div className="flex items-center justify-end gap-1">
                         <Button
                           type="button"
@@ -828,6 +905,35 @@ export default function SchoolConfigPanel() {
           initialPosition={positionToEdit}
         />
       </div>
+
+      <AlertDialog
+        open={criticalActionTarget !== null}
+        onOpenChange={(open) => !open && setCriticalActionTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {criticalActionTarget?.type === "reset_credentials"
+                ? "Confirmer la réinitialisation des credentials ?"
+                : "Confirmer le retrait du rôle ?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {criticalActionTarget?.type === "reset_credentials"
+                ? `Le mot de passe de ${criticalActionTarget.userName} sera remplacé immédiatement. Communiquez le nouveau mot de passe via un canal sécurisé.`
+                : `Le rôle "${criticalActionTarget?.positionName ?? ""}" sera retiré à ${criticalActionTarget?.userName ?? ""}. L'accès associé sera perdu immédiatement.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmCriticalAction}
+              disabled={resetPasswordMutation.isPending || unassignMutation.isPending}
+            >
+              {resetPasswordMutation.isPending || unassignMutation.isPending ? "Traitement..." : "Confirmer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>

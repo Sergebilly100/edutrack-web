@@ -18,6 +18,10 @@ export type AssignableUser = {
   role: string
   email: string | null
   phone: string | null
+  assignedPositions: Array<{
+    id: string
+    name: string
+  }>
   positions: string[]
   permissions: string[]
 }
@@ -75,6 +79,26 @@ const asNullableString = (value: unknown): string | null =>
 
 const asStringArray = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
+
+const asAssignedPositions = (value: unknown): Array<{ id: string; name: string }> => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map((item) => {
+      if (!isRecord(item)) {
+        return null
+      }
+      const id = asString(item.id)
+      const name = asString(item.name)
+      if (!id || !name) {
+        return null
+      }
+      return { id, name }
+    })
+    .filter((item): item is { id: string; name: string } => item !== null)
+}
 
 const asNumber = (value: unknown, fallback = 0): number => {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -137,6 +161,7 @@ const parseUser = (value: unknown): AssignableUser => {
     role: asString(row.role, "user"),
     email: asNullableString(row.email),
     phone: asNullableString(row.phone),
+    assignedPositions: asAssignedPositions(row.assignedPositions ?? row.assigned_positions),
     positions: asStringArray(row.positions ?? row.positionNames ?? row.position_names),
     permissions: asStringArray(row.permissions),
   }
