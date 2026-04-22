@@ -12,6 +12,7 @@ type LoginResponse = {
     name: string;
     phone: string | null;
     email: string | null;
+    profilePhotoUrl: string | null;
     username?: string;
   };
 };
@@ -44,6 +45,13 @@ type PermissionsMeResponse = {
   permissions: string[]
 }
 
+type UpdateMyProfilePayload = {
+  name?: string
+  phone?: string | null
+  email?: string | null
+  profilePhotoUrl?: string | null
+}
+
 const PERMISSION_KEYS: PermissionKey[] = [
   'teachers.view',
   'teachers.create',
@@ -72,3 +80,8 @@ export const getMyPermissions = async (): Promise<PermissionKey[]> => {
   const rawPermissions = Array.isArray(response.data?.permissions) ? response.data.permissions : []
   return rawPermissions.filter((value): value is PermissionKey => keys.has(value as PermissionKey))
 };
+
+export const updateMyProfile = async (payload: UpdateMyProfilePayload) => {
+  const response = await api.patch<{ user: LoginResponse["user"] }>("/auth/me", payload)
+  return response.data.user
+}

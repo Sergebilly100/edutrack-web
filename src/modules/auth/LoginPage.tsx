@@ -48,6 +48,7 @@ export default function LoginPage() {
         role: result.user.role,
         phone: result.user.phone,
         email: result.user.email,
+        profilePhotoUrl: result.user.profilePhotoUrl,
         tenantId: schemaName || 'default-tenant',
         schemaName: schemaName || 'public',
         plan: 'standard',

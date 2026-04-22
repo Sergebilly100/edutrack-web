@@ -8,6 +8,7 @@ export type AuthUser = {
   role: AuthRole
   phone: string | null
   email: string | null
+  profilePhotoUrl: string | null
   tenantId: string
   schemaName: string
   plan: string

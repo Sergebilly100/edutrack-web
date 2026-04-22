@@ -36,6 +36,7 @@ export type CreateSchoolPayload = {
   teaching_type: TeachingType
   plan: TenantPlan
   max_admin_positions: number
+  active_school_year: string
   director_name: string
   director_phone: string
   director_email?: string
@@ -70,6 +71,8 @@ export type SchoolDetailsResponse = {
     directorTitle: string | null
     canEditSmsTemplate: boolean
     canExportData: boolean
+    activeSchoolYear: string | null
+    logoUrl: string | null
     createdAt: string
     updatedAt: string
   }
@@ -98,6 +101,8 @@ export type UpdateSchoolConfigPayload = {
   director_title?: string
   can_edit_sms_template?: boolean
   can_export_data?: boolean
+  active_school_year?: string
+  logo_url?: string | null
   plan?: TenantPlan
   status?: TenantStatus
 }

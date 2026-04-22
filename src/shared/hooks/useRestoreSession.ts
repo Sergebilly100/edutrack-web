@@ -18,6 +18,7 @@ type MeResponse = {
     name: string
     phone: string | null
     email: string | null
+    profilePhotoUrl: string | null
     username?: string
   }
 }
@@ -110,6 +111,7 @@ export function useRestoreSession(): void {
           role: user.role,
           phone: user.phone,
           email: user.email,
+          profilePhotoUrl: user.profilePhotoUrl,
           tenantId: schemaName,
           schemaName,
           plan: "standard",

@@ -12,24 +12,46 @@ import {
 import { cn } from "@/lib/utils"
 
 const PERMISSION_COLUMNS = [
-  { key: "teachers", label: "Profs" },
-  { key: "students", label: "Élèves" },
-  { key: "schedule", label: "EDT" },
-  { key: "attendance", label: "Présences" },
-  { key: "salary", label: "Salaires" },
-  { key: "settings", label: "Paramètres" },
+  {
+    key: "teachers",
+    label: "Profs",
+    permissions: ["teachers.view", "teachers.create", "teachers.edit", "teachers.block", "teachers.documents"],
+  },
+  {
+    key: "students",
+    label: "Élèves",
+    permissions: ["students.view", "students.create", "students.edit", "students.documents"],
+  },
+  {
+    key: "schedule",
+    label: "EDT",
+    permissions: ["schedule.view", "schedule.edit"],
+  },
+  {
+    key: "attendance",
+    label: "Présences",
+    permissions: ["attendance.view", "attendance.mark_students"],
+  },
+  {
+    key: "salary",
+    label: "Salaires",
+    permissions: ["salary.view", "salary.compute", "salary.mark_paid", "salary.export"],
+  },
 ] as const
 
 const PERMISSION_ROWS = [
   { key: "view", label: "Voir" },
   { key: "create", label: "Créer" },
-  { key: "update", label: "Modifier" },
-  { key: "delete", label: "Supprimer" },
+  { key: "edit", label: "Modifier" },
+  { key: "block", label: "Bloquer" },
+  { key: "documents", label: "Documents" },
+  { key: "mark_students", label: "Marquer les présences" },
+  { key: "compute", label: "Calculer" },
+  { key: "mark_paid", label: "Marquer payé" },
   { key: "export", label: "Exporter" },
 ] as const
 
-type PermissionCategory = (typeof PERMISSION_COLUMNS)[number]["key"]
-type PermissionAction = (typeof PERMISSION_ROWS)[number]["key"]
+type PermissionColumn = (typeof PERMISSION_COLUMNS)[number]
 
 type RoleMatrixPosition = {
   permissions: string[]
@@ -41,10 +63,12 @@ type RoleMatrixProps = {
   className?: string
 }
 
-const getPermissionKey = (category: PermissionCategory, action: PermissionAction) =>
-  `${category}.${action}`
-
 const uniqueSorted = (permissions: string[]) => Array.from(new Set(permissions)).sort()
+
+const resolvePermissionKey = (column: PermissionColumn, actionKey: (typeof PERMISSION_ROWS)[number]["key"]) => {
+  const key = `${column.key}.${actionKey}`
+  return (column.permissions as readonly string[]).includes(key) ? key : null
+}
 
 export default function RoleMatrix({ position, onChange, className }: RoleMatrixProps) {
   const permissionSet = useMemo(() => new Set(position.permissions), [position.permissions])
@@ -60,15 +84,14 @@ export default function RoleMatrix({ position, onChange, className }: RoleMatrix
     onChange(uniqueSorted(Array.from(next)))
   }
 
-  const toggleColumn = (category: PermissionCategory, checked: boolean) => {
+  const toggleColumn = (column: PermissionColumn, checked: boolean) => {
     const next = new Set(position.permissions)
 
-    for (const row of PERMISSION_ROWS) {
-      const key = getPermissionKey(category, row.key)
+    for (const permission of column.permissions) {
       if (checked) {
-        next.add(key)
+        next.add(permission)
       } else {
-        next.delete(key)
+        next.delete(permission)
       }
     }
 
@@ -80,22 +103,20 @@ export default function RoleMatrix({ position, onChange, className }: RoleMatrix
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[140px] text-sm">Action</TableHead>
+            <TableHead className="w-[180px] text-sm">Action</TableHead>
             {PERMISSION_COLUMNS.map((column) => {
-              const total = PERMISSION_ROWS.length
-              const selected = PERMISSION_ROWS.reduce((count, row) => {
-                const key = getPermissionKey(column.key, row.key)
-                return count + (permissionSet.has(key) ? 1 : 0)
+              const selected = column.permissions.reduce((count, permission) => {
+                return count + (permissionSet.has(permission) ? 1 : 0)
               }, 0)
-
+              const total = column.permissions.length
               const checkedState = selected === 0 ? false : selected === total ? true : "indeterminate"
 
               return (
-                <TableHead key={column.key} className="min-w-[120px] text-center text-sm">
+                <TableHead key={column.key} className="min-w-[130px] text-center text-sm">
                   <div className="flex items-center justify-center gap-2">
                     <Checkbox
                       checked={checkedState}
-                      onCheckedChange={(checked) => toggleColumn(column.key, checked === true)}
+                      onCheckedChange={(checked) => toggleColumn(column, checked === true)}
                       aria-label={`Tout sélectionner ${column.label}`}
                     />
                     <span>{column.label}</span>
@@ -111,7 +132,15 @@ export default function RoleMatrix({ position, onChange, className }: RoleMatrix
             <TableRow key={row.key} className={cn(index % 2 === 0 ? "bg-muted/20" : "bg-background", "hover:bg-muted/40")}>
               <TableCell className="font-medium text-sm">{row.label}</TableCell>
               {PERMISSION_COLUMNS.map((column) => {
-                const permission = getPermissionKey(column.key, row.key)
+                const permission = resolvePermissionKey(column, row.key)
+
+                if (!permission) {
+                  return (
+                    <TableCell key={`${column.key}.${row.key}`} className="text-center text-muted-foreground">
+                      -
+                    </TableCell>
+                  )
+                }
 
                 return (
                   <TableCell key={permission} className="text-center">

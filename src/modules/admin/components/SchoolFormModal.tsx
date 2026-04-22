@@ -59,6 +59,7 @@ const schoolFormSchema = z.object({
     }),
   plan: z.enum(["essential", "pro", "establishment"]),
   maxAdminPositions: z.number().int().min(1).max(50),
+  activeSchoolYear: z.string().trim().regex(/^\\d{4}-\\d{4}$/, "Format attendu : YYYY-YYYY"),
 })
 
 type SchoolFormValues = z.infer<typeof schoolFormSchema>
@@ -104,6 +105,7 @@ export default function SchoolFormModal({ open, onOpenChange }: SchoolFormModalP
       directorEmail: "",
       plan: "essential",
       maxAdminPositions: 5,
+      activeSchoolYear: "",
     },
   })
 
@@ -163,6 +165,7 @@ export default function SchoolFormModal({ open, onOpenChange }: SchoolFormModalP
       teaching_type: values.teachingType as TeachingType,
       plan: values.plan,
       max_admin_positions: values.maxAdminPositions,
+      active_school_year: values.activeSchoolYear,
       director_name: values.directorName,
       director_phone: values.directorPhone,
       director_email: values.directorEmail?.trim() ? values.directorEmail.trim() : undefined,
@@ -265,6 +268,19 @@ export default function SchoolFormModal({ open, onOpenChange }: SchoolFormModalP
                             <SelectItem value="mixte">Mixte</SelectItem>
                           </SelectContent>
                         </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="activeSchoolYear"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Année scolaire active</FormLabel>
+                        <FormControl>
+                          <Input placeholder="2026-2027" {...field} />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}

@@ -45,6 +45,7 @@ import {
   fetchSchoolConfig,
   type CreateAdministrativeUserInput,
   type PositionItem,
+  updateSchoolInfo,
   updateSchoolLimit,
 } from "@/modules/settings/settings.api"
 import { useAuthStore } from "@/shared/store/auth.store"
@@ -79,6 +80,7 @@ export default function SchoolConfigPanel() {
   })
 
   const [maxAdminPositions, setMaxAdminPositions] = useState("0")
+  const [logoUrlDraft, setLogoUrlDraft] = useState("")
 
   useEffect(() => {
     if (!schoolConfigQuery.data) {
@@ -86,7 +88,29 @@ export default function SchoolConfigPanel() {
     }
 
     setMaxAdminPositions(String(schoolConfigQuery.data.limits.maxAdminPositions))
+    setLogoUrlDraft(schoolConfigQuery.data.school.logoUrl ?? "")
   }, [schoolConfigQuery.data])
+
+  const saveSchoolInfoMutation = useMutation({
+    mutationFn: (payload: { logoUrl: string | null }) =>
+      updateSchoolInfo({
+        name: school?.name ?? "",
+        city: school?.city ?? "",
+        teachingType: school?.teachingType ?? "general",
+        logoUrl: payload.logoUrl,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY })
+      toast({ title: "Logo mis à jour" })
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de mettre à jour le logo.",
+        variant: "destructive",
+      })
+    },
+  })
 
   const saveLimitMutation = useMutation({
     mutationFn: () => updateSchoolLimit(Number(maxAdminPositions)),
@@ -269,8 +293,8 @@ export default function SchoolConfigPanel() {
                   <p className="text-sm font-medium">{planLabel}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Utilisateurs</p>
-                  <p className="text-sm font-medium">{school ? `${school.currentUsers} / ${school.maxUsers}` : "-"}</p>
+                  <p className="text-xs text-muted-foreground">Utilisateurs administratifs</p>
+                  <p className="text-sm font-medium">{school ? `${school.adminUsersCount}` : "-"}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Sous-domaine</p>
@@ -284,10 +308,60 @@ export default function SchoolConfigPanel() {
                   <p className="text-xs text-muted-foreground">Type d&apos;enseignement</p>
                   <p className="text-sm font-medium">{teachingTypeLabel}</p>
                 </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Année scolaire active</p>
+                  <p className="text-sm font-medium">{school?.activeSchoolYear ?? "-"}</p>
+                </div>
+                <div className="md:col-span-2">
+                  <p className="text-xs text-muted-foreground">Logo école</p>
+                  <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    {logoUrlDraft ? (
+                      <img
+                        src={logoUrlDraft}
+                        alt="Logo école"
+                        className="h-14 w-14 rounded-md border border-border object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-14 w-14 items-center justify-center rounded-md border border-dashed border-border text-xs text-muted-foreground">
+                        Logo
+                      </div>
+                    )}
+                    <div className="flex-1 space-y-2">
+                      <Input
+                        value={logoUrlDraft}
+                        onChange={(event) => setLogoUrlDraft(event.target.value)}
+                        placeholder="URL du logo ou image importée"
+                      />
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0]
+                          if (!file) {
+                            return
+                          }
+                          const reader = new FileReader()
+                          reader.onload = () => {
+                            const result = typeof reader.result === "string" ? reader.result : ""
+                            setLogoUrlDraft(result)
+                          }
+                          reader.readAsDataURL(file)
+                        }}
+                      />
+                    </div>
+                    <Button
+                      variant="outline"
+                      disabled={saveSchoolInfoMutation.isPending || !school}
+                      onClick={() => saveSchoolInfoMutation.mutate({ logoUrl: logoUrlDraft || null })}
+                    >
+                      {saveSchoolInfoMutation.isPending ? "Sauvegarde..." : "Enregistrer"}
+                    </Button>
+                  </div>
+                </div>
               </div>
 
               <p className="text-sm text-muted-foreground">
-                Pour modifier ces informations, contactez l&apos;administrateur EduTrack CI.
+                Le logo peut être ajusté ici. Les autres informations sont gérées par l&apos;administrateur EduTrack CI.
               </p>
             </div>
           </CollapsibleContent>
@@ -450,7 +524,7 @@ export default function SchoolConfigPanel() {
 
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs text-muted-foreground">
-                Compteurs utilisateurs actifs: {school ? `${school.currentUsers} / ${school.maxUsers}` : "-"}
+                Compteurs utilisateurs actifs: {school ? `${school.adminUsersCount}` : "-"}
               </p>
               <Button
                 onClick={handleCreateAdministrativeUser}

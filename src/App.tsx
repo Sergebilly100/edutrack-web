@@ -7,7 +7,9 @@ import AdminMaintenancePage from "@/modules/admin/AdminMaintenancePage"
 import AdminRevenuePage from "@/modules/admin/AdminRevenuePage"
 import AdminSchoolDetailPage from "@/modules/admin/AdminSchoolDetailPage"
 import AdminSmsPage from "@/modules/admin/AdminSmsPage"
+import AccountPage from "@/modules/account/AccountPage"
 import AttendancePage from "@/modules/attendance/AttendancePage"
+import AdministrativeDashboardPage from "@/modules/dashboard/AdministrativeDashboardPage"
 import DashboardPage from "@/modules/dashboard/DashboardPage"
 import TeacherDashboardPage from "@/modules/dashboard/TeacherDashboardPage"
 import ImportPage from "@/modules/import-export/ImportPage"
@@ -45,6 +47,9 @@ function DashboardRoute() {
 
   if (user?.role === "teacher") {
     return <TeacherDashboardPage />
+  }
+  if (user?.role === "secretary") {
+    return <AdministrativeDashboardPage />
   }
 
   return <DashboardPage />
@@ -101,7 +106,7 @@ function PermissionRoute({ href, element }: { href: string; element: ReactElemen
     return <Navigate to="/login" replace />
   }
 
-  if (user.role !== "secretary") {
+  if (user.role === "super_admin") {
     return element
   }
 
@@ -111,7 +116,7 @@ function PermissionRoute({ href, element }: { href: string; element: ReactElemen
     return element
   }
 
-  const fallback = allowed[0]?.href ?? "/dashboard"
+  const fallback = user.role === "teacher" ? "/attendance" : allowed[0]?.href ?? "/dashboard"
   return <Navigate to={fallback} replace />
 }
 
@@ -172,6 +177,7 @@ export default function App() {
         <Route path="/rooms" element={<PermissionRoute href="/rooms" element={<RoomsPage />} />} />
         <Route path="/salaries" element={<SalariesPage />} />
         <Route path="/settings" element={<PermissionRoute href="/settings" element={<SettingsPage />} />} />
+        <Route path="/account" element={<AccountPage />} />
       </Route>
 
       <Route path="*" element={<RoleRedirect />} />

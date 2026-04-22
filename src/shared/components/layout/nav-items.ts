@@ -33,7 +33,6 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/dashboard",
     icon: DashboardIcon,
     roles: ["director", "secretary"],
-    requiredPermissions: ["attendance.view"],
     mobileVisible: true,
   },
   {
@@ -87,8 +86,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Paramètres",
     href: "/settings",
     icon: SettingsIcon,
-    roles: ["director", "secretary"],
-    requiredAnyPermissions: ["settings.positions", "settings.school"],
+    roles: ["director"],
     mobileVisible: false,
   },
   {

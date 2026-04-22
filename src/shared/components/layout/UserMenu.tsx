@@ -2,7 +2,7 @@ import { useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { useQueryClient } from "@tanstack/react-query"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -76,6 +76,7 @@ export function UserMenu({ collapsed = false }: UserMenuProps) {
           aria-label="Ouvrir le menu utilisateur"
         >
           <Avatar className="h-9 w-9">
+            <AvatarImage src={user?.profilePhotoUrl ?? undefined} alt={userName} />
             <AvatarFallback style={avatarStyle} className="text-xs font-semibold">
               {getInitials(userName)}
             </AvatarFallback>
@@ -89,7 +90,7 @@ export function UserMenu({ collapsed = false }: UserMenuProps) {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuItem onClick={() => navigate("/settings#account")}>
+        <DropdownMenuItem onClick={() => navigate(user?.role === "super_admin" ? "/admin/account" : "/account")}>
           <UserIcon className="h-4 w-4" />
           <span>Mon compte</span>
         </DropdownMenuItem>

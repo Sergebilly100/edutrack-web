@@ -29,6 +29,10 @@ export type SchoolConfigData = {
     teachingType: TeachingType
     maxUsers: number
     currentUsers: number
+    totalUsers: number
+    adminUsersCount: number
+    logoUrl: string | null
+    activeSchoolYear: string | null
   }
   limits: {
     maxAdminPositions: number
@@ -141,6 +145,10 @@ const parseConfigEnvelope = (value: unknown): SchoolConfigData => {
       teachingType: parseTeachingType(schoolRaw.teachingType ?? schoolRaw.teaching_type),
       maxUsers: asNumber(schoolRaw.maxUsers ?? schoolRaw.max_users, 0),
       currentUsers: asNumber(schoolRaw.currentUsers ?? schoolRaw.current_users, 0),
+      totalUsers: asNumber(schoolRaw.totalUsers ?? schoolRaw.total_users, 0),
+      adminUsersCount: asNumber(schoolRaw.adminUsersCount ?? schoolRaw.admin_users_count, 0),
+      logoUrl: asNullableString(schoolRaw.logoUrl ?? schoolRaw.logo_url),
+      activeSchoolYear: asNullableString(schoolRaw.activeSchoolYear ?? schoolRaw.active_school_year),
     },
     limits: {
       maxAdminPositions: asNumber(limitsRaw.max_admin_positions ?? limitsRaw.maxAdminPositions, 0),
@@ -167,6 +175,10 @@ const parseSchoolInfo = (value: unknown): SchoolConfigData["school"] => {
     teachingType: parseTeachingType(payload.teachingType ?? payload.teaching_type),
     maxUsers: asNumber(payload.maxUsers ?? payload.max_users, 0),
     currentUsers: asNumber(payload.currentUsers ?? payload.current_users, 0),
+    totalUsers: asNumber(payload.totalUsers ?? payload.total_users, 0),
+    adminUsersCount: asNumber(payload.adminUsersCount ?? payload.admin_users_count, 0),
+    logoUrl: asNullableString(payload.logoUrl ?? payload.logo_url),
+    activeSchoolYear: asNullableString(payload.activeSchoolYear ?? payload.active_school_year),
   }
 }
 
@@ -193,12 +205,14 @@ export const updateSchoolInfo = async (payload: {
   name: string
   city: string
   teachingType: TeachingType
+  logoUrl?: string | null
 }): Promise<void> => {
   try {
     await apiClient.patch("/permissions/config/school", {
       name: payload.name,
       city: payload.city,
       teachingType: payload.teachingType,
+      ...(payload.logoUrl !== undefined ? { logoUrl: payload.logoUrl } : {}),
     })
   } catch {
     await apiClient.patch("/school/info", {
