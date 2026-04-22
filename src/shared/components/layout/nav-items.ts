@@ -87,7 +87,8 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Paramètres",
     href: "/settings",
     icon: SettingsIcon,
-    roles: ["director"],
+    roles: ["director", "staff"],
+    requiredPermissions: ["settings.sms_templates"],
     mobileVisible: false,
   },
   {

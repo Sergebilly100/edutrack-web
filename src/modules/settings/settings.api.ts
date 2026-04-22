@@ -39,6 +39,7 @@ export type SchoolConfigData = {
     adminUsersCount: number
     logoUrl: string | null
     activeSchoolYear: string | null
+    canEditSmsTemplate: boolean
   }
   limits: {
     maxAdminPositions: number
@@ -188,6 +189,7 @@ const parseConfigEnvelope = (value: unknown): SchoolConfigData => {
       adminUsersCount: asNumber(schoolRaw.adminUsersCount ?? schoolRaw.admin_users_count, 0),
       logoUrl: asNullableString(schoolRaw.logoUrl ?? schoolRaw.logo_url),
       activeSchoolYear: asNullableString(schoolRaw.activeSchoolYear ?? schoolRaw.active_school_year),
+      canEditSmsTemplate: Boolean(schoolRaw.canEditSmsTemplate ?? schoolRaw.can_edit_sms_template),
     },
     limits: {
       maxAdminPositions: asNumber(limitsRaw.max_admin_positions ?? limitsRaw.maxAdminPositions, 0),
@@ -218,7 +220,16 @@ const parseSchoolInfo = (value: unknown): SchoolConfigData["school"] => {
     adminUsersCount: asNumber(payload.adminUsersCount ?? payload.admin_users_count, 0),
     logoUrl: asNullableString(payload.logoUrl ?? payload.logo_url),
     activeSchoolYear: asNullableString(payload.activeSchoolYear ?? payload.active_school_year),
+    canEditSmsTemplate: false,
   }
+}
+
+export type SchoolSmsTemplateResponse = {
+  enabledBySuperAdmin: boolean
+  source: "school" | "global" | "default"
+  messageTemplate: string
+  variables: string[]
+  updatedAt: string | null
 }
 
 export const fetchSchoolConfig = async (): Promise<SchoolConfigData> => {
@@ -226,10 +237,10 @@ export const fetchSchoolConfig = async (): Promise<SchoolConfigData> => {
     const response = await apiClient.get("/permissions/config")
     return parseConfigEnvelope(response.data)
   } catch {
-    const [schoolInfoResponse, positionsResponse] = await Promise.all([
-      apiClient.get("/school/info"),
-      apiClient.get("/permissions/positions"),
-    ])
+    const schoolInfoResponse = await apiClient.get("/school/info")
+    const positionsResponse = await apiClient
+      .get("/permissions/positions")
+      .catch(() => ({ data: { positions: [] } }))
 
     return {
       school: parseSchoolInfo(schoolInfoResponse.data),
@@ -238,6 +249,22 @@ export const fetchSchoolConfig = async (): Promise<SchoolConfigData> => {
       users: [],
     }
   }
+}
+
+export const getSchoolStudentAbsenceSmsTemplate = async (): Promise<SchoolSmsTemplateResponse> => {
+  const response = await apiClient.get<SchoolSmsTemplateResponse>("/notifications/templates/student-absence")
+  return response.data
+}
+
+export const updateSchoolStudentAbsenceSmsTemplate = async (payload: {
+  message_template: string
+  variables: string[]
+}): Promise<void> => {
+  await apiClient.put("/notifications/templates/student-absence", payload)
+}
+
+export const resetSchoolStudentAbsenceSmsTemplate = async (): Promise<void> => {
+  await apiClient.delete("/notifications/templates/student-absence")
 }
 
 export const updateSchoolInfo = async (payload: {

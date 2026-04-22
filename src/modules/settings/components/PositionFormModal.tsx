@@ -45,6 +45,17 @@ type PositionFormModalProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   initialPosition?: PositionPayload | null
+  canManageSmsTemplates?: boolean
+}
+
+const SMS_TEMPLATE_PERMISSION = "settings.sms_templates"
+
+const sanitizePermissions = (permissions: string[], canManageSmsTemplates: boolean): string[] => {
+  if (canManageSmsTemplates) {
+    return permissions
+  }
+
+  return permissions.filter((permission) => permission !== SMS_TEMPLATE_PERMISSION)
 }
 
 const createPosition = (payload: PositionFormValues) =>
@@ -62,6 +73,7 @@ export default function PositionFormModal({
   open,
   onOpenChange,
   initialPosition,
+  canManageSmsTemplates = false,
 }: PositionFormModalProps) {
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -72,16 +84,31 @@ export default function PositionFormModal({
     resolver: zodResolver(positionSchema),
     defaultValues: {
       name: initialPosition?.name ?? "",
-      permissions: initialPosition?.permissions ?? [],
+      permissions: sanitizePermissions(initialPosition?.permissions ?? [], canManageSmsTemplates),
     },
   })
 
   useEffect(() => {
     form.reset({
       name: initialPosition?.name ?? "",
-      permissions: initialPosition?.permissions ?? [],
+      permissions: sanitizePermissions(initialPosition?.permissions ?? [], canManageSmsTemplates),
     })
-  }, [form, initialPosition, open])
+  }, [canManageSmsTemplates, form, initialPosition, open])
+
+  useEffect(() => {
+    if (canManageSmsTemplates) {
+      return
+    }
+
+    const currentPermissions = form.getValues("permissions")
+    const nextPermissions = sanitizePermissions(currentPermissions, false)
+    if (nextPermissions.length !== currentPermissions.length) {
+      form.setValue("permissions", nextPermissions, {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
+    }
+  }, [canManageSmsTemplates, form])
 
   const mutation = useMutation({
     mutationFn: async (values: PositionFormValues) => {
@@ -89,11 +116,14 @@ export default function PositionFormModal({
         return updatePosition({
           id: initialPosition.id,
           name: values.name,
-          permissions: values.permissions,
+          permissions: sanitizePermissions(values.permissions, canManageSmsTemplates),
         })
       }
 
-      return createPosition(values)
+      return createPosition({
+        ...values,
+        permissions: sanitizePermissions(values.permissions, canManageSmsTemplates),
+      })
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["settings", "school-config"] })
@@ -170,6 +200,7 @@ export default function PositionFormModal({
 
               <RoleMatrix
                 position={{ permissions }}
+                canManageSmsTemplates={canManageSmsTemplates}
                 onChange={(permissions) => {
                   form.setValue("permissions", permissions, {
                     shouldDirty: true,

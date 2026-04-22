@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Navigate } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import axios from "axios"
 import { AlertTriangle, BarChart3, MessageSquare, Send, ShieldCheck, Wallet } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -14,10 +15,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import {
+  getGlobalSmsTemplates,
   getSmsDashboard,
   getSmsPlatformAudit,
   getSmsPlatformConfig,
+  type SmsTemplateType,
   type SmsProvider,
+  updateGlobalSmsTemplate,
   updateSmsPlatformConfig,
 } from "@/modules/admin/admin.api"
 import { StatCard } from "@/shared/components"
@@ -31,6 +35,10 @@ const PROVIDER_OPTIONS: Array<{ value: SmsProvider; label: string }> = [
   { value: "orange_api", label: "Orange API" },
   { value: "custom", label: "Autre fournisseur" },
 ]
+const GLOBAL_TEMPLATE_OPTIONS: Array<{ type: SmsTemplateType; label: string }> = [
+  { type: "student_absent_parent", label: "Absence élève -> parent" },
+  { type: "payment_reminder", label: "Relance paiement -> responsable école" },
+]
 
 export default function AdminSmsPage() {
   const user = useAuthStore((state) => state.user)
@@ -38,6 +46,7 @@ export default function AdminSmsPage() {
   const queryClient = useQueryClient()
 
   const dashboardQuery = useQuery({ queryKey: ["admin", "sms", "dashboard"], queryFn: getSmsDashboard })
+  const globalTemplatesQuery = useQuery({ queryKey: ["admin", "sms", "templates"], queryFn: getGlobalSmsTemplates })
   const platformConfigQuery = useQuery({ queryKey: ["admin", "sms", "platform-config"], queryFn: getSmsPlatformConfig })
   const platformAuditQuery = useQuery({ queryKey: ["admin", "sms", "platform-audit"], queryFn: () => getSmsPlatformAudit(40) })
   const [provider, setProvider] = useState<SmsProvider>("mock")
@@ -51,6 +60,8 @@ export default function AdminSmsPage() {
   const [smsMaintenanceMode, setSmsMaintenanceMode] = useState(false)
   const [smsMaintenanceMessage, setSmsMaintenanceMessage] = useState("Service SMS en maintenance")
   const [apiKeyInput, setApiKeyInput] = useState("")
+  const [selectedTemplateType, setSelectedTemplateType] = useState<SmsTemplateType>("student_absent_parent")
+  const [selectedTemplateText, setSelectedTemplateText] = useState("")
 
   useEffect(() => {
     if (!platformConfigQuery.data) {
@@ -68,6 +79,15 @@ export default function AdminSmsPage() {
     setSmsMaintenanceMessage(platformConfigQuery.data.smsMaintenanceMessage)
     setApiKeyInput("")
   }, [platformConfigQuery.data])
+
+  useEffect(() => {
+    const template = globalTemplatesQuery.data?.find((item) => item.type === selectedTemplateType)
+    setSelectedTemplateText(template?.messageTemplate ?? "")
+  }, [globalTemplatesQuery.data, selectedTemplateType])
+  const selectedTemplate = useMemo(
+    () => globalTemplatesQuery.data?.find((item) => item.type === selectedTemplateType) ?? null,
+    [globalTemplatesQuery.data, selectedTemplateType]
+  )
 
   const updatePlatformMutation = useMutation({
     mutationFn: () =>
@@ -92,6 +112,29 @@ export default function AdminSmsPage() {
     },
     onError: () => {
       toast({ title: "Erreur", description: "Impossible d'enregistrer la configuration SMS", variant: "destructive" })
+    },
+  })
+  const updateGlobalTemplateMutation = useMutation({
+    mutationFn: () =>
+      updateGlobalSmsTemplate(selectedTemplateType, {
+        message_template: selectedTemplateText.trim(),
+        variables:
+          globalTemplatesQuery.data?.find((item) => item.type === selectedTemplateType)?.variables ?? [],
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin", "sms", "templates"] })
+      toast({ title: "Template global SMS enregistré" })
+    },
+    onError: (error) => {
+      const description =
+        axios.isAxiosError(error) && typeof error.response?.data?.error === "string"
+          ? error.response.data.error
+          : "Impossible d'enregistrer le template global."
+      toast({
+        title: "Erreur",
+        description,
+        variant: "destructive",
+      })
     },
   })
   const quotaAlerts = useMemo(
@@ -299,6 +342,73 @@ export default function AdminSmsPage() {
         </TabsContent>
 
         <TabsContent value="governance" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Templates globaux SMS</CardTitle>
+              <CardDescription>
+                Modèles maintenus par le super admin. Seuls les templates absence élève et relance paiement sont actifs.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                {GLOBAL_TEMPLATE_OPTIONS.map((item) => (
+                  <Button
+                    key={item.type}
+                    type="button"
+                    variant={selectedTemplateType === item.type ? "default" : "outline"}
+                    onClick={() => setSelectedTemplateType(item.type)}
+                  >
+                    {item.label}
+                  </Button>
+                ))}
+              </div>
+              <textarea
+                value={selectedTemplateText}
+                onChange={(event) => setSelectedTemplateText(event.target.value)}
+                rows={5}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                disabled={globalTemplatesQuery.isLoading || globalTemplatesQuery.isError}
+              />
+              {globalTemplatesQuery.isLoading ? (
+                <p className="text-xs text-muted-foreground">Chargement des templates globaux…</p>
+              ) : null}
+              {globalTemplatesQuery.isError ? (
+                <Alert variant="destructive">
+                  <AlertDescription>Impossible de charger les templates globaux SMS.</AlertDescription>
+                </Alert>
+              ) : null}
+              {!globalTemplatesQuery.isLoading && !globalTemplatesQuery.isError && selectedTemplate === null ? (
+                <Alert>
+                  <AlertDescription>
+                    Aucun template global trouvé pour ce type. Saisissez un contenu puis enregistrez pour l&apos;initialiser.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+              {selectedTemplate ? (
+                <p className="text-xs text-muted-foreground">
+                  Dernière mise à jour: {new Date(selectedTemplate.updatedAt).toLocaleString("fr-FR")}
+                </p>
+              ) : null}
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  {selectedTemplateText.trim().length} caractères
+                </p>
+                <Button
+                  type="button"
+                  onClick={() => updateGlobalTemplateMutation.mutate()}
+                  disabled={
+                    globalTemplatesQuery.isLoading ||
+                    globalTemplatesQuery.isError ||
+                    updateGlobalTemplateMutation.isPending ||
+                    selectedTemplateText.trim().length < 5
+                  }
+                >
+                  Enregistrer
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           <section className="grid gap-4 lg:grid-cols-2">
             <Card>
               <CardHeader>

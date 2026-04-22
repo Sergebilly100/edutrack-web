@@ -468,8 +468,21 @@ export const getSmsPlatformAudit = (limit = 50) =>
 export const getGlobalSmsTemplates = () =>
   api.get<{ items: SmsTemplateItem[] }>("/admin/sms/templates").then((response) => response.data.items)
 
+const sanitizeSmsTemplatePayload = (payload: { message_template: string; variables: string[] }) => ({
+  message_template: payload.message_template.trim(),
+  variables: Array.from(
+    new Set(
+      payload.variables
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0)
+    )
+  ),
+})
+
 export const updateGlobalSmsTemplate = (type: SmsTemplateType, payload: { message_template: string; variables: string[] }) =>
-  api.put<{ success: boolean }>(`/admin/sms/templates/${type}`, payload).then((response) => response.data)
+  api
+    .put<{ success: boolean }>(`/admin/sms/templates/${type}`, sanitizeSmsTemplatePayload(payload))
+    .then((response) => response.data)
 
 export const getTenantSmsTemplates = (tenantId: string) =>
   api.get<{ items: SmsTemplateItem[] }>(`/admin/sms/templates/${tenantId}`).then((response) => response.data.items)
@@ -478,7 +491,13 @@ export const updateTenantSmsTemplate = (
   tenantId: string,
   type: SmsTemplateType,
   payload: { message_template: string; variables: string[] }
-) => api.put<{ success: boolean }>(`/admin/sms/templates/${tenantId}/${type}`, payload).then((response) => response.data)
+) =>
+  api
+    .put<{ success: boolean }>(
+      `/admin/sms/templates/${tenantId}/${type}`,
+      sanitizeSmsTemplatePayload(payload)
+    )
+    .then((response) => response.data)
 
 export const resetTenantSmsTemplate = (tenantId: string, type: SmsTemplateType) =>
   api.delete<{ success: boolean }>(`/admin/sms/templates/${tenantId}/${type}`).then((response) => response.data)

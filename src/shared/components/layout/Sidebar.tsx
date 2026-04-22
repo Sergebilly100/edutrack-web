@@ -1,5 +1,6 @@
 import { useEffect } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
+import { useQueryClient } from "@tanstack/react-query"
 import {
   Building2,
   CalendarDays,
@@ -38,6 +39,7 @@ import {
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { logout as logoutApi } from "@/modules/auth/auth.api"
 import { useTheme } from "@/shared/hooks/useTheme"
 import { isStaffRole, type AuthRole, type PermissionKey } from "@/shared/store/auth.store"
 import { useAuthStore } from "@/shared/store/auth.store"
@@ -86,7 +88,13 @@ const navItems: NavItem[] = [
     roles: ["director", "staff"],
     requiredPermissions: ["schedule.edit"],
   },
-  { label: "Paramètres", icon: Settings2, href: "/settings", roles: ["director"] },
+  {
+    label: "Paramètres",
+    icon: Settings2,
+    href: "/settings",
+    roles: ["director", "staff"],
+    requiredPermissions: ["settings.sms_templates"],
+  },
   {
     label: "Dashboard",
     icon: LayoutDashboard,
@@ -159,8 +167,9 @@ function NavItemComponent({ item, collapsed }: { item: NavItem; collapsed: boole
 
 function SidebarContent({ collapsed }: { collapsed: boolean }) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const user = useAuthStore((state) => state.user)
-  const logout = useAuthStore((state) => state.logout)
+  const clearSession = useAuthStore((state) => state.logout)
   const permissions = useAuthStore((state) => state.permissions)
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const togglePinned = useSidebarStore((state) => state.togglePinned)
@@ -182,6 +191,16 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
       return
     }
     toggleCollapsed()
+  }
+
+  const handleLogout = async (): Promise<void> => {
+    try {
+      await logoutApi()
+    } finally {
+      clearSession()
+      queryClient.clear()
+      navigate("/login", { replace: true })
+    }
   }
 
   return (
@@ -290,10 +309,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            onClick={() => {
-              logout()
-              navigate("/")
-            }}
+            onClick={() => void handleLogout()}
             className="text-destructive focus:text-destructive"
           >
             <LogOut className="mr-2 h-4 w-4" />

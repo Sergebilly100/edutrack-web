@@ -36,6 +36,7 @@ export type PermissionKey =
   | "salary.export"
   | "settings.positions"
   | "settings.school"
+  | "settings.sms_templates"
 
 type AuthState = {
   user: AuthUser | null

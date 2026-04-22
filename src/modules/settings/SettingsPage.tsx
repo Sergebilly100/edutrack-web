@@ -1,6 +1,27 @@
+import { useQuery } from "@tanstack/react-query"
+
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import SchoolConfigPanel from "@/modules/settings/components/SchoolConfigPanel"
+import SmsTemplatePanel from "@/modules/settings/components/SmsTemplatePanel"
+import { fetchSchoolConfig } from "@/modules/settings/settings.api"
+import { useAuthStore } from "@/shared/store/auth.store"
 
 export default function SettingsPage() {
+  const user = useAuthStore((state) => state.user)
+  const permissions = useAuthStore((state) => state.permissions)
+  const schoolConfigQuery = useQuery({
+    queryKey: ["settings", "school-config", "access-gate"],
+    queryFn: fetchSchoolConfig,
+  })
+
+  const canAccessSchoolConfig =
+    user?.role === "director" ||
+    permissions.includes("settings.school") ||
+    permissions.includes("settings.positions")
+  const canEditSmsTemplateByAdmin = schoolConfigQuery.data?.school.canEditSmsTemplate ?? false
+  const canAccessSmsTemplate =
+    canEditSmsTemplateByAdmin && (user?.role === "director" || permissions.includes("settings.sms_templates"))
+
   return (
     <div className="animate-fade-in space-y-6">
       <div className="flex items-start justify-between border-b border-border pb-5">
@@ -11,7 +32,17 @@ export default function SettingsPage() {
           </p>
         </div>
       </div>
-      <SchoolConfigPanel />
+
+      {canAccessSchoolConfig ? <SchoolConfigPanel /> : null}
+      {canAccessSmsTemplate ? <SmsTemplatePanel /> : null}
+
+      {!canAccessSchoolConfig && !canAccessSmsTemplate ? (
+        <Alert variant="destructive">
+          <AlertDescription>
+            Vous n&apos;avez pas les permissions nécessaires pour accéder aux paramètres.
+          </AlertDescription>
+        </Alert>
+      ) : null}
     </div>
   )
 }

@@ -20,6 +20,7 @@ import {
   getSchoolDetails,
   getSchoolPayments,
   getSchoolUsers,
+  resetTenantSmsTemplate,
   sendSchoolPaymentReminder,
   type SchoolDetailsResponse,
   type TenantPlan,
@@ -183,6 +184,29 @@ export default function AdminSchoolDetailPage() {
     },
     onError: () => {
       toast({ title: "Erreur", description: "Impossible de mettre à jour ce paramètre", variant: "destructive" })
+    },
+  })
+  const forceSmsTemplateResyncMutation = useMutation({
+    mutationFn: async () => {
+      await Promise.all([
+        resetTenantSmsTemplate(tenantId as string, "student_absent_parent"),
+        resetTenantSmsTemplate(tenantId as string, "payment_reminder"),
+      ])
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin", "school-detail", tenantId] })
+      await queryClient.invalidateQueries({ queryKey: ["admin", "sms", "templates"] })
+      toast({
+        title: "Templates resynchronisés",
+        description: "Les templates de l'école utilisent de nouveau la version globale super admin.",
+      })
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de forcer la resynchronisation des templates.",
+        variant: "destructive",
+      })
     },
   })
   const paymentReminderMutation = useMutation({
@@ -490,10 +514,24 @@ export default function AdminSchoolDetailPage() {
                 >
                   Enregistrer ce paramètre
                 </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => forceSmsTemplateResyncMutation.mutate()}
+                  disabled={forceSmsTemplateResyncMutation.isPending}
+                >
+                  {forceSmsTemplateResyncMutation.isPending
+                    ? "Resynchronisation..."
+                    : "Forcer la resynchronisation"}
+                </Button>
                 <p className="text-xs text-muted-foreground">
-                  Les templates “Prof absent/retard” et “Template libre” ne sont pas activés dans ce périmètre.
-                  La relance paiement SMS est gérée dans l&apos;onglet Abonnement.
+                  Les contenus SMS sont définis globalement dans <strong>SMS &amp; Notifs</strong> (super admin):
+                  template absence élève et template relance paiement. Ici, vous autorisez uniquement la personnalisation
+                  du template absence côté école.
                 </p>
+                <Button type="button" variant="ghost" className="px-0" onClick={() => navigate("/admin/sms")}>
+                  Ouvrir SMS &amp; Notifs
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>

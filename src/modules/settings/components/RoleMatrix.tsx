@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 
-const PERMISSION_COLUMNS = [
+const BASE_PERMISSION_COLUMNS = [
   {
     key: "teachers",
     label: "Profs",
@@ -40,7 +40,7 @@ const PERMISSION_COLUMNS = [
   },
 ] as const
 
-const PERMISSION_ROWS = [
+const BASE_PERMISSION_ROWS = [
   { key: "view", label: "Voir" },
   { key: "create", label: "Créer" },
   { key: "edit", label: "Modifier" },
@@ -52,7 +52,15 @@ const PERMISSION_ROWS = [
   { key: "export", label: "Exporter" },
 ] as const
 
-type PermissionColumn = (typeof PERMISSION_COLUMNS)[number]
+const SMS_PERMISSION_COLUMN = {
+  key: "settings",
+  label: "Paramètres",
+  permissions: ["settings.sms_templates"],
+} as const
+
+const SMS_PERMISSION_ROW = { key: "sms_templates", label: "Template SMS école" } as const
+
+type PermissionColumn = (typeof BASE_PERMISSION_COLUMNS)[number] | typeof SMS_PERMISSION_COLUMN
 
 type RoleMatrixPosition = {
   permissions: string[]
@@ -61,17 +69,37 @@ type RoleMatrixPosition = {
 type RoleMatrixProps = {
   position: RoleMatrixPosition
   onChange: (permissions: string[]) => void
+  canManageSmsTemplates?: boolean
   className?: string
 }
 
 const uniqueSorted = (permissions: string[]) => Array.from(new Set(permissions)).sort()
 
-const resolvePermissionKey = (column: PermissionColumn, actionKey: (typeof PERMISSION_ROWS)[number]["key"]) => {
+const resolvePermissionKey = (
+  column: PermissionColumn,
+  actionKey: string
+) => {
   const key = `${column.key}.${actionKey}`
   return (column.permissions as readonly string[]).includes(key) ? key : null
 }
 
-export default function RoleMatrix({ position, onChange, className }: RoleMatrixProps) {
+export default function RoleMatrix({
+  position,
+  onChange,
+  canManageSmsTemplates = false,
+  className,
+}: RoleMatrixProps) {
+  const permissionColumns = useMemo(
+    () =>
+      canManageSmsTemplates
+        ? [...BASE_PERMISSION_COLUMNS, SMS_PERMISSION_COLUMN]
+        : BASE_PERMISSION_COLUMNS,
+    [canManageSmsTemplates]
+  )
+  const permissionRows = useMemo(
+    () => (canManageSmsTemplates ? [...BASE_PERMISSION_ROWS, SMS_PERMISSION_ROW] : BASE_PERMISSION_ROWS),
+    [canManageSmsTemplates]
+  )
   const permissionSet = useMemo(() => new Set(position.permissions), [position.permissions])
 
   const togglePermission = (permission: string, checked: boolean) => {
@@ -119,7 +147,7 @@ export default function RoleMatrix({ position, onChange, className }: RoleMatrix
               <TableHead className="w-[160px] py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Action
               </TableHead>
-              {PERMISSION_COLUMNS.map((column) => {
+              {permissionColumns.map((column) => {
                 const selected = column.permissions.reduce(
                   (count, permission) => count + (permissionSet.has(permission) ? 1 : 0),
                   0,
@@ -160,7 +188,7 @@ export default function RoleMatrix({ position, onChange, className }: RoleMatrix
           </TableHeader>
 
           <TableBody>
-            {PERMISSION_ROWS.map((row, index) => (
+            {permissionRows.map((row, index) => (
               <TableRow
                 key={row.key}
                 className={cn(
@@ -174,7 +202,7 @@ export default function RoleMatrix({ position, onChange, className }: RoleMatrix
                     {row.label}
                   </span>
                 </TableCell>
-                {PERMISSION_COLUMNS.map((column) => {
+                {permissionColumns.map((column) => {
                   const permission = resolvePermissionKey(column, row.key)
 
                   if (!permission) {

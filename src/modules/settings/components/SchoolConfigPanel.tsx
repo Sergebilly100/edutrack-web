@@ -902,6 +902,7 @@ export default function SchoolConfigPanel() {
           open={positionModalOpen}
           onOpenChange={setPositionModalOpen}
           initialPosition={positionToEdit}
+          canManageSmsTemplates={school?.canEditSmsTemplate ?? false}
         />
       </div>
 

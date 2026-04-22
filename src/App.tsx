@@ -47,6 +47,11 @@ function DashboardRoute() {
     if (!impersonationToken) {
       return
     }
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete("impersonation_token")
+    const nextQuery = nextParams.toString()
+    const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`
+    window.history.replaceState(window.history.state, "", nextUrl)
 
     const applyImpersonationSession = async (): Promise<void> => {
       try {

@@ -72,6 +72,7 @@ const PERMISSION_KEYS: PermissionKey[] = [
   'salary.export',
   'settings.positions',
   'settings.school',
+  'settings.sms_templates',
 ];
 
 export const getMyPermissions = async (): Promise<PermissionKey[]> => {
