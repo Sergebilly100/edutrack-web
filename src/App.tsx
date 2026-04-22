@@ -55,7 +55,7 @@ function DashboardRoute() {
         const meResponse = await axios.get<{
           user: {
             id: string
-            role: "director" | "staff" | "secretary" | "teacher" | "super_admin"
+            role: "director" | "staff" | "teacher" | "super_admin"
             name: string
             phone: string | null
             email: string | null

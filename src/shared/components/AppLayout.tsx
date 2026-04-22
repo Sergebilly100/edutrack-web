@@ -17,10 +17,10 @@ type LayoutItem = {
 const layoutItems: LayoutItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/attendance", label: "Pointage", icon: CalendarDays, roles: ["teacher"] },
-  { to: "/teachers", label: "Profs", icon: UserCheck, roles: ["director", "staff", "secretary", "super_admin"] },
-  { to: "/students", label: "Élèves", icon: GraduationCap, roles: ["director", "staff", "secretary", "super_admin"] },
-  { to: "/schedule", label: "EDT", icon: CalendarDays, roles: ["director", "staff", "secretary", "super_admin"] },
-  { to: "/imports", label: "Imports", icon: BookOpen, roles: ["director", "staff", "secretary", "super_admin"] },
+  { to: "/teachers", label: "Profs", icon: UserCheck, roles: ["director", "staff", "super_admin"] },
+  { to: "/students", label: "Élèves", icon: GraduationCap, roles: ["director", "staff", "super_admin"] },
+  { to: "/schedule", label: "EDT", icon: CalendarDays, roles: ["director", "staff", "super_admin"] },
+  { to: "/imports", label: "Imports", icon: BookOpen, roles: ["director", "staff", "super_admin"] },
   { to: "/admin", label: "Admin", icon: Shield, roles: ["super_admin"] },
 ]
 
@@ -123,7 +123,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <div>
               <p className="text-sm font-medium">{user?.name ?? "Utilisateur"}</p>
               <p className="text-xs capitalize text-muted-foreground">
-                {user?.role === "secretary" || user?.role === "staff"
+                {user?.role === "staff"
                   ? "staff"
                   : user?.role?.replace("_", " ") ?? "Rôle"}
               </p>

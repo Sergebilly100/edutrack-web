@@ -55,26 +55,26 @@ type NavItem = {
 }
 
 const navItems: NavItem[] = [
-  { label: "Tableau de bord", icon: LayoutDashboard, href: "/dashboard", roles: ["director", "staff", "secretary"] },
+  { label: "Tableau de bord", icon: LayoutDashboard, href: "/dashboard", roles: ["director", "staff"] },
   {
     label: "Emploi du temps",
     icon: CalendarDays,
     href: "/schedule",
-    roles: ["director", "staff", "secretary"],
+    roles: ["director", "staff"],
     requiredPermissions: ["schedule.view"],
   },
   {
     label: "Professeurs",
     icon: Users,
     href: "/teachers",
-    roles: ["director", "staff", "secretary"],
+    roles: ["director", "staff"],
     requiredPermissions: ["teachers.view"],
   },
   {
     label: "Élèves",
     icon: GraduationCap,
     href: "/students",
-    roles: ["director", "staff", "secretary"],
+    roles: ["director", "staff"],
     requiredPermissions: ["students.view"],
   },
   { label: "Salaires", icon: Wallet, href: "/salaries", roles: ["director"] },
@@ -83,7 +83,7 @@ const navItems: NavItem[] = [
     label: "Salles & QR Codes",
     icon: QrCode,
     href: "/rooms",
-    roles: ["director", "staff", "secretary"],
+    roles: ["director", "staff"],
     requiredPermissions: ["schedule.edit"],
   },
   { label: "Paramètres", icon: Settings2, href: "/settings", roles: ["director"] },

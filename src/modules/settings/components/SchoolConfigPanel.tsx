@@ -857,7 +857,6 @@ export default function SchoolConfigPanel() {
                       </div>
                       <p className="text-muted-foreground">{schoolUser.email ?? "-"}</p>
                       <p className="text-muted-foreground">{schoolUser.phone ?? "-"}</p>
-                      {/* <p>{schoolUser.role === "secretary" || schoolUser.role === "staff" ? "staff" : schoolUser.role}</p> */}
                       <div className="flex items-center justify-end gap-1">
                         <Button
                           type="button"
