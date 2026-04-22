@@ -40,8 +40,9 @@ const decodeJwtPayload = (token: string): JwtPayloadPartial => {
     if (parts.length !== 3 || !parts[1]) {
       return {}
     }
-    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/")
-    const json = atob(base64)
+    const normalized = parts[1].replace(/-/g, "+").replace(/_/g, "/")
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")
+    const json = atob(padded)
     return JSON.parse(json) as JwtPayloadPartial
   } catch {
     return {}

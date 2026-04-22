@@ -28,11 +28,10 @@ const requestTokenRefresh = async (): Promise<string | null> => {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       const authState = useAuthStore.getState()
-      const refreshToken = authState.refreshToken
 
       const response = await axios.post<{ accessToken: string }>(
         "/auth/refresh",
-        refreshToken ? { refreshToken } : {},
+        {},
         {
           baseURL: import.meta.env.VITE_API_URL,
           withCredentials: true,
