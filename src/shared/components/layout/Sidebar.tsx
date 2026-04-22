@@ -14,7 +14,8 @@ interface SidebarProps {
 
 export function Sidebar({ className, variant = "default" }: SidebarProps) {
   const userRole = useAuthStore((state) => state.user?.role)
-  const items = getNavItemsByRole(userRole)
+  const permissions = useAuthStore((state) => state.permissions)
+  const items = getNavItemsByRole(userRole, permissions)
   const isSuperAdmin = variant === "super_admin"
 
   return (

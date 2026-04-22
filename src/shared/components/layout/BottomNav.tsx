@@ -6,7 +6,8 @@ import { useAuthStore } from "@/shared/store/auth.store"
 
 export function BottomNav() {
   const userRole = useAuthStore((state) => state.user?.role)
-  const items = getNavItemsByRole(userRole).filter((item) => item.mobileVisible)
+  const permissions = useAuthStore((state) => state.permissions)
+  const items = getNavItemsByRole(userRole, permissions).filter((item) => item.mobileVisible)
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 h-16 border-t bg-background/95 backdrop-blur-sm md:hidden">

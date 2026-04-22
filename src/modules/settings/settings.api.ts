@@ -42,6 +42,13 @@ export type ChangePasswordInput = {
   newPassword: string
 }
 
+export type CreateAdministrativeUserInput = {
+  name: string
+  email?: string
+  phone?: string
+  password: string
+}
+
 type UnknownRecord = Record<string, unknown>
 
 const isRecord = (value: unknown): value is UnknownRecord =>
@@ -219,6 +226,14 @@ export const assignUserToPosition = async (positionId: string, userId: string): 
 
 export const unassignUserFromPosition = async (positionId: string, userId: string): Promise<void> => {
   await apiClient.delete(`/permissions/positions/${positionId}/assign/${userId}`)
+}
+
+export const createAdministrativeUser = async (
+  payload: CreateAdministrativeUserInput
+): Promise<AssignableUser> => {
+  const response = await apiClient.post("/permissions/users", payload)
+  const envelope = isRecord(response.data) ? response.data : {}
+  return parseUser(envelope.user)
 }
 
 export const changePassword = async (payload: ChangePasswordInput): Promise<void> => {

@@ -1,4 +1,5 @@
 import { apiClient as api } from '@/shared/api/client';
+import type { PermissionKey } from '@/shared/store/auth.store';
 
 type LoginResponse = {
   accessToken: string;
@@ -37,4 +38,37 @@ export const login = async (
 
 export const logout = async (): Promise<void> => {
   await api.post("/auth/logout");
+};
+
+type PermissionsMeResponse = {
+  permissions: string[]
+}
+
+const PERMISSION_KEYS: PermissionKey[] = [
+  'teachers.view',
+  'teachers.create',
+  'teachers.edit',
+  'teachers.block',
+  'teachers.documents',
+  'students.view',
+  'students.create',
+  'students.edit',
+  'students.documents',
+  'schedule.view',
+  'schedule.edit',
+  'attendance.view',
+  'attendance.mark_students',
+  'salary.view',
+  'salary.compute',
+  'salary.mark_paid',
+  'salary.export',
+  'settings.positions',
+  'settings.school',
+];
+
+export const getMyPermissions = async (): Promise<PermissionKey[]> => {
+  const response = await api.get<PermissionsMeResponse>("/permissions/me")
+  const keys = new Set<PermissionKey>(PERMISSION_KEYS)
+  const rawPermissions = Array.isArray(response.data?.permissions) ? response.data.permissions : []
+  return rawPermissions.filter((value): value is PermissionKey => keys.has(value as PermissionKey))
 };

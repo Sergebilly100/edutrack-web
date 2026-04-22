@@ -40,8 +40,10 @@ import { useToast } from "@/components/ui/use-toast"
 import PositionFormModal, { type PositionPayload } from "@/modules/settings/components/PositionFormModal"
 import {
   assignUserToPosition,
+  createAdministrativeUser,
   deletePosition,
   fetchSchoolConfig,
+  type CreateAdministrativeUserInput,
   type PositionItem,
   updateSchoolLimit,
 } from "@/modules/settings/settings.api"
@@ -56,6 +58,7 @@ export default function SchoolConfigPanel() {
 
   const [informationOpen, setInformationOpen] = useState(true)
   const [positionsOpen, setPositionsOpen] = useState(true)
+  const [usersOpen, setUsersOpen] = useState(true)
   const [limitsOpen, setLimitsOpen] = useState(true)
 
   const [positionModalOpen, setPositionModalOpen] = useState(false)
@@ -65,6 +68,10 @@ export default function SchoolConfigPanel() {
   const [positionToAssign, setPositionToAssign] = useState<PositionItem | null>(null)
   const [selectedUserId, setSelectedUserId] = useState("")
   const [assignError, setAssignError] = useState<string | null>(null)
+  const [newUserName, setNewUserName] = useState("")
+  const [newUserEmail, setNewUserEmail] = useState("")
+  const [newUserPhone, setNewUserPhone] = useState("")
+  const [newUserPassword, setNewUserPassword] = useState("")
 
   const schoolConfigQuery = useQuery({
     queryKey: SETTINGS_QUERY_KEY,
@@ -91,6 +98,29 @@ export default function SchoolConfigPanel() {
       toast({
         title: "Erreur",
         description: "Impossible de mettre à jour la limite.",
+        variant: "destructive",
+      })
+    },
+  })
+
+  const createUserMutation = useMutation({
+    mutationFn: (payload: CreateAdministrativeUserInput) => createAdministrativeUser(payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY })
+      setNewUserName("")
+      setNewUserEmail("")
+      setNewUserPhone("")
+      setNewUserPassword("")
+      toast({ title: "Utilisateur administratif créé" })
+    },
+    onError: (error) => {
+      const description =
+        axios.isAxiosError(error) && typeof error.response?.data?.error === "string"
+          ? error.response.data.error
+          : "Impossible de créer l'utilisateur."
+      toast({
+        title: "Erreur",
+        description,
         variant: "destructive",
       })
     },
@@ -140,7 +170,7 @@ export default function SchoolConfigPanel() {
 
   const positions = schoolConfigQuery.data?.positions ?? []
   const assignableUsers = schoolConfigQuery.data?.users ?? []
-  const isDirector = user?.role === "director"
+  const canEditLimits = user?.role === "super_admin"
   const school = schoolConfigQuery.data?.school
 
   const handleDeletePosition = (position: PositionPayload) => {
@@ -157,6 +187,47 @@ export default function SchoolConfigPanel() {
     setSelectedUserId("")
     setAssignError(null)
     setAssignDialogOpen(true)
+  }
+
+  const handleCreateAdministrativeUser = () => {
+    const name = newUserName.trim()
+    const email = newUserEmail.trim()
+    const phone = newUserPhone.trim()
+    const password = newUserPassword
+
+    if (name.length < 2) {
+      toast({
+        title: "Nom requis",
+        description: "Saisissez un nom complet valide.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (password.length < 8) {
+      toast({
+        title: "Mot de passe invalide",
+        description: "Le mot de passe doit contenir au moins 8 caractères.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!email && !phone) {
+      toast({
+        title: "Contact requis",
+        description: "Ajoutez un email ou un numéro de téléphone.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    createUserMutation.mutate({
+      name,
+      ...(email ? { email } : {}),
+      ...(phone ? { phone } : {}),
+      password,
+    })
   }
 
   const planLabel = school?.plan === "pro" ? "Pro" : school?.plan === "establishment" ? "Establishment" : "Essential"
@@ -324,6 +395,104 @@ export default function SchoolConfigPanel() {
           </CollapsibleContent>
         </Collapsible>
 
+        <Collapsible open={usersOpen} onOpenChange={setUsersOpen} className="rounded-lg border border-border">
+          <CollapsibleTrigger className="flex w-full items-center justify-between p-4 text-left">
+            <div>
+              <h3 className="text-lg font-semibold">Utilisateurs administratifs</h3>
+              <p className="text-sm text-muted-foreground">
+                Créez des comptes administratifs et transmettez leurs accès.
+              </p>
+            </div>
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          </CollapsibleTrigger>
+
+          <CollapsibleContent className="space-y-4 border-t border-border p-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="new-admin-name">Nom complet</Label>
+                <Input
+                  id="new-admin-name"
+                  value={newUserName}
+                  onChange={(event) => setNewUserName(event.target.value)}
+                  placeholder="Ex: Kouamé Fatou"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-admin-password">Mot de passe provisoire</Label>
+                <Input
+                  id="new-admin-password"
+                  type="password"
+                  value={newUserPassword}
+                  onChange={(event) => setNewUserPassword(event.target.value)}
+                  placeholder="Minimum 8 caractères"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-admin-email">Email (optionnel)</Label>
+                <Input
+                  id="new-admin-email"
+                  type="email"
+                  value={newUserEmail}
+                  onChange={(event) => setNewUserEmail(event.target.value)}
+                  placeholder="admin@ecole.ci"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-admin-phone">Téléphone (optionnel)</Label>
+                <Input
+                  id="new-admin-phone"
+                  value={newUserPhone}
+                  onChange={(event) => setNewUserPhone(event.target.value)}
+                  placeholder="+2250700000000"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">
+                Compteurs utilisateurs actifs: {school ? `${school.currentUsers} / ${school.maxUsers}` : "-"}
+              </p>
+              <Button
+                onClick={handleCreateAdministrativeUser}
+                disabled={createUserMutation.isPending}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                {createUserMutation.isPending ? "Création..." : "Ajouter l'utilisateur"}
+              </Button>
+            </div>
+
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nom</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Téléphone</TableHead>
+                  <TableHead>Rôle</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {assignableUsers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
+                      Aucun utilisateur administratif pour le moment.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  assignableUsers.map((schoolUser) => (
+                    <TableRow key={schoolUser.id}>
+                      <TableCell className="font-medium">{schoolUser.name}</TableCell>
+                      <TableCell>{schoolUser.email ?? "-"}</TableCell>
+                      <TableCell>{schoolUser.phone ?? "-"}</TableCell>
+                      <TableCell>{schoolUser.role}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CollapsibleContent>
+        </Collapsible>
+
         <Collapsible open={limitsOpen} onOpenChange={setLimitsOpen} className="rounded-lg border border-border">
           <CollapsibleTrigger className="flex w-full items-center justify-between p-4 text-left">
             <div>
@@ -343,12 +512,12 @@ export default function SchoolConfigPanel() {
                   min={0}
                   step={1}
                   value={maxAdminPositions}
-                  readOnly={isDirector}
+                  readOnly={!canEditLimits}
                   onChange={(event) => setMaxAdminPositions(event.target.value)}
                 />
               </div>
 
-              {isDirector ? (
+              {!canEditLimits ? (
                 <p className="text-xs text-muted-foreground">Seul le super admin peut modifier cette limite.</p>
               ) : (
                 <Button onClick={() => saveLimitMutation.mutate()} disabled={saveLimitMutation.isPending}>

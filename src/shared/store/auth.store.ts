@@ -13,8 +13,30 @@ export type AuthUser = {
   plan: string
 }
 
+export type PermissionKey =
+  | "teachers.view"
+  | "teachers.create"
+  | "teachers.edit"
+  | "teachers.block"
+  | "teachers.documents"
+  | "students.view"
+  | "students.create"
+  | "students.edit"
+  | "students.documents"
+  | "schedule.view"
+  | "schedule.edit"
+  | "attendance.view"
+  | "attendance.mark_students"
+  | "salary.view"
+  | "salary.compute"
+  | "salary.mark_paid"
+  | "salary.export"
+  | "settings.positions"
+  | "settings.school"
+
 type AuthState = {
   user: AuthUser | null
+  permissions: PermissionKey[]
   accessToken: string | null
   /**
    * refreshToken est toujours null en pratique : le backend envoie le refresh token
@@ -32,11 +54,13 @@ type AuthState = {
   setAccessToken: (accessToken: string | null) => void
   setRefreshToken: (refreshToken: string | null) => void
   setSessionRestored: () => void
+  setPermissions: (permissions: PermissionKey[]) => void
   logout: () => void
 }
 
 export const useAuthStore = create<AuthState>()((setState) => ({
   user: null,
+  permissions: [],
   accessToken: null,
   refreshToken: null,
   isSessionRestored: false,
@@ -44,6 +68,7 @@ export const useAuthStore = create<AuthState>()((setState) => ({
   setAccessToken: (accessToken) => setState({ accessToken }),
   setRefreshToken: (refreshToken) => setState({ refreshToken }),
   setSessionRestored: () => setState({ isSessionRestored: true }),
+  setPermissions: (permissions) => setState({ permissions }),
   logout: () =>
-    setState({ user: null, accessToken: null, refreshToken: null }),
+    setState({ user: null, permissions: [], accessToken: null, refreshToken: null }),
 }))

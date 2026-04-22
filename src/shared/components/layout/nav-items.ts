@@ -14,7 +14,7 @@ import {
 } from "@/shared/components/icons"
 import { Building2, MessageSquare, Settings2, TrendingUp, User } from "lucide-react"
 
-import type { AuthRole } from "@/shared/store/auth.store"
+import type { AuthRole, PermissionKey } from "@/shared/store/auth.store"
 
 export interface NavItem {
   label: string
@@ -22,6 +22,8 @@ export interface NavItem {
   icon: LucideIcon
   badge?: () => number | undefined
   roles: AuthRole[]
+  requiredPermissions?: PermissionKey[]
+  requiredAnyPermissions?: PermissionKey[]
   mobileVisible: boolean
 }
 
@@ -31,6 +33,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/dashboard",
     icon: DashboardIcon,
     roles: ["director", "secretary"],
+    requiredPermissions: ["attendance.view"],
     mobileVisible: true,
   },
   {
@@ -38,6 +41,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/schedule",
     icon: ScheduleIcon,
     roles: ["director", "secretary"],
+    requiredPermissions: ["schedule.view"],
     mobileVisible: true,
   },
   {
@@ -45,6 +49,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/teachers",
     icon: TeachersIcon,
     roles: ["director", "secretary"],
+    requiredPermissions: ["teachers.view"],
     mobileVisible: false,
   },
   {
@@ -52,6 +57,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/students",
     icon: StudentsIcon,
     roles: ["director", "secretary"],
+    requiredPermissions: ["students.view"],
     mobileVisible: false,
   },
   {
@@ -59,6 +65,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/salaries",
     icon: SalaryIcon,
     roles: ["director"],
+    requiredPermissions: ["salary.view"],
     mobileVisible: true,
   },
   {
@@ -73,13 +80,15 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/rooms",
     icon: RoomIcon,
     roles: ["director", "secretary"],
+    requiredPermissions: ["schedule.edit"],
     mobileVisible: false,
   },
   {
     label: "Paramètres",
     href: "/settings",
     icon: SettingsIcon,
-    roles: ["director"],
+    roles: ["director", "secretary"],
+    requiredAnyPermissions: ["settings.positions", "settings.school"],
     mobileVisible: false,
   },
   {
@@ -133,10 +142,40 @@ export const NAV_ITEMS: NavItem[] = [
   },
 ]
 
-export function getNavItemsByRole(role: AuthRole | undefined): NavItem[] {
+const hasPermissions = (
+  item: NavItem,
+  permissionsSet: ReadonlySet<PermissionKey>
+): boolean => {
+  if (item.requiredPermissions && item.requiredPermissions.length > 0) {
+    const hasAll = item.requiredPermissions.every((permission) => permissionsSet.has(permission))
+    if (!hasAll) {
+      return false
+    }
+  }
+
+  if (item.requiredAnyPermissions && item.requiredAnyPermissions.length > 0) {
+    const hasOne = item.requiredAnyPermissions.some((permission) => permissionsSet.has(permission))
+    if (!hasOne) {
+      return false
+    }
+  }
+
+  return true
+}
+
+export function getNavItemsByRole(
+  role: AuthRole | undefined,
+  permissions: PermissionKey[] = []
+): NavItem[] {
   if (!role) {
     return []
   }
 
-  return NAV_ITEMS.filter((item) => item.roles.includes(role))
+  const roleItems = NAV_ITEMS.filter((item) => item.roles.includes(role))
+  if (role === "director" || role === "super_admin" || role === "teacher") {
+    return roleItems
+  }
+
+  const permissionsSet = new Set<PermissionKey>(permissions)
+  return roleItems.filter((item) => hasPermissions(item, permissionsSet))
 }

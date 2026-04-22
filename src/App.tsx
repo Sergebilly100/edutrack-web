@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, type ReactElement } from "react"
 import { Navigate, Route, Routes, useSearchParams } from "react-router-dom"
 
 import AdminPage from "@/modules/admin/AdminPage"
@@ -21,6 +21,7 @@ import StudentsPage from "@/modules/students/StudentsPage"
 import TeacherDetailPage from "@/modules/teachers/TeacherDetailPage"
 import TeachersPage from "@/modules/teachers/TeachersPage"
 import { AppShell } from "@/shared/components/layout/AppShell"
+import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
 import { useAutoSync } from "@/shared/hooks/useAutoSync"
 import { useRestoreSession } from "@/shared/hooks/useRestoreSession"
 import { useAuthStore } from "@/shared/store/auth.store"
@@ -51,6 +52,7 @@ function DashboardRoute() {
 
 function RoleRedirect() {
   const user = useAuthStore((state) => state.user)
+  const permissions = useAuthStore((state) => state.permissions)
 
   if (!user) {
     return <Navigate to="/login" replace />
@@ -62,6 +64,11 @@ function RoleRedirect() {
 
   if (user.role === "super_admin") {
     return <Navigate to="/admin" replace />
+  }
+
+  if (user.role === "secretary") {
+    const firstAllowed = getNavItemsByRole(user.role, permissions)[0]?.href
+    return <Navigate to={firstAllowed ?? "/dashboard"} replace />
   }
 
   return <Navigate to="/dashboard" replace />
@@ -84,6 +91,28 @@ function PlaceholderPage({ title }: { title: string }) {
       <p className="mt-2 text-sm text-muted-foreground">Cette section sera branchée dans une tâche dédiée.</p>
     </div>
   )
+}
+
+function PermissionRoute({ href, element }: { href: string; element: ReactElement }) {
+  const user = useAuthStore((state) => state.user)
+  const permissions = useAuthStore((state) => state.permissions)
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (user.role !== "secretary") {
+    return element
+  }
+
+  const allowed = getNavItemsByRole(user.role, permissions)
+  const canAccess = allowed.some((item) => item.href === href)
+  if (canAccess) {
+    return element
+  }
+
+  const fallback = allowed[0]?.href ?? "/dashboard"
+  return <Navigate to={fallback} replace />
 }
 
 /**
@@ -123,14 +152,14 @@ export default function App() {
 
       <Route element={<AppShell />}>
         <Route path="/" element={<RoleRedirect />} />
-        <Route path="/dashboard" element={<DashboardRoute />} />
+        <Route path="/dashboard" element={<PermissionRoute href="/dashboard" element={<DashboardRoute />} />} />
         <Route path="/attendance" element={<AttendancePage />} />
         <Route path="/onboarding" element={<OnboardingWizard />} />
-        <Route path="/schedule" element={<SchedulePage />} />
-        <Route path="/teachers" element={<TeachersPage />} />
-        <Route path="/teachers/:teacherId" element={<TeacherDetailPage />} />
-        <Route path="/students" element={<StudentsPage />} />
-        <Route path="/students/:studentId" element={<StudentDetailPage />} />
+        <Route path="/schedule" element={<PermissionRoute href="/schedule" element={<SchedulePage />} />} />
+        <Route path="/teachers" element={<PermissionRoute href="/teachers" element={<TeachersPage />} />} />
+        <Route path="/teachers/:teacherId" element={<PermissionRoute href="/teachers" element={<TeacherDetailPage />} />} />
+        <Route path="/students" element={<PermissionRoute href="/students" element={<StudentsPage />} />} />
+        <Route path="/students/:studentId" element={<PermissionRoute href="/students" element={<StudentDetailPage />} />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/schools" element={<AdminPage />} />
         <Route path="/admin/schools/:tenantId" element={<AdminSchoolDetailPage />} />
@@ -140,9 +169,9 @@ export default function App() {
         <Route path="/admin/account" element={<AdminAccountPage />} />
         <Route path="/import" element={<ImportPage />} />
         <Route path="/imports" element={<ImportPage />} />
-        <Route path="/rooms" element={<RoomsPage />} />
+        <Route path="/rooms" element={<PermissionRoute href="/rooms" element={<RoomsPage />} />} />
         <Route path="/salaries" element={<SalariesPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings" element={<PermissionRoute href="/settings" element={<SettingsPage />} />} />
       </Route>
 
       <Route path="*" element={<RoleRedirect />} />
