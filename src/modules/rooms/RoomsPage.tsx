@@ -252,7 +252,7 @@ export default function RoomsPage() {
 
   return (
     <div className="space-y-6" data-testid="rooms-page">
-      <header className="space-y-2">
+      <header className="space-y-2 md:py-2">
         <h1 className="text-2xl font-semibold tracking-tight">Salles & QR Codes</h1>
         <p className="text-sm text-muted-foreground">
           Gérez les salles de classe et imprimez les QR codes pour le check-in professeur.

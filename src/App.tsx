@@ -23,6 +23,7 @@ import StudentsPage from "@/modules/students/StudentsPage"
 import TeacherDetailPage from "@/modules/teachers/TeacherDetailPage"
 import TeachersPage from "@/modules/teachers/TeachersPage"
 import { AppShell } from "@/shared/components/layout/AppShell"
+import { TeacherTopBar } from "@/shared/components/layout/TeacherTopBar"
 import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
 import { useAutoSync } from "@/shared/hooks/useAutoSync"
 import { useRestoreSession } from "@/shared/hooks/useRestoreSession"
@@ -89,6 +90,59 @@ function LoginRoute() {
   return <LoginPage />
 }
 
+function TeacherShell({ element }: { element: ReactElement }) {
+  return (
+    <div className="flex min-h-screen flex-col bg-background">
+      <TeacherTopBar />
+      <main className="flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-lg px-4 py-4">{element}</div>
+      </main>
+    </div>
+  )
+}
+
+function AttendanceRoute() {
+  const user = useAuthStore((state) => state.user)
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (user.role === "teacher") {
+    return <TeacherShell element={<AttendancePage />} />
+  }
+
+  return <AppShell><AttendancePage /></AppShell>
+}
+
+function OnboardingRoute() {
+  const user = useAuthStore((state) => state.user)
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (user.role === "teacher") {
+    return <Navigate to="/attendance" replace />
+  }
+
+  return <OnboardingWizard />
+}
+
+function NonTeacherShellRoute() {
+  const user = useAuthStore((state) => state.user)
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (user.role === "teacher") {
+    return <Navigate to="/attendance" replace />
+  }
+
+  return <AppShell />
+}
+
 function PlaceholderPage({ title }: { title: string }) {
   return (
     <div className="rounded-lg border bg-card p-6">
@@ -151,15 +205,15 @@ export default function App() {
 
   return (
     <Routes>
+      <Route path="/" element={<LoginRoute />} />
       <Route path="/login" element={<LoginRoute />} />
       <Route path="/maintenance" element={<MaintenancePage />} />
       <Route path="/dev" element={<ComponentsDemoPage />} />
+      <Route path="/attendance" element={<AttendanceRoute />} />
+      <Route path="/onboarding" element={<OnboardingRoute />} />
 
-      <Route element={<AppShell />}>
-        <Route path="/" element={<RoleRedirect />} />
+      <Route element={<NonTeacherShellRoute />}>
         <Route path="/dashboard" element={<PermissionRoute href="/dashboard" element={<DashboardRoute />} />} />
-        <Route path="/attendance" element={<AttendancePage />} />
-        <Route path="/onboarding" element={<OnboardingWizard />} />
         <Route path="/schedule" element={<PermissionRoute href="/schedule" element={<SchedulePage />} />} />
         <Route path="/teachers" element={<PermissionRoute href="/teachers" element={<TeachersPage />} />} />
         <Route path="/teachers/:teacherId" element={<PermissionRoute href="/teachers" element={<TeacherDetailPage />} />} />

@@ -607,7 +607,7 @@ export default function SchedulePage() {
   const todayDayValue = mondayKey === currentMondayKey ? isoDayOfWeek(today) : null
 
   return (
-    <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
+    <div className="space-y-6 px-4 py-6 md:px-1 md:py-2">
       <header className="space-y-4">
         <WeekCoverageAlert
           nextWeekHasCoverage={nextWeekCoverageQuery.data ?? true}

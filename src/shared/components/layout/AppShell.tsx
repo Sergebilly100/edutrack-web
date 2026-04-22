@@ -1,11 +1,10 @@
-import { useState, type ReactNode } from "react"
-import { Navigate, Outlet } from "react-router-dom"
+import { useEffect, useState, type ReactNode } from "react"
+import { Bell, RefreshCw } from "lucide-react"
+import { Navigate, Outlet, useLocation } from "react-router-dom"
 
-import { BottomNav } from "@/shared/components/layout/BottomNav"
-import { MobileDrawer } from "@/shared/components/layout/MobileDrawer"
-import { Sidebar } from "@/shared/components/layout/Sidebar"
-import { TeacherTopBar } from "@/shared/components/layout/TeacherTopBar"
-import { TopBar } from "@/shared/components/layout/TopBar"
+import { Button } from "@/components/ui/button"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { DesktopSidebar, MobileMenuButton, MobileSidebar } from "@/shared/components/layout/Sidebar"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 interface AppShellProps {
@@ -13,42 +12,82 @@ interface AppShellProps {
 }
 
 export function AppShell({ children }: AppShellProps) {
-  const [drawerOpen, setDrawerOpen] = useState(false)
   const user = useAuthStore((state) => state.user)
-  const isAuthenticated = Boolean(user)
+  const location = useLocation()
+  const [mobileAlertsCount, setMobileAlertsCount] = useState(0)
+  const [mobileIsRefreshing, setMobileIsRefreshing] = useState(false)
+  const isDashboardRoute = location.pathname === "/dashboard"
 
-  if (!isAuthenticated) {
+  useEffect(() => {
+    if (!isDashboardRoute) {
+      setMobileAlertsCount(0)
+      setMobileIsRefreshing(false)
+      return
+    }
+
+    const onHeaderState = (event: Event) => {
+      const customEvent = event as CustomEvent<{ activeAlertsCount: number; isRefreshing: boolean }>
+      setMobileAlertsCount(customEvent.detail?.activeAlertsCount ?? 0)
+      setMobileIsRefreshing(customEvent.detail?.isRefreshing ?? false)
+    }
+
+    window.addEventListener("dashboard:mobile-header-state", onHeaderState)
+    return () => window.removeEventListener("dashboard:mobile-header-state", onHeaderState)
+  }, [isDashboardRoute])
+
+  if (!user) {
     return <Navigate to="/login" replace />
   }
 
-  if (user?.role === "teacher") {
-    return (
-      <div className="flex min-h-screen flex-col bg-background">
-        <TeacherTopBar />
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-lg px-4 py-4">{children ?? <Outlet />}</div>
-        </main>
-      </div>
-    )
+  if (user.role === "teacher") {
+    return <Navigate to="/attendance" replace />
   }
 
-  const isSuperAdmin = user?.role === "super_admin"
-
   return (
-    <div className="min-h-screen bg-background">
-      <Sidebar
-        variant={isSuperAdmin ? "super_admin" : "default"}
-        className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r md:flex"
-      />
+    <TooltipProvider delayDuration={0}>
+      <div className="flex h-screen overflow-hidden bg-background">
+        <DesktopSidebar />
+        <MobileSidebar />
 
-      <TopBar onMenuClick={() => setDrawerOpen(true)} />
-      <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} variant={isSuperAdmin ? "super_admin" : "default"} />
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-4 lg:hidden">
+            <MobileMenuButton />
+            <span className="truncate text-sm font-semibold">EduTrack CI</span>
+            {isDashboardRoute ? (
+              <div className="ml-auto flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Voir les notifications"
+                  onClick={() => window.dispatchEvent(new Event("dashboard:mobile-scroll-alerts"))}
+                  className="relative h-9 w-9"
+                >
+                  <Bell className="h-4 w-4" />
+                  {mobileAlertsCount > 0 ? (
+                    <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-white">
+                      {mobileAlertsCount}
+                    </span>
+                  ) : null}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Mettre à jour les données"
+                  disabled={mobileIsRefreshing}
+                  onClick={() => window.dispatchEvent(new Event("dashboard:mobile-refresh"))}
+                  className="h-9 w-9"
+                >
+                  <RefreshCw className={mobileIsRefreshing ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+                </Button>
+              </div>
+            ) : null}
+          </header>
 
-      <main className="pb-16 md:pb-0 md:pl-64">
-        <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-8">{children ?? <Outlet />}</div>
-      </main>
-
-      {isSuperAdmin ? null : <BottomNav />}
-    </div>
+          <main className="flex-1 overflow-y-auto px-4 pb-4 pt-0 md:px-6 md:pb-6 md:pt-0">{children ?? <Outlet />}</main>
+        </div>
+      </div>
+    </TooltipProvider>
   )
 }

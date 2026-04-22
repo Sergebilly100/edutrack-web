@@ -130,7 +130,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       </aside>
 
       <div className="pb-16 md:pb-0 md:pl-64">
-        <header className="sticky top-0 z-30 border-b bg-background/95 px-4 py-3 backdrop-blur md:hidden">
+        <header className="border-b bg-background px-4 py-3 md:hidden">
           <div className="flex items-center justify-between">
             <Button
               type="button"

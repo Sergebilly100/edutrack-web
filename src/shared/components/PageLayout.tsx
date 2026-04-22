@@ -14,17 +14,17 @@ type PageLayoutProps = {
 export function PageLayout({ title, subtitle, actions, contentClassName, children }: PageLayoutProps) {
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="border-b bg-background md:top-0 md:z-40">
         <div className="flex h-14 items-center justify-between px-4">
           <div>
-            <h1 className="text-lg font-semibold">{title}</h1>
+            <h1 className="text-2xl font-semibold">{title}</h1>
             {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
           </div>
           {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
         </div>
       </header>
       <OfflineIndicator />
-      <main className={cn("mx-auto max-w-7xl space-y-6 px-4 py-6", contentClassName)}>{children}</main>
+      <main className={cn("mx-auto space-y-6 px-4 py-6", contentClassName)}>{children}</main>
     </div>
   )
 }

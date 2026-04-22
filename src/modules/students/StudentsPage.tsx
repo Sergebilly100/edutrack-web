@@ -223,7 +223,6 @@ export default function StudentsPage() {
     <PageLayout
       title={studentLabel === "Élève" ? "Élèves" : "Étudiants"}
       subtitle={`Liste des ${studentLabel.toLowerCase()}s et suivi des absences`}
-      contentClassName="max-w-7xl"
       actions={
         <Button type="button" disabled>
           <AddIcon className="mr-2 h-4 w-4" />

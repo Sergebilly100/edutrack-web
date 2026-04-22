@@ -6,7 +6,6 @@ import { registerSW } from "virtual:pwa-register"
 import "@fontsource-variable/inter"
 import { Toaster } from "@/components/ui/toaster"
 import { queryClient } from "@/shared/api/query-client"
-import { TooltipProvider } from "@/components/ui/tooltip"
 import { ThemeProvider } from "@/shared/providers/ThemeProvider"
 import App from "./App"
 import "./index.css"
@@ -18,10 +17,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <ThemeProvider>
       <BrowserRouter>
         <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <App />
-            <Toaster />
-          </TooltipProvider>
+          <App />
+          <Toaster />
         </QueryClientProvider>
       </BrowserRouter>
     </ThemeProvider>

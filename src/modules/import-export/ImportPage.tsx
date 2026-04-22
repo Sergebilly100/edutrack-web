@@ -81,7 +81,7 @@ export default function ImportPage() {
   const history = historyQuery.data ?? []
 
   return (
-    <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
+    <div className="space-y-6 px-4 py-6 md:px-1 md:py-2">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Import de données</h1>
         <p className="text-sm text-muted-foreground">

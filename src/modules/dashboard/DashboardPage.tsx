@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Bell, CheckCircle2, ChevronRight, GraduationCap, RefreshCw, Users, Wallet } from "lucide-react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
@@ -447,6 +447,77 @@ export default function DashboardPage() {
     return () => window.clearTimeout(timer)
   }, [refreshSuccess])
 
+  const handleDashboardRefresh = useCallback(async () => {
+    try {
+      setIsRefreshing(true)
+      setRefreshSuccess(false)
+      await queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      await Promise.all([
+        todayQuery.refetch(),
+        countsQuery.refetch(),
+        historyQuery.refetch(),
+        coverageQuery.refetch(),
+        salarySummaryQuery.refetch(),
+        previousSalarySummaryQuery.refetch(),
+        riskTeachersQuery.refetch(),
+        schoolQuery.refetch(),
+        todayStudentAbsencesQuery.refetch(),
+        riskStudentsQuery.refetch(),
+      ])
+      setRefreshSuccess(true)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [
+    countsQuery,
+    coverageQuery,
+    historyQuery,
+    previousSalarySummaryQuery,
+    queryClient,
+    riskStudentsQuery,
+    riskTeachersQuery,
+    salarySummaryQuery,
+    schoolQuery,
+    todayQuery,
+    todayStudentAbsencesQuery,
+  ])
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("dashboard:mobile-header-state", {
+        detail: {
+          activeAlertsCount,
+          isRefreshing,
+        },
+      })
+    )
+  }, [activeAlertsCount, isRefreshing])
+
+  useEffect(() => {
+    const onMobileRefresh = () => {
+      void handleDashboardRefresh()
+    }
+    const onMobileScrollAlerts = () => {
+      alertsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
+
+    window.addEventListener("dashboard:mobile-refresh", onMobileRefresh)
+    window.addEventListener("dashboard:mobile-scroll-alerts", onMobileScrollAlerts)
+
+    return () => {
+      window.removeEventListener("dashboard:mobile-refresh", onMobileRefresh)
+      window.removeEventListener("dashboard:mobile-scroll-alerts", onMobileScrollAlerts)
+      window.dispatchEvent(
+        new CustomEvent("dashboard:mobile-header-state", {
+          detail: {
+            activeAlertsCount: 0,
+            isRefreshing: false,
+          },
+        })
+      )
+    }
+  }, [handleDashboardRefresh])
+
   if (isInitialLoading) {
     return (
       <>
@@ -461,14 +532,14 @@ export default function DashboardPage() {
       <OfflineIndicator />
 
       <div className="space-y-6 animate-fade-in">
-        <header className="sticky top-14 z-20 -mx-4 border-b bg-background/95 px-4 py-4 backdrop-blur md:top-0 md:-mx-6 md:px-6">
+        <header className="-mx-4 border-b bg-background px-4 py-4 md:sticky md:top-0 md:z-30 md:-mx-6 md:px-6">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
               <h1 className="text-2xl font-semibold tracking-tight">Bonjour, {user?.name ?? "Directeur"}</h1>
               <p className="text-sm capitalize text-muted-foreground">{formatToday(new Date())}</p>
               <Badge variant="outline" className="mt-1">{schoolName}</Badge>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="hidden items-center gap-2 md:flex">
               <Button
                 type="button"
                 variant="outline"
@@ -490,27 +561,8 @@ export default function DashboardPage() {
                 size="sm"
                 aria-label="Mettre à jour les données"
                 disabled={isRefreshing}
-                onClick={async () => {
-                  try {
-                    setIsRefreshing(true)
-                    setRefreshSuccess(false)
-                    await queryClient.invalidateQueries({ queryKey: ["dashboard"] })
-                    await Promise.all([
-                      todayQuery.refetch(),
-                      countsQuery.refetch(),
-                      historyQuery.refetch(),
-                      coverageQuery.refetch(),
-                      salarySummaryQuery.refetch(),
-                      previousSalarySummaryQuery.refetch(),
-                      riskTeachersQuery.refetch(),
-                      schoolQuery.refetch(),
-                      todayStudentAbsencesQuery.refetch(),
-                      riskStudentsQuery.refetch(),
-                    ])
-                    setRefreshSuccess(true)
-                  } finally {
-                    setIsRefreshing(false)
-                  }
+                onClick={() => {
+                  void handleDashboardRefresh()
                 }}
               >
                 {isRefreshing ? (

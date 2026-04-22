@@ -371,7 +371,7 @@ export default function SalariesPage() {
       <div className="space-y-6 animate-fade-in" data-testid="salaries-page">
         <header className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="space-y-1">
+            <div className="space-y-1 md:py-2">
               <h1 className="text-2xl font-semibold tracking-tight">Gestion des salaires</h1>
               <p className="text-sm text-muted-foreground">Pilotage mensuel des paies vacataires</p>
             </div>
