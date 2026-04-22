@@ -159,6 +159,8 @@ export type SmsTemplateType =
   | "teacher_late_director"
   | "custom"
 
+export type SmsProvider = "mock" | "infobip" | "twilio" | "orange_api" | "custom"
+
 export type SmsTemplateItem = {
   id: string
   tenantId: string | null
@@ -190,6 +192,45 @@ export type SmsDashboardResponse = {
     status: string
     message: string
   }>
+}
+
+export type SmsPlatformConfigResponse = {
+  provider: SmsProvider
+  hasApiKey: boolean
+  apiBaseUrl: string | null
+  apiKeyLast4: string | null
+  apiKeyUpdatedAt: string | null
+  senderId: string
+  fallbackSenderId: string | null
+  defaultCountryCode: string
+  alertQuotaThresholdPct: number
+  alertFailureThresholdCount: number
+  alertEmail: string | null
+  smsMaintenanceMode: boolean
+  smsMaintenanceMessage: string
+  updatedAt: string
+}
+
+export type UpdateSmsPlatformConfigPayload = {
+  provider?: SmsProvider
+  api_base_url?: string
+  api_key?: string
+  sender_id?: string
+  fallback_sender_id?: string | null
+  default_country_code?: string
+  alert_quota_threshold_pct?: number
+  alert_failure_threshold_count?: number
+  alert_email?: string | null
+  sms_maintenance_mode?: boolean
+  sms_maintenance_message?: string
+}
+
+export type SmsPlatformAuditItem = {
+  id: string
+  action: string
+  adminId: string | null
+  createdAt: string
+  details: Record<string, unknown>
 }
 
 export type SchoolPaymentItem = {
@@ -350,6 +391,17 @@ export const addSchoolPayment = (tenantId: string, payload: AddSchoolPaymentPayl
 
 export const getSmsDashboard = () =>
   api.get<SmsDashboardResponse>("/admin/sms/dashboard").then((response) => response.data)
+
+export const getSmsPlatformConfig = () =>
+  api.get<SmsPlatformConfigResponse>("/admin/sms/platform-config").then((response) => response.data)
+
+export const updateSmsPlatformConfig = (payload: UpdateSmsPlatformConfigPayload) =>
+  api.patch<{ success: boolean }>("/admin/sms/platform-config", payload).then((response) => response.data)
+
+export const getSmsPlatformAudit = (limit = 50) =>
+  api
+    .get<{ items: SmsPlatformAuditItem[] }>("/admin/sms/platform-audit", { params: { limit } })
+    .then((response) => response.data.items)
 
 export const getGlobalSmsTemplates = () =>
   api.get<{ items: SmsTemplateItem[] }>("/admin/sms/templates").then((response) => response.data.items)
