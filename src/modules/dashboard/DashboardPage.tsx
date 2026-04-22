@@ -23,6 +23,7 @@ import {
   getTopRiskTeachers,
   getTotalPendingSalaries,
   type DashboardCourseItem,
+  type DashboardSalarySummaryItem,
 } from "@/modules/dashboard/dashboard.api"
 import { AlertBanner } from "@/shared/components/AlertBanner"
 import { EmptyState, emptyStateIcons } from "@/shared/components/EmptyState"
@@ -102,12 +103,35 @@ const getInitials = (name: string): string => {
   return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase()
 }
 
-const toSalaryStatus = (value: string): SalaryStatus | null => {
-  if (value === "pending" || value === "paid" || value === "disputed") {
-    return value
+type DashboardSalaryRow = DashboardSalarySummaryItem & {
+  salaryRowStatus: SalaryStatus
+  salaryStatusLabel?: string
+  salaryStatusClassName?: string
+}
+
+const toDashboardSalaryRow = (item: DashboardSalarySummaryItem): DashboardSalaryRow => {
+  if (item.status === "Salaire fixe") {
+    return {
+      ...item,
+      salaryRowStatus: "paid",
+      salaryStatusLabel: "Salaire fixe",
+      salaryStatusClassName: "border-slate-200 bg-slate-50 text-slate-700",
+    }
   }
 
-  return null
+  if (item.status === "paid" && item.isPartiallyPaid) {
+    return {
+      ...item,
+      salaryRowStatus: "paid",
+      salaryStatusLabel: "Payé partiellement",
+      salaryStatusClassName: "border-amber-200 bg-amber-50 text-amber-700",
+    }
+  }
+
+  return {
+    ...item,
+    salaryRowStatus: item.status,
+  }
 }
 
 function DashboardSkeleton() {
@@ -131,7 +155,13 @@ function DashboardSkeleton() {
   )
 }
 
-function TodayPresenceList({ courses }: { courses: DashboardCourseItem[] }) {
+function TodayPresenceList({
+  courses,
+  expanded,
+}: {
+  courses: DashboardCourseItem[]
+  expanded: boolean
+}) {
   const sortedCourses = useMemo(() => {
     return [...courses].sort((a, b) => {
       const aTime = a.checkedInAt ? new Date(a.checkedInAt).getTime() : new Date(`1970-01-01T${a.startTime}`).getTime()
@@ -139,6 +169,7 @@ function TodayPresenceList({ courses }: { courses: DashboardCourseItem[] }) {
       return bTime - aTime
     })
   }, [courses])
+  const visibleCourses = expanded ? sortedCourses : sortedCourses.slice(0, 5)
 
   if (sortedCourses.length === 0) {
     return (
@@ -152,7 +183,7 @@ function TodayPresenceList({ courses }: { courses: DashboardCourseItem[] }) {
 
   return (
     <div className="space-y-2" data-testid="dashboard-today-presence-list">
-      {sortedCourses.map((course) => {
+      {visibleCourses.map((course) => {
         const status = courseStatusMeta[course.status ?? "default"] ?? courseStatusMeta.default
         return (
           <div
@@ -190,10 +221,14 @@ type TodayStudentAbsenceItem = {
 function TodayStudentAbsenceList({
   items,
   onOpenStudent,
+  expanded,
 }: {
   items: TodayStudentAbsenceItem[]
   onOpenStudent: (studentId: string) => void
+  expanded: boolean
 }) {
+  const visibleItems = expanded ? items : items.slice(0, 5)
+
   if (items.length === 0) {
     return (
       <EmptyState
@@ -226,7 +261,7 @@ function TodayStudentAbsenceList({
 
   return (
     <div className="space-y-2">
-      {items.map((item) => (
+      {visibleItems.map((item) => (
         <Button
           key={`${item.studentId}-${item.createdAt}`}
           type="button"
@@ -257,6 +292,8 @@ export default function DashboardPage() {
   const queryClient = useQueryClient()
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [refreshSuccess, setRefreshSuccess] = useState(false)
+  const [showAllTodayPresence, setShowAllTodayPresence] = useState(false)
+  const [showAllTodayStudentAbsences, setShowAllTodayStudentAbsences] = useState(false)
   const user = useAuthStore((state) => state.user)
   const currentMonth = useMemo(() => getCurrentMonthKey(new Date()), [])
   const previousMonth = useMemo(() => getPreviousMonthKey(new Date()), [])
@@ -389,20 +426,7 @@ export default function DashboardPage() {
   const salaryRows = useMemo(() => {
     const items = salarySummaryQuery.data?.items ?? []
 
-    return items
-      .map((item) => {
-        const status = toSalaryStatus(item.status)
-        if (!status) {
-          return null
-        }
-
-        return {
-          ...item,
-          status,
-        }
-      })
-      .filter((item): item is NonNullable<typeof item> => item !== null)
-      .slice(0, 5)
+    return items.map((item) => toDashboardSalaryRow(item)).slice(0, 5)
   }, [salarySummaryQuery.data])
 
   const activeAlertsCount =
@@ -440,6 +464,8 @@ export default function DashboardPage() {
     () => (riskStudentsQuery.data ?? []).slice(0, 5),
     [riskStudentsQuery.data]
   )
+  const canToggleTodayPresence = (todayQuery.data?.courses ?? []).length > 5
+  const canToggleTodayStudentAbsences = todayStudentAbsenceItems.length > 5
 
   useEffect(() => {
     if (!refreshSuccess) return
@@ -536,7 +562,7 @@ export default function DashboardPage() {
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
               <h1 className="text-2xl font-semibold tracking-tight">Bonjour, {user?.name ?? "Directeur"}</h1>
-              <p className="text-sm capitalize text-muted-foreground">{formatToday(new Date())}</p>
+              {/* <p className="text-sm capitalize text-muted-foreground">{formatToday(new Date())}</p> */}
               <Badge variant="outline" className="mt-1">{schoolName}</Badge>
             </div>
             <div className="hidden items-center gap-2 md:flex">
@@ -642,18 +668,29 @@ export default function DashboardPage() {
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <Card className="xl:col-span-2">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg font-semibold">Présences profs — Aujourd'hui</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-lg font-semibold">Présences profs - Aujourd'hui</CardTitle>
+              {canToggleTodayPresence ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => setShowAllTodayPresence((current) => !current)}
+                >
+                  {showAllTodayPresence ? "Afficher moins" : "Afficher tout"}
+                </Button>
+              ) : null}
             </CardHeader>
             <CardContent>
-              <TodayPresenceList courses={todayQuery.data?.courses ?? []} />
+              <TodayPresenceList courses={todayQuery.data?.courses ?? []} expanded={showAllTodayPresence} />
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg font-semibold">Profs à risque</CardTitle>
-              <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-sm">
+              <Button asChild variant="outline" size="sm" className="h-8">
                 <Link to={riskTeachersLink} data-testid="dashboard-risk-see-all">Voir tous</Link>
               </Button>
             </CardHeader>
@@ -702,8 +739,19 @@ export default function DashboardPage() {
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg font-semibold">Absence élève/étudiant — Aujourd&apos;hui</CardTitle>
+              {canToggleTodayStudentAbsences ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => setShowAllTodayStudentAbsences((current) => !current)}
+                >
+                  {showAllTodayStudentAbsences ? "Afficher moins" : "Afficher tout"}
+                </Button>
+              ) : null}
             </CardHeader>
             <CardContent>
               <TodayStudentAbsenceList
@@ -715,6 +763,7 @@ export default function DashboardPage() {
                     )}`
                   )
                 }
+                expanded={showAllTodayStudentAbsences}
               />
             </CardContent>
           </Card>
@@ -722,7 +771,7 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg font-semibold">Élèves à risque</CardTitle>
-              <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-sm">
+              <Button asChild variant="outline" size="sm" className="h-8">
                 <Link to={riskStudentsLink}>Voir tous</Link>
               </Button>
             </CardHeader>
@@ -806,8 +855,10 @@ export default function DashboardPage() {
                             hoursDone: row.hoursDone,
                             hoursPlanned: row.hoursPlanned,
                             amountFcfa: row.totalFcfa ?? 0,
-                            status: row.status,
-                            canMarkPaid: row.status === "pending",
+                            status: row.salaryRowStatus,
+                            statusLabel: row.salaryStatusLabel,
+                            statusClassName: row.salaryStatusClassName,
+                            canMarkPaid: row.status === "pending" && Boolean(row.salaryRecordId),
                           }}
                           onMarkPaid={() => navigate("/salaries")}
                           onDetails={() => navigate("/salaries")}

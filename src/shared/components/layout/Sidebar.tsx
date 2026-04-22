@@ -26,7 +26,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -266,6 +266,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
             )}
           >
             <Avatar className="h-8 w-8 shrink-0">
+              <AvatarImage src={user?.profilePhotoUrl ?? undefined} alt={user?.name ?? "Utilisateur"} />
               <AvatarFallback className="text-xs">{user?.name?.slice(0, 2).toUpperCase() ?? "U"}</AvatarFallback>
             </Avatar>
             <div

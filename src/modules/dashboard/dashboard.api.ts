@@ -141,6 +141,7 @@ export type DashboardSalarySummaryItem = {
   totalFcfa: number | null
   status: DashboardSalaryStatus
   salaryRecordId: string | null
+  isPartiallyPaid: boolean
 }
 
 export type DashboardSalarySummary = {
@@ -472,30 +473,33 @@ const normalizeStudentsTotal = (payload: unknown): number => {
 const normalizeSalaryItem = (item: unknown): DashboardSalarySummaryItem => {
   const row = isRecord(item) ? item : {}
 
-  const statusRaw = asString(row.status)
+  const statusRaw = asString(row.status ?? row.salary_status)
   const parsedStatus: DashboardSalaryStatus =
     statusRaw === "paid" || statusRaw === "pending" || statusRaw === "disputed" || statusRaw === "Salaire fixe"
       ? statusRaw
       : "pending"
 
-  const teacherType = asString(row.teacherType) === "permanent" ? "permanent" : "vacataire"
+  const teacherTypeRaw = asString(row.teacherType ?? row.teacher_type)
+  const teacherType = teacherTypeRaw === "permanent" ? "permanent" : "vacataire"
 
   return {
-    teacherId: asString(row.teacherId),
-    teacherName: asString(row.teacherName, "Professeur"),
+    teacherId: asString(row.teacherId ?? row.teacher_id),
+    teacherName: asString(row.teacherName ?? row.teacher_name, "Professeur"),
     teacherType,
-    hoursPlanned: asNumber(row.hoursPlanned, 0),
-    hoursDone: asNumber(row.hoursDone, 0),
-    hourlyRate: row.hourlyRate === null ? null : asNumber(row.hourlyRate, 0),
-    totalFcfa: row.totalFcfa === null ? null : asNumber(row.totalFcfa, 0),
+    hoursPlanned: asNumber(row.hoursPlanned ?? row.hours_planned, 0),
+    hoursDone: asNumber(row.hoursDone ?? row.hours_done, 0),
+    hourlyRate: row.hourlyRate === null || row.hourly_rate === null ? null : asNumber(row.hourlyRate ?? row.hourly_rate, 0),
+    totalFcfa: row.totalFcfa === null || row.total_fcfa === null ? null : asNumber(row.totalFcfa ?? row.total_fcfa, 0),
     status: parsedStatus,
-    salaryRecordId: asNullableString(row.salaryRecordId),
+    salaryRecordId: asNullableString(row.salaryRecordId ?? row.salary_record_id),
+    isPartiallyPaid: Boolean(row.isPartiallyPaid ?? row.is_partially_paid),
   }
 }
 
 const normalizeSalarySummary = (payload: unknown, month: string): DashboardSalarySummary => {
-  const data = isRecord(payload) ? payload : {}
-  const itemsRaw = Array.isArray(data.items) ? data.items : []
+  const resolved = resolvePayload(payload)
+  const data = isRecord(resolved) ? resolved : {}
+  const itemsRaw = firstNonEmptyArray<unknown>(data.items, data.rows, data.data)
 
   return {
     month: asString(data.month, month),
