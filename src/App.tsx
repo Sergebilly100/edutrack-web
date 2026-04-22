@@ -1,5 +1,6 @@
 import { useEffect, type ReactElement } from "react"
 import { Navigate, Route, Routes, useSearchParams } from "react-router-dom"
+import axios from "axios"
 
 import AdminPage from "@/modules/admin/AdminPage"
 import AdminAccountPage from "@/modules/admin/AdminAccountPage"
@@ -22,6 +23,7 @@ import StudentDetailPage from "@/modules/students/StudentDetailPage"
 import StudentsPage from "@/modules/students/StudentsPage"
 import TeacherDetailPage from "@/modules/teachers/TeacherDetailPage"
 import TeachersPage from "@/modules/teachers/TeachersPage"
+import { getMyPermissions } from "@/modules/auth/auth.api"
 import { AppShell } from "@/shared/components/layout/AppShell"
 import { TeacherTopBar } from "@/shared/components/layout/TeacherTopBar"
 import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
@@ -36,6 +38,8 @@ function DashboardRoute() {
   const [searchParams] = useSearchParams()
   const user = useAuthStore((state) => state.user)
   const setAccessToken = useAuthStore((state) => state.setAccessToken)
+  const setUser = useAuthStore((state) => state.setUser)
+  const setPermissions = useAuthStore((state) => state.setPermissions)
 
   useEffect(() => {
     const impersonationToken = searchParams.get("impersonation_token")
@@ -43,8 +47,59 @@ function DashboardRoute() {
       return
     }
 
-    setAccessToken(impersonationToken)
-  }, [searchParams, setAccessToken])
+    const applyImpersonationSession = async (): Promise<void> => {
+      try {
+        setAccessToken(impersonationToken)
+
+        const meResponse = await axios.get<{
+          user: {
+            id: string
+            role: "director" | "staff" | "secretary" | "teacher" | "super_admin"
+            name: string
+            phone: string | null
+            email: string | null
+            profilePhotoUrl: string | null
+          }
+        }>("/auth/me", {
+          baseURL: import.meta.env.VITE_API_URL,
+          withCredentials: true,
+          headers: {
+            Authorization: `Bearer ${impersonationToken}`,
+          },
+        })
+
+        const tokenPayload = (() => {
+          try {
+            const parts = impersonationToken.split(".")
+            const raw = parts[1] ?? ""
+            const normalized = raw.replace(/-/g, "+").replace(/_/g, "/")
+            return JSON.parse(atob(normalized)) as { schemaName?: string }
+          } catch {
+            return {}
+          }
+        })()
+        const schemaName = tokenPayload.schemaName ?? "unknown"
+
+        setUser({
+          id: meResponse.data.user.id,
+          role: meResponse.data.user.role,
+          name: meResponse.data.user.name,
+          phone: meResponse.data.user.phone,
+          email: meResponse.data.user.email,
+          profilePhotoUrl: meResponse.data.user.profilePhotoUrl,
+          tenantId: schemaName,
+          schemaName,
+          plan: "standard",
+        })
+        const permissions = await getMyPermissions()
+        setPermissions(permissions)
+      } catch {
+        setPermissions([])
+      }
+    }
+
+    void applyImpersonationSession()
+  }, [searchParams, setAccessToken, setPermissions, setUser])
 
   if (user?.role === "teacher") {
     return <TeacherDashboardPage />

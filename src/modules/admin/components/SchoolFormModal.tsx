@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Copy } from "lucide-react"
 import { useForm, useWatch } from "react-hook-form"
 import { z } from "zod"
 
@@ -33,7 +32,7 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/use-toast"
-import { createSchool, type TeachingType } from "@/modules/admin/admin.api"
+import { createSchool, type CreateSchoolResponse, type TeachingType } from "@/modules/admin/admin.api"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 const PHONE_CI_REGEX = /^225\d{10}$/
@@ -59,20 +58,15 @@ const schoolFormSchema = z.object({
     }),
   plan: z.enum(["essential", "pro", "establishment"]),
   maxAdminPositions: z.number().int().min(1).max(50),
-  activeSchoolYear: z.string().trim().regex(/^\\d{4}-\\d{4}$/, "Format attendu : YYYY-YYYY"),
+  activeSchoolYear: z.string().trim().regex(/^\d{4}-\d{4}$/, "Format attendu : YYYY-YYYY"),
 })
 
 type SchoolFormValues = z.infer<typeof schoolFormSchema>
 
-type CreatedCredentials = {
-  directorName: string
-  directorPhone: string
-  temporaryPassword: string
-}
-
 type SchoolFormModalProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onCreated?: (response: CreateSchoolResponse) => void
 }
 
 const slugify = (value: string) =>
@@ -84,14 +78,12 @@ const slugify = (value: string) =>
     .trim()
     .replace(/\s+/g, "-")
 
-export default function SchoolFormModal({ open, onOpenChange }: SchoolFormModalProps) {
+export default function SchoolFormModal({ open, onOpenChange, onCreated }: SchoolFormModalProps) {
   const user = useAuthStore((state) => state.user)
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
   const [subdomainEdited, setSubdomainEdited] = useState(false)
-  const [credentials, setCredentials] = useState<CreatedCredentials | null>(null)
-
   const form = useForm<SchoolFormValues>({
     resolver: zodResolver(schoolFormSchema),
     mode: "onChange",
@@ -123,7 +115,6 @@ export default function SchoolFormModal({ open, onOpenChange }: SchoolFormModalP
   useEffect(() => {
     if (!open) {
       form.reset()
-      setCredentials(null)
       setSubdomainEdited(false)
     }
   }, [form, open])
@@ -134,14 +125,11 @@ export default function SchoolFormModal({ open, onOpenChange }: SchoolFormModalP
       await queryClient.invalidateQueries({ queryKey: ["admin", "schools"] })
       await queryClient.invalidateQueries({ queryKey: ["admin", "metrics"] })
       await queryClient.invalidateQueries({ queryKey: ["admin", "revenue-metrics"] })
+      await queryClient.invalidateQueries({ queryKey: ["admin", "schools", 1, 25] })
 
-      setCredentials({
-        directorName: response.directorCredentials.name,
-        directorPhone: response.directorCredentials.phone,
-        temporaryPassword: response.directorCredentials.password,
-      })
-
-      toast({ title: "École créée" })
+      toast({ title: "École créée avec succès" })
+      onOpenChange(false)
+      onCreated?.(response)
     },
     onError: () => {
       toast({
@@ -170,16 +158,6 @@ export default function SchoolFormModal({ open, onOpenChange }: SchoolFormModalP
       director_phone: values.directorPhone,
       director_email: values.directorEmail?.trim() ? values.directorEmail.trim() : undefined,
     })
-  }
-
-  const handleCopyCredentials = async () => {
-    if (!credentials) {
-      return
-    }
-
-    const payload = `Nom: ${credentials.directorName}\nTéléphone: ${credentials.directorPhone}\nMot de passe: ${credentials.temporaryPassword}`
-    await navigator.clipboard.writeText(payload)
-    toast({ title: "Identifiants copiés" })
   }
 
   const isSuperAdmin = user?.role === "super_admin"
@@ -387,35 +365,6 @@ export default function SchoolFormModal({ open, onOpenChange }: SchoolFormModalP
                   />
                 </div>
               </section>
-
-              {credentials ? (
-                <Alert>
-                  <AlertTitle>Identifiants directeur</AlertTitle>
-                  <AlertDescription>
-                    <div className="space-y-1">
-                      <p>
-                        Nom: <span className="font-medium">{credentials.directorName}</span>
-                      </p>
-                      <p>
-                        Téléphone: <span className="font-medium">{credentials.directorPhone}</span>
-                      </p>
-                      <p>
-                        Mot de passe: <span className="font-medium">{credentials.temporaryPassword}</span>
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="mt-3 gap-2"
-                      onClick={() => void handleCopyCredentials()}
-                    >
-                      <Copy className="h-4 w-4" />
-                      Copier
-                    </Button>
-                  </AlertDescription>
-                </Alert>
-              ) : null}
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

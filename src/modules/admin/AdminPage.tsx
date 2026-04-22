@@ -1,17 +1,20 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Navigate, useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { BarChart3, Building2, TrendingUp, Users } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   getAdminMetrics,
+  getSchoolPayments,
   getRevenueMetrics,
+  getSmsDashboard,
   listSchools,
   type SchoolListItem,
   type TenantPlan,
@@ -58,6 +61,7 @@ export default function AdminPage() {
   const [statusFilter, setStatusFilter] = useState<FilterStatus>("all")
   const [search, setSearch] = useState("")
   const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string>("")
 
   const schoolsQuery = useQuery({
     queryKey: ["admin", "schools", page, limit],
@@ -74,6 +78,17 @@ export default function AdminPage() {
     queryFn: getRevenueMetrics,
   })
 
+  const smsDashboardQuery = useQuery({
+    queryKey: ["admin", "sms", "dashboard"],
+    queryFn: getSmsDashboard,
+  })
+
+  const schoolPaymentsQuery = useQuery({
+    queryKey: ["admin", "school-payments", selectedSchoolId],
+    queryFn: () => getSchoolPayments(selectedSchoolId),
+    enabled: selectedSchoolId.length > 0,
+  })
+
   const filteredSchools = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase()
     return (schoolsQuery.data?.schools ?? []).filter((school) => {
@@ -83,6 +98,17 @@ export default function AdminPage() {
       return matchesPlan && matchesStatus && matchesSearch
     })
   }, [schoolsQuery.data?.schools, planFilter, search, statusFilter])
+
+  useEffect(() => {
+    if (selectedSchoolId.length > 0) {
+      return
+    }
+
+    const firstSchoolId = schoolsQuery.data?.schools?.[0]?.tenantId
+    if (firstSchoolId) {
+      setSelectedSchoolId(firstSchoolId)
+    }
+  }, [schoolsQuery.data?.schools, selectedSchoolId])
 
   if (!user) {
     return <Navigate to="/" replace />
@@ -146,13 +172,99 @@ export default function AdminPage() {
         />
       </section>
 
-      {metricsQuery.isError || revenueQuery.isError || schoolsQuery.isError ? (
+      {metricsQuery.isError || revenueQuery.isError || schoolsQuery.isError || smsDashboardQuery.isError ? (
         <Alert variant="destructive">
           <AlertDescription>Impossible de charger la console admin. Vérifiez la connexion API.</AlertDescription>
         </Alert>
       ) : null}
 
       {revenueQuery.isLoading ? <Skeleton className="h-[280px] w-full rounded-lg" /> : <RevenueChart data={revenueQuery.data ?? []} />}
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        <Card>
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-lg">Paiements récents</CardTitle>
+            <CardDescription>Historique des derniers paiements pour l&apos;école sélectionnée.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-2">
+              <p className="text-sm font-medium">École</p>
+              <Select value={selectedSchoolId} onValueChange={setSelectedSchoolId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une école" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(schoolsQuery.data?.schools ?? []).map((school) => (
+                    <SelectItem key={school.tenantId} value={school.tenantId}>
+                      {school.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {schoolPaymentsQuery.isLoading ? (
+              <Skeleton className="h-28 w-full rounded-md" />
+            ) : (
+              <div className="overflow-x-auto rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Montant</TableHead>
+                      <TableHead>Mode</TableHead>
+                      <TableHead>Statut</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(schoolPaymentsQuery.data ?? []).slice(0, 5).map((payment) => (
+                      <TableRow key={payment.id}>
+                        <TableCell>{new Date(payment.date).toLocaleDateString("fr-FR")}</TableCell>
+                        <TableCell>{formatFcfa(payment.amountFcfa)}</TableCell>
+                        <TableCell>{payment.provider}</TableCell>
+                        <TableCell>{payment.status}</TableCell>
+                      </TableRow>
+                    ))}
+                    {!schoolPaymentsQuery.isLoading && (schoolPaymentsQuery.data ?? []).length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-sm text-muted-foreground">
+                          Aucun paiement enregistré pour cette école.
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            {schoolPaymentsQuery.isError ? (
+              <Alert variant="destructive">
+                <AlertDescription>Impossible de charger les paiements de l&apos;école sélectionnée.</AlertDescription>
+              </Alert>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-lg">SMS envoyés ce mois</CardTitle>
+            <CardDescription>Volume SMS mensuel pour l&apos;école sélectionnée.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {smsDashboardQuery.isLoading ? (
+              <Skeleton className="h-20 w-full rounded-md" />
+            ) : (
+              <>
+                <p className="text-3xl font-bold">
+                  {smsDashboardQuery.data?.bySchool.find((entry) => entry.tenantId === selectedSchoolId)?.sent ?? 0}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Quota: {smsDashboardQuery.data?.bySchool.find((entry) => entry.tenantId === selectedSchoolId)?.quota ?? 0}
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </section>
 
       <section className="rounded-lg border border-border bg-card p-4 md:p-6">
         <div className="mb-4 grid gap-3 md:grid-cols-3">
@@ -272,7 +384,17 @@ export default function AdminPage() {
         </div>
       </section>
 
-      <SchoolFormModal open={createModalOpen} onOpenChange={setCreateModalOpen} />
+      <SchoolFormModal
+        open={createModalOpen}
+        onOpenChange={setCreateModalOpen}
+        onCreated={(created) => {
+          navigate(`/admin/schools/${created.tenantId}`, {
+            state: {
+              createdDirectorCredentials: created.directorCredentials,
+            },
+          })
+        }}
+      />
     </div>
   )
 }

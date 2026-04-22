@@ -44,6 +44,7 @@ export function MobileDrawer({ open, onClose, variant = "default" }: MobileDrawe
                   <NavLink
                     key={item.href}
                     to={item.href}
+                    end={item.matchExact === true}
                     onClick={onClose}
                     className={({ isActive }) =>
                       cn(navLinkClassName, isActive ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted")

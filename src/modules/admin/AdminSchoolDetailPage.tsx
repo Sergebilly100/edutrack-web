@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Navigate, useNavigate, useParams } from "react-router-dom"
+import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowLeft } from "lucide-react"
 
@@ -32,12 +32,27 @@ const STATUS_OPTIONS: TenantStatus[] = ["trial", "active", "suspended", "cancell
 
 const formatFcfa = (value: number) => `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} FCFA`
 
+type CreatedDirectorCredentials = {
+  userId: string
+  name: string
+  phone: string
+  email: string | null
+  password: string
+}
+
+type AdminSchoolDetailLocationState = {
+  createdDirectorCredentials?: CreatedDirectorCredentials
+}
+
 export default function AdminSchoolDetailPage() {
   const user = useAuthStore((state) => state.user)
   const { tenantId } = useParams<{ tenantId: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
   const { toast } = useToast()
+  const locationState = (location.state as AdminSchoolDetailLocationState | null) ?? null
+  const createdDirectorCredentials = locationState?.createdDirectorCredentials
 
   const schoolQuery = useQuery({
     queryKey: ["admin", "school-detail", tenantId],
@@ -182,6 +197,45 @@ export default function AdminSchoolDetailPage() {
           </TabsList>
 
           <TabsContent value="config" className="space-y-4">
+            {createdDirectorCredentials ? (
+              <Alert>
+                <AlertDescription>
+                  <div className="space-y-2">
+                    <p className="font-medium">Accès du responsable école</p>
+                    <p>
+                      Nom: <span className="font-medium">{createdDirectorCredentials.name}</span>
+                    </p>
+                    <p>
+                      Téléphone: <span className="font-medium">{createdDirectorCredentials.phone}</span>
+                    </p>
+                    <p>
+                      Email: <span className="font-medium">{createdDirectorCredentials.email ?? "-"}</span>
+                    </p>
+                    <p>
+                      Mot de passe provisoire: <span className="font-medium">{createdDirectorCredentials.password}</span>
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        const payload = [
+                          `Nom: ${createdDirectorCredentials.name}`,
+                          `Téléphone: ${createdDirectorCredentials.phone}`,
+                          `Email: ${createdDirectorCredentials.email ?? "-"}`,
+                          `Mot de passe: ${createdDirectorCredentials.password}`,
+                        ].join("\n")
+                        await navigator.clipboard.writeText(payload)
+                        toast({ title: "Accès responsable copiés" })
+                      }}
+                    >
+                      Copier les accès
+                    </Button>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
             <Card>
               <CardHeader>
                 <CardTitle>Configuration école</CardTitle>
@@ -268,7 +322,7 @@ export default function AdminSchoolDetailPage() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Card><CardHeader><CardDescription>Plan actuel</CardDescription><CardTitle>{school.metadata.plan}</CardTitle></CardHeader></Card>
               <Card><CardHeader><CardDescription>Statut</CardDescription><CardTitle>{school.metadata.status}</CardTitle></CardHeader></Card>
-              <Card><CardHeader><CardDescription>Prochaine échéance</CardDescription><CardTitle>{school.usageStats.lastConnection ? new Date(school.usageStats.lastConnection).toLocaleDateString("fr-FR") : "-"}</CardTitle></CardHeader></Card>
+              <Card><CardHeader><CardDescription>Prochaine échéance</CardDescription><CardTitle>{school.usageStats.nextDueDate ? new Date(school.usageStats.nextDueDate).toLocaleDateString("fr-FR") : "-"}</CardTitle></CardHeader></Card>
               <Card><CardHeader><CardDescription>MRR</CardDescription><CardTitle>{formatFcfa(school.usageStats.mrrFcfa)}</CardTitle></CardHeader></Card>
             </div>
 
@@ -298,9 +352,21 @@ export default function AdminSchoolDetailPage() {
                           <TableCell>{item.status}</TableCell>
                         </TableRow>
                       ))}
+                      {!paymentsQuery.isLoading && (paymentsQuery.data ?? []).length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-sm text-muted-foreground">
+                            Aucun paiement enregistré.
+                          </TableCell>
+                        </TableRow>
+                      ) : null}
                     </TableBody>
                   </Table>
                 </div>
+                {paymentsQuery.isError ? (
+                  <Alert variant="destructive" className="mt-3">
+                    <AlertDescription>Impossible de charger l&apos;historique des paiements.</AlertDescription>
+                  </Alert>
+                ) : null}
               </CardContent>
             </Card>
 

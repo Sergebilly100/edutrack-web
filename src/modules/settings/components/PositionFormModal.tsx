@@ -51,7 +51,12 @@ const createPosition = (payload: PositionFormValues) =>
   apiClient.post("/permissions/positions", payload).then((response) => response.data)
 
 const updatePosition = (payload: PositionPayload) =>
-  apiClient.put("/permissions/positions", payload).then((response) => response.data)
+  apiClient
+    .put(`/permissions/positions/${payload.id}`, {
+      name: payload.name,
+      permissions: payload.permissions,
+    })
+    .then((response) => response.data)
 
 export default function PositionFormModal({
   open,

@@ -25,6 +25,7 @@ export interface NavItem {
   requiredPermissions?: PermissionKey[]
   requiredAnyPermissions?: PermissionKey[]
   mobileVisible: boolean
+  matchExact?: boolean
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -102,6 +103,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: AdminIcon,
     roles: ["super_admin"],
     mobileVisible: true,
+    matchExact: true,
   },
   {
     label: "Écoles",
