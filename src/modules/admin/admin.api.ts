@@ -182,6 +182,7 @@ export type SmsDashboardResponse = {
   }>
   history: Array<{
     id: string
+    tenantId: string
     date: string
     school: string
     type: string

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { Navigate, useNavigate } from "react-router-dom"
+import { Navigate, useLocation, useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { BarChart3, Building2, TrendingUp, Users } from "lucide-react"
 
@@ -54,6 +54,7 @@ const computeRetentionRate = (schools: SchoolListItem[]) => {
 export default function AdminPage() {
   const user = useAuthStore((state) => state.user)
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [page, setPage] = useState(1)
   const [limit] = useState(25)
@@ -62,6 +63,7 @@ export default function AdminPage() {
   const [search, setSearch] = useState("")
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [selectedSchoolId, setSelectedSchoolId] = useState<string>("")
+  const isSchoolsView = location.pathname.startsWith("/admin/schools")
 
   const schoolsQuery = useQuery({
     queryKey: ["admin", "schools", page, limit],
@@ -133,44 +135,51 @@ export default function AdminPage() {
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Console EduTrack</h1>
-          <p className="text-sm text-muted-foreground">Monitoring multi-tenant et pilotage des écoles.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {isSchoolsView ? "Écoles" : "Console EduTrack"}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {isSchoolsView
+              ? "Gestion des établissements (plan, statut, usage, configuration)."
+              : "Monitoring multi-tenant et pilotage des écoles."}
+          </p>
         </div>
-        <Button onClick={() => setCreateModalOpen(true)}>Créer une école</Button>
       </header>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Total écoles actives"
-          value={metrics?.activeSchools ?? 0}
-          subtitle="Écoles actives sur les 7 derniers jours"
-          icon={<Building2 className="h-4 w-4" />}
-          loading={metricsQuery.isLoading}
-        />
-        <StatCard
-          title="MRR total FCFA"
-          value={formatFcfa(metrics?.mrrTotalFcfa ?? 0)}
-          subtitle="Revenus mensuels récurrents"
-          icon={<TrendingUp className="h-4 w-4" />}
-          variant="success"
-          loading={metricsQuery.isLoading}
-        />
-        <StatCard
-          title="DAU (7j)"
-          value={dau7d}
-          subtitle="Utilisateurs actifs aujourd'hui"
-          icon={<Users className="h-4 w-4" />}
-          loading={metricsQuery.isLoading}
-        />
-        <StatCard
-          title="Taux de rétention"
-          value={`${retentionRate}%`}
-          subtitle="Écoles actives ≤ 30j / total"
-          icon={<BarChart3 className="h-4 w-4" />}
-          variant={retentionRate >= 70 ? "success" : retentionRate >= 40 ? "warning" : "danger"}
-          loading={schoolsQuery.isLoading}
-        />
-      </section>
+      {!isSchoolsView ? (
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            title="Total écoles actives"
+            value={metrics?.activeSchools ?? 0}
+            subtitle="Écoles actives sur les 7 derniers jours"
+            icon={<Building2 className="h-4 w-4" />}
+            loading={metricsQuery.isLoading}
+          />
+          <StatCard
+            title="MRR total FCFA"
+            value={formatFcfa(metrics?.mrrTotalFcfa ?? 0)}
+            subtitle="Revenus mensuels récurrents"
+            icon={<TrendingUp className="h-4 w-4" />}
+            variant="success"
+            loading={metricsQuery.isLoading}
+          />
+          <StatCard
+            title="DAU (7j)"
+            value={dau7d}
+            subtitle="Utilisateurs actifs aujourd'hui"
+            icon={<Users className="h-4 w-4" />}
+            loading={metricsQuery.isLoading}
+          />
+          <StatCard
+            title="Taux de rétention"
+            value={`${retentionRate}%`}
+            subtitle="Écoles actives ≤ 30j / total"
+            icon={<BarChart3 className="h-4 w-4" />}
+            variant={retentionRate >= 70 ? "success" : retentionRate >= 40 ? "warning" : "danger"}
+            loading={schoolsQuery.isLoading}
+          />
+        </section>
+      ) : null}
 
       {metricsQuery.isError || revenueQuery.isError || schoolsQuery.isError || smsDashboardQuery.isError ? (
         <Alert variant="destructive">
@@ -178,93 +187,97 @@ export default function AdminPage() {
         </Alert>
       ) : null}
 
-      {revenueQuery.isLoading ? <Skeleton className="h-[280px] w-full rounded-lg" /> : <RevenueChart data={revenueQuery.data ?? []} />}
+      {!isSchoolsView ? (
+        revenueQuery.isLoading ? <Skeleton className="h-[280px] w-full rounded-lg" /> : <RevenueChart data={revenueQuery.data ?? []} />
+      ) : null}
 
-      <section className="grid gap-4 xl:grid-cols-2">
-        <Card>
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-lg">Paiements récents</CardTitle>
-            <CardDescription>Historique des derniers paiements pour l&apos;école sélectionnée.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="space-y-2">
-              <p className="text-sm font-medium">École</p>
-              <Select value={selectedSchoolId} onValueChange={setSelectedSchoolId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner une école" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(schoolsQuery.data?.schools ?? []).map((school) => (
-                    <SelectItem key={school.tenantId} value={school.tenantId}>
-                      {school.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {schoolPaymentsQuery.isLoading ? (
-              <Skeleton className="h-28 w-full rounded-md" />
-            ) : (
-              <div className="overflow-x-auto rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Montant</TableHead>
-                      <TableHead>Mode</TableHead>
-                      <TableHead>Statut</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(schoolPaymentsQuery.data ?? []).slice(0, 5).map((payment) => (
-                      <TableRow key={payment.id}>
-                        <TableCell>{new Date(payment.date).toLocaleDateString("fr-FR")}</TableCell>
-                        <TableCell>{formatFcfa(payment.amountFcfa)}</TableCell>
-                        <TableCell>{payment.provider}</TableCell>
-                        <TableCell>{payment.status}</TableCell>
-                      </TableRow>
+      {!isSchoolsView ? (
+        <section className="grid gap-4 xl:grid-cols-2">
+          <Card>
+            <CardHeader className="space-y-1">
+              <CardTitle className="text-lg">Paiements récents</CardTitle>
+              <CardDescription>Historique des derniers paiements pour l&apos;école sélectionnée.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="space-y-2">
+                <p className="text-sm font-medium">École</p>
+                <Select value={selectedSchoolId} onValueChange={setSelectedSchoolId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner une école" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(schoolsQuery.data?.schools ?? []).map((school) => (
+                      <SelectItem key={school.tenantId} value={school.tenantId}>
+                        {school.name}
+                      </SelectItem>
                     ))}
-                    {!schoolPaymentsQuery.isLoading && (schoolPaymentsQuery.data ?? []).length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-sm text-muted-foreground">
-                          Aucun paiement enregistré pour cette école.
-                        </TableCell>
-                      </TableRow>
-                    ) : null}
-                  </TableBody>
-                </Table>
+                  </SelectContent>
+                </Select>
               </div>
-            )}
-            {schoolPaymentsQuery.isError ? (
-              <Alert variant="destructive">
-                <AlertDescription>Impossible de charger les paiements de l&apos;école sélectionnée.</AlertDescription>
-              </Alert>
-            ) : null}
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-lg">SMS envoyés ce mois</CardTitle>
-            <CardDescription>Volume SMS mensuel pour l&apos;école sélectionnée.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {smsDashboardQuery.isLoading ? (
-              <Skeleton className="h-20 w-full rounded-md" />
-            ) : (
-              <>
-                <p className="text-3xl font-bold">
-                  {smsDashboardQuery.data?.bySchool.find((entry) => entry.tenantId === selectedSchoolId)?.sent ?? 0}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Quota: {smsDashboardQuery.data?.bySchool.find((entry) => entry.tenantId === selectedSchoolId)?.quota ?? 0}
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </section>
+              {schoolPaymentsQuery.isLoading ? (
+                <Skeleton className="h-28 w-full rounded-md" />
+              ) : (
+                <div className="overflow-x-auto rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Montant</TableHead>
+                        <TableHead>Mode</TableHead>
+                        <TableHead>Statut</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(schoolPaymentsQuery.data ?? []).slice(0, 5).map((payment) => (
+                        <TableRow key={payment.id}>
+                          <TableCell>{new Date(payment.date).toLocaleDateString("fr-FR")}</TableCell>
+                          <TableCell>{formatFcfa(payment.amountFcfa)}</TableCell>
+                          <TableCell>{payment.provider}</TableCell>
+                          <TableCell>{payment.status}</TableCell>
+                        </TableRow>
+                      ))}
+                      {!schoolPaymentsQuery.isLoading && (schoolPaymentsQuery.data ?? []).length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-sm text-muted-foreground">
+                            Aucun paiement enregistré pour cette école.
+                          </TableCell>
+                        </TableRow>
+                      ) : null}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+              {schoolPaymentsQuery.isError ? (
+                <Alert variant="destructive">
+                  <AlertDescription>Impossible de charger les paiements de l&apos;école sélectionnée.</AlertDescription>
+                </Alert>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="space-y-1">
+              <CardTitle className="text-lg">SMS envoyés ce mois</CardTitle>
+              <CardDescription>Volume SMS mensuel pour l&apos;école sélectionnée.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {smsDashboardQuery.isLoading ? (
+                <Skeleton className="h-20 w-full rounded-md" />
+              ) : (
+                <>
+                  <p className="text-3xl font-bold">
+                    {smsDashboardQuery.data?.bySchool.find((entry) => entry.tenantId === selectedSchoolId)?.sent ?? 0}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Quota: {smsDashboardQuery.data?.bySchool.find((entry) => entry.tenantId === selectedSchoolId)?.quota ?? 0}
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+      ) : null}
 
       <section className="rounded-lg border border-border bg-card p-4 md:p-6">
         <div className="mb-4 grid gap-3 md:grid-cols-3">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState, type ChangeEvent } from "react"
 import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowLeft } from "lucide-react"
@@ -16,9 +16,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import {
   addSchoolPayment,
+  getSmsDashboard,
   getSchoolDetails,
   getSchoolPayments,
+  getTenantSmsTemplates,
+  resetTenantSmsTemplate,
+  type SmsTemplateType,
   updateSchoolConfig,
+  updateTenantSmsTemplate,
   type SchoolDetailsResponse,
   type TenantPlan,
   type TenantStatus,
@@ -29,6 +34,13 @@ import { useAuthStore } from "@/shared/store/auth.store"
 const PLAN_OPTIONS: TenantPlan[] = ["essential", "pro", "establishment"]
 const TEACHING_OPTIONS: TeachingType[] = ["primaire", "secondaire", "superieur", "mixte"]
 const STATUS_OPTIONS: TenantStatus[] = ["trial", "active", "suspended", "cancelled"]
+const SMS_TEMPLATE_OPTIONS: Array<{ type: SmsTemplateType; label: string }> = [
+  { type: "teacher_absent_director", label: "Prof absent -> direction" },
+  { type: "teacher_late_director", label: "Prof en retard -> direction" },
+  { type: "student_absent_parent", label: "Élève absent -> parent" },
+  { type: "payment_reminder", label: "Relance paiement" },
+  { type: "custom", label: "Personnalisé" },
+]
 
 const formatFcfa = (value: number) => `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} FCFA`
 
@@ -65,6 +77,16 @@ export default function AdminSchoolDetailPage() {
     queryFn: () => getSchoolPayments(tenantId as string),
     enabled: Boolean(tenantId),
   })
+  const smsDashboardQuery = useQuery({
+    queryKey: ["admin", "sms", "dashboard"],
+    queryFn: getSmsDashboard,
+    enabled: Boolean(tenantId),
+  })
+  const tenantTemplatesQuery = useQuery({
+    queryKey: ["admin", "sms", "templates", tenantId],
+    queryFn: () => getTenantSmsTemplates(tenantId as string),
+    enabled: Boolean(tenantId),
+  })
 
   const [config, setConfig] = useState({
     plan: "essential" as TenantPlan,
@@ -87,6 +109,16 @@ export default function AdminSchoolDetailPage() {
     periodFrom: "",
     periodTo: "",
   })
+  const [selectedTemplateType, setSelectedTemplateType] = useState<SmsTemplateType>("teacher_absent_director")
+  const [templateText, setTemplateText] = useState("")
+  const currentTemplate = useMemo(
+    () => tenantTemplatesQuery.data?.find((item) => item.type === selectedTemplateType),
+    [selectedTemplateType, tenantTemplatesQuery.data]
+  )
+  const schoolSmsHistory = useMemo(
+    () => (smsDashboardQuery.data?.history ?? []).filter((item) => item.tenantId === tenantId),
+    [smsDashboardQuery.data?.history, tenantId]
+  )
 
   useEffect(() => {
     if (!schoolQuery.data) return
@@ -104,6 +136,10 @@ export default function AdminSchoolDetailPage() {
       canExportData: metadata.canExportData,
     })
   }, [schoolQuery.data])
+
+  useEffect(() => {
+    setTemplateText(currentTemplate?.messageTemplate ?? "")
+  }, [currentTemplate?.messageTemplate])
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -147,6 +183,31 @@ export default function AdminSchoolDetailPage() {
     },
     onError: () => {
       toast({ title: "Erreur", description: "Impossible d'enregistrer le paiement", variant: "destructive" })
+    },
+  })
+  const updateTemplateMutation = useMutation({
+    mutationFn: () =>
+      updateTenantSmsTemplate(tenantId as string, selectedTemplateType, {
+        message_template: templateText,
+        variables: currentTemplate?.variables ?? [],
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin", "sms", "templates", tenantId] })
+      toast({ title: "Template SMS mis à jour" })
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de mettre à jour le template SMS", variant: "destructive" })
+    },
+  })
+  const resetTemplateMutation = useMutation({
+    mutationFn: () => resetTenantSmsTemplate(tenantId as string, selectedTemplateType),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin", "sms", "templates", tenantId] })
+      setTemplateText("")
+      toast({ title: "Template SMS réinitialisé" })
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de réinitialiser le template", variant: "destructive" })
     },
   })
 
@@ -404,6 +465,108 @@ export default function AdminSchoolDetailPage() {
                 <p>Quota mensuel: <strong>{config.maxSmsPerMonth}</strong></p>
                 <p>Personnalisation templates école: <strong>{config.canEditSmsTemplate ? "Autorisée" : "Désactivée"}</strong></p>
                 <p>Termes en vigueur: <strong>{config.studentLabel}</strong> / <strong>{config.directorTitle}</strong></p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Templates SMS de l&apos;école</CardTitle>
+                <CardDescription>Templates spécifiques à cet établissement.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  {SMS_TEMPLATE_OPTIONS.map((item) => (
+                    <Button
+                      key={item.type}
+                      type="button"
+                      variant={selectedTemplateType === item.type ? "default" : "outline"}
+                      onClick={() => setSelectedTemplateType(item.type)}
+                    >
+                      {item.label}
+                    </Button>
+                  ))}
+                </div>
+
+                <textarea
+                  value={templateText}
+                  onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setTemplateText(event.target.value)}
+                  rows={6}
+                  placeholder="Message template école"
+                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+                />
+
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">{templateText.length} caractères</p>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => resetTemplateMutation.mutate()}
+                      disabled={resetTemplateMutation.isPending}
+                    >
+                      Réinitialiser
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => updateTemplateMutation.mutate()}
+                      disabled={updateTemplateMutation.isPending || templateText.trim().length < 5}
+                    >
+                      Enregistrer
+                    </Button>
+                  </div>
+                </div>
+
+                {tenantTemplatesQuery.isError ? (
+                  <Alert variant="destructive">
+                    <AlertDescription>Impossible de charger les templates SMS de l&apos;école.</AlertDescription>
+                  </Alert>
+                ) : null}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Historique SMS de l&apos;école</CardTitle>
+                <CardDescription>Journal d&apos;envoi propre à cet établissement.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Destinataire</TableHead>
+                        <TableHead>Statut</TableHead>
+                        <TableHead>Message</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {schoolSmsHistory.map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell>{new Date(row.date).toLocaleString("fr-FR")}</TableCell>
+                          <TableCell>{row.type}</TableCell>
+                          <TableCell>{row.recipientMasked}</TableCell>
+                          <TableCell>{row.status}</TableCell>
+                          <TableCell className="max-w-[360px] truncate">{row.message}</TableCell>
+                        </TableRow>
+                      ))}
+                      {!smsDashboardQuery.isLoading && schoolSmsHistory.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-sm text-muted-foreground">
+                            Aucun SMS enregistré pour cette école.
+                          </TableCell>
+                        </TableRow>
+                      ) : null}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {smsDashboardQuery.isError ? (
+                  <Alert variant="destructive" className="mt-3">
+                    <AlertDescription>Impossible de charger l&apos;historique SMS de l&apos;école.</AlertDescription>
+                  </Alert>
+                ) : null}
               </CardContent>
             </Card>
           </TabsContent>
