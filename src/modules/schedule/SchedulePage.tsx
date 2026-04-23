@@ -26,7 +26,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { getTeachers } from "@/modules/teachers/teachers.api"
-import { WeekCoverageAlert } from "@/shared/components"
+import { OfflineIndicator, WeekCoverageAlert } from "@/shared/components"
 import {
   AddIcon,
   ChevronLeftIcon,
@@ -608,6 +608,7 @@ export default function SchedulePage() {
 
   return (
     <div className="space-y-6 px-4 py-6 md:px-1 md:py-2">
+      <OfflineIndicator />
       <header className="space-y-4">
         <WeekCoverageAlert
           nextWeekHasCoverage={nextWeekCoverageQuery.data ?? true}

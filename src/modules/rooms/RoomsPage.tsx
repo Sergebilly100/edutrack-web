@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/components/ui/use-toast"
+import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { QRCodeGenerator } from "@/shared/components/QRCodeGenerator"
 import { createRoom, deleteRoom, getRoomQr, listRooms, regenerateRoomQr, updateRoom, type RoomListItem, type RoomQrPayload } from "./rooms.api"
 
@@ -252,6 +253,7 @@ export default function RoomsPage() {
 
   return (
     <div className="space-y-6" data-testid="rooms-page">
+      <OfflineIndicator />
       <header className="space-y-2 md:py-2">
         <h1 className="text-2xl font-semibold tracking-tight">Salles & QR Codes</h1>
         <p className="text-sm text-muted-foreground">

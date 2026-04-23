@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@/lib/utils"
 import { downloadTemplate, type ImportType } from "@/modules/import-export/import-export.api"
 import { fetchImportHistory } from "@/modules/schedule/schedule.api"
+import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { CalendarClockIcon, ClassIcon, SpreadsheetIcon, TeacherIdentityIcon } from "@/shared/components/icons"
 import { Spinner } from "@/shared/components/Spinner"
 import ImportWizard from "./ImportWizard"
@@ -82,6 +83,7 @@ export default function ImportPage() {
 
   return (
     <div className="space-y-6 px-4 py-6 md:px-1 md:py-2">
+      <OfflineIndicator />
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Import de données</h1>
         <p className="text-sm text-muted-foreground">
