@@ -1,29 +1,7 @@
-import { useEffect, type ReactElement } from "react"
+import { Suspense, lazy, useEffect, type ReactElement } from "react"
 import { Navigate, Route, Routes, useSearchParams } from "react-router-dom"
 import axios from "axios"
 
-import AdminPage from "@/modules/admin/AdminPage"
-import AdminAccountPage from "@/modules/admin/AdminAccountPage"
-import AdminMaintenancePage from "@/modules/admin/AdminMaintenancePage"
-import AdminPlansPage from "@/modules/admin/AdminPlansPage"
-import AdminRevenuePage from "@/modules/admin/AdminRevenuePage"
-import AdminSchoolDetailPage from "@/modules/admin/AdminSchoolDetailPage"
-import AdminSmsPage from "@/modules/admin/AdminSmsPage"
-import AccountPage from "@/modules/account/AccountPage"
-import AttendancePage from "@/modules/attendance/AttendancePage"
-import AdministrativeDashboardPage from "@/modules/dashboard/AdministrativeDashboardPage"
-import DashboardPage from "@/modules/dashboard/DashboardPage"
-import TeacherDashboardPage from "@/modules/dashboard/TeacherDashboardPage"
-import ImportPage from "@/modules/import-export/ImportPage"
-import OnboardingWizard from "@/modules/onboarding/OnboardingWizard"
-import RoomsPage from "@/modules/rooms/RoomsPage"
-import SalariesPage from "@/modules/salaries/SalariesPage"
-import SchedulePage from "@/modules/schedule/SchedulePage"
-import SettingsPage from "@/modules/settings/SettingsPage"
-import StudentDetailPage from "@/modules/students/StudentDetailPage"
-import StudentsPage from "@/modules/students/StudentsPage"
-import TeacherDetailPage from "@/modules/teachers/TeacherDetailPage"
-import TeachersPage from "@/modules/teachers/TeachersPage"
 import { getMyPermissions } from "@/modules/auth/auth.api"
 import { AppShell } from "@/shared/components/layout/AppShell"
 import { TeacherTopBar } from "@/shared/components/layout/TeacherTopBar"
@@ -31,9 +9,32 @@ import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
 import { useAutoSync } from "@/shared/hooks/useAutoSync"
 import { useRestoreSession } from "@/shared/hooks/useRestoreSession"
 import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
-import LoginPage from "./modules/auth/LoginPage"
-import MaintenancePage from "./modules/auth/MaintenancePage"
-import ComponentsDemoPage from "./modules/dev/ComponentsDemoPage"
+
+const AdminPage = lazy(() => import("@/modules/admin/AdminPage"))
+const AdminAccountPage = lazy(() => import("@/modules/admin/AdminAccountPage"))
+const AdminMaintenancePage = lazy(() => import("@/modules/admin/AdminMaintenancePage"))
+const AdminPlansPage = lazy(() => import("@/modules/admin/AdminPlansPage"))
+const AdminRevenuePage = lazy(() => import("@/modules/admin/AdminRevenuePage"))
+const AdminSchoolDetailPage = lazy(() => import("@/modules/admin/AdminSchoolDetailPage"))
+const AdminSmsPage = lazy(() => import("@/modules/admin/AdminSmsPage"))
+const AccountPage = lazy(() => import("@/modules/account/AccountPage"))
+const AttendancePage = lazy(() => import("@/modules/attendance/AttendancePage"))
+const AdministrativeDashboardPage = lazy(() => import("@/modules/dashboard/AdministrativeDashboardPage"))
+const DashboardPage = lazy(() => import("@/modules/dashboard/DashboardPage"))
+const TeacherDashboardPage = lazy(() => import("@/modules/dashboard/TeacherDashboardPage"))
+const ImportPage = lazy(() => import("@/modules/import-export/ImportPage"))
+const OnboardingWizard = lazy(() => import("@/modules/onboarding/OnboardingWizard"))
+const RoomsPage = lazy(() => import("@/modules/rooms/RoomsPage"))
+const SalariesPage = lazy(() => import("@/modules/salaries/SalariesPage"))
+const SchedulePage = lazy(() => import("@/modules/schedule/SchedulePage"))
+const SettingsPage = lazy(() => import("@/modules/settings/SettingsPage"))
+const StudentDetailPage = lazy(() => import("@/modules/students/StudentDetailPage"))
+const StudentsPage = lazy(() => import("@/modules/students/StudentsPage"))
+const TeacherDetailPage = lazy(() => import("@/modules/teachers/TeacherDetailPage"))
+const TeachersPage = lazy(() => import("@/modules/teachers/TeachersPage"))
+const LoginPage = lazy(() => import("./modules/auth/LoginPage"))
+const MaintenancePage = lazy(() => import("./modules/auth/MaintenancePage"))
+const ComponentsDemoPage = lazy(() => import("./modules/dev/ComponentsDemoPage"))
 
 function DashboardRoute() {
   const [searchParams] = useSearchParams()
@@ -265,38 +266,40 @@ export default function App() {
   }
 
   return (
-    <Routes>
-      <Route path="/" element={<LoginRoute />} />
-      <Route path="/login" element={<LoginRoute />} />
-      <Route path="/maintenance" element={<MaintenancePage />} />
-      <Route path="/dev" element={<ComponentsDemoPage />} />
-      <Route path="/attendance" element={<AttendanceRoute />} />
-      <Route path="/onboarding" element={<OnboardingRoute />} />
+    <Suspense fallback={<SessionLoader />}>
+      <Routes>
+        <Route path="/" element={<LoginRoute />} />
+        <Route path="/login" element={<LoginRoute />} />
+        <Route path="/maintenance" element={<MaintenancePage />} />
+        <Route path="/dev" element={<ComponentsDemoPage />} />
+        <Route path="/attendance" element={<AttendanceRoute />} />
+        <Route path="/onboarding" element={<OnboardingRoute />} />
 
-      <Route element={<NonTeacherShellRoute />}>
-        <Route path="/dashboard" element={<PermissionRoute href="/dashboard" element={<DashboardRoute />} />} />
-        <Route path="/schedule" element={<PermissionRoute href="/schedule" element={<SchedulePage />} />} />
-        <Route path="/teachers" element={<PermissionRoute href="/teachers" element={<TeachersPage />} />} />
-        <Route path="/teachers/:teacherId" element={<PermissionRoute href="/teachers" element={<TeacherDetailPage />} />} />
-        <Route path="/students" element={<PermissionRoute href="/students" element={<StudentsPage />} />} />
-        <Route path="/students/:studentId" element={<PermissionRoute href="/students" element={<StudentDetailPage />} />} />
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="/admin/schools" element={<AdminPage />} />
-        <Route path="/admin/schools/:tenantId" element={<AdminSchoolDetailPage />} />
-        <Route path="/admin/revenue" element={<AdminRevenuePage />} />
-        <Route path="/admin/plans" element={<AdminPlansPage />} />
-        <Route path="/admin/sms" element={<AdminSmsPage />} />
-        <Route path="/admin/maintenance" element={<AdminMaintenancePage />} />
-        <Route path="/admin/account" element={<AdminAccountPage />} />
-        <Route path="/import" element={<ImportPage />} />
-        <Route path="/imports" element={<ImportPage />} />
-        <Route path="/rooms" element={<PermissionRoute href="/rooms" element={<RoomsPage />} />} />
-        <Route path="/salaries" element={<SalariesPage />} />
-        <Route path="/settings" element={<PermissionRoute href="/settings" element={<SettingsPage />} />} />
-        <Route path="/account" element={<AccountPage />} />
-      </Route>
+        <Route element={<NonTeacherShellRoute />}>
+          <Route path="/dashboard" element={<PermissionRoute href="/dashboard" element={<DashboardRoute />} />} />
+          <Route path="/schedule" element={<PermissionRoute href="/schedule" element={<SchedulePage />} />} />
+          <Route path="/teachers" element={<PermissionRoute href="/teachers" element={<TeachersPage />} />} />
+          <Route path="/teachers/:teacherId" element={<PermissionRoute href="/teachers" element={<TeacherDetailPage />} />} />
+          <Route path="/students" element={<PermissionRoute href="/students" element={<StudentsPage />} />} />
+          <Route path="/students/:studentId" element={<PermissionRoute href="/students" element={<StudentDetailPage />} />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/admin/schools" element={<AdminPage />} />
+          <Route path="/admin/schools/:tenantId" element={<AdminSchoolDetailPage />} />
+          <Route path="/admin/revenue" element={<AdminRevenuePage />} />
+          <Route path="/admin/plans" element={<AdminPlansPage />} />
+          <Route path="/admin/sms" element={<AdminSmsPage />} />
+          <Route path="/admin/maintenance" element={<AdminMaintenancePage />} />
+          <Route path="/admin/account" element={<AdminAccountPage />} />
+          <Route path="/import" element={<ImportPage />} />
+          <Route path="/imports" element={<ImportPage />} />
+          <Route path="/rooms" element={<PermissionRoute href="/rooms" element={<RoomsPage />} />} />
+          <Route path="/salaries" element={<SalariesPage />} />
+          <Route path="/settings" element={<PermissionRoute href="/settings" element={<SettingsPage />} />} />
+          <Route path="/account" element={<AccountPage />} />
+        </Route>
 
-      <Route path="*" element={<RoleRedirect />} />
-    </Routes>
+        <Route path="*" element={<RoleRedirect />} />
+      </Routes>
+    </Suspense>
   )
 }
