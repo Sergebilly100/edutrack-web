@@ -17,6 +17,7 @@ export default defineConfig({
     { name: "setup-director", testMatch: /setup\/auth\.setup\.ts/ },
     { name: "setup-teacher", testMatch: /setup\/teacher-auth\.setup\.ts/ },
     { name: "setup-admin", testMatch: /setup\/admin-auth\.setup\.ts/ },
+    { name: "setup-staff", testMatch: /setup\/staff-auth\.setup\.ts/ },
     {
       name: "director-tests",
       use: { ...devices["Pixel 5"], storageState: "e2e/.auth/director.json" },
@@ -35,6 +36,13 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/admin.json" },
       dependencies: ["setup-admin"],
       testMatch: /admin\/.*\.spec\.ts/,
+      testIgnore: /setup\//,
+    },
+    {
+      name: "staff-tests",
+      use: { ...devices["Pixel 5"], storageState: "e2e/.auth/staff.json" },
+      dependencies: ["setup-staff"],
+      testMatch: /staff\/.*\.spec\.ts/,
       testIgnore: /setup\//,
     },
   ],

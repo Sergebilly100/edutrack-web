@@ -155,8 +155,8 @@ jobs:
           VITE_API_URL: http://localhost:3000/api/v1
           CI: true
 
-      - name: Run Playwright E2E (teacher + super admin)
-        run: npm run e2e -- --project=teacher-tests --project=admin-tests
+      - name: Run Playwright E2E (teacher + super admin + staff)
+        run: npm run e2e -- --project=teacher-tests --project=admin-tests --project=staff-tests
         env:
           E2E_BASE_URL: http://localhost:4173
           E2E_RUN_AUTH_SETUP: "true"
