@@ -35,10 +35,13 @@ const teacherFormSchema = z
     type: z.enum(["vacataire", "permanent"]),
     subjectsRaw: z.string().trim().min(1, "Au moins une matière est requise"),
     hourlyRate: z.string().trim(),
+    monthlySalary: z.string().trim(),
   })
   .superRefine((value, ctx) => {
     const parsedRate = Number(value.hourlyRate)
     const hasRate = value.hourlyRate.length > 0
+    const parsedSalary = Number(value.monthlySalary)
+    const hasSalary = value.monthlySalary.length > 0
 
     if (value.type === "vacataire" && !hasRate) {
       ctx.addIssue({
@@ -56,6 +59,23 @@ const teacherFormSchema = z
         message: "Le taux horaire doit être un entier positif",
       })
     }
+
+    if (value.type === "permanent" && !hasSalary) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["monthlySalary"],
+        message: "Le salaire fixe est requis pour un permanent",
+      })
+      return
+    }
+
+    if (value.type === "permanent" && (!Number.isInteger(parsedSalary) || parsedSalary <= 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["monthlySalary"],
+        message: "Le salaire fixe doit être un entier positif",
+      })
+    }
   })
 
 type TeacherFormValues = z.infer<typeof teacherFormSchema>
@@ -67,6 +87,7 @@ export type TeacherFormInitialValues = {
   type: TeacherType
   subjects: string[]
   hourlyRate: number | null
+  monthlySalary: number | null
 }
 
 type TeacherFormProps = {
@@ -99,6 +120,7 @@ export default function TeacherForm({
       type: initialValues?.type ?? "vacataire",
       subjectsRaw: initialValues?.subjects.join(", ") ?? "",
       hourlyRate: initialValues?.hourlyRate ? String(initialValues.hourlyRate) : "",
+      monthlySalary: initialValues?.monthlySalary ? String(initialValues.monthlySalary) : "",
     },
   })
 
@@ -107,7 +129,9 @@ export default function TeacherForm({
   useEffect(() => {
     if (type === "permanent") {
       form.setValue("hourlyRate", "", { shouldDirty: true, shouldValidate: true })
+      return
     }
+    form.setValue("monthlySalary", "", { shouldDirty: true, shouldValidate: true })
   }, [form, type])
 
   const handleSubmit = async (values: TeacherFormValues) => {
@@ -118,6 +142,7 @@ export default function TeacherForm({
       type: values.type,
       subjects: parseSubjects(values.subjectsRaw),
       hourlyRate: values.type === "vacataire" ? Number(values.hourlyRate) : null,
+      monthlySalary: values.type === "permanent" ? Number(values.monthlySalary) : null,
     })
   }
 
@@ -205,7 +230,7 @@ export default function TeacherForm({
                   className={cn(
                     "flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-sm transition-colors",
                     "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                    "disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+                    "resize-none overflow-hidden disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
                     lockSubjects ? "bg-muted cursor-not-allowed" : ""
                   )}
                 />
@@ -240,7 +265,27 @@ export default function TeacherForm({
               </FormItem>
             )}
           />
-        ) : null}
+        ) : (
+          <FormField
+            control={form.control}
+            name="monthlySalary"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Salaire fixe (FCFA)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={1}
+                    step={1}
+                    placeholder="350000"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <Button type="submit" className="w-full" disabled={isPending}>
           {isPending ? "Enregistrement..." : submitLabel}

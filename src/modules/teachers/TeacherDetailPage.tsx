@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { isAxiosError } from "axios"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -455,10 +456,15 @@ function InfosPanel({ teacherId }: { teacherId: string }) {
       await queryClient.invalidateQueries({ queryKey: ["teachers"] })
       toast({ title: "Informations mises à jour" })
     },
-    onError: () => {
+    onError: (error: unknown) => {
+      const errorMessage = "Impossible de mettre à jour les informations"
+      let description = errorMessage
+      if (isAxiosError(error) && typeof error.response?.data?.error === "string") {
+        description = error.response.data.error
+      }
       toast({
         title: "Erreur",
-        description: "Impossible de mettre à jour les informations",
+        description,
         variant: "destructive",
       })
     },
@@ -493,6 +499,7 @@ function InfosPanel({ teacherId }: { teacherId: string }) {
           type: teacher.type,
           subjects: teacher.subjects,
           hourlyRate: teacher.hourlyRate,
+          monthlySalary: teacher.monthlySalary,
         }}
         lockSubjects
         isPending={updateMutation.isPending}

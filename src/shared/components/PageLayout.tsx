@@ -13,7 +13,7 @@ type PageLayoutProps = {
 
 export function PageLayout({ title, subtitle, actions, contentClassName, children }: PageLayoutProps) {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background">
       <header className="border-b bg-background md:top-0 md:z-40">
         <div className="flex h-14 items-center justify-between px-4">
           <div>

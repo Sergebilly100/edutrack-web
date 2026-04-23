@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { isAxiosError } from "axios"
 import { Navigate } from "react-router-dom"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -263,6 +264,31 @@ const createOptimisticSchedule = (
     room,
     timeSlot,
   }
+}
+
+const getScheduleConflictMessage = (error: unknown): string => {
+  if (!isAxiosError(error)) {
+    return "Impossible d'enregistrer ce créneau."
+  }
+
+  const status = error.response?.status
+  const code = error.response?.data?.code
+
+  if (status === 409 && code === "TEACHER_SCHEDULE_CONFLICT") {
+    return "Conflit: ce professeur a déjà un cours sur ce créneau."
+  }
+  if (status === 409 && code === "ROOM_SCHEDULE_CONFLICT") {
+    return "Conflit: cette salle est déjà occupée sur ce créneau."
+  }
+  if (status === 409 && code === "CLASS_SCHEDULE_CONFLICT") {
+    return "Conflit: cette classe a déjà un cours sur ce créneau."
+  }
+
+  if (typeof error.response?.data?.error === "string" && error.response.data.error.length > 0) {
+    return error.response.data.error
+  }
+
+  return "Impossible d'enregistrer ce créneau."
 }
 
 const getInitialViewMode = (): ViewMode => {
@@ -536,9 +562,13 @@ export default function SchedulePage() {
       })
       return { previous }
     },
-    onError: (_e, _v, ctx) => {
+    onError: (error, _v, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(weeklyQueryKey, ctx.previous)
-      toast({ variant: "destructive", title: "Action impossible", description: "Impossible d'enregistrer ce créneau." })
+      toast({
+        variant: "destructive",
+        title: "Action impossible",
+        description: getScheduleConflictMessage(error),
+      })
     },
     onSuccess: () => {
       toast({ title: editingSchedule ? "Créneau modifié" : "Créneau ajouté" })

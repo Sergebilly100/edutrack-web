@@ -11,6 +11,7 @@ export type TeacherListItem = {
   type: TeacherType
   subjects: string[]
   hourlyRate: number | null
+  monthlySalary: number | null
   isActive: boolean
   // Blocage métier — champ dédié sur la table teachers
   isBlocked: boolean
@@ -120,6 +121,7 @@ export type TeacherUpsertPayload = {
   type: TeacherType
   subjects: string[]
   hourlyRate: number | null
+  monthlySalary: number | null
 }
 
 export type ExportTeacherHoursInput = {
@@ -207,6 +209,12 @@ const mapTeacher = (value: unknown): TeacherListItem => {
         : item.hourlyRate === null
           ? null
           : toNumber(item.hourly_rate ?? item.hourlyRate, 0),
+    monthlySalary:
+      item.monthly_salary === null || item.monthlySalary === null
+        ? null
+        : item.monthly_salary === undefined && item.monthlySalary === undefined
+          ? null
+          : toNumber(item.monthly_salary ?? item.monthlySalary, 0),
     isActive,
     isBlocked,
     blockReason,
@@ -270,6 +278,7 @@ export async function createTeacher(payload: TeacherUpsertPayload): Promise<Teac
     type: payload.type,
     subjects: payload.subjects,
     hourly_rate: payload.hourlyRate,
+    monthly_salary: payload.monthlySalary,
   })
   const envelope = toRecord(response.data)
   return mapTeacher(envelope.data ?? envelope)
@@ -300,6 +309,7 @@ export async function updateTeacher(
     type: payload.type,
     subjects: payload.subjects,
     hourly_rate: payload.hourlyRate,
+    monthly_salary: payload.monthlySalary,
   })
   const envelope = toRecord(response.data)
   return mapTeacher(envelope.data ?? envelope)

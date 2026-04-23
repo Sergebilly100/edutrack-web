@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useSearchParams } from "react-router-dom"
 
+import { fetchWeeklySchedule } from "@/modules/schedule/schedule.api"
 import {
   fetchClasses,
   fetchTeacherAttendanceStats,
@@ -74,6 +75,7 @@ export const useTeacherStats = () => {
   const [formValues, setFormValues] = useState<TeacherStatsFormValues>(() =>
     toFormFromSearch(searchParams)
   )
+  const [lastAutofilledTeacherId, setLastAutofilledTeacherId] = useState<string | null>(null)
 
   const classesQuery = useQuery({
     queryKey: ["classes", "teacher-analysis"],
@@ -85,8 +87,47 @@ export const useTeacherStats = () => {
     queryFn: fetchTeacherOptions,
     staleTime: 1000 * 60 * 5,
   })
+  const weeklyScheduleQuery = useQuery({
+    queryKey: ["schedule", "weekly", "teacher-analysis"],
+    queryFn: fetchWeeklySchedule,
+    staleTime: 1000 * 60 * 5,
+  })
+
+  const selectedTeacher = useMemo(
+    () =>
+      (teachersQuery.data ?? []).find((teacher) => teacher.id === formValues.teacher_id) ?? null,
+    [formValues.teacher_id, teachersQuery.data]
+  )
+
+  const teacherSubjectOptions = useMemo(() => {
+    if (!selectedTeacher) return [] as string[]
+    return selectedTeacher.subjects
+      .map((subject) => subject.trim())
+      .filter((subject) => subject.length > 0)
+      .sort((a, b) => a.localeCompare(b, "fr"))
+  }, [selectedTeacher])
+
+  const teacherClassIds = useMemo(() => {
+    if (!selectedTeacher) return new Set<string>()
+    const ids = new Set<string>()
+    for (const row of weeklyScheduleQuery.data?.schedules ?? []) {
+      if (row.teacher.id === selectedTeacher.id) {
+        ids.add(row.class.id)
+      }
+    }
+    return ids
+  }, [selectedTeacher, weeklyScheduleQuery.data?.schedules])
+
+  const classOptions = useMemo(() => {
+    const allClasses = classesQuery.data ?? []
+    if (!selectedTeacher) return allClasses
+    return allClasses.filter((item) => teacherClassIds.has(item.id))
+  }, [classesQuery.data, selectedTeacher, teacherClassIds])
 
   const subjectsOptions = useMemo(() => {
+    if (selectedTeacher) {
+      return teacherSubjectOptions
+    }
     const set = new Set<string>()
     for (const teacher of teachersQuery.data ?? []) {
       for (const subject of teacher.subjects) {
@@ -95,7 +136,7 @@ export const useTeacherStats = () => {
       }
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b, "fr"))
-  }, [teachersQuery.data])
+  }, [selectedTeacher, teacherSubjectOptions, teachersQuery.data])
 
   const queryEnabled = searchParams.get("run") === "1"
 
@@ -115,6 +156,36 @@ export const useTeacherStats = () => {
   useEffect(() => {
     setFormValues(toFormFromSearch(searchParams))
   }, [searchParams])
+
+  useEffect(() => {
+    if (!selectedTeacher) {
+      setLastAutofilledTeacherId(null)
+      return
+    }
+    const nextClassId = classOptions[0]?.id ?? "all"
+    if (weeklyScheduleQuery.isLoading && nextClassId === "all") {
+      return
+    }
+    if (lastAutofilledTeacherId === selectedTeacher.id) {
+      return
+    }
+
+    setFormValues((current) => {
+      const nextSubject = teacherSubjectOptions[0] ?? "all"
+      return {
+        ...current,
+        subject: nextSubject,
+        class_id: nextClassId,
+      }
+    })
+    setLastAutofilledTeacherId(selectedTeacher.id)
+  }, [
+    classOptions,
+    lastAutofilledTeacherId,
+    selectedTeacher,
+    teacherSubjectOptions,
+    weeklyScheduleQuery.isLoading,
+  ])
 
   const statsQuery = useQuery<TeacherAttendanceStats[]>({
     queryKey: ["teacher-stats", filters],
@@ -164,6 +235,7 @@ export const useTeacherStats = () => {
     setFormValues,
     filters,
     classesQuery,
+    classOptions,
     teachersQuery,
     subjectsOptions,
     statsQuery,

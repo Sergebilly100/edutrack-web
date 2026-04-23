@@ -42,7 +42,7 @@ export default function TeacherAnalysisPanel() {
     formValues,
     setFormValues,
     filters,
-    classesQuery,
+    classOptions,
     teachersQuery,
     subjectsOptions,
     statsQuery,
@@ -140,7 +140,16 @@ export default function TeacherAnalysisPanel() {
               <Select
                 value={formValues.teacher_id}
                 onValueChange={(value) =>
-                  setFormValues((current) => ({ ...current, teacher_id: value }))
+                  setFormValues((current) => ({
+                    ...current,
+                    teacher_id: value,
+                    ...(value === "all"
+                      ? {
+                          subject: "all",
+                          class_id: "all",
+                        }
+                      : {}),
+                  }))
                 }
               >
                 <SelectTrigger className="min-h-12">
@@ -190,7 +199,7 @@ export default function TeacherAnalysisPanel() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Toutes les classes</SelectItem>
-                  {(classesQuery.data ?? []).map((item) => (
+                  {classOptions.map((item) => (
                     <SelectItem key={item.id} value={item.id}>
                       {item.name}
                     </SelectItem>
