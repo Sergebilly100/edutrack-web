@@ -67,6 +67,7 @@ const toBarWidthClass = (pct: number) => {
 
 export default function AdminSchoolDetailPage() {
   const user = useAuthStore((state) => state.user)
+  const [nowMs] = useState(() => Date.now())
   const { tenantId } = useParams<{ tenantId: string }>()
   const navigate = useNavigate()
   const location = useLocation()
@@ -244,7 +245,7 @@ export default function AdminSchoolDetailPage() {
   const isPaymentOverdue =
     school !== undefined &&
     Number.isFinite(dueDateMs) &&
-    dueDateMs < Date.now() &&
+    dueDateMs < nowMs &&
     school.usageStats.remainingCurrentPeriodFcfa > 0
   const activeUsersRatePct =
     school && school.usageStats.nbUsers > 0

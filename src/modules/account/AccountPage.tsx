@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation } from "@tanstack/react-query"
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { z } from "zod"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -121,7 +121,8 @@ export default function AccountPage() {
     },
   })
 
-  const avatarInitials = useMemo(() => getInitials(profileForm.watch("name") || user?.name || ""), [profileForm, user?.name])
+  const watchedName = useWatch({ control: profileForm.control, name: "name" })
+  const avatarInitials = getInitials(watchedName || user?.name || "")
 
   if (!user) {
     return null
