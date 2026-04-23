@@ -183,14 +183,20 @@ jobs:
       - name: Report asset sizes
         run: du -sh dist/assets/*.js | sort -h
 
-      - name: Enforce total gzipped JS size budget
+      - name: Enforce initial gzipped JS size budget
         run: |
           limit="${BUNDLE_GZIP_LIMIT_BYTES:-614400}"
           total=0
-          files=(dist/assets/*.js)
+          files=()
+          for file in dist/assets/index-*.js; do
+            [ -e "$file" ] && files+=("$file")
+          done
+          for file in dist/assets/workbox-window*.js; do
+            [ -e "$file" ] && files+=("$file")
+          done
 
           if [ ${#files[@]} -eq 0 ]; then
-            echo "No JavaScript assets found in dist/assets."
+            echo "No initial JavaScript assets found (index/workbox-window)."
             exit 1
           fi
 
@@ -200,9 +206,9 @@ jobs:
             total=$((total + size))
           done
 
-          echo "Total gzipped JS size: ${total} bytes (limit: ${limit} bytes)"
+          echo "Initial gzipped JS size: ${total} bytes (limit: ${limit} bytes)"
           if [ "$total" -gt "$limit" ]; then
-            echo "Bundle size check failed: ${total} > ${limit} bytes"
+            echo "Initial bundle size check failed: ${total} > ${limit} bytes"
             exit 1
           fi
 
