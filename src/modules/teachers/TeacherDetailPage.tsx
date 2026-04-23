@@ -46,6 +46,33 @@ import {
 } from "@/shared/components"
 import { BackIcon, WarningIcon } from "@/shared/components/icons"
 
+const updateTeacherErrorMessages: Record<string, string> = {
+  TEACHER_TYPE_CHANGE_BLOCKED:
+    "Changement de type impossible: tous les salaires du professeur doivent d'abord être marqués comme payés.",
+  HOURLY_RATE_REQUIRED: "Le taux horaire est obligatoire pour un professeur vacataire.",
+  MONTHLY_SALARY_REQUIRED: "Le salaire fixe est obligatoire pour un professeur permanent.",
+  BAD_REQUEST: "Certaines informations sont invalides. Vérifiez le formulaire puis réessayez.",
+}
+
+const resolveUpdateTeacherErrorMessage = (error: unknown): string => {
+  const fallback = "Impossible de mettre à jour les informations"
+  if (!isAxiosError(error)) {
+    return fallback
+  }
+
+  const payload = error.response?.data as { code?: unknown; error?: unknown } | undefined
+  const code = typeof payload?.code === "string" ? payload.code : null
+  if (code && updateTeacherErrorMessages[code]) {
+    return updateTeacherErrorMessages[code]
+  }
+
+  if (typeof payload?.error === "string" && payload.error.trim().length > 0) {
+    return payload.error
+  }
+
+  return fallback
+}
+
 const getCurrentMonth = () => {
   const now = new Date()
   const month = String(now.getMonth() + 1).padStart(2, "0")
@@ -457,14 +484,9 @@ function InfosPanel({ teacherId }: { teacherId: string }) {
       toast({ title: "Informations mises à jour" })
     },
     onError: (error: unknown) => {
-      const errorMessage = "Impossible de mettre à jour les informations"
-      let description = errorMessage
-      if (isAxiosError(error) && typeof error.response?.data?.error === "string") {
-        description = error.response.data.error
-      }
       toast({
         title: "Erreur",
-        description,
+        description: resolveUpdateTeacherErrorMessage(error),
         variant: "destructive",
       })
     },

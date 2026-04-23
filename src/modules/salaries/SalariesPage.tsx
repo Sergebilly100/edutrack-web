@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CalendarDays, ChevronLeft, ChevronRight, Download, Wallet } from "lucide-react"
 
@@ -157,6 +157,7 @@ export default function SalariesPage() {
   const [detailsRow, setDetailsRow] = useState<SalarySummaryItem | null>(null)
   const [vacatairePage, setVacatairePage] = useState(1)
   const [fixedPage, setFixedPage] = useState(1)
+  const lastNotifiedExportJobIdRef = useRef<string | null>(null)
   const pageSize = 10
 
   const monthOptions = useMemo(() => getRecentMonthOptions(getCurrentMonth(), 18), [])
@@ -364,6 +365,24 @@ export default function SalariesPage() {
     }
   }
 
+  useEffect(() => {
+    const exportState = exportJobQuery.data?.state
+    const exportDownloadUrl = exportJobQuery.data?.downloadUrl
+    if (exportState !== "done" || !exportDownloadUrl || !exportJobId) {
+      return
+    }
+
+    if (lastNotifiedExportJobIdRef.current === exportJobId) {
+      return
+    }
+
+    lastNotifiedExportJobIdRef.current = exportJobId
+    toast({
+      title: "Export prêt",
+      description: "Le fichier est prêt. Vous pouvez lancer le téléchargement.",
+    })
+  }, [exportJobId, exportJobQuery.data?.downloadUrl, exportJobQuery.data?.state, toast])
+
   return (
     <>
       <OfflineIndicator />
@@ -566,6 +585,7 @@ export default function SalariesPage() {
                           hoursPlanned: row.hoursPlanned,
                           amountFcfa: row.totalFcfa ?? 0,
                           status,
+                          isPartiallyPaid: row.isPartiallyPaid,
                           statusLabel:
                             row.status === "paid" && row.isPartiallyPaid ? "Payé partiellement" : undefined,
                           statusClassName:
@@ -733,14 +753,30 @@ export default function SalariesPage() {
                     <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
                       <p className="text-xs text-amber-700">Montant fixe mensuel</p>
                       <p className="text-base font-semibold text-amber-900">
-                        {detailsMutation.data.summary.totalFcfa !== null
-                          ? formatFcfa(detailsMutation.data.summary.totalFcfa)
+                        {detailsMutation.data.teacher.monthlySalary !== null
+                          ? formatFcfa(detailsMutation.data.teacher.monthlySalary)
                           : "Non renseigné"}
                       </p>
                     </div>
                   </div>
 
                   <div className="space-y-2 rounded-lg border border-border bg-muted/10 p-3 text-sm">
+                    <p>
+                      Heures restantes prévues:{" "}
+                      <span className="font-semibold">
+                        {formatHours(detailsMutation.data.summary.remainingPlannedHours)}
+                      </span>
+                    </p>
+                    <p>
+                      Taux de présence du mois:{" "}
+                      <span className="font-semibold">
+                        {detailsMutation.data.summary.hoursPlanned > 0
+                          ? `${Math.round(
+                              (detailsMutation.data.summary.hoursDone / detailsMutation.data.summary.hoursPlanned) * 100
+                            )}%`
+                          : "0%"}
+                      </span>
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       Dernier paiement:{" "}
                       {detailsMutation.data.payment.paidAt

@@ -18,6 +18,7 @@ export interface SalaryRowPeriodSummary {
   amountFcfa: number
   status: SalaryStatus
   canMarkPaid?: boolean
+  isPartiallyPaid?: boolean
   statusLabel?: string
   statusClassName?: string
 }
@@ -161,6 +162,16 @@ export function SalaryRow({ teacher, periodSummary, onMarkPaid, onDetails, dataT
       <TableCell className="min-w-[200px]">
         <div className="flex flex-wrap justify-end gap-2">
           {periodSummary.status === "pending" && periodSummary.canMarkPaid ? (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => onMarkPaid(teacher.id)}
+              data-testid={dataTestIdPrefix ? `${dataTestIdPrefix}-mark-paid-${teacher.id}` : undefined}
+            >
+              Marquer payé
+            </Button>
+          ) : null}
+          {periodSummary.status === "paid" && periodSummary.isPartiallyPaid && periodSummary.canMarkPaid ? (
             <Button
               type="button"
               size="sm"

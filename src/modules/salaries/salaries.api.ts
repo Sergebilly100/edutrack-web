@@ -40,6 +40,7 @@ export type SalaryTeacherDetails = {
     name: string
     type: "vacataire" | "permanent"
     hourlyRate: number | null
+    monthlySalary: number | null
   }
   summary: {
     hoursPlanned: number
@@ -223,6 +224,7 @@ export const getTeacherSalaryDetails = async (
       name: asString(teacher.name, "Professeur"),
       type: asString(teacher.type) === "permanent" ? "permanent" : "vacataire",
       hourlyRate: teacher.hourlyRate === null ? null : asNumber(teacher.hourlyRate, 0),
+      monthlySalary: teacher.monthlySalary === null ? null : asNumber(teacher.monthlySalary, 0),
     },
     summary: {
       hoursPlanned: asNumber(summary.hoursPlanned, 0),
