@@ -47,12 +47,12 @@ test.describe("Gestion profs", () => {
 
   test("navigation vers le détail prof", async ({ page }) => {
     await openTeacherDetail(page)
-    await expect(page.getByRole("tab", { name: "Profil" }).first()).toBeVisible()
+    await expect(page.getByRole("tab", { name: "Présences" }).first()).toBeVisible()
   })
 
   test("le blocage d'un prof requiert une raison", async ({ page }) => {
     await openTeacherDetail(page, { activeOnly: true })
-    await expect(page.getByRole("tab", { name: "Profil" }).first()).toBeVisible()
+    await expect(page.getByRole("tab", { name: "Présences" }).first()).toBeVisible()
 
     const blockButton = page.getByRole("button", { name: "Bloquer" }).first()
     await blockButton.scrollIntoViewIfNeeded()

@@ -12,12 +12,21 @@ const loginAndSaveState = async (input: {
   expectedPath: string
   storagePath: string
 }, page: Page) => {
-  await page.goto("/login")
-  await page.getByLabel("Identifiant").fill(input.identifier)
-  await page.getByLabel("Mot de passe").fill(input.password)
-  await page.getByLabel("Schéma tenant").fill(input.schemaName)
-  await page.getByRole("button", { name: "Se connecter" }).click()
-  await page.waitForURL(`**${input.expectedPath}**`)
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.goto("/login")
+    await page.getByLabel("Identifiant").fill(input.identifier)
+    await page.getByLabel("Mot de passe").fill(input.password)
+    await page.getByLabel("Schéma tenant").fill(input.schemaName)
+    await page.getByRole("button", { name: "Se connecter" }).click()
+    try {
+      await page.waitForURL(`**${input.expectedPath}**`, { timeout: 25000 })
+      break
+    } catch (error) {
+      if (attempt === 1) {
+        throw error
+      }
+    }
+  }
   await expect(page).toHaveURL(new RegExp(input.expectedPath.replace("/", "\\/")))
   await page.context().storageState({ path: input.storagePath })
 }

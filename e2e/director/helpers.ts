@@ -4,6 +4,8 @@ type LoginPayload = {
   accessToken: string
 }
 
+let cachedDirectorAuth: { token: string; expiresAt: number } | null = null
+
 type TeacherListItem = {
   id: string
   isBlocked?: boolean
@@ -57,17 +59,31 @@ export const formatMonthLabel = (month: string): string => {
 }
 
 export const loginAsDirectorUI = async (page: Page) => {
-  await page.goto("/login")
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.goto("/login")
+    await page.waitForURL(/\/(login|dashboard|onboarding)(\/|\?|$)/, { timeout: 15000 })
 
-  await page.getByLabel("Identifiant").fill(DIRECTOR_IDENTIFIER)
-  await page.getByLabel("Mot de passe").fill(DIRECTOR_PASSWORD)
-  await page.getByLabel("Schéma tenant").fill(TENANT_SCHEMA)
-  await page.getByRole("button", { name: "Se connecter" }).click()
+    if (page.url().includes("/login")) {
+      await expect(page.getByLabel("Identifiant")).toBeVisible()
+      await page.getByLabel("Identifiant").fill(DIRECTOR_IDENTIFIER)
+      await page.getByLabel("Mot de passe").fill(DIRECTOR_PASSWORD)
+      await page.getByLabel("Schéma tenant").fill(TENANT_SCHEMA)
+      await page.getByRole("button", { name: "Se connecter" }).click()
+    }
 
-  await page.waitForURL(/\/(dashboard|onboarding)/)
+    try {
+      await page.waitForURL(/\/(dashboard|onboarding)(\/|\?|$)/, { timeout: 25000 })
+      break
+    } catch (error) {
+      if (attempt === 1) {
+        throw error
+      }
+    }
+  }
 
   if (page.url().includes("/onboarding")) {
-    await page.goto("/dashboard")
+    await page.getByRole("link", { name: "Dashboard" }).first().click()
+    await page.waitForURL(/\/dashboard(\/|\?|$)/, { timeout: 10000 })
   }
 
   await expect(page).toHaveURL(/\/dashboard/)
@@ -80,6 +96,15 @@ export type DirectorApiAuth = {
 export const createDirectorApiAuth = async (
   request: PlaywrightTestArgs["request"]
 ): Promise<DirectorApiAuth> => {
+  if (cachedDirectorAuth && Date.now() < cachedDirectorAuth.expiresAt) {
+    return {
+      headers: {
+        Authorization: `Bearer ${cachedDirectorAuth.token}`,
+        "x-tenant-schema": TENANT_SCHEMA,
+      },
+    }
+  }
+
   const loginResponse = await request.post(`${API_BASE_URL}/auth/login/teacher`, {
     headers: {
       "x-tenant-schema": TENANT_SCHEMA,
@@ -95,6 +120,10 @@ export const createDirectorApiAuth = async (
   const payload = (await loginResponse.json()) as LoginPayload
   expect(typeof payload.accessToken).toBe("string")
   expect(payload.accessToken.length).toBeGreaterThan(0)
+  cachedDirectorAuth = {
+    token: payload.accessToken,
+    expiresAt: Date.now() + 10 * 60 * 1000,
+  }
 
   return {
     headers: {

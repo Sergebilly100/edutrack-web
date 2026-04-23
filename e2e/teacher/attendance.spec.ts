@@ -2,6 +2,15 @@ import { expect, test } from "@playwright/test"
 
 import { loginAsTeacherUI, mockTeacherFlowApis } from "./helpers"
 
+const markAllStudentsPresent = async (page: import("@playwright/test").Page) => {
+  const presentButtons = page.locator('[data-testid^="teacher-student-present-"]')
+  const count = await presentButtons.count()
+  expect(count).toBeGreaterThan(0)
+  for (let index = 0; index < count; index += 1) {
+    await presentButtons.nth(index).click()
+  }
+}
+
 const openStudentAttendanceStep = async (page: import("@playwright/test").Page) => {
   const { slot } = await mockTeacherFlowApis(page)
 
@@ -10,43 +19,41 @@ const openStudentAttendanceStep = async (page: import("@playwright/test").Page) 
   await page.getByTestId("teacher-checkin-submit").click()
   await expect(page.getByTestId("teacher-checkin-step-2")).toBeVisible()
   await page.getByTestId("teacher-checkin-skip-qr").click()
+  await expect(page.getByText("Faire le pointage des élèves maintenant ?")).toBeVisible()
+  await page.getByRole("button", { name: "Oui, maintenant" }).click()
   await expect(page.getByTestId("teacher-checkin-step-3")).toBeVisible()
 }
 
 test.describe("Appel élèves", () => {
-  test("tous les élèves sont présents par défaut", async ({ page }) => {
+  test("les élèves sont à marquer par défaut", async ({ page }) => {
     await openStudentAttendanceStep(page)
 
-    const firstCheckbox = page.getByRole("checkbox").first()
-    await expect(firstCheckbox).toHaveAttribute("data-state", "checked")
-
-    const allCheckboxes = page.getByRole("checkbox")
-    await expect(allCheckboxes.first()).toBeVisible()
-    const count = await allCheckboxes.count()
-    expect(count).toBeGreaterThan(1)
-
-    for (let index = 0; index < count; index += 1) {
-      await expect(allCheckboxes.nth(index)).toHaveAttribute("data-state", "checked")
-    }
+    await expect(page.getByText(/3 à marquer/i)).toBeVisible()
+    await expect(page.getByTestId("teacher-students-submit")).toBeDisabled()
   })
 
-  test("cocher un absent → décocher → retour présent", async ({ page }) => {
+  test("marquer absent puis présent met à jour les compteurs", async ({ page }) => {
     await openStudentAttendanceStep(page)
 
-    const firstCheckbox = page.getByRole("checkbox").first()
+    const studentId = "student-e2e-1"
+    const absentButton = page.getByTestId(`teacher-student-absent-${studentId}`)
+    const presentButton = page.getByTestId(`teacher-student-present-${studentId}`)
+    const row = page.getByTestId(`teacher-student-row-${studentId}`)
 
-    await firstCheckbox.click()
-    await expect(firstCheckbox).toHaveAttribute("data-state", "unchecked")
+    await absentButton.click()
+    await expect(row).toContainText("Aya Kouamé")
+    await expect(page.getByText(/1 absent/i)).toBeVisible()
 
-    await firstCheckbox.click()
-    await expect(firstCheckbox).toHaveAttribute("data-state", "checked")
+    await presentButton.click()
+    await expect(page.getByText(/0 absent/i)).toBeVisible()
   })
 
   test("soumettre l'appel → confirmation toast", async ({ page }) => {
     await openStudentAttendanceStep(page)
 
+    await markAllStudentsPresent(page)
     await page.getByTestId("teacher-students-submit").click()
 
-    await expect(page.getByText(/Appel enregistré, 0 absent\(s\) notifié\(s\)/i).first()).toBeVisible()
+    await expect(page.getByText(/Appel enregistré — 0 absent\(s\)/i).first()).toBeVisible()
   })
 })

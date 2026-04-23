@@ -87,6 +87,22 @@ export const mockTeacherFlowApis = async (
   const slot: Slot = { ...baseSlot, ...(options.slot ?? {}) }
   const todayKey = toDateKey(new Date())
 
+  await page.route("**/api/v1/auth/refresh*", async (route) => {
+    await route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "UNAUTHORIZED" }),
+    })
+  })
+
+  await page.route("**/api/v1/auth/me*", async (route) => {
+    await route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "UNAUTHORIZED" }),
+    })
+  })
+
   await page.route("**/auth/login/teacher", async (route) => {
     await route.fulfill({
       status: 200,
@@ -107,7 +123,25 @@ export const mockTeacherFlowApis = async (
     })
   })
 
+  await page.route("**/api/v1/permissions/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        permissions: ["attendance.view", "attendance.mark_students"],
+      }),
+    })
+  })
+
   await page.route("**/api/v1/schedule/teacher/me*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: [slot] }),
+    })
+  })
+
+  await page.route("**/api/v1/schedule/teacher/me/week*", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -151,6 +185,19 @@ export const mockTeacherFlowApis = async (
     })
   })
 
+  await page.route("**/api/v1/rooms*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        rooms: [
+          { id: slot.room_id, name: slot.room_name, qr_token: "room-qr-token-e2e" },
+          { id: "room-e2e-b2", name: "Salle B2", qr_token: "room-qr-token-b2" },
+        ],
+      }),
+    })
+  })
+
   await page.route("**/api/v1/attendance/students/bulk", async (route) => {
     await route.fulfill({
       status: 200,
@@ -164,12 +211,18 @@ export const mockTeacherFlowApis = async (
 
 export const loginAsTeacherUI = async (page: Page) => {
   await page.goto("/login")
+  await page.waitForURL(/\/(attendance|login)(\/|\?|$)/, { timeout: 10000 })
 
-  await page.getByLabel("Identifiant").fill(TEACHER_IDENTIFIER)
-  await page.getByLabel("Mot de passe").fill(TEACHER_PASSWORD)
-  await page.getByLabel("Schéma tenant").fill(TENANT_SCHEMA)
-  await page.getByRole("button", { name: "Se connecter" }).click()
+  const hasLoginForm = await page.getByLabel("Identifiant").isVisible({ timeout: 3000 }).catch(() => false)
 
-  await page.waitForURL(/\/attendance/)
+  if (page.url().includes("/login") && hasLoginForm) {
+    await page.getByLabel("Identifiant").fill(TEACHER_IDENTIFIER)
+    await page.getByLabel("Mot de passe").fill(TEACHER_PASSWORD)
+    await page.getByLabel("Schéma tenant").fill(TENANT_SCHEMA)
+    await page.getByRole("button", { name: "Se connecter" }).click()
+  }
+
+  await page.waitForURL(/\/attendance/, { timeout: 15000 })
   await expect(page).toHaveURL(/\/attendance/)
+  await expect(page.getByTestId("teacher-schedule-page")).toBeVisible({ timeout: 15000 })
 }

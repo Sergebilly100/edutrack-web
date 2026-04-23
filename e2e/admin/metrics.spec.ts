@@ -43,7 +43,7 @@ test.describe("Console Super Admin - Métriques", () => {
     await page.getByRole("option", { name: "pro", exact: true }).click()
 
     await page.getByPlaceholder("Rechercher une école").fill(proSchool.schoolName)
-    await expect(page.locator("tbody tr").first()).toContainText(proSchool.schoolName)
+    await expect(page.getByRole("row", { name: new RegExp(proSchool.schoolName) }).first()).toBeVisible()
 
     await page.getByPlaceholder("Rechercher une école").fill(essentialSchool.schoolName)
     await expect(page.getByText("Aucune école trouvée avec ces filtres.", { exact: true })).toBeVisible()

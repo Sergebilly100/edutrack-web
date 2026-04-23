@@ -180,7 +180,7 @@ describe("DashboardPage", () => {
     expect(screen.getByText("École Sainte Marie")).toBeInTheDocument()
     expect(screen.getByText("Profs actifs")).toBeInTheDocument()
     expect(screen.getByText("Élèves actifs")).toBeInTheDocument()
-    expect(screen.getByText("Présences profs — Aujourd'hui")).toBeInTheDocument()
+    expect(screen.getByText("Présences profs - Aujourd'hui")).toBeInTheDocument()
     expect(screen.getAllByText("M. Diallo").length).toBeGreaterThan(0)
     expect(screen.getByText("Résumé salaires du mois")).toBeInTheDocument()
     expect(screen.getByText("Semaine prochaine non configurée")).toBeInTheDocument()

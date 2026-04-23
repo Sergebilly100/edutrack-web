@@ -144,6 +144,11 @@ export default function AdminPage() {
               : "Monitoring multi-tenant et pilotage des écoles."}
           </p>
         </div>
+        {isSchoolsView ? (
+          <Button onClick={() => setCreateModalOpen(true)}>
+            Créer une école
+          </Button>
+        ) : null}
       </header>
 
       {!isSchoolsView ? (

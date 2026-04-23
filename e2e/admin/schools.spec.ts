@@ -2,6 +2,12 @@ import { expect, test } from "@playwright/test"
 
 import { createAdminApiAuth, createSchoolViaApi, loginAsAdminUI } from "./helpers"
 
+const openSchoolsPage = async (page: import("@playwright/test").Page) => {
+  await loginAsAdminUI(page)
+  await page.getByRole("link", { name: "Écoles" }).first().click()
+  await expect(page).toHaveURL(/\/admin\/schools(\/|\?|$)/)
+}
+
 test.describe("Console Super Admin - Écoles", () => {
   test.describe.configure({ mode: "serial" })
 
@@ -9,15 +15,15 @@ test.describe("Console Super Admin - Écoles", () => {
     const auth = await createAdminApiAuth(request)
     const created = await createSchoolViaApi(request, auth, "pro")
 
-    await loginAsAdminUI(page)
+    await openSchoolsPage(page)
     await page.getByPlaceholder("Rechercher une école").fill(created.schoolName)
 
     await expect(page.getByRole("columnheader", { name: "École" })).toBeVisible()
-    await expect(page.locator("tbody tr").first()).toContainText(created.schoolName)
+    await expect(page.getByRole("row", { name: new RegExp(created.schoolName) }).first()).toBeVisible()
   })
 
   test("la création d'une école via le modal fonctionne", async ({ page }) => {
-    await loginAsAdminUI(page)
+    await openSchoolsPage(page)
 
     const uniq = Date.now()
     const schoolName = `E2E Admin School ${uniq}`
@@ -36,6 +42,7 @@ test.describe("Console Super Admin - Écoles", () => {
     await dialog.getByLabel("Nom complet").fill(`Directeur E2E ${uniq}`)
     await dialog.getByLabel("Téléphone").fill(`22507${String(uniq).slice(-8)}`)
     await dialog.getByLabel("Email (optionnel)").fill(`directeur.${uniq}@edutrack.ci`)
+    await dialog.getByLabel("Année scolaire active").fill("2025-2026")
 
     await dialog.getByRole("combobox").nth(1).click()
     await page.getByRole("option", { name: "Pro" }).click()
@@ -48,11 +55,11 @@ test.describe("Console Super Admin - Écoles", () => {
     const response = await responsePromise
 
     expect(response.ok()).toBeTruthy()
-    await expect(page.getByText("École créée", { exact: true }).first()).toBeVisible()
+    await expect(page.getByText("École créée avec succès", { exact: true }).first()).toBeVisible()
   })
 
   test("les credentials directeur sont affichés après création", async ({ page }) => {
-    await loginAsAdminUI(page)
+    await openSchoolsPage(page)
 
     const uniq = Date.now()
     const directorName = `Directeur E2E ${uniq}`
@@ -68,12 +75,16 @@ test.describe("Console Super Admin - Écoles", () => {
     await page.getByRole("option", { name: "Secondaire" }).click()
     await dialog.getByLabel("Nom complet").fill(directorName)
     await dialog.getByLabel("Téléphone").fill(directorPhone)
+    await dialog.getByLabel("Année scolaire active").fill("2025-2026")
 
     await dialog.getByRole("button", { name: "Créer l'école" }).click()
 
-    await expect(page.getByText("Identifiants directeur", { exact: true })).toBeVisible()
-    await expect(page.getByText(`Nom: ${directorName}`, { exact: true })).toBeVisible()
-    await expect(page.getByText(`Téléphone: ${directorPhone}`, { exact: true })).toBeVisible()
+    await expect(page).toHaveURL(/\/admin\/schools\/.+/)
+    await page.getByRole("tab", { name: "Utilisateurs" }).click()
+
+    await expect(page.getByText("Accès responsable", { exact: true })).toBeVisible()
+    await expect(page.getByText(`Nom: ${directorName}`, { exact: false })).toBeVisible()
+    await expect(page.getByText(`Téléphone: ${directorPhone}`, { exact: false })).toBeVisible()
     await expect(page.getByText(/Mot de passe:/)).toBeVisible()
   })
 
@@ -81,7 +92,7 @@ test.describe("Console Super Admin - Écoles", () => {
     const auth = await createAdminApiAuth(request)
     const created = await createSchoolViaApi(request, auth)
 
-    await loginAsAdminUI(page)
+    await openSchoolsPage(page)
     await page.getByPlaceholder("Rechercher une école").fill(created.schoolName)
 
     const row = page.locator("tbody tr").filter({ hasText: created.schoolName }).first()
@@ -97,7 +108,7 @@ test.describe("Console Super Admin - Écoles", () => {
     const auth = await createAdminApiAuth(request)
     const created = await createSchoolViaApi(request, auth, "essential")
 
-    await loginAsAdminUI(page)
+    await openSchoolsPage(page)
     await page.getByPlaceholder("Rechercher une école").fill(created.schoolName)
 
     const row = page.locator("tbody tr").filter({ hasText: created.schoolName }).first()

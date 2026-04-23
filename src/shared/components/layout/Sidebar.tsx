@@ -368,7 +368,7 @@ export function MobileMenuButton() {
       type="button"
       onClick={() => setMobileOpen(true)}
       className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-accent transition-colors"
-      aria-label="Ouvrir le menu"
+      aria-label="Ouvrir le menu de navigation"
     >
       <Menu className="w-5 h-5" />
     </button>

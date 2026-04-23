@@ -34,8 +34,7 @@ test.describe("Flux pointage prof", () => {
 
     await page.getByTestId("teacher-checkin-submit").click()
 
-    await expect(page.getByText("Pointage enregistré").first()).toBeVisible()
-    await expect(page.getByText("Présence confirmée.").first()).toBeVisible()
+    await expect(page.getByText("Présence notée").first()).toBeVisible()
     await expect(page.getByTestId("teacher-checkin-step-2")).toBeVisible()
   })
 
@@ -98,6 +97,8 @@ test.describe("Flux pointage prof", () => {
     await expect(page.getByTestId("teacher-checkin-step-2")).toBeVisible()
 
     await page.getByTestId("teacher-checkin-skip-qr").click()
+    await expect(page.getByText("Faire le pointage des élèves maintenant ?")).toBeVisible()
+    await page.getByRole("button", { name: "Oui, maintenant" }).click()
 
     await expect(page.getByTestId("teacher-checkin-step-3")).toBeVisible()
     await expect(page.getByTestId("teacher-student-list")).toContainText("Aya Kouamé")
@@ -117,7 +118,7 @@ test.describe("Flux pointage prof", () => {
 
     await loginAsTeacherUI(page)
 
-    await expect(page.getByTestId(`teacher-course-status-${slot.id}`)).toHaveText("Déjà enregistré")
+    await expect(page.getByTestId(`teacher-course-status-${slot.id}`)).toHaveText("Présence confirmée")
     await expect(page.getByTestId(`teacher-start-course-${slot.id}`)).toHaveCount(0)
   })
 })

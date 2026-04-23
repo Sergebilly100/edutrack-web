@@ -52,6 +52,7 @@ test.describe("Page salaires", () => {
 
   test("l'export PDF est queué (bouton télécharger apparaît)", async ({ page }) => {
     await page.getByTestId("salaries-export-school-button").click()
+    await page.getByRole("dialog", { name: "Exporter le bilan" }).getByRole("button", { name: "Générer" }).click()
 
     await expect(page.getByTestId("salaries-export-job-panel")).toBeVisible()
     await expect(page.getByTestId("salaries-export-download-link")).toBeVisible({ timeout: 45000 })

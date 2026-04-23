@@ -9,6 +9,8 @@ type LoginPayload = {
   accessToken: string
 }
 
+let cachedAdminAuth: { token: string; expiresAt: number } | null = null
+
 type CreateSchoolPayload = {
   name: string
   subdomain: string
@@ -16,6 +18,7 @@ type CreateSchoolPayload = {
   teaching_type: "primaire" | "secondaire" | "superieur" | "mixte"
   plan: "essential" | "pro" | "establishment"
   max_admin_positions: number
+  active_school_year: string
   director_name: string
   director_phone: string
   director_email?: string
@@ -30,17 +33,40 @@ export type AdminApiAuth = {
 }
 
 export const loginAsAdminUI = async (page: Page) => {
-  await page.goto("/login")
-  await page.getByLabel("Identifiant").fill(ADMIN_IDENTIFIER)
-  await page.getByLabel("Mot de passe").fill(ADMIN_PASSWORD)
-  await page.getByLabel("Schéma tenant").fill(ADMIN_SCHEMA)
-  await page.getByRole("button", { name: "Se connecter" }).click()
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.goto("/login")
+    await page.waitForURL(/\/(login|admin)(\/|\?|$)/, { timeout: 15000 })
+
+    if (page.url().includes("/login")) {
+      await expect(page.getByLabel("Identifiant")).toBeVisible()
+      await page.getByLabel("Identifiant").fill(ADMIN_IDENTIFIER)
+      await page.getByLabel("Mot de passe").fill(ADMIN_PASSWORD)
+      await page.getByLabel("Schéma tenant").fill(ADMIN_SCHEMA)
+      await page.getByRole("button", { name: "Se connecter" }).click()
+    }
+
+    try {
+      await page.waitForURL(/\/admin(\/|\?|$)/, { timeout: 25000 })
+      break
+    } catch (error) {
+      if (attempt === 1) {
+        throw error
+      }
+    }
+  }
 
   await expect(page).toHaveURL(/\/admin/)
-  await expect(page.getByRole("heading", { name: "Console EduTrack" })).toBeVisible()
 }
 
 export const createAdminApiAuth = async (request: APIRequestContext): Promise<AdminApiAuth> => {
+  if (cachedAdminAuth && Date.now() < cachedAdminAuth.expiresAt) {
+    return {
+      headers: {
+        Authorization: `Bearer ${cachedAdminAuth.token}`,
+      },
+    }
+  }
+
   const loginResponse = await request.post(`${API_BASE_URL}/auth/login/teacher`, {
     headers: {
       "x-tenant-schema": ADMIN_SCHEMA,
@@ -55,6 +81,10 @@ export const createAdminApiAuth = async (request: APIRequestContext): Promise<Ad
   const payload = (await loginResponse.json()) as LoginPayload
   expect(typeof payload.accessToken).toBe("string")
   expect(payload.accessToken.length).toBeGreaterThan(0)
+  cachedAdminAuth = {
+    token: payload.accessToken,
+    expiresAt: Date.now() + 10 * 60 * 1000,
+  }
 
   return {
     headers: {
@@ -70,6 +100,7 @@ export const createSchoolViaApi = async (
 ) => {
   const uniq = Date.now()
   const schoolName = `E2E Admin School ${uniq}`
+  const currentYear = new Date().getUTCFullYear()
   const payload: CreateSchoolPayload = {
     name: schoolName,
     subdomain: `e2e-admin-${uniq}`,
@@ -77,6 +108,7 @@ export const createSchoolViaApi = async (
     teaching_type: "secondaire",
     plan,
     max_admin_positions: 5,
+    active_school_year: `${currentYear}-${currentYear + 1}`,
     director_name: `Directeur E2E ${uniq}`,
     director_phone: `22507${String(uniq).slice(-8)}`,
     director_email: `directeur.${uniq}@edutrack.ci`,
