@@ -211,18 +211,20 @@ export const mockTeacherFlowApis = async (
 
 export const loginAsTeacherUI = async (page: Page) => {
   await page.goto("/login")
-  await page.waitForURL(/\/(attendance|login)(\/|\?|$)/, { timeout: 10000 })
+  await page.waitForURL(/\/(attendance|login)(\/|\?|$)/, { timeout: 15000 })
 
-  const hasLoginForm = await page.getByLabel("Identifiant").isVisible({ timeout: 3000 }).catch(() => false)
+  if (page.url().includes("/login")) {
+    await expect(page.getByLabel("Identifiant")).toBeVisible({ timeout: 15000 })
+    await expect(page.getByLabel("Mot de passe")).toBeVisible({ timeout: 15000 })
+    await expect(page.getByLabel("Schéma tenant")).toBeVisible({ timeout: 15000 })
 
-  if (page.url().includes("/login") && hasLoginForm) {
     await page.getByLabel("Identifiant").fill(TEACHER_IDENTIFIER)
     await page.getByLabel("Mot de passe").fill(TEACHER_PASSWORD)
     await page.getByLabel("Schéma tenant").fill(TENANT_SCHEMA)
     await page.getByRole("button", { name: "Se connecter" }).click()
   }
 
-  await page.waitForURL(/\/attendance/, { timeout: 15000 })
+  await page.waitForURL(/\/attendance(\/|\?|$)/, { timeout: 20000 })
   await expect(page).toHaveURL(/\/attendance/)
   await expect(page.getByTestId("teacher-schedule-page")).toBeVisible({ timeout: 15000 })
 }
