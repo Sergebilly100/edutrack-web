@@ -13,17 +13,11 @@ import {
 import { logout } from "@/modules/auth/auth.api"
 import { cn } from "@/lib/utils"
 import { LogoutIcon, UserIcon } from "@/shared/components/icons"
+import { getUserRoleLabel } from "@/shared/lib/user-role-label"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 interface UserMenuProps {
   collapsed?: boolean
-}
-
-const roleLabels: Record<string, string> = {
-  director: "Directeur",
-  staff: "Staff",
-  teacher: "Professeur",
-  super_admin: "Super admin",
 }
 
 function getInitials(name: string): string {
@@ -44,7 +38,7 @@ export function UserMenu({ collapsed = false }: UserMenuProps) {
   const logoutStore = useAuthStore((state) => state.logout)
 
   const userName = user?.name ?? "Utilisateur"
-  const userRole = roleLabels[user?.role ?? ""] ?? "Rôle inconnu"
+  const userRole = getUserRoleLabel(user)
 
   const avatarStyle = useMemo(
     () => ({

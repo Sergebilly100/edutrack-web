@@ -66,6 +66,8 @@ function DashboardRoute() {
             phone: string | null
             email: string | null
             profilePhotoUrl: string | null
+            positionNames?: string[]
+            primaryPosition?: string | null
           }
         }>("/auth/me", {
           baseURL: import.meta.env.VITE_API_URL,
@@ -94,6 +96,10 @@ function DashboardRoute() {
           phone: meResponse.data.user.phone,
           email: meResponse.data.user.email,
           profilePhotoUrl: meResponse.data.user.profilePhotoUrl,
+          positionNames: Array.isArray(meResponse.data.user.positionNames)
+            ? meResponse.data.user.positionNames
+            : [],
+          primaryPosition: meResponse.data.user.primaryPosition ?? null,
           tenantId: schemaName,
           schemaName,
           plan: "standard",

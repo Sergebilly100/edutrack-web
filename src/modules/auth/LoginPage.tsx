@@ -49,6 +49,8 @@ export default function LoginPage() {
         phone: result.user.phone,
         email: result.user.email,
         profilePhotoUrl: result.user.profilePhotoUrl,
+        positionNames: Array.isArray(result.user.positionNames) ? result.user.positionNames : [],
+        primaryPosition: result.user.primaryPosition ?? null,
         tenantId: schemaName || 'default-tenant',
         schemaName: schemaName || 'public',
         plan: 'standard',

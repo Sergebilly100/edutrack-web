@@ -3,23 +3,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils"
 import { MoonIcon, SunIcon } from "@/shared/components/icons"
 import { useTheme } from "@/shared/hooks/useTheme"
-import type { Theme } from "@/shared/providers/ThemeProvider"
-
-const themeCycle: Theme[] = ["light", "dark", "system"]
-
-const themeLabelMap: Record<Theme, string> = {
-  light: "Clair",
-  dark: "Sombre",
-  system: "Système",
-}
 
 export function ThemeToggle({ className }: { className?: string }) {
-  const { theme, resolvedTheme, setTheme } = useTheme()
-
-  const currentThemeIndex = themeCycle.indexOf(theme)
-  const nextTheme = themeCycle[(currentThemeIndex + 1) % themeCycle.length]
-
-  const tooltipLabel = `Thème ${themeLabelMap[theme]}${theme === "system" ? ` (${resolvedTheme === "dark" ? "sombre" : "clair"})` : ""}`
+  const { resolvedTheme, setTheme } = useTheme()
+  const isDark = resolvedTheme === "dark"
+  const nextTheme = isDark ? "light" : "dark"
+  const tooltipLabel = `Thème ${isDark ? "sombre" : "clair"}`
 
   return (
     <Tooltip>
@@ -30,9 +19,9 @@ export function ThemeToggle({ className }: { className?: string }) {
           size="icon"
           className={cn("shrink-0", className)}
           onClick={() => setTheme(nextTheme)}
-          aria-label={`Basculer le thème (actuel: ${themeLabelMap[theme]}, prochain: ${themeLabelMap[nextTheme]})`}
+          aria-label={`Basculer le thème (actuel: ${isDark ? "Sombre" : "Clair"}, prochain: ${isDark ? "Clair" : "Sombre"})`}
         >
-          {resolvedTheme === "dark" ? (
+          {isDark ? (
             <MoonIcon className="animate-in fade-in zoom-in-75 duration-150" />
           ) : (
             <SunIcon className="animate-in fade-in zoom-in-75 duration-150" />

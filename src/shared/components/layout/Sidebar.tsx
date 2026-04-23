@@ -41,6 +41,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils"
 import { logout as logoutApi } from "@/modules/auth/auth.api"
 import { useTheme } from "@/shared/hooks/useTheme"
+import { getUserRoleLabel } from "@/shared/lib/user-role-label"
 import { isStaffRole, type AuthRole, type PermissionKey } from "@/shared/store/auth.store"
 import { useAuthStore } from "@/shared/store/auth.store"
 import { useSidebarStore } from "@/shared/store/sidebar.store"
@@ -53,6 +54,7 @@ type NavItem = {
   href: string
   roles: UserRole[]
   requiredPermissions?: PermissionKey[]
+  requiredAnyPermissions?: PermissionKey[]
   matchExact?: boolean
 }
 
@@ -93,7 +95,7 @@ const navItems: NavItem[] = [
     icon: Settings2,
     href: "/settings",
     roles: ["director", "staff"],
-    requiredPermissions: ["settings.sms_templates"],
+    requiredAnyPermissions: ["settings.positions", "settings.school", "settings.sms_templates"],
   },
   {
     label: "Dashboard",
@@ -115,12 +117,23 @@ function canAccessItem(item: NavItem, role: UserRole, permissions: PermissionKey
     return false
   }
 
-  if (!isStaffRole(role) || !item.requiredPermissions || item.requiredPermissions.length === 0) {
+  if (!isStaffRole(role)) {
     return true
   }
 
   const permissionSet = new Set<PermissionKey>(permissions)
-  return item.requiredPermissions.every((permission) => permissionSet.has(permission))
+  if (item.requiredPermissions && item.requiredPermissions.length > 0) {
+    const hasAll = item.requiredPermissions.every((permission) => permissionSet.has(permission))
+    if (!hasAll) {
+      return false
+    }
+  }
+
+  if (item.requiredAnyPermissions && item.requiredAnyPermissions.length > 0) {
+    return item.requiredAnyPermissions.some((permission) => permissionSet.has(permission))
+  }
+
+  return true
 }
 
 function isSidebarRole(role: AuthRole | undefined): role is UserRole {
@@ -297,7 +310,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
               )}
             >
               <p className="truncate text-sm font-medium leading-none">{user?.name}</p>
-              <p className="truncate text-xs text-muted-foreground capitalize">{user?.role}</p>
+              <p className="truncate text-xs text-muted-foreground">{getUserRoleLabel(user)}</p>
             </div>
           </button>
         </DropdownMenuTrigger>

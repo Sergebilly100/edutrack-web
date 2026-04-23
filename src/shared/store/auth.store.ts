@@ -11,6 +11,8 @@ export type AuthUser = {
   phone: string | null
   email: string | null
   profilePhotoUrl: string | null
+  positionNames?: string[]
+  primaryPosition?: string | null
   tenantId: string
   schemaName: string
   plan: string
