@@ -91,6 +91,7 @@ export default function SchoolConfigPanel() {
 
   const [maxAdminPositions, setMaxAdminPositions] = useState("0")
   const [logoUrlDraft, setLogoUrlDraft] = useState("")
+  const [allowTeacherQrSkipDraft, setAllowTeacherQrSkipDraft] = useState(false)
 
   useEffect(() => {
     if (!schoolConfigQuery.data) {
@@ -99,15 +100,17 @@ export default function SchoolConfigPanel() {
 
     setMaxAdminPositions(String(schoolConfigQuery.data.limits.maxAdminPositions))
     setLogoUrlDraft(schoolConfigQuery.data.school.logoUrl ?? "")
+    setAllowTeacherQrSkipDraft(Boolean(schoolConfigQuery.data.school.allowTeacherQrSkip))
   }, [schoolConfigQuery.data])
 
   const saveSchoolInfoMutation = useMutation({
-    mutationFn: (payload: { logoUrl: string | null }) =>
+    mutationFn: (payload: { logoUrl: string | null; allowTeacherQrSkip: boolean }) =>
       updateSchoolInfo({
         name: school?.name ?? "",
         city: school?.city ?? "",
         teachingType: school?.teachingType ?? "general",
         logoUrl: payload.logoUrl,
+        allowTeacherQrSkip: payload.allowTeacherQrSkip,
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY })
@@ -568,9 +571,40 @@ export default function SchoolConfigPanel() {
                     variant="outline"
                     className="w-full"
                     disabled={saveSchoolInfoMutation.isPending || !school}
-                    onClick={() => saveSchoolInfoMutation.mutate({ logoUrl: logoUrlDraft || null })}
+                    onClick={() =>
+                      saveSchoolInfoMutation.mutate({
+                        logoUrl: logoUrlDraft || null,
+                        allowTeacherQrSkip: allowTeacherQrSkipDraft,
+                      })
+                    }
                   >
                     {saveSchoolInfoMutation.isPending ? "Sauvegarde..." : "Enregistrer"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <div className="mt-5 rounded-lg border border-border bg-background p-4">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-medium">Pointage enseignant: scan QR facultatif</p>
+                  <p className="text-xs text-muted-foreground">
+                    Si activé, le bouton « Passer cette étape » apparaît au démarrage et à la fin du cours.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant={allowTeacherQrSkipDraft ? "default" : "outline"}
+                    onClick={() => setAllowTeacherQrSkipDraft(true)}
+                  >
+                    Activé
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={!allowTeacherQrSkipDraft ? "default" : "outline"}
+                    onClick={() => setAllowTeacherQrSkipDraft(false)}
+                  >
+                    Désactivé
                   </Button>
                 </div>
               </div>

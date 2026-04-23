@@ -40,6 +40,7 @@ export type SchoolConfigData = {
     logoUrl: string | null
     activeSchoolYear: string | null
     canEditSmsTemplate: boolean
+    allowTeacherQrSkip: boolean
   }
   limits: {
     maxAdminPositions: number
@@ -190,6 +191,9 @@ const parseConfigEnvelope = (value: unknown): SchoolConfigData => {
       logoUrl: asNullableString(schoolRaw.logoUrl ?? schoolRaw.logo_url),
       activeSchoolYear: asNullableString(schoolRaw.activeSchoolYear ?? schoolRaw.active_school_year),
       canEditSmsTemplate: Boolean(schoolRaw.canEditSmsTemplate ?? schoolRaw.can_edit_sms_template),
+      allowTeacherQrSkip: Boolean(
+        schoolRaw.allowTeacherQrSkip ?? schoolRaw.allow_teacher_qr_skip
+      ),
     },
     limits: {
       maxAdminPositions: asNumber(limitsRaw.max_admin_positions ?? limitsRaw.maxAdminPositions, 0),
@@ -221,6 +225,7 @@ const parseSchoolInfo = (value: unknown): SchoolConfigData["school"] => {
     logoUrl: asNullableString(payload.logoUrl ?? payload.logo_url),
     activeSchoolYear: asNullableString(payload.activeSchoolYear ?? payload.active_school_year),
     canEditSmsTemplate: false,
+    allowTeacherQrSkip: false,
   }
 }
 
@@ -272,6 +277,7 @@ export const updateSchoolInfo = async (payload: {
   city: string
   teachingType: TeachingType
   logoUrl?: string | null
+  allowTeacherQrSkip?: boolean
 }): Promise<void> => {
   try {
     await apiClient.patch("/permissions/config/school", {
@@ -279,6 +285,9 @@ export const updateSchoolInfo = async (payload: {
       city: payload.city,
       teachingType: payload.teachingType,
       ...(payload.logoUrl !== undefined ? { logoUrl: payload.logoUrl } : {}),
+      ...(payload.allowTeacherQrSkip !== undefined
+        ? { allowTeacherQrSkip: payload.allowTeacherQrSkip }
+        : {}),
     })
   } catch {
     await apiClient.patch("/school/info", {

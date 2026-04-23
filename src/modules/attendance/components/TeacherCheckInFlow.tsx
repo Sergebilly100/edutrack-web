@@ -130,6 +130,16 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
   const submitStudentsMutation = useMutation({
     mutationFn: teacherScheduleApi.submitStudentAttendance,
   })
+  const qrSkipMutation = useOfflineMutation(teacherScheduleApi.skipQr, {
+    queueKey: "attendance-qr-skip",
+  })
+  const attendancePolicyQuery = useQuery({
+    queryKey: ["attendance-policy", "teacher"],
+    queryFn: teacherScheduleApi.getTeacherAttendancePolicy,
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 30,
+  })
+  const canSkipQrStep = attendancePolicyQuery.data?.allow_teacher_qr_skip ?? false
 
   const { absentCount, presentCount, unmarkedCount } = useMemo(() => {
     let absent = 0; let present = 0; let unmarked = 0
@@ -220,6 +230,10 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
 
   // Passer l'étape QR sans scanner (bouton "Passer cette étape")
   const handleSkipQr = async () => {
+    if (!canSkipQrStep) {
+      return
+    }
+
     // Le prof saute le QR : on envoie quand même le checkIn si pas encore fait
     if (checkInScheduled && !checkInMutation.isSuccess) {
       try {
@@ -236,6 +250,24 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
         })
       }
     }
+
+    try {
+      await qrSkipMutation.mutateAsync({
+        scan_type: "start",
+        schedule_id: slot.id,
+        date: attendanceDate,
+      })
+      setQrWarning(null)
+      setQrValidated(true)
+    } catch {
+      toast({
+        title: "Échec du bypass QR",
+        description: "Impossible de valider le bypass QR pour le moment.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setShowRollCallPrompt(true)
   }
 
@@ -353,6 +385,30 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
       toast({
         title: "Échec de la clôture",
         description: "Impossible d'enregistrer la fin du cours.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleFinishCourseWithoutQr = async () => {
+    if (!canSkipQrStep) {
+      return
+    }
+
+    try {
+      await qrSkipMutation.mutateAsync({
+        scan_type: "end",
+        schedule_id: slot.id,
+        date: attendanceDate,
+      })
+      rollCallStore.markDone(slot.id, attendanceDate)
+      toast({ title: "Cours terminé", description: "Fin du cours validée sans scan QR." })
+      void queryClient.invalidateQueries({ queryKey: ["teacher-attendance", attendanceDate] })
+      onClose()
+    } catch {
+      toast({
+        title: "Échec de la clôture",
+        description: "Impossible de terminer le cours sans scan QR.",
         variant: "destructive",
       })
     }
@@ -505,16 +561,18 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                 </Badge>
               ) : null}
 
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                data-testid="teacher-checkin-skip-qr"
-                disabled={checkInMutation.isPending}
-                onClick={() => { void handleSkipQr() }}
-              >
-                Passer cette étape
-              </Button>
+              {canSkipQrStep ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  data-testid="teacher-checkin-skip-qr"
+                  disabled={checkInMutation.isPending || qrSkipMutation.isPending}
+                  onClick={() => { void handleSkipQr() }}
+                >
+                  Passer cette étape
+                </Button>
+              ) : null}
             </section>
           ) : null}
 
@@ -684,6 +742,19 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                   </Button>
                 </div>
               </div>
+
+              {canSkipQrStep ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  data-testid="teacher-finish-skip-qr"
+                  disabled={qrSkipMutation.isPending}
+                  onClick={() => { void handleFinishCourseWithoutQr() }}
+                >
+                  Passer cette étape
+                </Button>
+              ) : null}
             </section>
           ) : null}
         </SheetContent>

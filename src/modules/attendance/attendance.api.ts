@@ -9,6 +9,11 @@ export type QrScanPayload = {
   schedule_id: string
 }
 export type QrScanResponse = { room_mismatch?: boolean }
+export type QrSkipPayload = {
+  scan_type: "start" | "end"
+  schedule_id: string
+  date?: string
+}
 
 export type BulkStudentsPayload = {
   schedule_id: string
@@ -19,6 +24,9 @@ export type BulkStudentsResponse = { success: boolean }
 
 export type StudentItem = { id: string; full_name: string }
 export type RoomItem = { id: string; name: string; qr_token: string }
+export type TeacherAttendancePolicy = {
+  allow_teacher_qr_skip: boolean
+}
 
 export type ScheduleSlot = {
   id: string
@@ -51,6 +59,9 @@ const toString = (value: unknown, fallback = ""): string =>
 
 const toNumber = (value: unknown, fallback = 0): number =>
   typeof value === "number" ? value : fallback
+
+const toBoolean = (value: unknown, fallback = false): boolean =>
+  typeof value === "boolean" ? value : fallback
 
 const toAttendanceStatus = (
   value: unknown
@@ -198,6 +209,27 @@ export const teacherScheduleApi = {
     }
   },
 
+  skipQr: async (body: {
+    scan_type: "start" | "end"
+    schedule_id: string
+    date?: string
+  }) => {
+    await api.post("/attendance/qr-skip", body)
+    return { success: true as const }
+  },
+
+  getTeacherAttendancePolicy: async (): Promise<TeacherAttendancePolicy> => {
+    const response = await api.get<unknown>("/school/info")
+    const payload = toRecord(response.data)
+
+    return {
+      allow_teacher_qr_skip: toBoolean(
+        payload.allow_teacher_qr_skip ?? payload.allowTeacherQrSkip,
+        false
+      ),
+    }
+  },
+
   submitStudentAttendance: async (body: {
     schedule_id: string
     date: string
@@ -252,6 +284,9 @@ export const qrScan = (payload: QrScanPayload) =>
     .then((r) => ({
       room_mismatch: r.data?.data?.roomMismatch ?? r.data?.room_mismatch ?? false,
     }))
+
+export const qrSkip = (payload: QrSkipPayload) =>
+  api.post("/attendance/qr-skip", payload).then(() => ({ success: true as const }))
 
 export const bulkStudents = (payload: BulkStudentsPayload) =>
   api
