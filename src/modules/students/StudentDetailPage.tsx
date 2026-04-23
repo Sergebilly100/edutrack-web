@@ -201,7 +201,7 @@ export default function StudentDetailPage() {
       actions={
         <Button variant="outline" onClick={() => navigate(returnTo)}>
           <BackIcon className="mr-2 h-4 w-4" />
-          Retour liste
+          Retour
         </Button>
       }
     >
@@ -222,70 +222,13 @@ export default function StudentDetailPage() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="informations" className="space-y-4">
+      <Tabs defaultValue="absences" className="space-y-4">
         <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
-          <TabsTrigger value="informations">Informations</TabsTrigger>
           <TabsTrigger value="absences">Absences</TabsTrigger>
+          <TabsTrigger value="informations">Informations</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="sms">SMS Parents</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="informations" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Contacts parents</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-2 md:grid-cols-2">
-                <Input value={parentName} onChange={(event) => setParentName(event.target.value)} placeholder="Nom parent 1" />
-                <div className="flex gap-2">
-                  <Input value={parentPhone} onChange={(event) => setParentPhone(event.target.value)} placeholder="Téléphone parent 1" />
-                  <Button type="button" variant="outline" asChild disabled={!parentPhone.trim()}>
-                    <a href={parentPhone.trim() ? `tel:${parentPhone.trim()}` : undefined}>
-                      <Phone className="h-4 w-4" />
-                    </a>
-                  </Button>
-                </div>
-              </div>
-
-              <div className="grid gap-2 md:grid-cols-2">
-                <Input value={parentName2} onChange={(event) => setParentName2(event.target.value)} placeholder="Nom parent 2" />
-                <div className="flex gap-2">
-                  <Input value={parentPhone2} onChange={(event) => setParentPhone2(event.target.value)} placeholder="Téléphone parent 2" />
-                  <Button type="button" variant="outline" asChild disabled={!parentPhone2.trim()}>
-                    <a href={parentPhone2.trim() ? `tel:${parentPhone2.trim()}` : undefined}>
-                      <Phone className="h-4 w-4" />
-                    </a>
-                  </Button>
-                </div>
-              </div>
-
-              <Button type="button" onClick={() => saveContactsMutation.mutate()} disabled={saveContactsMutation.isPending}>
-                {saveContactsMutation.isPending ? "Enregistrement..." : "Modifier les contacts"}
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Note libre</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <textarea
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                rows={6}
-                placeholder="Ajouter une note sur cet élève..."
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
-              <p className="text-xs text-muted-foreground">
-                {noteStatus === "saving" ? "Sauvegarde..." : ""}
-                {noteStatus === "saved" ? "Sauvegardé" : ""}
-                {noteStatus === "error" ? "Erreur de sauvegarde" : ""}
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         <TabsContent value="absences" className="space-y-4">
           <div className="grid gap-3 md:grid-cols-3">
@@ -386,6 +329,63 @@ export default function StudentDetailPage() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="informations" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Contacts parents</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-2 md:grid-cols-2">
+                <Input value={parentName} onChange={(event) => setParentName(event.target.value)} placeholder="Nom parent 1" />
+                <div className="flex gap-2">
+                  <Input value={parentPhone} onChange={(event) => setParentPhone(event.target.value)} placeholder="Téléphone parent 1" />
+                  <Button type="button" variant="outline" asChild disabled={!parentPhone.trim()}>
+                    <a href={parentPhone.trim() ? `tel:${parentPhone.trim()}` : undefined}>
+                      <Phone className="h-4 w-4" />
+                    </a>
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-2">
+                <Input value={parentName2} onChange={(event) => setParentName2(event.target.value)} placeholder="Nom parent 2" />
+                <div className="flex gap-2">
+                  <Input value={parentPhone2} onChange={(event) => setParentPhone2(event.target.value)} placeholder="Téléphone parent 2" />
+                  <Button type="button" variant="outline" asChild disabled={!parentPhone2.trim()}>
+                    <a href={parentPhone2.trim() ? `tel:${parentPhone2.trim()}` : undefined}>
+                      <Phone className="h-4 w-4" />
+                    </a>
+                  </Button>
+                </div>
+              </div>
+
+              <Button type="button" onClick={() => saveContactsMutation.mutate()} disabled={saveContactsMutation.isPending}>
+                {saveContactsMutation.isPending ? "Enregistrement..." : "Modifier les contacts"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Note libre</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <textarea
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                rows={6}
+                placeholder="Ajouter une note sur cet élève..."
+                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+              <p className="text-xs text-muted-foreground">
+                {noteStatus === "saving" ? "Sauvegarde..." : ""}
+                {noteStatus === "saved" ? "Sauvegardé" : ""}
+                {noteStatus === "error" ? "Erreur de sauvegarde" : ""}
+              </p>
             </CardContent>
           </Card>
         </TabsContent>

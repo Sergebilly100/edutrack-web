@@ -652,7 +652,7 @@ export default function TeacherDetailPage() {
           }}
         >
           <BackIcon className="mr-2 h-4 w-4" />
-          Retour liste
+          Retour
         </Button>
       }
     >

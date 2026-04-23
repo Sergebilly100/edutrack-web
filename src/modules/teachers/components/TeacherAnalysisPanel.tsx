@@ -60,7 +60,7 @@ export default function TeacherAnalysisPanel() {
       "Heures effectuées",
       "Heures prévues",
       "Retards",
-      "Mismatch salle",
+      "Salle incorrecte",
       "Pointage élèves manquant",
     ]
     const rows = (statsQuery.data ?? []).map((row) =>
@@ -129,7 +129,7 @@ export default function TeacherAnalysisPanel() {
                 <SelectContent>
                   <SelectItem value="all">Tous</SelectItem>
                   <SelectItem value="absent">Absences</SelectItem>
-                  <SelectItem value="room_mismatch">Mismatch salle</SelectItem>
+                  <SelectItem value="room_mismatch">Salle incorrecte</SelectItem>
                   <SelectItem value="rollcall_missing">Pointage manquant</SelectItem>
                   <SelectItem value="late">Retards</SelectItem>
                 </SelectContent>

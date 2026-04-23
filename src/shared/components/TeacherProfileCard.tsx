@@ -138,9 +138,9 @@ export function TeacherProfileCard({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={() => onViewDocuments(teacher.id)} className="flex-1">
+          {/* <Button type="button" variant="outline" onClick={() => onViewDocuments(teacher.id)} className="flex-1">
             Voir documents
-          </Button>
+          </Button> */}
 
           {isBlocked ? (
             <Button

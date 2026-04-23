@@ -400,15 +400,14 @@ export default function AdminSchoolDetailPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <KeyRound className="h-4 w-4" />
-                  Accès responsable
+                  Responsable
                 </CardTitle>
-                <CardDescription>Identifiants de connexion du responsable école.</CardDescription>
+                <CardDescription>Informations du responsable école.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <p>Nom: <strong>{schoolUsersQuery.data?.director?.name ?? "-"}</strong></p>
                 <p>Téléphone: <strong>{schoolUsersQuery.data?.director?.phone ?? "-"}</strong></p>
                 <p>Email: <strong>{schoolUsersQuery.data?.director?.email ?? "-"}</strong></p>
-                <p>Mot de passe: <strong>{createdDirectorCredentials?.password ?? "Non affiché (réinitialisation nécessaire)"}</strong></p>
               </CardContent>
             </Card>
 
