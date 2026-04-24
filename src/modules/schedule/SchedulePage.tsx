@@ -4,6 +4,16 @@ import { isAxiosError } from "axios"
 import { Navigate } from "react-router-dom"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,6 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useToast } from "@/components/ui/use-toast"
 import { getTeachers } from "@/modules/teachers/teachers.api"
 import { OfflineIndicator, WeekCoverageAlert } from "@/shared/components"
@@ -257,6 +268,8 @@ const createOptimisticSchedule = (
     schedulePeriodId: payload.schedulePeriodId,
     dayOfWeek: payload.dayOfWeek,
     subject: payload.subject,
+    pastAttendanceCount: 0,
+    hasPastAttendance: false,
     teacher,
     class: klass,
     room,
@@ -430,6 +443,7 @@ export default function SchedulePage() {
 
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleRow | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [editingSchedule, setEditingSchedule] = useState<ScheduleRow | null>(null)
   const [formState, setFormState] = useState<SlotFormState>(emptyFormState)
@@ -955,17 +969,58 @@ export default function SchedulePage() {
           {canEditSchedule && selectedSchedule ? (
             <DialogFooter className="gap-2 sm:justify-between">
               <Button variant="destructive"
-                onClick={() => void deleteMutation.mutateAsync(selectedSchedule.id)}
+                onClick={() => setConfirmDeleteOpen(true)}
                 disabled={deleteMutation.isPending}>
                 <DeleteIcon className="mr-2 h-4 w-4" />Supprimer
               </Button>
-              <Button variant="outline" onClick={() => openEditModal(selectedSchedule)}>
-                <EditIcon className="mr-2 h-4 w-4" />Modifier
-              </Button>
+              {selectedSchedule.hasPastAttendance ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline" onClick={() => openEditModal(selectedSchedule)}>
+                        <EditIcon className="mr-2 h-4 w-4" />Modifier
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      Ce créneau a un historique. La modification créera une nouvelle version à partir de demain.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                <Button variant="outline" onClick={() => openEditModal(selectedSchedule)}>
+                  <EditIcon className="mr-2 h-4 w-4" />Modifier
+                </Button>
+              )}
             </DialogFooter>
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce créneau ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedSchedule?.hasPastAttendance
+                ? `Ce créneau sera désactivé à partir d'aujourd'hui. L'historique des ${selectedSchedule.pastAttendanceCount} cours passés sera conservé.`
+                : "Ce créneau sera supprimé définitivement."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!selectedSchedule) return
+                void deleteMutation.mutateAsync(selectedSchedule.id)
+                setConfirmDeleteOpen(false)
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Suppression..." : "Confirmer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ── Dialog formulaire ────────────────────────────────────────────── */}
       <Dialog

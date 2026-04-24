@@ -45,6 +45,8 @@ export type ScheduleRow = {
   schedulePeriodId: string
   dayOfWeek: number
   subject: string
+  pastAttendanceCount: number
+  hasPastAttendance: boolean
   teacher: {
     id: string
     name: string
@@ -149,6 +151,8 @@ const ScheduleRowSchema = z.object({
   schedulePeriodId: z.string(),
   dayOfWeek: z.number(),
   subject: z.string(),
+  pastAttendanceCount: z.number().optional().default(0),
+  hasPastAttendance: z.boolean().optional().default(false),
   teacher: z.object({
     id: z.string(),
     name: z.string(),
@@ -299,6 +303,8 @@ export const fetchActiveSchedules = async (date?: unknown): Promise<ActiveSchedu
     // Normaliser les heures des schedules de la vue active aussi
     schedules: parsed.schedules.map((s) => ({
       ...s,
+      pastAttendanceCount: s.pastAttendanceCount ?? 0,
+      hasPastAttendance: s.hasPastAttendance ?? (s.pastAttendanceCount ?? 0) > 0,
       timeSlot: {
         ...s.timeSlot,
         startTime: normalizeTime(s.timeSlot.startTime),
@@ -326,6 +332,8 @@ export const fetchWeeklySchedule = async (date?: unknown): Promise<WeeklySchedul
 
   const normalizedSchedules: ScheduleRow[] = parsed.schedules.map((s) => ({
     ...s,
+    pastAttendanceCount: s.pastAttendanceCount ?? 0,
+    hasPastAttendance: s.hasPastAttendance ?? (s.pastAttendanceCount ?? 0) > 0,
     timeSlot: {
       ...s.timeSlot,
       startTime: normalizeTime(s.timeSlot.startTime),
