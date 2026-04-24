@@ -50,7 +50,6 @@ type PermissionsMeResponse = {
 type UpdateMyProfilePayload = {
   name?: string
   phone?: string | null
-  email?: string | null
   profilePhotoUrl?: string | null
 }
 

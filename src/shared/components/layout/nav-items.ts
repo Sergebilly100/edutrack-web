@@ -81,7 +81,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/rooms",
     icon: RoomIcon,
     roles: ["director", "staff"],
-    requiredPermissions: ["schedule.edit"],
+    requiredPermissions: ["rooms.view"],
     mobileVisible: false,
   },
   {

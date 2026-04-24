@@ -1,46 +1,16 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Download } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { cn } from "@/lib/utils"
-import { downloadTemplate, type ImportType } from "@/modules/import-export/import-export.api"
+import type { ImportType } from "@/modules/import-export/import-export.api"
 import { fetchImportHistory } from "@/modules/schedule/schedule.api"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
-import { CalendarClockIcon, ClassIcon, SpreadsheetIcon, TeacherIdentityIcon } from "@/shared/components/icons"
-import { Spinner } from "@/shared/components/Spinner"
+import { CalendarClockIcon } from "@/shared/components/icons"
+import { usePermissions } from "@/shared/hooks/usePermissions"
+import { useAuthStore } from "@/shared/store/auth.store"
 import ImportWizard from "./ImportWizard"
-
-type TemplateItem = {
-  type: ImportType
-  label: string
-  description: string
-  icon: typeof ClassIcon
-}
-
-const TEMPLATE_ITEMS: TemplateItem[] = [
-  {
-    type: "students",
-    label: "Modèle élèves",
-    description: "Classes, identité et contacts parent",
-    icon: ClassIcon,
-  },
-  {
-    type: "teachers",
-    label: "Modèle professeurs",
-    description: "Type, matières et taux horaire",
-    icon: TeacherIdentityIcon,
-  },
-  {
-    type: "schedule",
-    label: "Modèle emploi du temps",
-    description: "Jour, créneau, professeur, classe, salle",
-    icon: SpreadsheetIcon,
-  },
-]
 
 const formatDateTime = (value: string) =>
   new Date(value).toLocaleString("fr-FR", {
@@ -58,26 +28,35 @@ const labelByType: Record<ImportType, string> = {
 }
 
 export default function ImportPage() {
-  const [activeImportType, setActiveImportType] = useState<ImportType>("students")
-  const [downloadingType, setDownloadingType] = useState<ImportType | null>(null)
-  const [templateError, setTemplateError] = useState<string | null>(null)
+  const { hasPermission } = usePermissions()
+  const user = useAuthStore((state) => state.user)
+  const isDirector = user?.role === "director"
+  const canImportStudents = isDirector || hasPermission("import.students")
+  const canImportTeachers = isDirector || hasPermission("import.teachers")
+  const canImportSchedule = isDirector || hasPermission("import.schedule")
+  const allowedImportTypes = ([
+    canImportStudents ? "students" : null,
+    canImportTeachers ? "teachers" : null,
+    canImportSchedule ? "schedule" : null,
+  ].filter((value): value is ImportType => value !== null))
+  const canViewHistory = canImportStudents
+  const [activeImportType, setActiveImportType] = useState<ImportType>(allowedImportTypes[0] ?? "students")
 
   const historyQuery = useQuery({
     queryKey: ["import-history", 20],
     queryFn: () => fetchImportHistory(20),
+    enabled: canViewHistory,
   })
 
-  const handleDownload = async (type: ImportType) => {
-    try {
-      setTemplateError(null)
-      setDownloadingType(type)
-      await downloadTemplate(type)
-    } catch {
-      setTemplateError("Impossible de télécharger ce modèle pour le moment.")
-    } finally {
-      setDownloadingType(null)
+  useEffect(() => {
+    if (!allowedImportTypes.length) {
+      return
     }
-  }
+
+    if (!allowedImportTypes.includes(activeImportType)) {
+      setActiveImportType(allowedImportTypes[0])
+    }
+  }, [activeImportType, allowedImportTypes])
 
   const history = historyQuery.data ?? []
 
@@ -91,57 +70,69 @@ export default function ImportPage() {
         </p>
       </header>
 
-      <ImportWizard selectedImportType={activeImportType} onImportTypeChange={setActiveImportType} />
+      {allowedImportTypes.length > 0 ? (
+        <ImportWizard
+          selectedImportType={activeImportType}
+          onImportTypeChange={setActiveImportType}
+          allowedImportTypes={allowedImportTypes}
+        />
+      ) : (
+        <Alert variant="destructive">
+          <AlertDescription>Aucune permission d&apos;import active (import.students / import.teachers / import.schedule).</AlertDescription>
+        </Alert>
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarClockIcon className="h-5 w-5" />
-            Historique des imports
-          </CardTitle>
-          <CardDescription>Dernières opérations d’import confirmées.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {historyQuery.isLoading ? (
-            <p className="text-sm text-muted-foreground">Chargement de l'historique...</p>
-          ) : null}
+      {canViewHistory ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarClockIcon className="h-5 w-5" />
+              Historique des imports
+            </CardTitle>
+            <CardDescription>Dernières opérations d’import confirmées.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {historyQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Chargement de l'historique...</p>
+            ) : null}
 
-          {historyQuery.isError ? (
-            <Alert variant="destructive">
-              <AlertDescription>Impossible de charger l'historique des imports.</AlertDescription>
-            </Alert>
-          ) : null}
+            {historyQuery.isError ? (
+              <Alert variant="destructive">
+                <AlertDescription>Impossible de charger l'historique des imports.</AlertDescription>
+              </Alert>
+            ) : null}
 
-          {!historyQuery.isLoading && !historyQuery.isError && history.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucun import disponible pour le moment.</p>
-          ) : null}
+            {!historyQuery.isLoading && !historyQuery.isError && history.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Aucun import disponible pour le moment.</p>
+            ) : null}
 
-          {!historyQuery.isLoading && !historyQuery.isError && history.length > 0 ? (
-            <div className="overflow-x-auto rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead className="text-right">Importés</TableHead>
-                    <TableHead className="text-right">Mis à jour</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {history.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{formatDateTime(item.importedAt)}</TableCell>
-                      <TableCell>{labelByType[item.type]}</TableCell>
-                      <TableCell className="text-right">{item.importedCount}</TableCell>
-                      <TableCell className="text-right">{item.updatedCount}</TableCell>
+            {!historyQuery.isLoading && !historyQuery.isError && history.length > 0 ? (
+              <div className="overflow-x-auto rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead className="text-right">Importés</TableHead>
+                      <TableHead className="text-right">Mis à jour</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {history.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell>{formatDateTime(item.importedAt)}</TableCell>
+                        <TableCell>{labelByType[item.type]}</TableCell>
+                        <TableCell className="text-right">{item.importedCount}</TableCell>
+                        <TableCell className="text-right">{item.updatedCount}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   )
 }

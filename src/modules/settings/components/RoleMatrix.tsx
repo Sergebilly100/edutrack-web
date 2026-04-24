@@ -38,18 +38,32 @@ const BASE_PERMISSION_COLUMNS = [
     label: "Salaires",
     permissions: ["salary.view", "salary.compute", "salary.mark_paid", "salary.export"],
   },
+  {
+    key: "rooms",
+    label: "Salles & QR",
+    permissions: ["rooms.view", "rooms.create", "rooms.edit", "rooms.delete"],
+  },
+  {
+    key: "import",
+    label: "Import",
+    permissions: ["import.students", "import.teachers", "import.schedule"],
+  },
 ] as const
 
 const BASE_PERMISSION_ROWS = [
   { key: "view", label: "Voir" },
   { key: "create", label: "Créer" },
   { key: "edit", label: "Modifier" },
+  { key: "delete", label: "Supprimer" },
   { key: "block", label: "Bloquer" },
   { key: "documents", label: "Documents" },
   { key: "mark_students", label: "Marquer les présences" },
   { key: "compute", label: "Calculer" },
   { key: "mark_paid", label: "Marquer payé" },
   { key: "export", label: "Exporter" },
+  { key: "students", label: "Importer élèves" },
+  { key: "teachers", label: "Importer profs" },
+  { key: "schedule", label: "Importer EDT" },
 ] as const
 
 const SMS_PERMISSION_COLUMN = {
@@ -89,6 +103,8 @@ const ACTION_KEYS_REQUIRING_VIEW = new Set([
   "edit",
   "delete",
   "block",
+  "documents",
+  "mark_students",
   "compute",
   "mark_paid",
   "export",
@@ -117,6 +133,28 @@ const resolveViewDependency = (permission: string): string | null => {
   }
 
   return CATEGORY_VIEW_PERMISSION[segments.category] ?? null
+}
+
+const isViewLocked = (
+  permission: string,
+  permissions: readonly string[]
+): boolean => {
+  const segments = splitPermission(permission)
+  if (!segments || segments.action !== "view") {
+    return false
+  }
+
+  return permissions.some((candidatePermission) => {
+    const candidate = splitPermission(candidatePermission)
+    if (!candidate) {
+      return false
+    }
+
+    return (
+      candidate.category === segments.category &&
+      ACTION_KEYS_REQUIRING_VIEW.has(candidate.action)
+    )
+  })
 }
 
 const resolvePermissionKey = (
@@ -160,30 +198,9 @@ export default function RoleMatrix({
       }
     } else {
       if (isViewPermission && segments) {
-        const activeDependentActions = position.permissions.filter((candidatePermission) => {
-          const candidate = splitPermission(candidatePermission)
-          if (!candidate) {
-            return false
-          }
-
-          return (
-            candidate.category === segments.category &&
-            ACTION_KEYS_REQUIRING_VIEW.has(candidate.action)
-          )
-        })
-
-        if (activeDependentActions.length > 0) {
-          const shouldClearCategory = window.confirm(
-            "Cette permission \"Voir\" est requise par des actions actives. Voulez-vous décocher \"Voir\" et toutes les actions de cette catégorie ?"
-          )
-
-          if (!shouldClearCategory) {
-            return
-          }
-
-          for (const dependentPermission of activeDependentActions) {
-            next.delete(dependentPermission)
-          }
+        const locked = isViewLocked(permission, position.permissions)
+        if (locked) {
+          return
         }
       }
 
@@ -296,6 +313,7 @@ export default function RoleMatrix({
                   }
 
                   const isChecked = permissionSet.has(permission)
+                  const isDisabled = isViewLocked(permission, position.permissions)
 
                   return (
                     <TableCell key={permission} className="text-center">
@@ -308,6 +326,7 @@ export default function RoleMatrix({
                         >
                           <Checkbox
                             checked={isChecked}
+                            disabled={isDisabled}
                             onCheckedChange={(checked) => togglePermission(permission, checked === true)}
                             aria-label={`${column.label} ${row.label}`}
                           />

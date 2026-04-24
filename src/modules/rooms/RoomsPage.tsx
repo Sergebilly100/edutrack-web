@@ -2,6 +2,7 @@ import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Pencil, Plus, QrCode, RefreshCw, Trash2 } from "lucide-react"
 
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,6 +21,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/components/ui/use-toast"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { QRCodeGenerator } from "@/shared/components/QRCodeGenerator"
+import { usePermissions } from "@/shared/hooks/usePermissions"
 import { createRoom, deleteRoom, getRoomQr, listRooms, regenerateRoomQr, updateRoom, type RoomListItem, type RoomQrPayload } from "./rooms.api"
 
 const QUERY_KEY = ["rooms", "management"]
@@ -55,6 +57,11 @@ const formatCapacity = (value: number | null): string => (value === null ? "Non 
 export default function RoomsPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const { hasPermission } = usePermissions()
+  const canViewRooms = hasPermission("rooms.view")
+  const canCreateRoom = hasPermission("rooms.create")
+  const canEditRoom = hasPermission("rooms.edit")
+  const canDeleteRoom = hasPermission("rooms.delete")
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -71,6 +78,7 @@ export default function RoomsPage() {
   const roomsQuery = useQuery({
     queryKey: QUERY_KEY,
     queryFn: listRooms,
+    enabled: canViewRooms,
   })
 
   const sortedRooms = useMemo(() => {
@@ -167,11 +175,17 @@ export default function RoomsPage() {
   })
 
   const openCreate = () => {
+    if (!canCreateRoom) {
+      return
+    }
     setForm(EMPTY_FORM)
     setCreateDialogOpen(true)
   }
 
   const openEdit = (room: RoomListItem) => {
+    if (!canEditRoom) {
+      return
+    }
     setSelectedRoom(room)
     setForm({
       name: room.name,
@@ -182,19 +196,31 @@ export default function RoomsPage() {
   }
 
   const openQr = (roomId: string) => {
+    if (!canViewRooms) {
+      return
+    }
     qrMutation.mutate(roomId)
   }
 
   const regenerateQr = (roomId: string) => {
+    if (!canEditRoom) {
+      return
+    }
     const room = sortedRooms.find((item) => item.id === roomId) ?? null
     setRoomPendingQrRegenerate(room)
   }
 
   const handleDelete = (room: RoomListItem) => {
+    if (!canDeleteRoom) {
+      return
+    }
     setRoomPendingDelete(room)
   }
 
   const handleCreateSubmit = () => {
+    if (!canCreateRoom) {
+      return
+    }
     const name = form.name.trim()
     const capacity = toNullableCapacity(form.capacity)
     if (!name) {
@@ -223,6 +249,9 @@ export default function RoomsPage() {
   }
 
   const handleEditSubmit = () => {
+    if (!canEditRoom) {
+      return
+    }
     if (!selectedRoom) {
       return
     }
@@ -267,17 +296,24 @@ export default function RoomsPage() {
             <CardTitle>Salles de l&apos;établissement</CardTitle>
             <CardDescription>Création, édition, suppression et gestion des QR codes.</CardDescription>
           </div>
-          <Button onClick={openCreate} type="button">
-            <Plus className="mr-2 h-4 w-4" />
-            Ajouter une salle
-          </Button>
+          {canCreateRoom ? (
+            <Button onClick={openCreate} type="button">
+              <Plus className="mr-2 h-4 w-4" />
+              Ajouter une salle
+            </Button>
+          ) : null}
         </CardHeader>
         <CardContent>
+          {!canViewRooms ? (
+            <Alert variant="destructive">
+              <AlertDescription>Permission rooms.view requise pour afficher les salles.</AlertDescription>
+            </Alert>
+          ) : null}
           {roomsQuery.isLoading ? (
             <p className="text-sm text-muted-foreground">Chargement des salles...</p>
-          ) : sortedRooms.length === 0 ? (
+          ) : canViewRooms && sortedRooms.length === 0 ? (
             <p className="text-sm text-muted-foreground">Aucune salle active trouvée.</p>
-          ) : (
+          ) : canViewRooms ? (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -304,18 +340,24 @@ export default function RoomsPage() {
                             <QrCode className="mr-2 h-4 w-4" />
                             QR
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => regenerateQr(room.id)}>
-                            <RefreshCw className="mr-2 h-4 w-4" />
-                            Régénérer
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => openEdit(room)}>
-                            <Pencil className="mr-2 h-4 w-4" />
-                            Modifier
-                          </Button>
-                          <Button size="sm" variant="destructive" onClick={() => handleDelete(room)}>
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Supprimer
-                          </Button>
+                          {canEditRoom ? (
+                            <>
+                              <Button size="sm" variant="outline" onClick={() => regenerateQr(room.id)}>
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                                Régénérer
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => openEdit(room)}>
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Modifier
+                              </Button>
+                            </>
+                          ) : null}
+                          {canDeleteRoom ? (
+                            <Button size="sm" variant="destructive" onClick={() => handleDelete(room)}>
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Supprimer
+                            </Button>
+                          ) : null}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -348,7 +390,7 @@ export default function RoomsPage() {
                 </div>
               </div>
             </div>
-          )}
+          ) : null}
         </CardContent>
       </Card>
 

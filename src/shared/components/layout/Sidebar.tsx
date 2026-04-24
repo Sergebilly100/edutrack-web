@@ -100,7 +100,7 @@ const navItems: NavItem[] = [
     icon: QrCode,
     href: "/rooms",
     roles: ["director", "staff"],
-    requiredPermissions: ["schedule.edit"],
+    requiredPermissions: ["rooms.view"],
   },
   {
     label: "Paramètres",

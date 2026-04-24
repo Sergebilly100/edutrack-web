@@ -26,13 +26,16 @@ import { useAuthStore } from "@/shared/store/auth.store"
 const profileSchema = z.object({
   name: z.string().trim().min(2, "Nom requis"),
   phone: z.string().trim().min(6, "Numéro invalide"),
-  email: z.string().trim().email("Email invalide").optional().or(z.literal("")),
 })
 
 const passwordSchema = z
   .object({
     currentPassword: z.string().min(1, "Mot de passe actuel requis"),
-    newPassword: z.string().min(8, "Minimum 8 caractères"),
+    newPassword: z
+      .string()
+      .min(8, "Minimum 8 caractères")
+      .regex(/[A-Z]/, "Ajoutez au moins une majuscule")
+      .regex(/[0-9]/, "Ajoutez au moins un chiffre"),
     confirmPassword: z.string().min(1, "Confirmation requise"),
   })
   .refine((value) => value.newPassword === value.confirmPassword, {
@@ -63,7 +66,6 @@ export default function AccountPage() {
     defaultValues: {
       name: user?.name ?? "",
       phone: user?.phone ?? "",
-      email: user?.email ?? "",
     },
   })
 
@@ -81,7 +83,6 @@ export default function AccountPage() {
       updateMyProfile({
         name: values.name,
         phone: values.phone,
-        email: values.email?.trim() ? values.email.trim() : null,
         profilePhotoUrl: photoPreview || null,
       }),
     onSuccess: (updatedUser) => {
@@ -93,7 +94,6 @@ export default function AccountPage() {
         ...user,
         name: updatedUser.name,
         phone: updatedUser.phone,
-        email: updatedUser.email,
         profilePhotoUrl: updatedUser.profilePhotoUrl,
       })
       toast({ title: "Profil mis à jour" })
@@ -209,19 +209,11 @@ export default function AccountPage() {
                 )}
               />
 
-              <FormField
-                control={profileForm.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email (optionnel)</FormLabel>
-                    <FormControl>
-                      <Input type="email" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Email</p>
+                <Input type="email" value={user.email ?? ""} disabled readOnly />
+                <p className="text-xs text-muted-foreground">L&apos;email n&apos;est pas modifiable.</p>
+              </div>
 
               <div className="flex justify-end">
                 <Button type="submit" disabled={profileMutation.isPending}>

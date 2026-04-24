@@ -16,6 +16,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { getStudentById, updateStudent } from "@/modules/students/students.api"
 import { DocumentList, DocumentUpload, PageLayout, PresenceDonut, StatCard } from "@/shared/components"
 import { BackIcon } from "@/shared/components/icons"
+import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabel } from "@/shared/hooks/useStudentLabel"
 
 const initials = (firstName: string, lastName: string) =>
@@ -56,6 +57,8 @@ export default function StudentDetailPage() {
   const { toast } = useToast()
   const { studentId = "" } = useParams<{ studentId: string }>()
   const studentLabel = useStudentLabel()
+  const { hasPermission } = usePermissions()
+  const canManageStudentDocuments = hasPermission("students.documents")
 
   const [parentName, setParentName] = useState("")
   const [parentPhone, setParentPhone] = useState("")
@@ -226,7 +229,7 @@ export default function StudentDetailPage() {
         <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
           <TabsTrigger value="absences">Absences</TabsTrigger>
           <TabsTrigger value="informations">Informations</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
+          {canManageStudentDocuments ? <TabsTrigger value="documents">Documents</TabsTrigger> : null}
           <TabsTrigger value="sms">SMS Parents</TabsTrigger>
         </TabsList>
 
@@ -390,25 +393,27 @@ export default function StudentDetailPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="documents" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Ajouter un document</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <DocumentUpload entityType="student" entityId={student.id} onUploadSuccess={() => undefined} />
-            </CardContent>
-          </Card>
+        {canManageStudentDocuments ? (
+          <TabsContent value="documents" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Ajouter un document</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DocumentUpload entityType="student" entityId={student.id} onUploadSuccess={() => undefined} />
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Documents</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <DocumentList entityType="student" entityId={student.id} />
-            </CardContent>
-          </Card>
-        </TabsContent>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Documents</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DocumentList entityType="student" entityId={student.id} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        ) : null}
 
         <TabsContent value="sms" className="space-y-4">
           <Card>

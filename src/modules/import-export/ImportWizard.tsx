@@ -39,6 +39,7 @@ type Step = {
 type ImportWizardProps = {
   selectedImportType?: ImportType
   onImportTypeChange?: (type: ImportType) => void
+  allowedImportTypes?: ImportType[]
 }
 
 const touchFeedbackClass = "active:scale-95 transition-transform duration-100"
@@ -161,6 +162,7 @@ function ImportStepper({ step }: { step: WizardStep }) {
 
 type ImportTypeTabsProps = {
   importType: ImportType
+  availableTypes: ImportType[]
   isDownloadingTemplate: boolean
   isFileLoading: boolean
   onImportTypeChange: (type: ImportType) => void
@@ -170,6 +172,7 @@ type ImportTypeTabsProps = {
 
 function ImportTypeTabs({
   importType,
+  availableTypes,
   isDownloadingTemplate,
   isFileLoading,
   onImportTypeChange,
@@ -187,7 +190,7 @@ function ImportTypeTabs({
       className="space-y-4"
     >
       <TabsList className="grid h-auto w-full grid-cols-1 gap-2 bg-transparent p-0 md:grid-cols-3 md:gap-0 md:rounded-lg md:bg-muted md:p-1">
-        {importTypeValues.map((type) => {
+        {availableTypes.map((type) => {
           const Icon = tabConfig[type].icon
 
           return (
@@ -214,7 +217,7 @@ function ImportTypeTabs({
         })}
       </TabsList>
 
-      {importTypeValues.map((type) => (
+      {availableTypes.map((type) => (
         <TabsContent key={type} value={type} className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
             <p className="text-sm text-muted-foreground">
@@ -240,11 +243,26 @@ function ImportTypeTabs({
   )
 }
 
-export default function ImportWizard({ selectedImportType, onImportTypeChange }: ImportWizardProps) {
+export default function ImportWizard({
+  selectedImportType,
+  onImportTypeChange,
+  allowedImportTypes,
+}: ImportWizardProps) {
   const { toast } = useToast()
+  const availableTypes = useMemo<ImportType[]>(
+    () =>
+      (allowedImportTypes?.length ? allowedImportTypes : importTypeValues).filter((type, index, array) => {
+        return array.indexOf(type) === index
+      }),
+    [allowedImportTypes]
+  )
 
   const [step, setStep] = useState<WizardStep>(1)
-  const [importType, setImportType] = useState<ImportType>(selectedImportType ?? "students")
+  const [importType, setImportType] = useState<ImportType>(
+    selectedImportType && availableTypes.includes(selectedImportType)
+      ? selectedImportType
+      : (availableTypes[0] ?? "students")
+  )
   const [file, setFile] = useState<File | null>(null)
 
   const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false)
@@ -287,10 +305,22 @@ export default function ImportWizard({ selectedImportType, onImportTypeChange }:
     : null
 
   useEffect(() => {
-    if (selectedImportType) {
+    if (selectedImportType && availableTypes.includes(selectedImportType)) {
       setImportType(selectedImportType)
     }
-  }, [selectedImportType])
+  }, [availableTypes, selectedImportType])
+
+  useEffect(() => {
+    if (!availableTypes.length) {
+      return
+    }
+
+    if (!availableTypes.includes(importType)) {
+      const fallbackType = availableTypes[0]
+      setImportType(fallbackType)
+      onImportTypeChange?.(fallbackType)
+    }
+  }, [availableTypes, importType, onImportTypeChange])
 
   const resetAfterUploadChange = () => {
     setTemplateError(null)
@@ -433,8 +463,12 @@ export default function ImportWizard({ selectedImportType, onImportTypeChange }:
 
   const handleFinish = () => {
     setStep(1)
-    setImportType(selectedImportType ?? "students")
-    onImportTypeChange?.(selectedImportType ?? "students")
+    const fallbackType =
+      selectedImportType && availableTypes.includes(selectedImportType)
+        ? selectedImportType
+        : (availableTypes[0] ?? "students")
+    setImportType(fallbackType)
+    onImportTypeChange?.(fallbackType)
     setFile(null)
     setTemplateError(null)
     setPeriodError(null)
@@ -474,6 +508,7 @@ export default function ImportWizard({ selectedImportType, onImportTypeChange }:
           <div className="space-y-6">
             <ImportTypeTabs
               importType={importType}
+              availableTypes={availableTypes}
               isDownloadingTemplate={isDownloadingTemplate}
               isFileLoading={dryRunMutation.isPending}
               onImportTypeChange={handleImportTypeValueChange}

@@ -45,6 +45,7 @@ import {
   TeacherProfileCard,
 } from "@/shared/components"
 import { BackIcon, WarningIcon } from "@/shared/components/icons"
+import { usePermissions } from "@/shared/hooks/usePermissions"
 
 const updateTeacherErrorMessages: Record<string, string> = {
   TEACHER_TYPE_CHANGE_BLOCKED:
@@ -541,10 +542,12 @@ export default function TeacherDetailPage() {
   const { teacherId = "" } = useParams<{ teacherId: string }>()
   const queryClient = useQueryClient()
   const { toast } = useToast()
+  const { hasPermission } = usePermissions()
 
   const [blockDialogOpen, setBlockDialogOpen] = useState(false)
   const [blockReason, setBlockReason] = useState("")
   const [detailTab, setDetailTab] = useState<"presences" | "documents" | "infos">("presences")
+  const canManageTeacherDocuments = hasPermission("teachers.documents")
 
   const teacherQuery = useQuery({
     queryKey: ["teacher", teacherId],
@@ -660,7 +663,7 @@ export default function TeacherDetailPage() {
         await unblockMutation.mutateAsync()
       }}
       onViewDocuments={() => {
-        setDetailTab("documents")
+        setDetailTab(canManageTeacherDocuments ? "documents" : "presences")
       }}
     />
   )
@@ -707,18 +710,22 @@ export default function TeacherDetailPage() {
           onValueChange={(value) => setDetailTab(value as "presences" | "documents" | "infos")}
           className="space-y-4"
         >
-          <TabsList className="grid h-auto min-h-12 w-full grid-cols-3">
+          <TabsList
+            className={`grid h-auto min-h-12 w-full ${canManageTeacherDocuments ? "grid-cols-3" : "grid-cols-2"}`}
+          >
             <TabsTrigger value="presences" className="min-h-12">Présences</TabsTrigger>
-            <TabsTrigger value="documents" className="min-h-12">Documents</TabsTrigger>
+            {canManageTeacherDocuments ? <TabsTrigger value="documents" className="min-h-12">Documents</TabsTrigger> : null}
             <TabsTrigger value="infos" className="min-h-12">Infos</TabsTrigger>
           </TabsList>
 
           <TabsContent value="presences">
             <AttendancePanel teacherId={teacher.id} />
           </TabsContent>
-          <TabsContent value="documents">
-            <DocumentsPanel teacherId={teacher.id} />
-          </TabsContent>
+          {canManageTeacherDocuments ? (
+            <TabsContent value="documents">
+              <DocumentsPanel teacherId={teacher.id} />
+            </TabsContent>
+          ) : null}
           <TabsContent value="infos">
             <InfosPanel teacherId={teacher.id} />
           </TabsContent>

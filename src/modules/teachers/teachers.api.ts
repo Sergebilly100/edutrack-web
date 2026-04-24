@@ -487,23 +487,9 @@ export const fetchTeacherAttendanceStats = async (params: {
 }
 
 export const fetchClasses = async (): Promise<ClassOption[]> => {
-  const extractClassList = (payload: unknown): unknown[] => {
-    if (Array.isArray(payload)) return payload
-    const record = toRecord(payload)
-    if (Array.isArray(record.data)) return record.data as unknown[]
-    return []
-  }
-
-  let data: unknown[] = []
-
-  try {
-    const response = await api.get("/classes")
-    data = extractClassList(response.data)
-  } catch {
-    const fallback = await api.get("/schedule/weekly")
-    const payload = toRecord(fallback.data)
-    data = Array.isArray(payload.classes) ? payload.classes : []
-  }
+  const fallback = await api.get("/schedule/weekly")
+  const payload = toRecord(fallback.data)
+  const data = Array.isArray(payload.classes) ? payload.classes : []
 
   return data.map((item) => {
     const row = toRecord(item)
