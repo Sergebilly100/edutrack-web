@@ -2,9 +2,9 @@ import { Suspense, lazy, useEffect, type ReactElement } from "react"
 import { Navigate, Route, Routes, useSearchParams } from "react-router-dom"
 import axios from "axios"
 
-import { getMyPermissions } from "@/modules/auth/auth.api"
 import { AppShell } from "@/shared/components/layout/AppShell"
 import { TeacherTopBar } from "@/shared/components/layout/TeacherTopBar"
+import { usePermissions } from "@/shared/hooks/usePermissions"
 import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
 import { useAutoSync } from "@/shared/hooks/useAutoSync"
 import { useRestoreSession } from "@/shared/hooks/useRestoreSession"
@@ -42,6 +42,7 @@ function DashboardRoute() {
   const setAccessToken = useAuthStore((state) => state.setAccessToken)
   const setUser = useAuthStore((state) => state.setUser)
   const setPermissions = useAuthStore((state) => state.setPermissions)
+  const { refreshPermissions } = usePermissions()
 
   useEffect(() => {
     const impersonationToken = searchParams.get("impersonation_token")
@@ -104,8 +105,7 @@ function DashboardRoute() {
           schemaName,
           plan: "standard",
         })
-        const permissions = await getMyPermissions()
-        setPermissions(permissions)
+        await refreshPermissions()
       } catch {
         setPermissions([])
       }
@@ -296,10 +296,10 @@ export default function App() {
           <Route path="/admin/sms" element={<AdminSmsPage />} />
           <Route path="/admin/maintenance" element={<AdminMaintenancePage />} />
           <Route path="/admin/account" element={<AdminAccountPage />} />
-          <Route path="/import" element={<ImportPage />} />
-          <Route path="/imports" element={<ImportPage />} />
+          <Route path="/import" element={<PermissionRoute href="/import" element={<ImportPage />} />} />
+          <Route path="/imports" element={<PermissionRoute href="/import" element={<ImportPage />} />} />
           <Route path="/rooms" element={<PermissionRoute href="/rooms" element={<RoomsPage />} />} />
-          <Route path="/salaries" element={<SalariesPage />} />
+          <Route path="/salaries" element={<PermissionRoute href="/salaries" element={<SalariesPage />} />} />
           <Route path="/settings" element={<PermissionRoute href="/settings" element={<SettingsPage />} />} />
           <Route path="/account" element={<AccountPage />} />
         </Route>

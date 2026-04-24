@@ -64,7 +64,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Salaires",
     href: "/salaries",
     icon: SalaryIcon,
-    roles: ["director"],
+    roles: ["director", "staff"],
     requiredPermissions: ["salary.view"],
     mobileVisible: true,
   },
@@ -72,7 +72,8 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Import",
     href: "/import",
     icon: ImportIcon,
-    roles: ["director"],
+    roles: ["director", "staff"],
+    requiredAnyPermissions: ["import.students", "import.teachers", "import.schedule"],
     mobileVisible: false,
   },
   {

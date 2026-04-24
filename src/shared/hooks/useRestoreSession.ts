@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 import axios from "axios"
 
-import { getMyPermissions } from "@/modules/auth/auth.api"
+import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useAuthStore } from "@/shared/store/auth.store"
 import type { AuthUser } from "@/shared/store/auth.store"
 
@@ -71,6 +71,7 @@ export function useRestoreSession(): void {
   const setSessionRestored = useAuthStore((state) => state.setSessionRestored)
   const setPermissions = useAuthStore((state) => state.setPermissions)
   const isSessionRestored = useAuthStore((state) => state.isSessionRestored)
+  const { refreshPermissions } = usePermissions()
 
   useEffect(() => {
     if (isSessionRestored) {
@@ -121,8 +122,7 @@ export function useRestoreSession(): void {
           schemaName,
           plan: "standard",
         })
-        const permissions = await getMyPermissions()
-        setPermissions(permissions)
+        await refreshPermissions()
       } catch {
         // Cookie absent, expiré ou révoqué → session invalide, comportement normal.
         // La redirection vers /login est gérée par App.tsx (RoleRedirect)

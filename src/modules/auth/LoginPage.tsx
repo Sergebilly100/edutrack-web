@@ -8,9 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { fetchSchoolInfo } from '@/modules/onboarding/onboarding.api';
+import { usePermissions } from '@/shared/hooks/usePermissions';
 import { useAuthStore } from '@/shared/store/auth.store';
 
-import { getMyPermissions, login } from './auth.api';
+import { login } from './auth.api';
 
 const resolveDirectorPostLoginRoute = async (): Promise<'/dashboard' | '/onboarding'> => {
   const school = await fetchSchoolInfo();
@@ -24,6 +25,7 @@ export default function LoginPage() {
   const setAccessToken = useAuthStore((state) => state.setAccessToken);
   const setRefreshToken = useAuthStore((state) => state.setRefreshToken);
   const setPermissions = useAuthStore((state) => state.setPermissions);
+  const { refreshPermissions } = usePermissions();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [schemaName, setSchemaName] = useState('school_sainte_marie');
@@ -55,8 +57,7 @@ export default function LoginPage() {
         schemaName: schemaName || 'public',
         plan: 'standard',
       });
-      const permissions = await getMyPermissions();
-      setPermissions(permissions);
+      await refreshPermissions();
 
       if (result.user.role === 'teacher') {
         navigate('/attendance');

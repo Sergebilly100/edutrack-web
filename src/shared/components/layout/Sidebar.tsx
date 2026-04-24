@@ -81,8 +81,20 @@ const navItems: NavItem[] = [
     roles: ["director", "staff"],
     requiredPermissions: ["students.view"],
   },
-  { label: "Salaires", icon: Wallet, href: "/salaries", roles: ["director"] },
-  { label: "Import", icon: Upload, href: "/import", roles: ["director"] },
+  {
+    label: "Salaires",
+    icon: Wallet,
+    href: "/salaries",
+    roles: ["director", "staff"],
+    requiredPermissions: ["salary.view"],
+  },
+  {
+    label: "Import",
+    icon: Upload,
+    href: "/import",
+    roles: ["director", "staff"],
+    requiredAnyPermissions: ["import.students", "import.teachers", "import.schedule"],
+  },
   {
     label: "Salles & QR Codes",
     icon: QrCode,
