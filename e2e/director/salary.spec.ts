@@ -43,6 +43,16 @@ test.describe("Page salaires", () => {
 
     await markPaidButton.click()
 
+    const remainingHoursText = await page
+      .locator("p", { hasText: "Nombre d'heure restant à payer :" })
+      .first()
+      .textContent()
+    const remainingHoursMatch = remainingHoursText?.match(/([0-9]+(?:[.,][0-9]+)?)h/)
+    const remainingHours = remainingHoursMatch ? Number(remainingHoursMatch[1].replace(",", ".")) : 0
+    const hoursToPay = Math.max(0.01, Math.min(1, Number.isFinite(remainingHours) ? remainingHours : 0.01))
+
+    await page.getByLabel("Saisissez le nombre d'heure que vous souhaitez payer").fill(String(hoursToPay))
+    await expect(page.getByRole("button", { name: "Confirmer le paiement" })).toBeEnabled()
     await page.getByRole("button", { name: "Confirmer le paiement" }).click()
 
     await expect(page.getByTestId(`salary-vacataire-status-${teacherId as string}`)).toContainText("Payé", {
