@@ -1,4 +1,5 @@
 import { apiClient as api } from "@/shared/api/client"
+import axios from "axios"
 
 type AttendanceStatus = "present" | "absent" | "late" | "excused" | null
 
@@ -535,7 +536,14 @@ export const getTodayAttendance = async (): Promise<DashboardTodayData> => {
   try {
     const response = await api.get("/attendance/today")
     return normalizeTodayData(response.data)
-  } catch {
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status ?? 0
+      if (status !== 401 && status !== 403 && status !== 404) {
+        throw error
+      }
+    }
+
     const fallback = await api.get("/attendance/active")
     return normalizeTodayData(fallback.data)
   }

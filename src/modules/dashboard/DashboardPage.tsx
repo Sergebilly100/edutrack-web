@@ -295,57 +295,74 @@ export default function DashboardPage() {
   const [showAllTodayPresence, setShowAllTodayPresence] = useState(false)
   const [showAllTodayStudentAbsences, setShowAllTodayStudentAbsences] = useState(false)
   const user = useAuthStore((state) => state.user)
+  const permissions = useAuthStore((state) => state.permissions)
   const currentMonth = useMemo(() => getCurrentMonthKey(new Date()), [])
   const previousMonth = useMemo(() => getPreviousMonthKey(new Date()), [])
   const alertsRef = useRef<HTMLDivElement | null>(null)
+  const isDirector = user?.role === "director"
+  const canViewSalary = isDirector || permissions.includes("salary.view")
+  const canViewStudents = isDirector || permissions.includes("students.view")
 
   const todayQuery = useQuery({
     queryKey: ["dashboard", "today-v3"],
     queryFn: getTodayAttendance,
     staleTime: QUERY_STALE_TIME,
     refetchInterval: TODAY_REFETCH_INTERVAL,
+    retry: false,
+    enabled: isDirector,
   })
 
   const countsQuery = useQuery({
     queryKey: ["dashboard", "counts-v3"],
     queryFn: getDashboardCounts,
     staleTime: QUERY_STALE_TIME,
+    retry: false,
   })
 
   const historyQuery = useQuery({
     queryKey: ["dashboard", "history-v3", 7],
     queryFn: () => getAttendanceHistory(7),
     staleTime: QUERY_STALE_TIME,
+    retry: false,
+    enabled: isDirector,
   })
 
   const coverageQuery = useQuery({
     queryKey: ["dashboard", "coverage-v3"],
     queryFn: getNextWeekCoverageState,
     staleTime: QUERY_STALE_TIME,
+    retry: false,
   })
 
   const salarySummaryQuery = useQuery({
     queryKey: ["dashboard", "salary-summary-v3", currentMonth],
     queryFn: () => getSalarySummary(currentMonth),
     staleTime: QUERY_STALE_TIME,
+    retry: false,
+    enabled: canViewSalary,
   })
 
   const previousSalarySummaryQuery = useQuery({
     queryKey: ["dashboard", "salary-summary-v3", previousMonth],
     queryFn: () => getSalarySummary(previousMonth),
     staleTime: QUERY_STALE_TIME,
+    retry: false,
+    enabled: canViewSalary,
   })
 
   const riskTeachersQuery = useQuery({
     queryKey: ["dashboard", "risk-teachers-v3", currentMonth],
     queryFn: () => getTopRiskTeachers(currentMonth),
     staleTime: QUERY_STALE_TIME,
+    retry: false,
+    enabled: canViewSalary,
   })
 
   const schoolQuery = useQuery({
     queryKey: ["dashboard", "school-v3"],
     queryFn: fetchSchoolInfo,
     staleTime: QUERY_STALE_TIME,
+    retry: false,
   })
 
   const todayStudentAbsencesQuery = useQuery({
@@ -353,6 +370,8 @@ export default function DashboardPage() {
     queryFn: getTodayAbsences,
     staleTime: QUERY_STALE_TIME,
     refetchInterval: TODAY_REFETCH_INTERVAL,
+    retry: false,
+    enabled: isDirector,
   })
 
   const currentMonthRange = useMemo(() => {
@@ -375,6 +394,8 @@ export default function DashboardPage() {
       }),
     staleTime: QUERY_STALE_TIME,
     refetchInterval: TODAY_REFETCH_INTERVAL,
+    retry: false,
+    enabled: canViewStudents,
   })
 
   const isInitialLoading =

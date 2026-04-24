@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import axios from "axios"
 
 import { usePermissions } from "@/shared/hooks/usePermissions"
@@ -72,11 +72,13 @@ export function useRestoreSession(): void {
   const setPermissions = useAuthStore((state) => state.setPermissions)
   const isSessionRestored = useAuthStore((state) => state.isSessionRestored)
   const { refreshPermissions } = usePermissions()
+  const hasAttemptedRestore = useRef(false)
 
   useEffect(() => {
-    if (isSessionRestored) {
+    if (isSessionRestored || hasAttemptedRestore.current) {
       return
     }
+    hasAttemptedRestore.current = true
 
     const restoreSession = async (): Promise<void> => {
       try {
