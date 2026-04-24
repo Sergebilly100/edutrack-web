@@ -119,10 +119,10 @@ const toDashboardSalaryRow = (item: DashboardSalarySummaryItem): DashboardSalary
     }
   }
 
-  if (item.status === "paid" && item.isPartiallyPaid) {
+  if (item.status !== "disputed" && item.isPartiallyPaid) {
     return {
       ...item,
-      salaryRowStatus: "paid",
+      salaryRowStatus: item.status === "pending" ? "pending" : "paid",
       salaryStatusLabel: "Payé partiellement",
       salaryStatusClassName: "border-amber-200 bg-amber-50 text-amber-700",
     }
@@ -740,7 +740,7 @@ export default function DashboardPage() {
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-lg font-semibold">Absence élève/étudiant — Aujourd&apos;hui</CardTitle>
+              <CardTitle className="text-lg font-semibold">Absence élève/étudiant - Aujourd&apos;hui</CardTitle>
               {canToggleTodayStudentAbsences ? (
                 <Button
                   type="button"
@@ -858,7 +858,11 @@ export default function DashboardPage() {
                             status: row.salaryRowStatus,
                             statusLabel: row.salaryStatusLabel,
                             statusClassName: row.salaryStatusClassName,
-                            canMarkPaid: row.status === "pending" && Boolean(row.salaryRecordId),
+                            canMarkPaid:
+                              Boolean(row.salaryRecordId) &&
+                              row.hoursDone > 0 &&
+                              (row.totalFcfa ?? 0) > 0 &&
+                              (row.status === "pending" || (row.status === "paid" && row.isPartiallyPaid)),
                           }}
                           onMarkPaid={() => navigate("/salaries")}
                           onDetails={() => navigate("/salaries")}

@@ -54,6 +54,16 @@ const formatTime = (time: string) => {
 
 const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
+export const shouldMarkCheckinQrDoneOnSheetClose = ({
+  step,
+  isRollCallPending,
+  isReadyToFinish,
+}: {
+  step: 1 | 2 | 3 | 4
+  isRollCallPending: boolean
+  isReadyToFinish: boolean
+}) => step === 3 && !isRollCallPending && !isReadyToFinish
+
 export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheckInFlowProps) {
   const attendanceDate = slot.date ?? toDateKey(new Date())
 
@@ -290,24 +300,17 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
 
   /**
    * Point 5 — Fermeture du sheet AVANT la fin du process.
-   * Si étapes 1+2 sont faites (checkInScheduled + qrValidated ou checkIn envoyé)
-   * mais appel pas encore soumis → on marque "checkin_qr_done" dans le store.
+   * On marque "checkin_qr_done" uniquement si l'enseignant est déjà entré
+   * dans l'étape d'appel (étape 3) puis ferme le sheet sans terminer.
    * CourseCard affichera "Poursuivre le pointage".
    */
   const handleSheetClose = () => {
-    if (isReadyToFinish || step === 4) {
+    if (step === 4 || isReadyToFinish) {
       onClose()
       return
     }
 
-    const checkinSent = checkInMutation.isSuccess || checkInMutation.isPending
-    const pastStep1 = checkInScheduled || checkinSent
-
-    if (pastStep1 && step < 3 && !isRollCallPending) {
-      // Étape 1 faite, QR pas encore validé → fermeture avant confirmation
-      rollCallStore.markCheckinQrDone(slot.id, attendanceDate)
-    } else if ((step === 3 || qrValidated) && !isRollCallPending) {
-      // Étapes 1+2 faites, appel pas lancé → fermeture après QR
+    if (shouldMarkCheckinQrDoneOnSheetClose({ step, isRollCallPending, isReadyToFinish })) {
       rollCallStore.markCheckinQrDone(slot.id, attendanceDate)
     }
     // Si rollcall_pending déjà dans le store → laisser tel quel

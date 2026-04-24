@@ -347,13 +347,12 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
                   <TableRow>
                     <TableHead>Date</TableHead>
                     <TableHead>Créneau</TableHead>
-                    {/* <TableHead>Début</TableHead>
-                    <TableHead>Fin</TableHead> */}
                     <TableHead>Matière</TableHead>
                     <TableHead>Classe</TableHead>
                     <TableHead>Statut</TableHead>
-                    <TableHead>Check-in</TableHead>
-                    <TableHead>Retard</TableHead>
+                    <TableHead>Retard</TableHead>                    
+                    <TableHead>Entrée en salle</TableHead>
+                    <TableHead>Sortie de salle</TableHead>
                     <TableHead>Salle</TableHead>
                     <TableHead>Pointage élèves</TableHead>
                     {/* <TableHead>Prévu</TableHead>
@@ -365,8 +364,6 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
                     <TableRow key={`${row.date}-${row.slotLabel}-${index}`}>
                       <TableCell>{row.date}</TableCell>
                       <TableCell>{row.slotLabel}</TableCell>
-                      {/* <TableCell>{row.startTime}</TableCell>
-                      <TableCell>{row.endTime}</TableCell> */}
                       <TableCell>{row.subject}</TableCell>
                       <TableCell>{row.className}</TableCell>
                       <TableCell>
@@ -379,8 +376,11 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
                           {statusLabel[row.attendanceStatus] ?? statusLabel.not_marked}
                         </Badge>
                       </TableCell>
-                      <TableCell>{row.checkedInAt ? row.checkedInAt.slice(11, 16) : "—"}</TableCell>
                       <TableCell>{row.lateMinutes ? `${row.lateMinutes} min` : "—"}</TableCell>
+                      <TableCell>{row.checkedInAt ? row.checkedInAt.slice(11, 16) : "—"}</TableCell>
+                      <TableCell>
+                        {row.checkedOutAt ? row.checkedOutAt.slice(11, 16) : "—"}
+                      </TableCell>
                       <TableCell>
                         {row.roomMismatch ? (
                           <Badge variant="destructive">Incorrecte</Badge>

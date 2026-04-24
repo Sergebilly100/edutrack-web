@@ -28,6 +28,7 @@ export interface SalaryRowProps {
   periodSummary: SalaryRowPeriodSummary
   onMarkPaid: (teacherId: string) => void
   onDetails: (teacherId: string) => void
+  onHistory?: (teacherId: string) => void
   dataTestIdPrefix?: string
 }
 
@@ -97,7 +98,14 @@ const getProgressColor = (ratio: number) => {
   return "bg-red-500"
 }
 
-export function SalaryRow({ teacher, periodSummary, onMarkPaid, onDetails, dataTestIdPrefix }: SalaryRowProps) {
+export function SalaryRow({
+  teacher,
+  periodSummary,
+  onMarkPaid,
+  onDetails,
+  onHistory,
+  dataTestIdPrefix,
+}: SalaryRowProps) {
   const progressRatio =
     periodSummary.hoursPlanned > 0
       ? Math.max(0, Math.min(100, (periodSummary.hoursDone / periodSummary.hoursPlanned) * 100))
@@ -190,6 +198,17 @@ export function SalaryRow({ teacher, periodSummary, onMarkPaid, onDetails, dataT
           >
             Détails
           </Button>
+          {onHistory ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onHistory(teacher.id)}
+              data-testid={dataTestIdPrefix ? `${dataTestIdPrefix}-history-${teacher.id}` : undefined}
+            >
+              Historique
+            </Button>
+          ) : null}
         </div>
       </TableCell>
     </TableRow>

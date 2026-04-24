@@ -54,6 +54,7 @@ export type SalaryTeacherDetails = {
     amountRemainingToPayNow: number | null
     remainingPotentialAmount: number | null
     absenceAmount: number | null
+    hoursDoneSinceLastPayment: number
     isPartiallyPaid: boolean
   }
   payment: {
@@ -62,6 +63,15 @@ export type SalaryTeacherDetails = {
     paidByName: string | null
     notes: string | null
   }
+  payments: Array<{
+    id: string
+    hoursPaid: number | null
+    amountFcfa: number
+    paidAt: string
+    paidBy: string
+    paidByName: string | null
+    notes: string | null
+  }>
   rows: SalaryDetailRow[]
 }
 
@@ -70,10 +80,33 @@ export type ComputeSalaryResponse = {
   updatedCount: number
 }
 
+export type SalaryPaymentHistoryItem = {
+  paymentId: string
+  recordId: string
+  month: string
+  hoursPaid: number | null
+  amountFcfa: number
+  status: "pending" | "paid" | "disputed"
+  paidAt: string | null
+  paidBy: string | null
+  paidByName: string | null
+  notes: string | null
+}
+
+export type SalaryPaymentHistoryResponse = {
+  teacher: {
+    id: string
+    name: string
+    type: "vacataire" | "permanent"
+  }
+  items: SalaryPaymentHistoryItem[]
+}
+
 export type UpdateSalaryStatusInput = {
   recordId: string
   status: "paid" | "disputed"
   notes?: string
+  hoursToPay?: number
 }
 
 export type ExportJobState = "queued" | "running" | "done" | "failed" | "unknown"
@@ -240,6 +273,7 @@ export const getTeacherSalaryDetails = async (
       remainingPotentialAmount:
         summary.remainingPotentialAmount === null ? null : asNumber(summary.remainingPotentialAmount, 0),
       absenceAmount: summary.absenceAmount === null ? null : asNumber(summary.absenceAmount, 0),
+      hoursDoneSinceLastPayment: asNumber(summary.hoursDoneSinceLastPayment, 0),
       isPartiallyPaid: Boolean(summary.isPartiallyPaid),
     },
     payment: {
@@ -248,6 +282,20 @@ export const getTeacherSalaryDetails = async (
       paidByName: asNullableString(payment.paidByName),
       notes: asNullableString(payment.notes),
     },
+    payments: Array.isArray(payload.payments)
+      ? payload.payments.map((entry) => {
+          const row = isRecord(entry) ? entry : {}
+          return {
+            id: asString(row.id),
+            hoursPaid: row.hoursPaid === null ? null : asNumber(row.hoursPaid, 0),
+            amountFcfa: asNumber(row.amountFcfa, 0),
+            paidAt: asString(row.paidAt),
+            paidBy: asString(row.paidBy),
+            paidByName: asNullableString(row.paidByName),
+            notes: asNullableString(row.notes),
+          }
+        })
+      : [],
     rows: rowsRaw.map((entry) => {
       const row = isRecord(entry) ? entry : {}
       return {
@@ -285,7 +333,51 @@ export const updateSalaryStatus = async (input: UpdateSalaryStatusInput): Promis
   await api.patch(`/billing/salary/${input.recordId}/status`, {
     status: input.status,
     notes: input.notes?.trim() ? input.notes.trim() : undefined,
+    hoursToPay: typeof input.hoursToPay === "number" ? input.hoursToPay : undefined,
   })
+}
+
+const parseSalaryHistoryStatus = (value: unknown): "pending" | "paid" | "disputed" => {
+  if (value === "pending" || value === "paid" || value === "disputed") {
+    return value
+  }
+  return "pending"
+}
+
+export const getTeacherPaymentHistory = async (
+  teacherId: string,
+  limit = 24
+): Promise<SalaryPaymentHistoryResponse> => {
+  const response = await api.get(`/billing/salary/${teacherId}/payments`, {
+    params: { limit },
+  })
+
+  const payload = isRecord(response.data) ? response.data : {}
+  const teacher = isRecord(payload.teacher) ? payload.teacher : {}
+  const itemsRaw = Array.isArray(payload.items) ? payload.items : []
+
+  return {
+    teacher: {
+      id: asString(teacher.id, teacherId),
+      name: asString(teacher.name, "Professeur"),
+      type: asString(teacher.type) === "permanent" ? "permanent" : "vacataire",
+    },
+    items: itemsRaw.map((entry) => {
+      const row = isRecord(entry) ? entry : {}
+      return {
+        paymentId: asString(row.paymentId),
+        recordId: asString(row.recordId),
+        month: asString(row.month),
+        hoursPaid: row.hoursPaid === null ? null : asNumber(row.hoursPaid, 0),
+        amountFcfa: asNumber(row.amountFcfa, 0),
+        status: parseSalaryHistoryStatus(row.status),
+        paidAt: asNullableString(row.paidAt),
+        paidBy: asNullableString(row.paidBy),
+        paidByName: asNullableString(row.paidByName),
+        notes: asNullableString(row.notes),
+      }
+    }),
+  }
 }
 
 const normalizeJobState = (value: unknown): ExportJobState => {
