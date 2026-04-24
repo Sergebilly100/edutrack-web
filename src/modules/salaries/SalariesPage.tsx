@@ -37,6 +37,7 @@ import {
   type SalarySummaryItem,
 } from "@/modules/salaries/salaries.api"
 import { EmptyState, OfflineIndicator, SalaryRow, StatCard, emptyStateIcons } from "@/shared/components"
+import { usePermissions } from "@/shared/hooks/usePermissions"
 
 const STALE_TIME = 60_000
 
@@ -178,6 +179,9 @@ const attendanceStatusMeta: Record<
 export default function SalariesPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
+  const { hasPermission } = usePermissions()
+  const canComputeSalaries = hasPermission("salary.compute")
+  const canMarkSalaryAsPaid = hasPermission("salary.mark_paid")
 
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth)
   const [computeDialogOpen, setComputeDialogOpen] = useState(false)
@@ -604,14 +608,16 @@ export default function SalariesPage() {
                 </Button>
               </div>
 
-              <Button
-                type="button"
-                onClick={() => setComputeDialogOpen(true)}
-                disabled={isSelectedMonthFuture || computeMutation.isPending}
-                data-testid="salaries-compute-button"
-              >
-                Calculer les salaires
-              </Button>
+              {canComputeSalaries ? (
+                <Button
+                  type="button"
+                  onClick={() => setComputeDialogOpen(true)}
+                  disabled={isSelectedMonthFuture || computeMutation.isPending}
+                  data-testid="salaries-compute-button"
+                >
+                  Calculer les salaires
+                </Button>
+              ) : null}
 
               <Button
                 type="button"
@@ -762,6 +768,7 @@ export default function SalariesPage() {
                           statusLabel: row.isPartiallyPaid ? "Payé partiellement" : undefined,
                           statusClassName: row.isPartiallyPaid ? "border-amber-200 bg-amber-50 text-amber-700" : undefined,
                           canMarkPaid:
+                            canMarkSalaryAsPaid &&
                             Boolean(row.salaryRecordId) &&
                             row.hoursDone > 0 &&
                             (row.totalFcfa ?? 0) > 0,
@@ -840,9 +847,10 @@ export default function SalariesPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        {row.status === "pending" ||
+                        {canMarkSalaryAsPaid &&
+                        (row.status === "pending" ||
                         (row.status === "paid" && row.isPartiallyPaid) ||
-                        row.status === "Salaire fixe" ? (
+                        row.status === "Salaire fixe") ? (
                           <Button type="button" size="sm" className="mr-2" onClick={() => void openMarkPaidDialog(row)}>
                             Marquer payé
                           </Button>

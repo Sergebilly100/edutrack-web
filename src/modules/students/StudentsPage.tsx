@@ -1,21 +1,32 @@
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import type { Column, ColumnDef } from "@tanstack/react-table"
-import { useQueries, useQuery } from "@tanstack/react-query"
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { fetchWeeklySchedule } from "@/modules/schedule/schedule.api"
 import StudentAbsencePanel from "@/modules/students/components/StudentAbsencePanel"
-import { getAttendanceHistory, listStudents, type StudentItem } from "@/modules/students/students.api"
+import { createStudent, getAttendanceHistory, listStudents, type StudentItem } from "@/modules/students/students.api"
 import { DataTable, EmptyState, PageLayout } from "@/shared/components"
 import { AddIcon, AppIcon, ChevronRightIcon, FilterIcon, StudentsIcon } from "@/shared/components/icons"
+import { usePermissions } from "@/shared/hooks/usePermissions"
 import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
 import { useStudentLabel } from "@/shared/hooks/useStudentLabel"
 
@@ -53,9 +64,12 @@ function SortableHeader<TData>({ column, label }: { column: Column<TData, unknow
 }
 
 export default function StudentsPage() {
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const user = useAuthStore((state) => state.user)
+  const { hasPermission } = usePermissions()
   const studentLabel = useStudentLabel()
   const activeTab = searchParams.get("tab") === "absences" ? "absences" : "liste"
   const classFilter = searchParams.get("list_class") ?? "all"
@@ -64,6 +78,25 @@ export default function StudentsPage() {
     rawStatus === "active" || rawStatus === "inactive" ? rawStatus : "all"
   const searchTerm = searchParams.get("list_search") ?? ""
   const returnTo = `${window.location.pathname}${window.location.search}`
+  const canCreateStudent = hasPermission("students.create")
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [newStudent, setNewStudent] = useState({
+    classId: "",
+    firstName: "",
+    lastName: "",
+    parentPhone: "",
+    parentPhone2: "",
+  })
+
+  const resetCreateStudentForm = () => {
+    setNewStudent({
+      classId: "",
+      firstName: "",
+      lastName: "",
+      parentPhone: "",
+      parentPhone2: "",
+    })
+  }
 
   const setListParam = (key: string, value: string, fallback: string) => {
     const next = new URLSearchParams(searchParams)
@@ -102,6 +135,23 @@ export default function StudentsPage() {
         isActive: statusFilter === "all" ? undefined : statusFilter === "active",
         search: searchTerm.trim() || undefined,
       }),
+  })
+
+  const createStudentMutation = useMutation({
+    mutationFn: createStudent,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["students"] })
+      setCreateDialogOpen(false)
+      resetCreateStudentForm()
+      toast({ title: "Élève ajouté" })
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible d'ajouter l'élève.",
+        variant: "destructive",
+      })
+    },
   })
 
   const students = studentsQuery.data?.data ?? []
@@ -224,10 +274,12 @@ export default function StudentsPage() {
       title={studentLabel === "Élève" ? "Élèves" : "Étudiants"}
       subtitle={`Liste des ${studentLabel.toLowerCase()}s et suivi des absences`}
       actions={
-        <Button type="button" disabled>
-          <AddIcon className="mr-2 h-4 w-4" />
-          Ajouter un élève
-        </Button>
+        canCreateStudent ? (
+          <Button type="button" onClick={() => setCreateDialogOpen(true)}>
+            <AddIcon className="mr-2 h-4 w-4" />
+            Ajouter un élève
+          </Button>
+        ) : null
       }
     >
       <Tabs
@@ -351,6 +403,116 @@ export default function StudentsPage() {
           <StudentAbsencePanel />
         </TabsContent>
       </Tabs>
+
+      <Dialog
+        open={createDialogOpen}
+        onOpenChange={(open) => {
+          setCreateDialogOpen(open)
+          if (!open) {
+            resetCreateStudentForm()
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ajouter un élève</DialogTitle>
+            <DialogDescription>Renseignez les informations principales de l&apos;élève.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="student-class">Classe</Label>
+              <Select
+                value={newStudent.classId}
+                onValueChange={(value) => setNewStudent((current) => ({ ...current, classId: value }))}
+              >
+                <SelectTrigger id="student-class">
+                  <SelectValue placeholder="Choisir une classe" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(classesQuery.data ?? []).map((classItem) => (
+                    <SelectItem key={classItem.id} value={classItem.id}>
+                      {classItem.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="student-last-name">Nom</Label>
+                <Input
+                  id="student-last-name"
+                  value={newStudent.lastName}
+                  onChange={(event) =>
+                    setNewStudent((current) => ({ ...current, lastName: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="student-first-name">Prénom</Label>
+                <Input
+                  id="student-first-name"
+                  value={newStudent.firstName}
+                  onChange={(event) =>
+                    setNewStudent((current) => ({ ...current, firstName: event.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="student-parent-phone">Téléphone parent 1</Label>
+                <Input
+                  id="student-parent-phone"
+                  value={newStudent.parentPhone}
+                  onChange={(event) =>
+                    setNewStudent((current) => ({ ...current, parentPhone: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="student-parent-phone-2">Téléphone parent 2</Label>
+                <Input
+                  id="student-parent-phone-2"
+                  value={newStudent.parentPhone2}
+                  onChange={(event) =>
+                    setNewStudent((current) => ({ ...current, parentPhone2: event.target.value }))
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              onClick={() =>
+                createStudentMutation.mutate({
+                  classId: newStudent.classId,
+                  firstName: newStudent.firstName.trim(),
+                  lastName: newStudent.lastName.trim(),
+                  parentPhone: newStudent.parentPhone.trim() || null,
+                  parentPhone2: newStudent.parentPhone2.trim() || null,
+                })
+              }
+              disabled={
+                createStudentMutation.isPending ||
+                newStudent.classId.length === 0 ||
+                newStudent.firstName.trim().length === 0 ||
+                newStudent.lastName.trim().length === 0
+              }
+            >
+              {createStudentMutation.isPending ? "Création..." : "Ajouter"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   )
 }

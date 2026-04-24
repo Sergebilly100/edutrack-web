@@ -50,6 +50,7 @@ import {
   updateSchoolLimit,
 } from "@/modules/settings/settings.api"
 import { cn } from "@/lib/utils"
+import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 const SETTINGS_QUERY_KEY = ["settings", "school-config"] as const
@@ -58,6 +59,8 @@ export default function SchoolConfigPanel() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const user = useAuthStore((state) => state.user)
+  const { hasPermission } = usePermissions()
+  const canManagePositions = hasPermission("settings.positions")
 
   const [positionModalOpen, setPositionModalOpen] = useState(false)
   const [positionToEdit, setPositionToEdit] = useState<PositionPayload | null>(null)
@@ -624,16 +627,18 @@ export default function SchoolConfigPanel() {
                   <p className="text-xs text-muted-foreground">Créez, assignez et modifiez les postes.</p>
                 </div>
               </div>
-              <Button
-                onClick={() => {
-                  setPositionToEdit(null)
-                  setPositionModalOpen(true)
-                }}
-                className="gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Nouveau poste
-              </Button>
+              {canManagePositions ? (
+                <Button
+                  onClick={() => {
+                    setPositionToEdit(null)
+                    setPositionModalOpen(true)
+                  }}
+                  className="gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Nouveau poste
+                </Button>
+              ) : null}
             </div>
             <div>
               {positions.length === 0 ? (
@@ -667,34 +672,38 @@ export default function SchoolConfigPanel() {
                       <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
                         {position.permissions.length} permission{position.permissions.length !== 1 ? "s" : ""}
                       </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => openAssignDialog(position)}
-                      >
-                        <UserPlus className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => {
-                          setPositionToEdit(position)
-                          setPositionModalOpen(true)
-                        }}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => handleDeletePosition(position)}
-                        disabled={deleteMutation.isPending}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      {canManagePositions ? (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => openAssignDialog(position)}
+                          >
+                            <UserPlus className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => {
+                              setPositionToEdit(position)
+                              setPositionModalOpen(true)
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => handleDeletePosition(position)}
+                            disabled={deleteMutation.isPending}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
+                      ) : null}
                     </div>
                   </div>
                 ))
@@ -858,24 +867,26 @@ export default function SchoolConfigPanel() {
                                   className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
                                 >
                                   {assignedPosition.name}
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-3.5 w-3.5"
-                                    onClick={() =>
-                                      handleUnassignPosition({
-                                        positionId: assignedPosition.id,
-                                        userId: schoolUser.id,
-                                        userName: schoolUser.name,
-                                        positionName: assignedPosition.name,
-                                      })
-                                    }
-                                    disabled={unassignMutation.isPending}
-                                    aria-label={`Retirer ${assignedPosition.name} de ${schoolUser.name}`}
-                                  >
-                                    <X className="h-2.5 w-2.5" />
-                                  </Button>
+                                  {canManagePositions ? (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-3.5 w-3.5"
+                                      onClick={() =>
+                                        handleUnassignPosition({
+                                          positionId: assignedPosition.id,
+                                          userId: schoolUser.id,
+                                          userName: schoolUser.name,
+                                          positionName: assignedPosition.name,
+                                        })
+                                      }
+                                      disabled={unassignMutation.isPending}
+                                      aria-label={`Retirer ${assignedPosition.name} de ${schoolUser.name}`}
+                                    >
+                                      <X className="h-2.5 w-2.5" />
+                                    </Button>
+                                  ) : null}
                                 </span>
                               ))}
                             </>
@@ -932,12 +943,14 @@ export default function SchoolConfigPanel() {
           </div>
         </div>
 
-        <PositionFormModal
-          open={positionModalOpen}
-          onOpenChange={setPositionModalOpen}
-          initialPosition={positionToEdit}
-          canManageSmsTemplates={school?.canEditSmsTemplate ?? false}
-        />
+        {canManagePositions ? (
+          <PositionFormModal
+            open={positionModalOpen}
+            onOpenChange={setPositionModalOpen}
+            initialPosition={positionToEdit}
+            canManageSmsTemplates={school?.canEditSmsTemplate ?? false}
+          />
+        ) : null}
       </div>
 
       <AlertDialog
@@ -1045,16 +1058,17 @@ export default function SchoolConfigPanel() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Assigner un utilisateur</DialogTitle>
-            <DialogDescription>
-              {positionToAssign
-                ? `Sélectionnez un utilisateur pour le poste ${positionToAssign.name}.`
-                : "Sélectionnez un utilisateur."}
-            </DialogDescription>
-          </DialogHeader>
+      {canManagePositions ? (
+        <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Assigner un utilisateur</DialogTitle>
+              <DialogDescription>
+                {positionToAssign
+                  ? `Sélectionnez un utilisateur pour le poste ${positionToAssign.name}.`
+                  : "Sélectionnez un utilisateur."}
+              </DialogDescription>
+            </DialogHeader>
 
           {assignableUsers.length === 0 ? (
             <p className="text-sm text-muted-foreground">
@@ -1086,29 +1100,30 @@ export default function SchoolConfigPanel() {
             </div>
           )}
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setAssignDialogOpen(false)}>
-              Annuler
-            </Button>
-            <Button
-              type="button"
-              disabled={!positionToAssign || !selectedUserId || assignMutation.isPending}
-              onClick={() => {
-                if (!positionToAssign || !selectedUserId) {
-                  return
-                }
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setAssignDialogOpen(false)}>
+                Annuler
+              </Button>
+              <Button
+                type="button"
+                disabled={!positionToAssign || !selectedUserId || assignMutation.isPending}
+                onClick={() => {
+                  if (!positionToAssign || !selectedUserId) {
+                    return
+                  }
 
-                assignMutation.mutate({
-                  positionId: positionToAssign.id,
-                  userId: selectedUserId,
-                })
-              }}
-            >
-              Assigner
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+                  assignMutation.mutate({
+                    positionId: positionToAssign.id,
+                    userId: selectedUserId,
+                  })
+                }}
+              >
+                Assigner
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </>
   )
 }

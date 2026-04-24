@@ -38,7 +38,8 @@ import {
   ListIcon,
   ScheduleIcon,
 } from "@/shared/components/icons"
-import { isStaffRole, useAuthStore, type AuthRole } from "@/shared/store/auth.store"
+import { useAuthStore } from "@/shared/store/auth.store"
+import { usePermissions } from "@/shared/hooks/usePermissions"
 
 import WeekGrid from "./components/WeekGrid"
 import {
@@ -111,9 +112,6 @@ const emptyFormState: SlotFormState = {
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
-
-const canManageSchedule = (role: AuthRole | undefined) =>
-  role === "director" || isStaffRole(role)
 
 const toISODate = (date: Date) => {
   const year = date.getFullYear()
@@ -417,6 +415,7 @@ const buildListStructure = (
 
 export default function SchedulePage() {
   const user = useAuthStore((state) => state.user)
+  const { hasPermission } = usePermissions()
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
@@ -462,7 +461,7 @@ export default function SchedulePage() {
   })
 
   const data = scheduleQuery.data
-  const canManage = canManageSchedule(user?.role)
+  const canEditSchedule = hasPermission("schedule.edit")
 
   const blockedTeachers = useMemo(
     () =>
@@ -651,7 +650,7 @@ export default function SchedulePage() {
             <p className="text-sm text-muted-foreground">Vue hebdomadaire et gestion des créneaux de cours.</p>
           </div>
 
-          {canManage ? (
+          {canEditSchedule ? (
             <Button onClick={() => openCreateModal()} disabled={!data?.period}>
               <AddIcon className="mr-2 h-4 w-4" />Ajouter un créneau
             </Button>
@@ -796,7 +795,7 @@ export default function SchedulePage() {
           hasPeriod={!!data.period}
           isLoading={scheduleQuery.isFetching}
           onSlotClick={(slot) => { setSelectedSchedule(slot); setDetailOpen(true) }}
-          onSlotAdd={(day, hour) => { if (!canManage) return; openCreateModal({ dayOfWeek: day, hour }) }}
+          onSlotAdd={(day, hour) => { if (!canEditSchedule) return; openCreateModal({ dayOfWeek: day, hour }) }}
           onWeekChange={(next) => setWeekFromIso(toISODate(next))}
           onToday={() => setWeekFromIso(currentWeekMonday)}
           isBlockedTeacher={(id) => blockedTeachers.has(id)}
@@ -953,7 +952,7 @@ export default function SchedulePage() {
               <p><span className="font-medium">Horaire :</span> {selectedSchedule.timeSlot.startTime} → {selectedSchedule.timeSlot.endTime}</p>
             </div>
           ) : null}
-          {canManage && selectedSchedule ? (
+          {canEditSchedule && selectedSchedule ? (
             <DialogFooter className="gap-2 sm:justify-between">
               <Button variant="destructive"
                 onClick={() => void deleteMutation.mutateAsync(selectedSchedule.id)}

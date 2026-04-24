@@ -1,9 +1,11 @@
 import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation } from "@tanstack/react-query"
+import { isAxiosError } from "axios"
 import { useForm, useWatch } from "react-hook-form"
 import { z } from "zod"
 
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -51,6 +53,10 @@ export default function AccountPage() {
   const user = useAuthStore((state) => state.user)
   const setUser = useAuthStore((state) => state.setUser)
   const [photoPreview, setPhotoPreview] = useState(user?.profilePhotoUrl ?? "")
+  const [passwordFeedback, setPasswordFeedback] = useState<{
+    type: "success" | "error"
+    message: string
+  } | null>(null)
 
   const profileForm = useForm<ProfileValues>({
     resolver: zodResolver(profileSchema),
@@ -110,12 +116,18 @@ export default function AccountPage() {
       }),
     onSuccess: () => {
       passwordForm.reset()
+      setPasswordFeedback({ type: "success", message: "Mot de passe mis à jour" })
       toast({ title: "Mot de passe modifié" })
     },
-    onError: () => {
+    onError: (error) => {
+      const message =
+        isAxiosError(error) && typeof error.response?.data?.error === "string"
+          ? error.response.data.error
+          : "Impossible de modifier le mot de passe."
+      setPasswordFeedback({ type: "error", message })
       toast({
         title: "Erreur",
-        description: "Impossible de modifier le mot de passe.",
+        description: message,
         variant: "destructive",
       })
     },
@@ -226,8 +238,19 @@ export default function AccountPage() {
           <CardTitle className="text-lg font-semibold">Changer le mot de passe</CardTitle>
         </CardHeader>
         <CardContent>
+          {passwordFeedback ? (
+            <Alert variant={passwordFeedback.type === "error" ? "destructive" : "default"} className="mb-4">
+              <AlertDescription>{passwordFeedback.message}</AlertDescription>
+            </Alert>
+          ) : null}
           <Form {...passwordForm}>
-            <form className="space-y-4" onSubmit={passwordForm.handleSubmit((values) => passwordMutation.mutate(values))}>
+            <form
+              className="space-y-4"
+              onSubmit={passwordForm.handleSubmit((values) => {
+                setPasswordFeedback(null)
+                passwordMutation.mutate(values)
+              })}
+            >
               <FormField
                 control={passwordForm.control}
                 name="currentPassword"

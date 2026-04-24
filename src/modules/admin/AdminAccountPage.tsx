@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Navigate } from "react-router-dom"
 import { useMutation } from "@tanstack/react-query"
+import { isAxiosError } from "axios"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -17,22 +18,28 @@ export default function AdminAccountPage() {
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null)
 
   const changePasswordMutation = useMutation({
     mutationFn: () =>
       apiClient.post("/auth/change-password", {
-        currentPassword,
-        newPassword,
-        confirmPassword,
+        current_password: currentPassword,
+        new_password: newPassword,
       }),
     onSuccess: () => {
       setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
+      setFeedback({ type: "success", message: "Mot de passe mis à jour" })
       toast({ title: "Mot de passe mis à jour" })
     },
-    onError: () => {
-      toast({ title: "Erreur", description: "Impossible de modifier le mot de passe", variant: "destructive" })
+    onError: (error) => {
+      const message =
+        isAxiosError(error) && typeof error.response?.data?.error === "string"
+          ? error.response.data.error
+          : "Impossible de modifier le mot de passe"
+      setFeedback({ type: "error", message })
+      toast({ title: "Erreur", description: message, variant: "destructive" })
     },
   })
 
@@ -72,6 +79,11 @@ export default function AdminAccountPage() {
           <CardTitle>Changer le mot de passe</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {feedback ? (
+            <Alert variant={feedback.type === "error" ? "destructive" : "default"}>
+              <AlertDescription>{feedback.message}</AlertDescription>
+            </Alert>
+          ) : null}
           <div className="space-y-2">
             <Label htmlFor="current-password">Mot de passe actuel</Label>
             <Input id="current-password" type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
@@ -84,7 +96,14 @@ export default function AdminAccountPage() {
             <Label htmlFor="confirm-password">Confirmer</Label>
             <Input id="confirm-password" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
           </div>
-          <Button type="button" onClick={() => changePasswordMutation.mutate()} disabled={changePasswordMutation.isPending}>
+          <Button
+            type="button"
+            onClick={() => {
+              setFeedback(null)
+              changePasswordMutation.mutate()
+            }}
+            disabled={changePasswordMutation.isPending}
+          >
             Mettre à jour
           </Button>
         </CardContent>

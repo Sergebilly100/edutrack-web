@@ -5,11 +5,12 @@ import SchoolConfigPanel from "@/modules/settings/components/SchoolConfigPanel"
 import SmsTemplatePanel from "@/modules/settings/components/SmsTemplatePanel"
 import { fetchSchoolConfig } from "@/modules/settings/settings.api"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
+import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 export default function SettingsPage() {
   const user = useAuthStore((state) => state.user)
-  const permissions = useAuthStore((state) => state.permissions)
+  const { hasPermission } = usePermissions()
   const schoolConfigQuery = useQuery({
     queryKey: ["settings", "school-config", "access-gate"],
     queryFn: fetchSchoolConfig,
@@ -17,11 +18,11 @@ export default function SettingsPage() {
 
   const canAccessSchoolConfig =
     user?.role === "director" ||
-    permissions.includes("settings.school") ||
-    permissions.includes("settings.positions")
+    hasPermission("settings.school") ||
+    hasPermission("settings.positions")
   const canEditSmsTemplateByAdmin = schoolConfigQuery.data?.school.canEditSmsTemplate ?? false
   const canAccessSmsTemplate =
-    canEditSmsTemplateByAdmin && (user?.role === "director" || permissions.includes("settings.sms_templates"))
+    canEditSmsTemplateByAdmin && (user?.role === "director" || hasPermission("settings.sms_templates"))
 
   return (
     <div className="animate-fade-in space-y-6">

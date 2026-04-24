@@ -55,6 +55,7 @@ import {
   ViewIcon,
 } from "@/shared/components/icons"
 import { DataTable, EmptyState, PageLayout } from "@/shared/components"
+import { usePermissions } from "@/shared/hooks/usePermissions"
 import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
 
 const THIRTY_DAYS_MS = 1000 * 60 * 60 * 24 * 30
@@ -127,11 +128,13 @@ function TeacherRowActions({
   onViewProfile,
   onToggleBlocked,
   onExportPdf,
+  canToggleBlocked,
 }: {
   teacher: TeacherTableRow
   onViewProfile: () => void
   onToggleBlocked: () => void
   onExportPdf: () => void
+  canToggleBlocked: boolean
 }) {
   return (
     <div onClick={(event) => event.stopPropagation()}>
@@ -153,14 +156,16 @@ function TeacherRowActions({
             <ViewIcon className="mr-2 h-4 w-4" />
             Voir le profil
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onToggleBlocked}>
-            {teacher.isBlocked ? (
-              <UnblockIcon className="mr-2 h-4 w-4" />
-            ) : (
-              <BlockIcon className="mr-2 h-4 w-4" />
-            )}
-            {teacher.isBlocked ? "Débloquer" : "Bloquer"}
-          </DropdownMenuItem>
+          {canToggleBlocked ? (
+            <DropdownMenuItem onSelect={onToggleBlocked}>
+              {teacher.isBlocked ? (
+                <UnblockIcon className="mr-2 h-4 w-4" />
+              ) : (
+                <BlockIcon className="mr-2 h-4 w-4" />
+              )}
+              {teacher.isBlocked ? "Débloquer" : "Bloquer"}
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem onSelect={onExportPdf}>
             <ExportIcon className="mr-2 h-4 w-4" />
             Exporter PDF
@@ -175,8 +180,11 @@ export default function TeachersPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const user = useAuthStore((state) => state.user)
+  const { hasPermission } = usePermissions()
   const queryClient = useQueryClient()
   const { toast } = useToast()
+  const canToggleBlocked = hasPermission("teachers.block")
+  const canCreateTeacher = hasPermission("teachers.create")
 
   const [typeFilter, setTypeFilter] = useState<"all" | "vacataire" | "permanent">("all")
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all")
@@ -392,11 +400,12 @@ export default function TeachersPage() {
               setTeacherForExport(row.original)
               setExportPeriod(getDefaultExportPeriod())
             }}
+            canToggleBlocked={canToggleBlocked}
           />
         ),
       },
     ],
-    [navigate]
+    [canToggleBlocked, navigate]
   )
 
   if (!user) return null
@@ -418,10 +427,12 @@ export default function TeachersPage() {
       title={`Professeurs`}
       subtitle="Gestion des profs, blocage et export"
       actions={
-        <Button className="min-h-[44px]" onClick={() => setCreateOpen(true)}>
-          <AddIcon className="mr-2 h-4 w-4" />
-          Ajouter un prof
-        </Button>
+        canCreateTeacher ? (
+          <Button className="min-h-[44px]" onClick={() => setCreateOpen(true)}>
+            <AddIcon className="mr-2 h-4 w-4" />
+            Ajouter un prof
+          </Button>
+        ) : null
       }
     >
       <Tabs
@@ -513,7 +524,7 @@ export default function TeachersPage() {
                     icon={<AppIcon icon={TeachersIcon} size="md" className="text-muted-foreground" />}
                     title="Aucun professeur"
                     message="Ajoutez un professeur ou ajustez les filtres pour afficher des résultats."
-                    action={{ label: "Ajouter un prof", onClick: () => setCreateOpen(true) }}
+                    action={canCreateTeacher ? { label: "Ajouter un prof", onClick: () => setCreateOpen(true) } : undefined}
                   />
                 }
                 mobileCard={(teacher) => (
@@ -549,83 +560,87 @@ export default function TeachersPage() {
           ) : null}
 
           {/* ── Modal : créer un professeur ── */}
-          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Ajouter un professeur</DialogTitle>
-                <DialogDescription>
-                  Renseignez les informations du nouveau professeur.
-                </DialogDescription>
-              </DialogHeader>
-              <TeacherForm
-                isPending={createMutation.isPending}
-                submitLabel="Créer le professeur"
-                onSubmit={async (payload) => {
-                  await createMutation.mutateAsync(payload)
-                }}
-              />
-            </DialogContent>
-          </Dialog>
+          {canCreateTeacher ? (
+            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Ajouter un professeur</DialogTitle>
+                  <DialogDescription>
+                    Renseignez les informations du nouveau professeur.
+                  </DialogDescription>
+                </DialogHeader>
+                <TeacherForm
+                  isPending={createMutation.isPending}
+                  submitLabel="Créer le professeur"
+                  onSubmit={async (payload) => {
+                    await createMutation.mutateAsync(payload)
+                  }}
+                />
+              </DialogContent>
+            </Dialog>
+          ) : null}
 
           {/* ── Modal : bloquer / débloquer ── */}
-          <Dialog
-            open={Boolean(teacherForStatusChange)}
-            onOpenChange={(open) => { if (!open) closeStatusDialog() }}
-          >
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>
-                  {teacherForStatusChange?.isBlocked
-                    ? "Débloquer le professeur"
-                    : "Bloquer le professeur"}
-                </DialogTitle>
-                <DialogDescription>
-                  {teacherForStatusChange?.isBlocked
-                    ? "Le professeur retrouvera l'accès à ses actions habituelles."
-                    : "Saisissez le motif du blocage pour continuer."}
-                </DialogDescription>
-              </DialogHeader>
+          {canToggleBlocked ? (
+            <Dialog
+              open={Boolean(teacherForStatusChange)}
+              onOpenChange={(open) => { if (!open) closeStatusDialog() }}
+            >
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>
+                    {teacherForStatusChange?.isBlocked
+                      ? "Débloquer le professeur"
+                      : "Bloquer le professeur"}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {teacherForStatusChange?.isBlocked
+                      ? "Le professeur retrouvera l'accès à ses actions habituelles."
+                      : "Saisissez le motif du blocage pour continuer."}
+                  </DialogDescription>
+                </DialogHeader>
 
-              {/* Motif uniquement pour le blocage */}
-              {!teacherForStatusChange?.isBlocked ? (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Raison du blocage</p>
-                  <Input
-                    value={blockReasonInput}
-                    onChange={(event) => setBlockReasonInput(event.target.value)}
-                    placeholder="Ex: Dossier RH incomplet"
-                    data-testid="teachers-list-block-reason-input"
-                  />
-                </div>
-              ) : null}
+                {/* Motif uniquement pour le blocage */}
+                {!teacherForStatusChange?.isBlocked ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Raison du blocage</p>
+                    <Input
+                      value={blockReasonInput}
+                      onChange={(event) => setBlockReasonInput(event.target.value)}
+                      placeholder="Ex: Dossier RH incomplet"
+                      data-testid="teachers-list-block-reason-input"
+                    />
+                  </div>
+                ) : null}
 
-              <DialogFooter>
-                <Button variant="outline" onClick={closeStatusDialog}>
-                  Annuler
-                </Button>
-                <Button
-                  variant={teacherForStatusChange?.isBlocked ? "secondary" : "destructive"}
-                  disabled={
-                    toggleBlockMutation.isPending ||
-                    (!teacherForStatusChange?.isBlocked && blockReasonInput.trim().length === 0)
-                  }
-                  onClick={() => {
-                    if (!teacherForStatusChange) return
-                    void toggleBlockMutation.mutateAsync({
-                      teacher: teacherForStatusChange,
-                      reason: blockReasonInput.trim(),
-                    })
-                  }}
-                >
-                  {toggleBlockMutation.isPending
-                    ? "Traitement..."
-                    : teacherForStatusChange?.isBlocked
-                      ? "Débloquer"
-                      : "Bloquer"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                <DialogFooter>
+                  <Button variant="outline" onClick={closeStatusDialog}>
+                    Annuler
+                  </Button>
+                  <Button
+                    variant={teacherForStatusChange?.isBlocked ? "secondary" : "destructive"}
+                    disabled={
+                      toggleBlockMutation.isPending ||
+                      (!teacherForStatusChange?.isBlocked && blockReasonInput.trim().length === 0)
+                    }
+                    onClick={() => {
+                      if (!teacherForStatusChange) return
+                      void toggleBlockMutation.mutateAsync({
+                        teacher: teacherForStatusChange,
+                        reason: blockReasonInput.trim(),
+                      })
+                    }}
+                  >
+                    {toggleBlockMutation.isPending
+                      ? "Traitement..."
+                      : teacherForStatusChange?.isBlocked
+                        ? "Débloquer"
+                        : "Bloquer"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          ) : null}
 
           {/* ── Modal : export heures ── */}
           <Dialog

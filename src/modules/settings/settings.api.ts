@@ -352,8 +352,7 @@ export const resetAdministrativeUserPassword = async (
 
 export const changePassword = async (payload: ChangePasswordInput): Promise<void> => {
   await apiClient.post("/auth/change-password", {
-    currentPassword: payload.currentPassword,
-    newPassword: payload.newPassword,
-    confirmPassword: payload.newPassword,
+    current_password: payload.currentPassword,
+    new_password: payload.newPassword,
   })
 }
