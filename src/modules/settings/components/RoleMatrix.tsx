@@ -75,6 +75,50 @@ type RoleMatrixProps = {
 
 const uniqueSorted = (permissions: string[]) => Array.from(new Set(permissions)).sort()
 
+const CATEGORY_VIEW_PERMISSION: Readonly<Record<string, string>> = {
+  teachers: "teachers.view",
+  students: "students.view",
+  salary: "salary.view",
+  rooms: "rooms.view",
+  schedule: "schedule.view",
+  attendance: "attendance.view",
+}
+
+const ACTION_KEYS_REQUIRING_VIEW = new Set([
+  "create",
+  "edit",
+  "delete",
+  "block",
+  "compute",
+  "mark_paid",
+  "export",
+])
+
+const splitPermission = (permission: string): { category: string; action: string } | null => {
+  const dotIndex = permission.indexOf(".")
+  if (dotIndex <= 0 || dotIndex >= permission.length - 1) {
+    return null
+  }
+
+  return {
+    category: permission.slice(0, dotIndex),
+    action: permission.slice(dotIndex + 1),
+  }
+}
+
+const resolveViewDependency = (permission: string): string | null => {
+  const segments = splitPermission(permission)
+  if (!segments) {
+    return null
+  }
+
+  if (!ACTION_KEYS_REQUIRING_VIEW.has(segments.action)) {
+    return null
+  }
+
+  return CATEGORY_VIEW_PERMISSION[segments.category] ?? null
+}
+
 const resolvePermissionKey = (
   column: PermissionColumn,
   actionKey: string
@@ -104,9 +148,45 @@ export default function RoleMatrix({
 
   const togglePermission = (permission: string, checked: boolean) => {
     const next = new Set(position.permissions)
+
+    const segments = splitPermission(permission)
+    const isViewPermission = segments?.action === "view"
     if (checked) {
       next.add(permission)
+
+      const requiredView = resolveViewDependency(permission)
+      if (requiredView) {
+        next.add(requiredView)
+      }
     } else {
+      if (isViewPermission && segments) {
+        const activeDependentActions = position.permissions.filter((candidatePermission) => {
+          const candidate = splitPermission(candidatePermission)
+          if (!candidate) {
+            return false
+          }
+
+          return (
+            candidate.category === segments.category &&
+            ACTION_KEYS_REQUIRING_VIEW.has(candidate.action)
+          )
+        })
+
+        if (activeDependentActions.length > 0) {
+          const shouldClearCategory = window.confirm(
+            "Cette permission \"Voir\" est requise par des actions actives. Voulez-vous décocher \"Voir\" et toutes les actions de cette catégorie ?"
+          )
+
+          if (!shouldClearCategory) {
+            return
+          }
+
+          for (const dependentPermission of activeDependentActions) {
+            next.delete(dependentPermission)
+          }
+        }
+      }
+
       next.delete(permission)
     }
 
