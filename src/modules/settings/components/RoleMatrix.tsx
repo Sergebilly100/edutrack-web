@@ -29,11 +29,6 @@ const BASE_PERMISSION_COLUMNS = [
     permissions: ["schedule.view", "schedule.edit"],
   },
   {
-    key: "attendance",
-    label: "Présences",
-    permissions: ["attendance.view", "attendance.mark_students"],
-  },
-  {
     key: "salary",
     label: "Salaires",
     permissions: ["salary.view", "salary.compute", "salary.mark_paid", "salary.export"],
@@ -57,7 +52,6 @@ const BASE_PERMISSION_ROWS = [
   { key: "delete", label: "Supprimer" },
   { key: "block", label: "Bloquer" },
   { key: "documents", label: "Documents" },
-  { key: "mark_students", label: "Marquer les présences" },
   { key: "compute", label: "Calculer" },
   { key: "mark_paid", label: "Marquer payé" },
   { key: "export", label: "Exporter" },
@@ -95,7 +89,6 @@ const CATEGORY_VIEW_PERMISSION: Readonly<Record<string, string>> = {
   salary: "salary.view",
   rooms: "rooms.view",
   schedule: "schedule.view",
-  attendance: "attendance.view",
 }
 
 const ACTION_KEYS_REQUIRING_VIEW = new Set([
@@ -104,7 +97,6 @@ const ACTION_KEYS_REQUIRING_VIEW = new Set([
   "delete",
   "block",
   "documents",
-  "mark_students",
   "compute",
   "mark_paid",
   "export",

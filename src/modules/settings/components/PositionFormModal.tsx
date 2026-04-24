@@ -49,13 +49,16 @@ type PositionFormModalProps = {
 }
 
 const SMS_TEMPLATE_PERMISSION = "settings.sms_templates"
+const ATTENDANCE_PERMISSIONS = new Set(["attendance.view", "attendance.mark_students"])
 
 const sanitizePermissions = (permissions: string[], canManageSmsTemplates: boolean): string[] => {
+  const withoutAttendance = permissions.filter((permission) => !ATTENDANCE_PERMISSIONS.has(permission))
+
   if (canManageSmsTemplates) {
-    return permissions
+    return withoutAttendance
   }
 
-  return permissions.filter((permission) => permission !== SMS_TEMPLATE_PERMISSION)
+  return withoutAttendance.filter((permission) => permission !== SMS_TEMPLATE_PERMISSION)
 }
 
 const createPosition = (payload: PositionFormValues) =>
