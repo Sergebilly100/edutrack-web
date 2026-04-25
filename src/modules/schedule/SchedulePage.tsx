@@ -55,7 +55,7 @@ import { usePermissions } from "@/shared/hooks/usePermissions"
 import WeekGrid from "./components/WeekGrid"
 import {
   createScheduleSlot,
-  deleteScheduleSlot,
+  deleteScheduleSlotFromDate,
   fetchNextWeekCoverage,
   fetchWeeklySchedule,
   type ScheduleCreatePayload,
@@ -187,6 +187,12 @@ const isPastScheduleSelection = (
   return startMinutes <= nowMinutes
 }
 
+const occurrenceDateFromWeek = (selectedWeekMonday: string, dayOfWeek: number): string => {
+  const monday = fromISODate(selectedWeekMonday)
+  monday.setDate(monday.getDate() + (dayOfWeek - 1))
+  return toISODate(monday)
+}
+
 const formatWeekRange = (weekStartIso: string) => {
   const weekStart = fromISODate(weekStartIso)
   const weekEnd = new Date(weekStart)
@@ -293,6 +299,9 @@ const getScheduleConflictMessage = (error: unknown): string => {
   }
   if (status === 409 && code === "CLASS_SCHEDULE_CONFLICT") {
     return "Conflit: cette classe a déjà un cours sur ce créneau."
+  }
+  if (status === 409 && code === "SCHEDULE_PAST_LOCKED") {
+    return "Action impossible: les occurrences passées ne peuvent pas être modifiées."
   }
 
   if (typeof error.response?.data?.error === "string" && error.response.data.error.length > 0) {
@@ -592,21 +601,26 @@ export default function SchedulePage() {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteScheduleSlot(id),
-    onMutate: async (id) => {
+    mutationFn: (values: { id: string; effectiveFrom: string }) =>
+      deleteScheduleSlotFromDate(values.id, values.effectiveFrom),
+    onMutate: async (values) => {
       await queryClient.cancelQueries({ queryKey: weeklyQueryKey })
       const previous = queryClient.getQueryData<WeeklyScheduleData>(weeklyQueryKey)
       if (previous) {
         queryClient.setQueryData<WeeklyScheduleData>(weeklyQueryKey, {
           ...previous,
-          schedules: previous.schedules.filter((s) => s.id !== id),
+          schedules: previous.schedules.filter((s) => s.id !== values.id),
         })
       }
       return { previous }
     },
-    onError: (_e, _id, ctx) => {
+    onError: (error, _id, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(weeklyQueryKey, ctx.previous)
-      toast({ variant: "destructive", title: "Suppression impossible" })
+      toast({
+        variant: "destructive",
+        title: "Suppression impossible",
+        description: getScheduleConflictMessage(error),
+      })
     },
     onSuccess: () => {
       toast({ title: "Créneau supprimé" })
@@ -638,6 +652,7 @@ export default function SchedulePage() {
       })
       return
     }
+    payload.effectiveFrom = occurrenceDateFromWeek(selectedWeekMonday, payload.dayOfWeek)
     await upsertMutation.mutateAsync({ id: editingSchedule?.id, payload })
   }
 
@@ -970,14 +985,31 @@ export default function SchedulePage() {
             <DialogFooter className="gap-2 sm:justify-between">
               <Button variant="destructive"
                 onClick={() => setConfirmDeleteOpen(true)}
-                disabled={deleteMutation.isPending}>
+                disabled={
+                  deleteMutation.isPending ||
+                  isPastScheduleSelection(
+                    selectedWeekMonday,
+                    selectedSchedule.dayOfWeek,
+                    selectedSchedule.timeSlot.startTime,
+                    new Date()
+                  )
+                }>
                 <DeleteIcon className="mr-2 h-4 w-4" />Supprimer
               </Button>
               {selectedSchedule.hasPastAttendance ? (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="outline" onClick={() => openEditModal(selectedSchedule)}>
+                      <Button
+                        variant="outline"
+                        disabled={isPastScheduleSelection(
+                          selectedWeekMonday,
+                          selectedSchedule.dayOfWeek,
+                          selectedSchedule.timeSlot.startTime,
+                          new Date()
+                        )}
+                        onClick={() => openEditModal(selectedSchedule)}
+                      >
                         <EditIcon className="mr-2 h-4 w-4" />Modifier
                       </Button>
                     </TooltipTrigger>
@@ -987,7 +1019,16 @@ export default function SchedulePage() {
                   </Tooltip>
                 </TooltipProvider>
               ) : (
-                <Button variant="outline" onClick={() => openEditModal(selectedSchedule)}>
+                <Button
+                  variant="outline"
+                  disabled={isPastScheduleSelection(
+                    selectedWeekMonday,
+                    selectedSchedule.dayOfWeek,
+                    selectedSchedule.timeSlot.startTime,
+                    new Date()
+                  )}
+                  onClick={() => openEditModal(selectedSchedule)}
+                >
                   <EditIcon className="mr-2 h-4 w-4" />Modifier
                 </Button>
               )}
@@ -1002,7 +1043,7 @@ export default function SchedulePage() {
             <AlertDialogTitle>Supprimer ce créneau ?</AlertDialogTitle>
             <AlertDialogDescription>
               {selectedSchedule?.hasPastAttendance
-                ? `Ce créneau sera désactivé à partir d'aujourd'hui. L'historique des ${selectedSchedule.pastAttendanceCount} cours passés sera conservé.`
+                ? `Ce créneau sera désactivé à partir de l'occurrence sélectionnée. L'historique des ${selectedSchedule.pastAttendanceCount} cours passés sera conservé.`
                 : "Ce créneau sera supprimé définitivement."}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1011,7 +1052,21 @@ export default function SchedulePage() {
             <AlertDialogAction
               onClick={() => {
                 if (!selectedSchedule) return
-                void deleteMutation.mutateAsync(selectedSchedule.id)
+                if (isPastScheduleSelection(
+                  selectedWeekMonday,
+                  selectedSchedule.dayOfWeek,
+                  selectedSchedule.timeSlot.startTime,
+                  new Date()
+                )) {
+                  toast({
+                    variant: "destructive",
+                    title: "Suppression impossible",
+                    description: "Un créneau passé ne peut pas être supprimé.",
+                  })
+                  return
+                }
+                const effectiveFrom = occurrenceDateFromWeek(selectedWeekMonday, selectedSchedule.dayOfWeek)
+                void deleteMutation.mutateAsync({ id: selectedSchedule.id, effectiveFrom })
                 setConfirmDeleteOpen(false)
               }}
               disabled={deleteMutation.isPending}

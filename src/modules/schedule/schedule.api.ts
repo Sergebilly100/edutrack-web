@@ -102,6 +102,7 @@ export type ScheduleCreatePayload = {
   endTime?: string
   dayOfWeek: number
   subject: string
+  effectiveFrom?: string
   isActive?: boolean
 }
 
@@ -243,6 +244,7 @@ const toSchedulePayload = (payload: ScheduleCreatePayload) => ({
   ...(payload.endTime ? { end_time: payload.endTime } : {}),
   day_of_week: payload.dayOfWeek,
   subject: payload.subject,
+  ...(payload.effectiveFrom ? { effective_from: payload.effectiveFrom } : {}),
   is_active: payload.isActive,
 })
 
@@ -425,6 +427,15 @@ export const updateScheduleSlot = async (
 
 export const deleteScheduleSlot = async (scheduleId: string): Promise<void> => {
   await api.delete(`/schedule/${scheduleId}`)
+}
+
+export const deleteScheduleSlotFromDate = async (
+  scheduleId: string,
+  effectiveFrom: string
+): Promise<void> => {
+  await api.delete(`/schedule/${scheduleId}`, {
+    params: { effective_from: effectiveFrom },
+  })
 }
 
 export const fetchImportHistory = async (limit = 20): Promise<ImportHistoryItem[]> => {
