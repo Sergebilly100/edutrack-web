@@ -97,7 +97,8 @@ test.describe("Flux pointage prof", () => {
     await expect(page.getByTestId("teacher-checkin-step-2")).toBeVisible()
 
     await page.getByTestId("teacher-checkin-skip-qr").click()
-    await expect(page.getByText("Faire le pointage des élèves maintenant ?")).toBeVisible()
+    await expect(page.getByRole("dialog")).toBeVisible()
+    await expect(page.getByRole("button", { name: "Oui, maintenant" })).toBeVisible()
     await page.getByRole("button", { name: "Oui, maintenant" }).click()
 
     await expect(page.getByTestId("teacher-checkin-step-3")).toBeVisible()

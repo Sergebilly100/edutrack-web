@@ -82,8 +82,10 @@ test.describe("Console Super Admin - Écoles", () => {
     await expect(page).toHaveURL(/\/admin\/schools\/.+/)
     await page.getByRole("tab", { name: "Utilisateurs" }).click()
 
-    await expect(page.getByText(`Nom: ${directorName}`, { exact: false })).toBeVisible()
-    await expect(page.getByText(`Téléphone: ${directorPhone}`, { exact: false })).toBeVisible()
+    const credentialsAlert = page.getByRole("alert").filter({ hasText: "Accès responsable" })
+    await expect(credentialsAlert).toBeVisible()
+    await expect(credentialsAlert.getByText(`Nom: ${directorName}`, { exact: false })).toBeVisible()
+    await expect(credentialsAlert.getByText(`Téléphone: ${directorPhone}`, { exact: false })).toBeVisible()
 
     const accessTitle = page.getByText("Accès responsable", { exact: true })
     if ((await accessTitle.count()) > 0) {
