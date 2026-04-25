@@ -89,17 +89,31 @@ export const mockTeacherFlowApis = async (
 
   await page.route("**/api/v1/auth/refresh*", async (route) => {
     await route.fulfill({
-      status: 401,
+      status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ error: "UNAUTHORIZED" }),
+      body: JSON.stringify({
+        accessToken: "teacher-e2e-token",
+        tokenType: "Bearer",
+        expiresIn: "3600",
+      }),
     })
   })
 
   await page.route("**/api/v1/auth/me*", async (route) => {
     await route.fulfill({
-      status: 401,
+      status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ error: "UNAUTHORIZED" }),
+      body: JSON.stringify({
+        user: {
+          id: "teacher-e2e-user",
+          role: "teacher",
+          name: "Professeur E2E",
+          phone: null,
+          email: TEACHER_IDENTIFIER,
+          profilePhotoUrl: null,
+          username: "prof.e2e",
+        },
+      }),
     })
   })
 
@@ -129,6 +143,16 @@ export const mockTeacherFlowApis = async (
       contentType: "application/json",
       body: JSON.stringify({
         permissions: ["attendance.view", "attendance.mark_students"],
+      }),
+    })
+  })
+
+  await page.route("**/api/v1/school/info*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        allow_teacher_qr_skip: true,
       }),
     })
   })
@@ -214,6 +238,18 @@ export const loginAsTeacherUI = async (page: Page) => {
   await page.waitForURL(/\/(attendance|login)(\/|\?|$)/, { timeout: 15000 })
 
   if (page.url().includes("/login")) {
+    const loginButton = page.getByRole("button", { name: "Se connecter" })
+    const loginFormVisible = await loginButton
+      .isVisible({ timeout: 2000 })
+      .catch(() => false)
+
+    if (!loginFormVisible) {
+      await page.waitForURL(/\/attendance(\/|\?|$)/, { timeout: 20000 })
+      await expect(page).toHaveURL(/\/attendance/)
+      await expect(page.getByTestId("teacher-schedule-page")).toBeVisible({ timeout: 15000 })
+      return
+    }
+
     await expect(page.getByLabel("Identifiant")).toBeVisible({ timeout: 15000 })
     await expect(page.getByLabel("Mot de passe")).toBeVisible({ timeout: 15000 })
     await expect(page.getByLabel("Schéma tenant")).toBeVisible({ timeout: 15000 })

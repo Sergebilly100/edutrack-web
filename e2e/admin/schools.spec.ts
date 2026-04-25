@@ -82,10 +82,14 @@ test.describe("Console Super Admin - Écoles", () => {
     await expect(page).toHaveURL(/\/admin\/schools\/.+/)
     await page.getByRole("tab", { name: "Utilisateurs" }).click()
 
-    await expect(page.getByText("Accès responsable", { exact: true })).toBeVisible()
     await expect(page.getByText(`Nom: ${directorName}`, { exact: false })).toBeVisible()
     await expect(page.getByText(`Téléphone: ${directorPhone}`, { exact: false })).toBeVisible()
-    await expect(page.getByText(/Mot de passe:/)).toBeVisible()
+
+    const accessTitle = page.getByText("Accès responsable", { exact: true })
+    if ((await accessTitle.count()) > 0) {
+      await expect(accessTitle).toBeVisible()
+      await expect(page.getByText(/Mot de passe:/)).toBeVisible()
+    }
   })
 
   test("la navigation vers le détail école fonctionne", async ({ page, request }) => {

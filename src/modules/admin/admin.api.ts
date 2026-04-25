@@ -54,6 +54,29 @@ export type CreateSchoolResponse = {
   }
 }
 
+type RawCreateSchoolResponse = {
+  tenantId?: string
+  tenant_id?: string
+  schoolSchemaName?: string
+  school_schema_name?: string
+  directorCredentials?: {
+    userId?: string
+    user_id?: string
+    name?: string
+    phone?: string
+    email?: string | null
+    password?: string
+  } | null
+  director_credentials?: {
+    userId?: string
+    user_id?: string
+    name?: string
+    phone?: string
+    email?: string | null
+    password?: string
+  } | null
+}
+
 export type SchoolDetailsResponse = {
   tenantId: string
   metadata: {
@@ -395,7 +418,22 @@ export const listSchools = (query: SchoolListQuery = {}) =>
     .then((response) => response.data)
 
 export const createSchool = (payload: CreateSchoolPayload) =>
-  api.post<CreateSchoolResponse>("/admin/schools", payload).then((response) => response.data)
+  api.post<RawCreateSchoolResponse>("/admin/schools", payload).then((response) => {
+    const data = response.data
+    const directorCredentials = data.directorCredentials ?? data.director_credentials
+
+    return {
+      tenantId: data.tenantId ?? data.tenant_id ?? "",
+      schoolSchemaName: data.schoolSchemaName ?? data.school_schema_name ?? "",
+      directorCredentials: {
+        userId: directorCredentials?.userId ?? directorCredentials?.user_id ?? "",
+        name: directorCredentials?.name ?? "",
+        phone: directorCredentials?.phone ?? "",
+        email: directorCredentials?.email ?? null,
+        password: directorCredentials?.password ?? "",
+      },
+    } satisfies CreateSchoolResponse
+  })
 
 export const getSchoolDetails = (tenantId: string) =>
   api.get<SchoolDetailsResponse>(`/admin/schools/${tenantId}`).then((response) => response.data)

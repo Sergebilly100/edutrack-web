@@ -370,6 +370,18 @@ export default function AdminSchoolDetailPage() {
               </div>
             ) : null}
 
+            {createdDirectorCredentials ? (
+              <Alert>
+                <AlertDescription className="space-y-1 text-sm">
+                  <p className="font-medium text-foreground">Accès responsable</p>
+                  <p>Nom: <strong>{createdDirectorCredentials.name}</strong></p>
+                  <p>Téléphone: <strong>{createdDirectorCredentials.phone}</strong></p>
+                  <p>Email: <strong>{createdDirectorCredentials.email ?? "-"}</strong></p>
+                  <p>Mot de passe: <strong>{createdDirectorCredentials.password}</strong></p>
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
             <div className="grid gap-4 md:grid-cols-3">
               <Card className="shadow-sm">
                 <CardHeader className="pb-2">
