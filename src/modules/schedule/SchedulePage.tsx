@@ -190,7 +190,7 @@ const isPastScheduleSelection = (
 const formatWeekRange = (weekStartIso: string) => {
   const weekStart = fromISODate(weekStartIso)
   const weekEnd = new Date(weekStart)
-  weekEnd.setDate(weekStart.getDate() + 4)
+  weekEnd.setDate(weekStart.getDate() + 5)
 
   const dayFormatter = new Intl.DateTimeFormat("fr-FR", { day: "2-digit" })
   const monthFormatter = new Intl.DateTimeFormat("fr-FR", { month: "short" })
