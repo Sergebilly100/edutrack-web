@@ -146,8 +146,9 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
   const attendancePolicyQuery = useQuery({
     queryKey: ["attendance-policy", "teacher"],
     queryFn: teacherScheduleApi.getTeacherAttendancePolicy,
-    staleTime: 1000 * 60 * 10,
+    staleTime: 0,
     gcTime: 1000 * 60 * 30,
+    refetchOnMount: "always",
   })
   const canSkipQrStep = attendancePolicyQuery.data?.allow_teacher_qr_skip ?? false
 

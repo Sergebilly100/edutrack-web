@@ -279,6 +279,9 @@ export const updateSchoolInfo = async (payload: {
   logoUrl?: string | null
   allowTeacherQrSkip?: boolean
 }): Promise<void> => {
+  const requiresPermissionsConfigApi =
+    payload.logoUrl !== undefined || payload.allowTeacherQrSkip !== undefined
+
   try {
     await apiClient.patch("/permissions/config/school", {
       name: payload.name,
@@ -289,7 +292,11 @@ export const updateSchoolInfo = async (payload: {
         ? { allowTeacherQrSkip: payload.allowTeacherQrSkip }
         : {}),
     })
-  } catch {
+  } catch (error) {
+    if (requiresPermissionsConfigApi) {
+      throw error
+    }
+
     await apiClient.patch("/school/info", {
       name: payload.name,
       city: payload.city,

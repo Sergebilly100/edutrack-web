@@ -95,6 +95,7 @@ export default function SchoolConfigPanel() {
   const [maxAdminPositions, setMaxAdminPositions] = useState("0")
   const [logoUrlDraft, setLogoUrlDraft] = useState("")
   const [allowTeacherQrSkipDraft, setAllowTeacherQrSkipDraft] = useState(false)
+  const [pendingQrSkipState, setPendingQrSkipState] = useState<boolean | null>(null)
 
   useEffect(() => {
     if (!schoolConfigQuery.data) {
@@ -107,13 +108,12 @@ export default function SchoolConfigPanel() {
   }, [schoolConfigQuery.data])
 
   const saveSchoolInfoMutation = useMutation({
-    mutationFn: (payload: { logoUrl: string | null; allowTeacherQrSkip: boolean }) =>
+    mutationFn: (payload: { logoUrl: string | null }) =>
       updateSchoolInfo({
         name: school?.name ?? "",
         city: school?.city ?? "",
         teachingType: school?.teachingType ?? "general",
         logoUrl: payload.logoUrl,
-        allowTeacherQrSkip: payload.allowTeacherQrSkip,
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY })
@@ -125,6 +125,35 @@ export default function SchoolConfigPanel() {
         description: "Impossible de mettre à jour le logo.",
         variant: "destructive",
       })
+    },
+  })
+  const saveQrSkipPolicyMutation = useMutation({
+    mutationFn: (allowTeacherQrSkip: boolean) =>
+      updateSchoolInfo({
+        name: school?.name ?? "",
+        city: school?.city ?? "",
+        teachingType: school?.teachingType ?? "general",
+        allowTeacherQrSkip,
+      }),
+    onSuccess: async (_, allowTeacherQrSkip) => {
+      await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY })
+      setAllowTeacherQrSkipDraft(allowTeacherQrSkip)
+      toast({
+        title: "Politique de scan QR mise à jour",
+        description: allowTeacherQrSkip
+          ? "Les enseignants peuvent désormais passer l'étape du scan QR."
+          : "Le scan QR redevient obligatoire pour tous les enseignants.",
+      })
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de mettre à jour la politique de scan QR.",
+        variant: "destructive",
+      })
+    },
+    onSettled: () => {
+      setPendingQrSkipState(null)
     },
   })
 
@@ -577,7 +606,6 @@ export default function SchoolConfigPanel() {
                     onClick={() =>
                       saveSchoolInfoMutation.mutate({
                         logoUrl: logoUrlDraft || null,
-                        allowTeacherQrSkip: allowTeacherQrSkipDraft,
                       })
                     }
                   >
@@ -586,30 +614,40 @@ export default function SchoolConfigPanel() {
                 </div>
               </div>
             </div>
-            <div className="mt-5 rounded-lg border border-border bg-background p-4">
+            <div className="mt-8 rounded-lg border border-border bg-background p-4">
               <div className="space-y-3">
                 <div>
-                  <p className="text-sm font-medium">Pointage enseignant: scan QR facultatif</p>
-                  <p className="text-xs text-muted-foreground">
-                    Si activé, le bouton « Passer cette étape » apparaît au démarrage et à la fin du cours.
-                  </p>
+                  <p className="text-sm font-medium mb-5">Politique de scan QR Codes des salles</p>
+
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-3">
                   <Button
                     type="button"
+                    aria-pressed={allowTeacherQrSkipDraft}
                     variant={allowTeacherQrSkipDraft ? "default" : "outline"}
-                    onClick={() => setAllowTeacherQrSkipDraft(true)}
+                    className="min-w-44"
+                    disabled={saveQrSkipPolicyMutation.isPending}
+                    onClick={() => setPendingQrSkipState(!allowTeacherQrSkipDraft)}
                   >
-                    Activé
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={!allowTeacherQrSkipDraft ? "default" : "outline"}
-                    onClick={() => setAllowTeacherQrSkipDraft(false)}
-                  >
-                    Désactivé
-                  </Button>
+                    {allowTeacherQrSkipDraft ? "Désactiver le mode facultatif" : "Activer le mode facultatif"}
+                  </Button> 
                 </div>
+                <Alert className={cn(
+                  "border",
+                  allowTeacherQrSkipDraft
+                    ? "border-amber-200 bg-amber-50 text-amber-900"
+                    : "border-green-200 bg-green-50 text-green-900"
+                )}>
+                  <AlertTitle>État actuelle</AlertTitle>
+                  <AlertDescription>
+                    {allowTeacherQrSkipDraft
+                      ? "Les enseignants peuvent terminer le flux de pointage sans scanner le QR code de salle."
+                      : "Les enseignants doivent scanner le QR code de salle."}
+                  </AlertDescription>
+                </Alert>
+                <p className="text-xs text-muted-foreground">
+                  Ce paramètre est appliqué immédiatement après confirmation.
+                </p>
               </div>
             </div>
           </div>
@@ -1057,6 +1095,44 @@ export default function SchoolConfigPanel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={pendingQrSkipState !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingQrSkipState(null)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingQrSkipState
+                ? "Activer le scan QR facultatif pour les enseignants ?"
+                : "Rendre le scan QR obligatoire pour les enseignants ?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingQrSkipState
+                ? "Les enseignants verront le bouton « Passer cette étape » pendant le pointage et pourront valider sans scanner la salle."
+                : "Le bouton « Passer cette étape » disparaîtra du pointage enseignant. Le scan QR sera requis pour continuer."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saveQrSkipPolicyMutation.isPending}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={saveQrSkipPolicyMutation.isPending}
+              onClick={() => {
+                if (pendingQrSkipState === null) {
+                  return
+                }
+                saveQrSkipPolicyMutation.mutate(pendingQrSkipState)
+              }}
+            >
+              {saveQrSkipPolicyMutation.isPending ? "Mise à jour..." : "Confirmer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {canManagePositions ? (
         <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
