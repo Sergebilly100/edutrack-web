@@ -558,152 +558,152 @@ export default function TeachersPage() {
               />
             </div>
           ) : null}
-
-          {/* ── Modal : créer un professeur ── */}
-          {canCreateTeacher ? (
-            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Ajouter un professeur</DialogTitle>
-                  <DialogDescription>
-                    Renseignez les informations du nouveau professeur.
-                  </DialogDescription>
-                </DialogHeader>
-                <TeacherForm
-                  isPending={createMutation.isPending}
-                  submitLabel="Créer le professeur"
-                  onSubmit={async (payload) => {
-                    await createMutation.mutateAsync(payload)
-                  }}
-                />
-              </DialogContent>
-            </Dialog>
-          ) : null}
-
-          {/* ── Modal : bloquer / débloquer ── */}
-          {canToggleBlocked ? (
-            <Dialog
-              open={Boolean(teacherForStatusChange)}
-              onOpenChange={(open) => { if (!open) closeStatusDialog() }}
-            >
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>
-                    {teacherForStatusChange?.isBlocked
-                      ? "Débloquer le professeur"
-                      : "Bloquer le professeur"}
-                  </DialogTitle>
-                  <DialogDescription>
-                    {teacherForStatusChange?.isBlocked
-                      ? "Le professeur retrouvera l'accès à ses actions habituelles."
-                      : "Saisissez le motif du blocage pour continuer."}
-                  </DialogDescription>
-                </DialogHeader>
-
-                {/* Motif uniquement pour le blocage */}
-                {!teacherForStatusChange?.isBlocked ? (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Raison du blocage</p>
-                    <Input
-                      value={blockReasonInput}
-                      onChange={(event) => setBlockReasonInput(event.target.value)}
-                      placeholder="Ex: Dossier RH incomplet"
-                      data-testid="teachers-list-block-reason-input"
-                    />
-                  </div>
-                ) : null}
-
-                <DialogFooter>
-                  <Button variant="outline" onClick={closeStatusDialog}>
-                    Annuler
-                  </Button>
-                  <Button
-                    variant={teacherForStatusChange?.isBlocked ? "secondary" : "destructive"}
-                    disabled={
-                      toggleBlockMutation.isPending ||
-                      (!teacherForStatusChange?.isBlocked && blockReasonInput.trim().length === 0)
-                    }
-                    onClick={() => {
-                      if (!teacherForStatusChange) return
-                      void toggleBlockMutation.mutateAsync({
-                        teacher: teacherForStatusChange,
-                        reason: blockReasonInput.trim(),
-                      })
-                    }}
-                  >
-                    {toggleBlockMutation.isPending
-                      ? "Traitement..."
-                      : teacherForStatusChange?.isBlocked
-                        ? "Débloquer"
-                        : "Bloquer"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          ) : null}
-
-          {/* ── Modal : export heures ── */}
-          <Dialog
-            open={Boolean(teacherForExport)}
-            onOpenChange={(open) => !open && setTeacherForExport(null)}
-          >
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Exporter PDF</DialogTitle>
-                <DialogDescription>
-                  Sélectionnez la période d'export pour {teacherForExport?.fullName}.
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Date de début</p>
-                  <Input
-                    type="date"
-                    value={exportPeriod.dateFrom}
-                    onChange={(event) =>
-                      setExportPeriod((current) => ({ ...current, dateFrom: event.target.value }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Date de fin</p>
-                  <Input
-                    type="date"
-                    value={exportPeriod.dateTo}
-                    onChange={(event) =>
-                      setExportPeriod((current) => ({ ...current, dateTo: event.target.value }))
-                    }
-                  />
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setTeacherForExport(null)}>
-                  Annuler
-                </Button>
-                <Button
-                  disabled={exportMutation.isPending}
-                  onClick={() => {
-                    if (!teacherForExport) return
-                    void exportMutation.mutateAsync({
-                      teacherId: teacherForExport.id,
-                      dateFrom: exportPeriod.dateFrom,
-                      dateTo: exportPeriod.dateTo,
-                    })
-                  }}
-                >
-                  {exportMutation.isPending ? "Export..." : "Exporter"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </TabsContent>
 
         <TabsContent value="analyse">
           <TeacherAnalysisPanel />
         </TabsContent>
       </Tabs>
+
+      {/* ── Modal : créer un professeur ── */}
+      {canCreateTeacher ? (
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Ajouter un professeur</DialogTitle>
+              <DialogDescription>
+                Renseignez les informations du nouveau professeur.
+              </DialogDescription>
+            </DialogHeader>
+            <TeacherForm
+              isPending={createMutation.isPending}
+              submitLabel="Créer le professeur"
+              onSubmit={async (payload) => {
+                await createMutation.mutateAsync(payload)
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      ) : null}
+
+      {/* ── Modal : bloquer / débloquer ── */}
+      {canToggleBlocked ? (
+        <Dialog
+          open={Boolean(teacherForStatusChange)}
+          onOpenChange={(open) => { if (!open) closeStatusDialog() }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {teacherForStatusChange?.isBlocked
+                  ? "Débloquer le professeur"
+                  : "Bloquer le professeur"}
+              </DialogTitle>
+              <DialogDescription>
+                {teacherForStatusChange?.isBlocked
+                  ? "Le professeur retrouvera l'accès à ses actions habituelles."
+                  : "Saisissez le motif du blocage pour continuer."}
+              </DialogDescription>
+            </DialogHeader>
+
+            {/* Motif uniquement pour le blocage */}
+            {!teacherForStatusChange?.isBlocked ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Raison du blocage</p>
+                <Input
+                  value={blockReasonInput}
+                  onChange={(event) => setBlockReasonInput(event.target.value)}
+                  placeholder="Ex: Dossier RH incomplet"
+                  data-testid="teachers-list-block-reason-input"
+                />
+              </div>
+            ) : null}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={closeStatusDialog}>
+                Annuler
+              </Button>
+              <Button
+                variant={teacherForStatusChange?.isBlocked ? "secondary" : "destructive"}
+                disabled={
+                  toggleBlockMutation.isPending ||
+                  (!teacherForStatusChange?.isBlocked && blockReasonInput.trim().length === 0)
+                }
+                onClick={() => {
+                  if (!teacherForStatusChange) return
+                  void toggleBlockMutation.mutateAsync({
+                    teacher: teacherForStatusChange,
+                    reason: blockReasonInput.trim(),
+                  })
+                }}
+              >
+                {toggleBlockMutation.isPending
+                  ? "Traitement..."
+                  : teacherForStatusChange?.isBlocked
+                    ? "Débloquer"
+                    : "Bloquer"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+
+      {/* ── Modal : export heures ── */}
+      <Dialog
+        open={Boolean(teacherForExport)}
+        onOpenChange={(open) => !open && setTeacherForExport(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Exporter PDF</DialogTitle>
+            <DialogDescription>
+              Sélectionnez la période d'export pour {teacherForExport?.fullName}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Date de début</p>
+              <Input
+                type="date"
+                value={exportPeriod.dateFrom}
+                onChange={(event) =>
+                  setExportPeriod((current) => ({ ...current, dateFrom: event.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Date de fin</p>
+              <Input
+                type="date"
+                value={exportPeriod.dateTo}
+                onChange={(event) =>
+                  setExportPeriod((current) => ({ ...current, dateTo: event.target.value }))
+                }
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTeacherForExport(null)}>
+              Annuler
+            </Button>
+            <Button
+              disabled={exportMutation.isPending}
+              onClick={() => {
+                if (!teacherForExport) return
+                void exportMutation.mutateAsync({
+                  teacherId: teacherForExport.id,
+                  dateFrom: exportPeriod.dateFrom,
+                  dateTo: exportPeriod.dateTo,
+                })
+              }}
+            >
+              {exportMutation.isPending ? "Export..." : "Exporter"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   )
 }
