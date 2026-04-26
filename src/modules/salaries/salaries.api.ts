@@ -458,11 +458,10 @@ const parseJobPayload = (value: unknown): ExportJobStatus => {
 
 export const queueSchoolSalaryExport = async (month: string): Promise<{ jobId: string }> => {
   try {
-    const response = await api.post(
-      "/billing/salary/export/school",
-      undefined,
-      {
-        params: { month },
+    const response = await api.get(
+      "/billing/salary/export/school", 
+      { 
+        params: { month }, 
       }
     )
 

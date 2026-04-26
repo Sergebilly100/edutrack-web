@@ -401,6 +401,23 @@ export default function SalariesPage() {
       return
     }
 
+    if (row.teacherType !== "permanent" && !row.salaryRecordId) {
+      try {
+        await computeSalaries(selectedMonth)
+        const freshSummary = await getSalarySummary(selectedMonth)
+        const freshRow = freshSummary.items.find(i => i.teacherId === row.teacherId)
+        if (!freshRow?.salaryRecordId) {
+          toast({ title: "Action indisponible", description: "Aucune heure enregistrée ce mois." })
+          return
+        }
+        // Continuer avec freshRow
+        row = freshRow
+      } catch {
+        toast({ title: "Erreur", description: "Impossible de préparer le paiement." })
+        return
+      }
+    }
+
     setSelectedSalaryRow(row)
     setPayDialogDetails(null)
     setHoursToPayInput("")
@@ -1361,7 +1378,7 @@ export default function SalariesPage() {
                   Nombre d'heure restant à payer :{" "}
                   <span className="font-semibold text-red-700">{formatHours(payHoursRemaining)}</span>
                 </p>
-                <p>
+                {/* <p>
                   Reste sur heures déjà effectuées :{" "}
                   <span className="font-semibold">
                     {formatHours(payHoursRemainingFromAlreadyDone)} ({formatFcfa(payAmountRemainingFromAlreadyDone)})
@@ -1372,7 +1389,7 @@ export default function SalariesPage() {
                   <span className="font-semibold">
                     {formatHours(payHoursRemainingFromNew)} ({formatFcfa(payAmountRemainingFromNew)})
                   </span>
-                </p>
+                </p> */}
                 <p>
                   Reste à payer :{" "}
                   <span className="font-semibold">{formatFcfa(payAmountRemainingFromNew ?? 0)}</span>
