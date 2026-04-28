@@ -357,7 +357,6 @@ export default function StudentsPage() {
               columns={columns}
               data={tableData}
               isLoading={studentsQuery.isLoading}
-              searchKey="name"
               searchPlaceholder="Rechercher un élève"
               pageSize={20}
               onRowClick={(student) =>
