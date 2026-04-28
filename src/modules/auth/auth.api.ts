@@ -22,15 +22,15 @@ type LoginResponse = {
 export const login = async (
   identifier: string,
   password: string,
-  schemaName?: string
+  tenantSubdomain?: string
 ): Promise<LoginResponse> => {
   const response = await api.post<LoginResponse>(
     '/auth/login/teacher',
     { identifier, password },
-    schemaName
+    tenantSubdomain
       ? {
           headers: {
-            'x-tenant-schema': schemaName,
+            'x-tenant-subdomain': tenantSubdomain,
           },
         }
       : undefined

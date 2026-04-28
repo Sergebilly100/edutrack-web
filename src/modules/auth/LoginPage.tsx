@@ -13,6 +13,27 @@ import { useAuthStore } from '@/shared/store/auth.store';
 
 import { login } from './auth.api';
 
+const SUBDOMAIN_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+const resolveTenantSubdomainFromHost = (): string | undefined => {
+  const hostname = window.location.hostname.toLowerCase();
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return undefined;
+  }
+
+  const labels = hostname.split('.').filter(Boolean);
+  if (labels.length < 3) {
+    return undefined;
+  }
+
+  const subdomain = labels[0];
+  if (!subdomain || subdomain === 'www' || subdomain === 'admin') {
+    return undefined;
+  }
+
+  return SUBDOMAIN_REGEX.test(subdomain) ? subdomain : undefined;
+};
+
 const resolveDirectorPostLoginRoute = async (): Promise<'/dashboard' | '/onboarding'> => {
   const school = await fetchSchoolInfo();
   return school.onboarding_completed === true ? '/dashboard' : '/onboarding';
@@ -28,7 +49,6 @@ export default function LoginPage() {
   const { refreshPermissions } = usePermissions();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
-  const [schemaName, setSchemaName] = useState('school_sainte_marie');
   const [isPending, setIsPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -41,7 +61,18 @@ export default function LoginPage() {
     setPermissions([]);
 
     try {
-      const result = await login(identifier, password, schemaName || undefined);
+      const tenantSubdomain = resolveTenantSubdomainFromHost();
+      const result = await login(identifier, password, tenantSubdomain);
+      const schemaNameFromToken = (() => {
+        try {
+          const tokenPart = result.accessToken.split('.')[1] ?? '';
+          const normalized = tokenPart.replace(/-/g, '+').replace(/_/g, '/');
+          const payload = JSON.parse(atob(normalized)) as { schemaName?: string };
+          return payload.schemaName ?? 'unknown';
+        } catch {
+          return 'unknown';
+        }
+      })();
       setAccessToken(result.accessToken);
       setRefreshToken(result.refreshToken ?? null);
       setUser({
@@ -53,8 +84,8 @@ export default function LoginPage() {
         profilePhotoUrl: result.user.profilePhotoUrl,
         positionNames: Array.isArray(result.user.positionNames) ? result.user.positionNames : [],
         primaryPosition: result.user.primaryPosition ?? null,
-        tenantId: schemaName || 'default-tenant',
-        schemaName: schemaName || 'public',
+        tenantId: schemaNameFromToken,
+        schemaName: schemaNameFromToken,
         plan: 'standard',
       });
       await refreshPermissions();
@@ -123,15 +154,9 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="schemaName">Schéma tenant</Label>
-                <Input
-                  id="schemaName"
-                  name="schemaName"
-                  placeholder="school_sainte_marie"
-                  value={schemaName}
-                  onChange={(event) => setSchemaName(event.target.value)}
-                  required
-                />
+                <p className="text-xs text-muted-foreground">
+                  Le tenant de votre école est détecté automatiquement via le sous-domaine.
+                </p>
               </div>
 
               {errorMessage ? (
