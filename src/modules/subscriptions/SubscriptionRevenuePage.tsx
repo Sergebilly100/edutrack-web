@@ -10,12 +10,14 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/components/ui/use-toast"
 import RevenueOverviewCard from "@/modules/subscriptions/components/RevenueOverviewCard"
+import { Badge } from "@/components/ui/badge"
 import {
   getSubscriptionsRevenueHistory,
   getSubscriptionsRevenueSummary,
   recordCommissionPayment,
 } from "@/modules/subscriptions/subscriptions.api"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { useAuthStore } from "@/shared/store/auth.store"
 
 const toMonth = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`
 const monthLabel = (month: string) => {
@@ -30,6 +32,7 @@ export default function SubscriptionRevenuePage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const { hasPermission } = usePermissions()
+  const user = useAuthStore((state) => state.user)
 
   const [monthCursor, setMonthCursor] = useState<Date>(new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)))
   const [paymentOpen, setPaymentOpen] = useState(false)
@@ -65,6 +68,7 @@ export default function SubscriptionRevenuePage() {
 
   const summary = summaryQuery.data
   const history = historyQuery.data ?? []
+  const canRecordPayment = user?.role === "super_admin" && hasPermission("subscriptions.revenue")
 
   return (
     <PageLayout
@@ -102,7 +106,7 @@ export default function SubscriptionRevenuePage() {
                 Commission de {summary.commission_pct}% sur les revenus de ce mois.
               </p>
             </div>
-            {hasPermission("subscriptions.revenue") ? (
+            {canRecordPayment ? (
               <Button type="button" onClick={() => setPaymentOpen(true)}>
                 Enregistrer un versement
               </Button>
@@ -128,24 +132,38 @@ export default function SubscriptionRevenuePage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Mois</TableHead>
-                <TableHead>Nb souscriptions</TableHead>
+                <TableHead>Nb nouvelles</TableHead>
+                <TableHead>Nb actives</TableHead>
                 <TableHead>Encaissé</TableHead>
+                <TableHead>Revenu école/mois</TableHead>
                 <TableHead>Commission due</TableHead>
                 <TableHead>Versé</TableHead>
                 <TableHead>Reste</TableHead>
+                <TableHead>Statut</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {history.map((item) => {
-                const remaining = Math.max(0, item.commission_due_fcfa - item.commission_paid_fcfa)
+                const remaining = item.commission_remaining_fcfa
                 return (
                   <TableRow key={item.month} className={remaining > 0 ? "bg-amber-50/40 dark:bg-amber-950/20" : ""}>
                     <TableCell className="capitalize">{monthLabel(item.month)}</TableCell>
-                    <TableCell>-</TableCell>
+                    <TableCell>{item.subscriptions_new_this_month}</TableCell>
+                    <TableCell>{item.subscriptions_active_count}</TableCell>
                     <TableCell>{formatFcfa(item.total_collected_fcfa)}</TableCell>
+                    <TableCell>{formatFcfa(item.monthly_revenue_prorated_fcfa)}</TableCell>
                     <TableCell>{formatFcfa(item.commission_due_fcfa)}</TableCell>
                     <TableCell>{formatFcfa(item.commission_paid_fcfa)}</TableCell>
                     <TableCell>{formatFcfa(remaining)}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {item.payment_status === "paid"
+                          ? "Versé"
+                          : item.payment_status === "partial"
+                            ? "Partiel"
+                            : "En attente"}
+                      </Badge>
+                    </TableCell>
                   </TableRow>
                 )
               })}

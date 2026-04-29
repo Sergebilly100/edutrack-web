@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -23,7 +24,7 @@ import { Separator } from "@/components/ui/separator"
 import { addDaysIso, addMonthsIso } from "@/shared/lib/business-date"
 
 type PaymentMethod = "cash" | "momo_mtn" | "momo_orange"
-type DurationMonths = 1 | 2 | 3
+type DurationMonths = number
 
 type RenewSubscriptionPayload = {
   duration_months: DurationMonths
@@ -120,16 +121,17 @@ export default function RenewSubscriptionModal({
 
           <div className="space-y-2">
             <Label>Durée</Label>
-            <Select value={String(durationMonths)} onValueChange={(value) => setDurationMonths(Number(value) as DurationMonths)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1">1 mois</SelectItem>
-                <SelectItem value="2">2 mois</SelectItem>
-                <SelectItem value="3">3 mois</SelectItem>
-              </SelectContent>
-            </Select>
+            <Input
+              type="number"
+              min={1}
+              max={120}
+              value={String(durationMonths)}
+              onChange={(event) => {
+                const value = Number(event.target.value)
+                setDurationMonths(Number.isInteger(value) && value >= 1 ? value : 1)
+              }}
+            />
+            <p className="text-xs text-muted-foreground">Saisissez le nombre de mois (1 à 120).</p>
           </div>
 
           <div className="space-y-2">

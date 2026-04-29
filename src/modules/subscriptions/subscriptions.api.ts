@@ -2,7 +2,7 @@ import { apiClient } from "@/shared/api/client"
 
 export type SubscriptionStatus = "active" | "expired" | "cancelled"
 export type PaymentMethod = "cash" | "momo_mtn" | "momo_orange"
-export type DurationMonths = 1 | 2 | 3
+export type DurationMonths = number
 
 export type SubscriptionListItem = {
   parent_id: string
@@ -68,10 +68,37 @@ export type RevenueSummary = {
 
 export type RevenueHistoryItem = {
   month: string
+  subscriptions_active_count: number
+  subscriptions_new_this_month: number
   total_collected_fcfa: number
   monthly_revenue_prorated_fcfa: number
   commission_due_fcfa: number
   commission_paid_fcfa: number
+  commission_remaining_fcfa: number
+  payment_status: "paid" | "partial" | "pending"
+}
+
+export type SubscriptionClassItem = {
+  id: string
+  name: string
+  students_count: number
+}
+
+export type SubscriptionClassStudentItem = {
+  id: string
+  full_name: string
+  class_id: string
+  class_name: string
+}
+
+export type SubscriptionClassStudentsResponse = {
+  data: SubscriptionClassStudentItem[]
+  pagination: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+  }
 }
 
 export type SmsFeatureSettings = {
@@ -104,6 +131,32 @@ export const listSubscriptionParents = async (params: {
       limit: params.limit ?? 100,
       ...(params.search ? { search: params.search } : {}),
       ...(params.status ? { status: params.status } : {}),
+    },
+  })
+  return response.data
+}
+
+export const listSubscriptionClasses = async (params?: {
+  search?: string
+}): Promise<SubscriptionClassItem[]> => {
+  const response = await apiClient.get<{ data: SubscriptionClassItem[] }>("/subscriptions/classes", {
+    params: params?.search ? { search: params.search } : undefined,
+  })
+  return response.data.data
+}
+
+export const listSubscriptionClassStudents = async (params: {
+  class_id: string
+  page?: number
+  limit?: number
+  search?: string
+}): Promise<SubscriptionClassStudentsResponse> => {
+  const response = await apiClient.get<SubscriptionClassStudentsResponse>("/subscriptions/students", {
+    params: {
+      class_id: params.class_id,
+      page: params.page ?? 1,
+      limit: params.limit ?? 25,
+      ...(params.search ? { search: params.search } : {}),
     },
   })
   return response.data
@@ -154,6 +207,42 @@ export const resetParentSubscriptionPassword = async (parentId: string): Promise
   } catch (error) {
     throw new Error(parseApiError(error, "Impossible de réinitialiser le mot de passe."))
   }
+}
+
+export const getParentSubscriptionDetails = async (parentId: string) => {
+  const response = await apiClient.get<{
+    parent: {
+      id: string
+      full_name: string
+      phone: string
+      email: string | null
+      is_active: boolean
+      created_at: string
+    }
+    subscriptions: Array<{
+      id: string
+      status: SubscriptionStatus
+      unit_price_fcfa: number
+      student_count: number
+      total_amount_fcfa: number
+      duration_months: number
+      starts_at: string
+      ends_at: string
+      auto_renew_alert: boolean
+      renewed_count: number
+      created_at: string
+      students: Array<{ id: string; full_name: string }>
+      payments: Array<{
+        id: string
+        amount_fcfa: number
+        payment_method: string
+        paid_at: string
+        created_at: string
+        notes: string | null
+      }>
+    }>
+  }>(`/subscriptions/parents/${parentId}`)
+  return response.data
 }
 
 export const getSubscriptionsRevenueSummary = async (month: string): Promise<RevenueSummary> => {

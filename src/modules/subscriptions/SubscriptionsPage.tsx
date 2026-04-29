@@ -16,11 +16,17 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
-import { listStudents } from "@/modules/students/students.api"
 import {
   CreateSubscriptionModal,
   RenewSubscriptionModal,
@@ -29,6 +35,7 @@ import {
 import {
   cancelSubscription,
   createSubscriptionParent,
+  getParentSubscriptionDetails,
   getSmsFeatureSettings,
   listSubscriptionParents,
   renewSubscriptionParent,
@@ -56,6 +63,7 @@ export default function SubscriptionsPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [renewTarget, setRenewTarget] = useState<SubscriptionListItem | null>(null)
   const [cancelTarget, setCancelTarget] = useState<SubscriptionListItem | null>(null)
+  const [detailsTarget, setDetailsTarget] = useState<SubscriptionListItem | null>(null)
   const [newPassword, setNewPassword] = useState<string | null>(null)
 
   const canCreate = hasPermission("subscriptions.create")
@@ -78,17 +86,10 @@ export default function SubscriptionsPage() {
     enabled: featureQuery.data?.is_enabled === true,
   })
 
-  const studentsQuery = useQuery({
-    queryKey: ["subscriptions", "students-catalog"],
-    queryFn: async () => {
-      const result = await listStudents({ page: 1, limit: 200 })
-      return result.data.map((student) => ({
-        id: student.id,
-        fullName: `${student.lastName} ${student.firstName}`.trim(),
-        className: student.className,
-      }))
-    },
-    enabled: featureQuery.data?.is_enabled === true,
+  const detailsQuery = useQuery({
+    queryKey: ["subscriptions", "details", detailsTarget?.parent_id],
+    queryFn: () => getParentSubscriptionDetails(detailsTarget!.parent_id),
+    enabled: Boolean(detailsTarget?.parent_id),
   })
 
   const createMutation = useMutation({
@@ -99,7 +100,7 @@ export default function SubscriptionsPage() {
   })
 
   const renewMutation = useMutation({
-    mutationFn: ({ parentId, payload }: { parentId: string; payload: { duration_months: 1 | 2 | 3; payment_method: "cash" | "momo_mtn" | "momo_orange"; paid_now: boolean } }) =>
+    mutationFn: ({ parentId, payload }: { parentId: string; payload: { duration_months: number; payment_method: "cash" | "momo_mtn" | "momo_orange"; paid_now: boolean } }) =>
       renewSubscriptionParent(parentId, payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["subscriptions", "parents"] })
@@ -129,6 +130,13 @@ export default function SubscriptionsPage() {
   const activeCount = useMemo(
     () => items.filter((item) => item.latest_subscription?.status === "active").length,
     [items]
+  )
+  const thisMonthLabel = useMemo(
+    () =>
+      new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(
+        new Date()
+      ),
+    []
   )
 
   if (featureQuery.isLoading) {
@@ -188,6 +196,27 @@ export default function SubscriptionsPage() {
         </div>
       </section>
 
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <Card>
+          <CardContent className="space-y-1 p-4">
+            <p className="text-xs text-muted-foreground">Abonnements actifs</p>
+            <p className="text-2xl font-semibold">{activeCount}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="space-y-1 p-4">
+            <p className="text-xs text-muted-foreground">Parents abonnés</p>
+            <p className="text-2xl font-semibold">{items.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="space-y-1 p-4">
+            <p className="text-xs text-muted-foreground">Historique en cours</p>
+            <p className="text-sm font-medium capitalize">{thisMonthLabel}</p>
+          </CardContent>
+        </Card>
+      </section>
+
       <section className="space-y-3 md:hidden">
         {items.map((item) => {
           const latest = item.latest_subscription
@@ -203,6 +232,9 @@ export default function SubscriptionsPage() {
                 </div>
                 <p className="text-xs text-muted-foreground">{item.students.length} élève(s)</p>
                 <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setDetailsTarget(item)}>
+                    Détails
+                  </Button>
                   {canRenew && latest ? (
                     <Button size="sm" variant="outline" onClick={() => setRenewTarget(item)}>
                       Renouveler
@@ -268,6 +300,9 @@ export default function SubscriptionsPage() {
                   <td className="px-3 py-2">{latest?.ends_at ? formatDate(latest.ends_at) : "-"}</td>
                   <td className="px-3 py-2 text-right">
                     <div className="inline-flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setDetailsTarget(item)}>
+                        Détails
+                      </Button>
                       {canRenew && latest ? (
                         <Button size="sm" variant="outline" onClick={() => setRenewTarget(item)}>
                           Renouveler
@@ -310,7 +345,6 @@ export default function SubscriptionsPage() {
       <CreateSubscriptionModal
         open={createOpen}
         onOpenChange={setCreateOpen}
-        students={studentsQuery.data ?? []}
         smsUnitPriceFcfa={featureQuery.data.sms_unit_price_fcfa}
         existingPhones={items.map((item) => item.phone)}
         onSubmit={async (payload) => createMutation.mutateAsync(payload)}
@@ -362,6 +396,86 @@ export default function SubscriptionsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={Boolean(detailsTarget)} onOpenChange={(open) => !open && setDetailsTarget(null)}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Détails abonnement parent</DialogTitle>
+            <DialogDescription>
+              {detailsTarget?.full_name} · {detailsTarget?.phone}
+            </DialogDescription>
+          </DialogHeader>
+          {detailsQuery.isLoading ? <p className="text-sm text-muted-foreground">Chargement…</p> : null}
+          {detailsQuery.isError ? (
+            <Alert variant="destructive">
+              <AlertDescription>Impossible de charger les détails de cet abonnement.</AlertDescription>
+            </Alert>
+          ) : null}
+          {detailsQuery.data ? (
+            <div className="space-y-4">
+              <Card>
+                <CardContent className="space-y-2 p-4 text-sm">
+                  <p className="font-medium">Résumé</p>
+                  <p>
+                    Abonnements actifs:{" "}
+                    <span className="font-semibold">
+                      {
+                        detailsQuery.data.subscriptions.filter((subscription) => subscription.status === "active")
+                          .length
+                      }
+                    </span>
+                  </p>
+                  <p>
+                    Total souscriptions:{" "}
+                    <span className="font-semibold">{detailsQuery.data.subscriptions.length}</span>
+                  </p>
+                </CardContent>
+              </Card>
+              {detailsQuery.data.subscriptions.map((subscription) => (
+                <Card key={subscription.id}>
+                  <CardContent className="space-y-3 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <SubscriptionStatusBadge status={subscription.status} ends_at={subscription.ends_at} />
+                      <p className="text-xs text-muted-foreground">
+                        Du {formatDate(subscription.starts_at)} au {formatDate(subscription.ends_at)}
+                      </p>
+                    </div>
+                    <div className="grid gap-2 text-sm md:grid-cols-2">
+                      <p>Durée: <span className="font-medium">{subscription.duration_months} mois</span></p>
+                      <p>Montant total: <span className="font-medium">{formatFcfa(subscription.total_amount_fcfa)}</span></p>
+                      <p>Date de souscription: <span className="font-medium">{formatDate(subscription.created_at.slice(0, 10))}</span></p>
+                      <p>Paiements enregistrés: <span className="font-medium">{subscription.payments.length}</span></p>
+                    </div>
+                    <div>
+                      <p className="mb-2 text-sm font-medium">Élèves rattachés</p>
+                      <div className="flex flex-wrap gap-2">
+                        {subscription.students.map((student) => (
+                          <Badge key={student.id} variant="secondary">{student.full_name}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                    {subscription.payments.length > 0 ? (
+                      <div>
+                        <p className="mb-2 text-sm font-medium">Historique paiements</p>
+                        <div className="space-y-2">
+                          {subscription.payments.map((payment) => (
+                            <div key={payment.id} className="rounded-md border border-border p-2 text-xs">
+                              <p className="font-medium">{formatFcfa(payment.amount_fcfa)}</p>
+                              <p className="text-muted-foreground">
+                                {payment.payment_method} · {new Date(payment.paid_at).toLocaleString("fr-FR")}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   )
 }

@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react"
-import { CheckCircle2, Copy, Lock, TriangleAlert } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { CheckCircle2, Copy, Lock, Search, TriangleAlert } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -24,9 +25,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import {
+  listSubscriptionClasses,
+  listSubscriptionClassStudents,
+} from "@/modules/subscriptions/subscriptions.api"
 
 type PaymentMethod = "cash" | "momo_mtn" | "momo_orange"
-type DurationMonths = 1 | 2 | 3
+type DurationMonths = number
 
 type StudentOption = {
   id: string
@@ -53,7 +58,6 @@ type CreateSubscriptionSuccess = {
 type CreateSubscriptionModalProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  students: StudentOption[]
   smsUnitPriceFcfa: number | null
   isSubmitting?: boolean
   existingPhones?: string[]
@@ -65,12 +69,6 @@ const PHONE_REGEX = /^225\d{10}$/
 
 const formatFcfa = (value: number) =>
   `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} FCFA`
-
-const durationLabels: Record<DurationMonths, string> = {
-  1: "1 mois",
-  2: "2 mois",
-  3: "3 mois",
-}
 
 const paymentMethodLabels: Record<PaymentMethod, string> = {
   cash: "Espèces",
@@ -91,7 +89,6 @@ const emptyForm = {
 export default function CreateSubscriptionModal({
   open,
   onOpenChange,
-  students,
   smsUnitPriceFcfa,
   isSubmitting = false,
   existingPhones = [],
@@ -100,6 +97,10 @@ export default function CreateSubscriptionModal({
 }: CreateSubscriptionModalProps) {
   const [step, setStep] = useState(1)
   const [form, setForm] = useState(emptyForm)
+  const [selectedClassId, setSelectedClassId] = useState<string>("")
+  const [studentSearch, setStudentSearch] = useState("")
+  const [studentPage, setStudentPage] = useState(1)
+  const [selectedStudentMap, setSelectedStudentMap] = useState<Record<string, StudentOption>>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [success, setSuccess] = useState<CreateSubscriptionSuccess | null>(null)
 
@@ -117,6 +118,39 @@ export default function CreateSubscriptionModal({
     return smsUnitPriceFcfa * form.student_ids.length * form.duration_months
   }, [form.duration_months, form.student_ids.length, smsUnitPriceFcfa])
 
+  const classesQuery = useQuery({
+    queryKey: ["subscriptions", "classes", "modal"],
+    queryFn: () => listSubscriptionClasses(),
+    enabled: open,
+  })
+
+  const classStudentsQuery = useQuery({
+    queryKey: ["subscriptions", "students", "modal", selectedClassId, studentPage, studentSearch],
+    queryFn: () =>
+      listSubscriptionClassStudents({
+        class_id: selectedClassId,
+        page: studentPage,
+        limit: 25,
+        search: studentSearch.trim() || undefined,
+      }),
+    enabled: open && step === 2 && selectedClassId.length > 0,
+  })
+
+  useEffect(() => {
+    if (!open || step !== 2 || selectedClassId || !classesQuery.data?.length) {
+      return
+    }
+    setSelectedClassId(classesQuery.data[0].id)
+  }, [open, step, selectedClassId, classesQuery.data])
+
+  const visibleStudents = useMemo(() => {
+    return (classStudentsQuery.data?.data ?? []).map((item) => ({
+      id: item.id,
+      fullName: item.full_name,
+      className: item.class_name,
+    }))
+  }, [classStudentsQuery.data?.data])
+
   const canGoStep2 = fullNameValid && phoneValid && emailValid && !phoneExists
   const canGoStep3 = studentsValid && priceConfigured
 
@@ -125,6 +159,10 @@ export default function CreateSubscriptionModal({
     setForm(emptyForm)
     setSubmitError(null)
     setSuccess(null)
+    setSelectedClassId("")
+    setStudentSearch("")
+    setStudentPage(1)
+    setSelectedStudentMap({})
   }
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -136,12 +174,20 @@ export default function CreateSubscriptionModal({
 
   const progress = success ? 100 : (step / 3) * 100
 
-  const handleStudentToggle = (studentId: string, checked: boolean) => {
+  const handleStudentToggle = (student: StudentOption, checked: boolean) => {
     setForm((prev) => {
       if (checked) {
-        return { ...prev, student_ids: [...prev.student_ids, studentId] }
+        return { ...prev, student_ids: [...new Set([...prev.student_ids, student.id])] }
       }
-      return { ...prev, student_ids: prev.student_ids.filter((id) => id !== studentId) }
+      return { ...prev, student_ids: prev.student_ids.filter((id) => id !== student.id) }
+    })
+    setSelectedStudentMap((prev) => {
+      if (checked) {
+        return { ...prev, [student.id]: student }
+      }
+      const next = { ...prev }
+      delete next[student.id]
+      return next
     })
   }
 
@@ -260,9 +306,48 @@ export default function CreateSubscriptionModal({
                   ) : null}
 
                   <div className="space-y-2">
+                    <Label>Classe (vous pouvez changer à tout moment)</Label>
+                    <Select
+                      value={selectedClassId}
+                      onValueChange={(value) => {
+                        setSelectedClassId(value)
+                        setStudentPage(1)
+                        setStudentSearch("")
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choisir une classe" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(classesQuery.data ?? []).map((classItem) => (
+                          <SelectItem key={classItem.id} value={classItem.id}>
+                            {classItem.name} ({classItem.students_count})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
                     <Label>Élèves à rattacher</Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        className="pl-9"
+                        value={studentSearch}
+                        onChange={(event) => {
+                          setStudentPage(1)
+                          setStudentSearch(event.target.value)
+                        }}
+                        placeholder="Rechercher dans la classe"
+                        disabled={!selectedClassId}
+                      />
+                    </div>
                     <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border border-border p-3">
-                      {students.map((student) => {
+                      {!selectedClassId ? (
+                        <p className="text-sm text-muted-foreground">Sélectionnez une classe pour afficher ses élèves.</p>
+                      ) : null}
+                      {visibleStudents.map((student) => {
                         const checked = form.student_ids.includes(student.id)
                         return (
                           <label
@@ -271,7 +356,7 @@ export default function CreateSubscriptionModal({
                           >
                             <Checkbox
                               checked={checked}
-                              onCheckedChange={(value) => handleStudentToggle(student.id, value === true)}
+                              onCheckedChange={(value) => handleStudentToggle(student, value === true)}
                             />
                             <span className="flex-1 text-sm">
                               <span className="font-medium">{student.fullName}</span>
@@ -280,27 +365,68 @@ export default function CreateSubscriptionModal({
                           </label>
                         )
                       })}
+                      {classStudentsQuery.isLoading ? <p className="text-sm text-muted-foreground">Chargement…</p> : null}
                     </div>
+                    {selectedClassId && (classStudentsQuery.data?.pagination.totalPages ?? 0) > studentPage ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setStudentPage((prev) => prev + 1)}
+                        disabled={classStudentsQuery.isFetching}
+                      >
+                        Charger la page suivante
+                      </Button>
+                    ) : null}
                     {!studentsValid ? <p className="text-xs text-red-600">Sélectionnez au moins un élève.</p> : null}
                   </div>
 
+                  {form.student_ids.length > 0 ? (
+                    <div className="space-y-2 rounded-lg border border-border p-3">
+                      <p className="text-sm font-medium">Élèves sélectionnés ({form.student_ids.length})</p>
+                      <div className="flex flex-wrap gap-2">
+                        {form.student_ids.map((studentId) => {
+                          const student = selectedStudentMap[studentId]
+                          return (
+                            <Badge key={studentId} variant="secondary" className="gap-2">
+                              {student?.fullName ?? "Élève sélectionné"}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 px-1 text-xs"
+                                onClick={() =>
+                                  handleStudentToggle(
+                                    student ?? { id: studentId, fullName: "Élève", className: "" },
+                                    false
+                                  )
+                                }
+                              >
+                                ×
+                              </Button>
+                            </Badge>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+
                   <div className="space-y-2">
                     <Label>Durée</Label>
-                    <Select
+                    <Input
+                      type="number"
+                      min={1}
+                      max={120}
                       value={String(form.duration_months)}
-                      onValueChange={(value) =>
-                        setForm((prev) => ({ ...prev, duration_months: Number(value) as DurationMonths }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Durée" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1 mois</SelectItem>
-                        <SelectItem value="2">2 mois</SelectItem>
-                        <SelectItem value="3">3 mois</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      onChange={(event) => {
+                        const value = Number(event.target.value)
+                        setForm((prev) => ({
+                          ...prev,
+                          duration_months: Number.isInteger(value) && value >= 1 ? value : 1,
+                        }))
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">Saisissez le nombre de mois (1 à 120).</p>
                   </div>
 
                   <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
@@ -344,7 +470,7 @@ export default function CreateSubscriptionModal({
                     <Separator />
                     <p>Parent: {form.full_name || "-"}</p>
                     <p>Élèves: {form.student_ids.length}</p>
-                    <p>Durée: {durationLabels[form.duration_months]}</p>
+                    <p>Durée: {form.duration_months} mois</p>
                     <p>Méthode: {paymentMethodLabels[form.payment_method]}</p>
                     <p className="font-semibold">Total: {formatFcfa(computedTotal)}</p>
                   </div>
