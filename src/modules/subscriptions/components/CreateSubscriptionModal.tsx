@@ -37,6 +37,7 @@ type StudentOption = {
   id: string
   fullName: string
   className: string
+  registrationNumber: string | null
 }
 
 type CreateSubscriptionPayload = {
@@ -148,6 +149,7 @@ export default function CreateSubscriptionModal({
       id: item.id,
       fullName: item.full_name,
       className: item.class_name,
+      registrationNumber: item.registration_number,
     }))
   }, [classStudentsQuery.data?.data])
 
@@ -360,7 +362,9 @@ export default function CreateSubscriptionModal({
                             />
                             <span className="flex-1 text-sm">
                               <span className="font-medium">{student.fullName}</span>
-                              <span className="ml-2 text-muted-foreground">· {student.className}</span>
+                              <span className="ml-2 text-muted-foreground">
+                                · {student.className} · Matricule: {student.registrationNumber ?? "-"}
+                              </span>
                             </span>
                           </label>
                         )
@@ -397,7 +401,7 @@ export default function CreateSubscriptionModal({
                                 className="h-5 px-1 text-xs"
                                 onClick={() =>
                                   handleStudentToggle(
-                                    student ?? { id: studentId, fullName: "Élève", className: "" },
+                                    student ?? { id: studentId, fullName: "Élève", className: "", registrationNumber: null },
                                     false
                                   )
                                 }

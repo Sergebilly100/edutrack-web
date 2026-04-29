@@ -100,6 +100,7 @@ export type SubscriptionClassStudentItem = {
   full_name: string
   class_id: string
   class_name: string
+  registration_number: string | null
 }
 
 export type SubscriptionClassStudentsResponse = {
@@ -246,7 +247,7 @@ export const getParentSubscriptionDetails = async (parentId: string) => {
       created_at: string
       cancelled_at: string | null
       cancelled_by_name: string | null
-      students: Array<{ id: string; full_name: string }>
+      students: Array<{ id: string; full_name: string; class_name: string | null; registration_number: string | null }>
       payments: Array<{
         id: string
         amount_fcfa: number

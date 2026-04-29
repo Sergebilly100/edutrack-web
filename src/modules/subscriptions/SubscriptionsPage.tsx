@@ -36,6 +36,7 @@ import {
   cancelSubscription,
   createSubscriptionParent,
   getParentSubscriptionDetails,
+  getSubscriptionsRevenueSummary,
   getSmsFeatureSettings,
   listSubscriptionParents,
   renewSubscriptionParent,
@@ -95,6 +96,11 @@ export default function SubscriptionsPage() {
     refetchInterval: 0,
     enabled: featureQuery.data?.is_enabled === true,
   })
+  const revenueSummaryQuery = useQuery({
+    queryKey: ["subscriptions", "revenue", "summary", month],
+    queryFn: () => getSubscriptionsRevenueSummary(month),
+    enabled: featureQuery.data?.is_enabled === true,
+  })
 
   const detailsQuery = useQuery({
     queryKey: ["subscriptions", "details", detailsTarget?.parent_id],
@@ -137,10 +143,7 @@ export default function SubscriptionsPage() {
 
   const items = parentsQuery.data?.data ?? []
 
-  const activeCount = useMemo(
-    () => items.filter((item) => item.latest_subscription?.status === "active").length,
-    [items]
-  )
+  const activeCount = revenueSummaryQuery.data?.subscriptions_active_count ?? 0
   const monthSubscriptionsCount = useMemo(
     () => items.filter((item) => item.latest_subscription?.created_at?.startsWith(month)).length,
     [items, month]
@@ -189,6 +192,15 @@ export default function SubscriptionsPage() {
           </Select>
         </div>
 
+        <div className="space-y-2">
+          <Label>Mois</Label>
+          <Input
+            type="month"
+            value={month}
+            max={toMonth(new Date())}
+            onChange={(event) => setMonth(event.target.value)}
+          />
+        </div>
         <div className="space-y-2 md:col-span-2">
           <Label>Recherche</Label>
           <div className="relative">
@@ -200,15 +212,6 @@ export default function SubscriptionsPage() {
               placeholder="Nom parent ou téléphone"
             />
           </div>
-        </div>
-        <div className="space-y-2">
-          <Label>Mois</Label>
-          <Input
-            type="month"
-            value={month}
-            max={toMonth(new Date())}
-            onChange={(event) => setMonth(event.target.value)}
-          />
         </div>
       </section>
 
@@ -515,9 +518,14 @@ export default function SubscriptionsPage() {
                     ) : null}
                     <div>
                       <p className="mb-2 text-sm font-medium">Élèves rattachés</p>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="space-y-2">
                         {subscription.students.map((student) => (
-                          <Badge key={student.id} variant="secondary">{student.full_name}</Badge>
+                          <div key={student.id} className="rounded-md border p-2 text-xs">
+                            <p className="font-medium">{student.full_name}</p>
+                            <p className="text-muted-foreground">
+                              Classe: {student.class_name ?? "-"} · Matricule: {student.registration_number ?? "-"}
+                            </p>
+                          </div>
                         ))}
                       </div>
                     </div>
