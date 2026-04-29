@@ -1,4 +1,5 @@
 import { useMemo } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { ShieldCheck } from "lucide-react"
 
 import { Checkbox } from "@/components/ui/checkbox"
@@ -11,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import { getSchoolSmsFeatureSettings } from "@/modules/settings/settings.api"
 
 const BASE_PERMISSION_COLUMNS = [
   {
@@ -68,7 +70,34 @@ const SMS_PERMISSION_COLUMN = {
 
 const SMS_PERMISSION_ROW = { key: "sms_templates", label: "Template SMS école" } as const
 
-type PermissionColumn = (typeof BASE_PERMISSION_COLUMNS)[number] | typeof SMS_PERMISSION_COLUMN
+const SUBSCRIPTIONS_PERMISSION_COLUMN = {
+  key: "subscriptions",
+  label: "Abonnements parents",
+  permissions: [
+    "subscriptions.view",
+    "subscriptions.create",
+    "subscriptions.renew",
+    "subscriptions.cancel",
+    "subscriptions.revenue",
+  ],
+} as const
+
+const SUBSCRIPTIONS_PERMISSION_ROWS = [
+  { key: "view", label: "Voir les abonnements" },
+  { key: "create", label: "Créer un abonnement" },
+  { key: "renew", label: "Renouveler un abonnement" },
+  { key: "cancel", label: "Annuler un abonnement" },
+  { key: "revenue", label: "Voir les revenus et commissions" },
+] as const
+
+type PermissionColumn =
+  | (typeof BASE_PERMISSION_COLUMNS)[number]
+  | typeof SMS_PERMISSION_COLUMN
+  | typeof SUBSCRIPTIONS_PERMISSION_COLUMN
+type PermissionRow = {
+  key: string
+  label: string
+}
 
 type RoleMatrixPosition = {
   permissions: string[]
@@ -100,6 +129,9 @@ const ACTION_KEYS_REQUIRING_VIEW = new Set([
   "compute",
   "mark_paid",
   "export",
+  "renew",
+  "cancel",
+  "revenue",
 ])
 
 const splitPermission = (permission: string): { category: string; action: string } | null => {
@@ -163,16 +195,41 @@ export default function RoleMatrix({
   canManageSmsTemplates = false,
   className,
 }: RoleMatrixProps) {
+  const smsFeatureQuery = useQuery({
+    queryKey: ["settings", "sms-feature", "role-matrix"],
+    queryFn: getSchoolSmsFeatureSettings,
+  })
+  const isSubscriptionsCategoryEnabled = smsFeatureQuery.data?.is_enabled === true
+
   const permissionColumns = useMemo(
-    () =>
-      canManageSmsTemplates
-        ? [...BASE_PERMISSION_COLUMNS, SMS_PERMISSION_COLUMN]
-        : BASE_PERMISSION_COLUMNS,
-    [canManageSmsTemplates]
+    () => {
+      const columns: Array<PermissionColumn | typeof SUBSCRIPTIONS_PERMISSION_COLUMN> = [...BASE_PERMISSION_COLUMNS]
+
+      if (isSubscriptionsCategoryEnabled) {
+        columns.push(SUBSCRIPTIONS_PERMISSION_COLUMN)
+      }
+      if (canManageSmsTemplates) {
+        columns.push(SMS_PERMISSION_COLUMN)
+      }
+
+      return columns
+    },
+    [canManageSmsTemplates, isSubscriptionsCategoryEnabled]
   )
   const permissionRows = useMemo(
-    () => (canManageSmsTemplates ? [...BASE_PERMISSION_ROWS, SMS_PERMISSION_ROW] : BASE_PERMISSION_ROWS),
-    [canManageSmsTemplates]
+    () => {
+      const rows: PermissionRow[] = [...BASE_PERMISSION_ROWS]
+
+      if (isSubscriptionsCategoryEnabled) {
+        rows.push(...SUBSCRIPTIONS_PERMISSION_ROWS)
+      }
+      if (canManageSmsTemplates) {
+        rows.push(SMS_PERMISSION_ROW)
+      }
+
+      return rows
+    },
+    [canManageSmsTemplates, isSubscriptionsCategoryEnabled]
   )
   const permissionSet = useMemo(() => new Set(position.permissions), [position.permissions])
 
