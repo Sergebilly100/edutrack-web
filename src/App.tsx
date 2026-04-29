@@ -9,6 +9,7 @@ import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
 import { useAutoSync } from "@/shared/hooks/useAutoSync"
 import { useRestoreSession } from "@/shared/hooks/useRestoreSession"
 import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
+import { useParentAuthStore } from "@/modules/parent-portal/parent-auth.store"
 
 const AdminPage = lazy(() => import("@/modules/admin/AdminPage"))
 const AdminAccountPage = lazy(() => import("@/modules/admin/AdminAccountPage"))
@@ -30,6 +31,11 @@ const SchedulePage = lazy(() => import("@/modules/schedule/SchedulePage"))
 const SettingsPage = lazy(() => import("@/modules/settings/SettingsPage"))
 const SubscriptionsPage = lazy(() => import("@/modules/subscriptions/SubscriptionsPage"))
 const SubscriptionRevenuePage = lazy(() => import("@/modules/subscriptions/SubscriptionRevenuePage"))
+const ParentLoginPage = lazy(() => import("@/modules/parent-portal/ParentLoginPage"))
+const ParentPortalLayout = lazy(() => import("@/modules/parent-portal/ParentPortalLayout"))
+const ParentDashboardPage = lazy(() => import("@/modules/parent-portal/ParentDashboardPage"))
+const ParentAbsenceHistoryPage = lazy(() => import("@/modules/parent-portal/ParentAbsenceHistoryPage"))
+const ParentAccountPage = lazy(() => import("@/modules/parent-portal/ParentAccountPage"))
 const StudentDetailPage = lazy(() => import("@/modules/students/StudentDetailPage"))
 const StudentsPage = lazy(() => import("@/modules/students/StudentsPage"))
 const TeacherDetailPage = lazy(() => import("@/modules/teachers/TeacherDetailPage"))
@@ -160,6 +166,14 @@ function LoginRoute() {
   return <LoginPage />
 }
 
+function ParentLoginRoute() {
+  const parentUser = useParentAuthStore((state) => state.user)
+  if (parentUser) {
+    return <Navigate to="/parent/dashboard" replace />
+  }
+  return <ParentLoginPage />
+}
+
 function TeacherShell({ element }: { element: ReactElement }) {
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -278,6 +292,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LoginRoute />} />
         <Route path="/login" element={<LoginRoute />} />
+        <Route path="/parent/login" element={<ParentLoginRoute />} />
         <Route path="/maintenance" element={<MaintenancePage />} />
         <Route path="/dev" element={<ComponentsDemoPage />} />
         <Route path="/attendance" element={<AttendanceRoute />} />
@@ -306,6 +321,12 @@ export default function App() {
           <Route path="/subscriptions/revenue" element={<PermissionRoute href="/subscriptions/revenue" element={<SubscriptionRevenuePage />} />} />
           <Route path="/settings" element={<PermissionRoute href="/settings" element={<SettingsPage />} />} />
           <Route path="/account" element={<AccountPage />} />
+        </Route>
+
+        <Route path="/parent" element={<ParentPortalLayout />}>
+          <Route path="dashboard" element={<ParentDashboardPage />} />
+          <Route path="absences" element={<ParentAbsenceHistoryPage />} />
+          <Route path="account" element={<ParentAccountPage />} />
         </Route>
 
         <Route path="*" element={<RoleRedirect />} />

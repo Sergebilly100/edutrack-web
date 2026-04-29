@@ -2,6 +2,7 @@ import axios from "axios"
 import type { AxiosError, InternalAxiosRequestConfig } from "axios"
 
 import { queryClient } from "@/shared/api/query-client"
+import { useParentAuthStore } from "@/modules/parent-portal/parent-auth.store"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 export const apiClient = axios.create({
@@ -10,7 +11,11 @@ export const apiClient = axios.create({
 })
 
 apiClient.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().accessToken
+  const staffToken = useAuthStore.getState().accessToken
+  const parentToken = useParentAuthStore.getState().accessToken
+  const requestUrl = config.url ?? ""
+  const isParentRoute = requestUrl.includes("/parent/")
+  const token = isParentRoute ? parentToken : (staffToken ?? parentToken)
   if (token) {
     config.headers = config.headers ?? {}
     config.headers.Authorization = `Bearer ${token}`
@@ -39,7 +44,11 @@ const requestTokenRefresh = async (): Promise<string | null> => {
       )
 
       const newAccessToken = response.data.accessToken
-      authState.setAccessToken(newAccessToken)
+      if (window.location.pathname.startsWith("/parent")) {
+        useParentAuthStore.getState().setAccessToken(newAccessToken)
+      } else {
+        authState.setAccessToken(newAccessToken)
+      }
       return newAccessToken
     })().finally(() => {
       refreshPromise = null
@@ -50,10 +59,17 @@ const requestTokenRefresh = async (): Promise<string | null> => {
 }
 
 const redirectToSessionExpired = (): void => {
-  const authState = useAuthStore.getState()
-  authState.logout()
+  const isParentPortal = window.location.pathname.startsWith("/parent")
+  if (isParentPortal) {
+    useParentAuthStore.getState().logout()
+  } else {
+    const authState = useAuthStore.getState()
+    authState.logout()
+  }
   queryClient.clear()
-  window.location.href = "/login?reason=session_expired"
+  window.location.href = isParentPortal
+    ? "/parent/login?reason=session_expired"
+    : "/login?reason=session_expired"
 }
 
 const redirectToMaintenance = (message?: string): void => {
