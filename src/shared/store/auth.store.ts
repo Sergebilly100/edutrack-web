@@ -46,6 +46,11 @@ export type PermissionKey =
   | "settings.positions"
   | "settings.school"
   | "settings.sms_templates"
+  | "subscriptions.view"
+  | "subscriptions.create"
+  | "subscriptions.renew"
+  | "subscriptions.cancel"
+  | "subscriptions.revenue"
 
 type AuthState = {
   user: AuthUser | null

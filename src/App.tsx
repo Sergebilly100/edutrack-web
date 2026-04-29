@@ -28,6 +28,8 @@ const RoomsPage = lazy(() => import("@/modules/rooms/RoomsPage"))
 const SalariesPage = lazy(() => import("@/modules/salaries/SalariesPage"))
 const SchedulePage = lazy(() => import("@/modules/schedule/SchedulePage"))
 const SettingsPage = lazy(() => import("@/modules/settings/SettingsPage"))
+const SubscriptionsPage = lazy(() => import("@/modules/subscriptions/SubscriptionsPage"))
+const SubscriptionRevenuePage = lazy(() => import("@/modules/subscriptions/SubscriptionRevenuePage"))
 const StudentDetailPage = lazy(() => import("@/modules/students/StudentDetailPage"))
 const StudentsPage = lazy(() => import("@/modules/students/StudentsPage"))
 const TeacherDetailPage = lazy(() => import("@/modules/teachers/TeacherDetailPage"))
@@ -300,6 +302,8 @@ export default function App() {
           <Route path="/imports" element={<PermissionRoute href="/import" element={<ImportPage />} />} />
           <Route path="/rooms" element={<PermissionRoute href="/rooms" element={<RoomsPage />} />} />
           <Route path="/salaries" element={<PermissionRoute href="/salaries" element={<SalariesPage />} />} />
+          <Route path="/subscriptions" element={<PermissionRoute href="/subscriptions" element={<SubscriptionsPage />} />} />
+          <Route path="/subscriptions/revenue" element={<PermissionRoute href="/subscriptions/revenue" element={<SubscriptionRevenuePage />} />} />
           <Route path="/settings" element={<PermissionRoute href="/settings" element={<SettingsPage />} />} />
           <Route path="/account" element={<AccountPage />} />
         </Route>

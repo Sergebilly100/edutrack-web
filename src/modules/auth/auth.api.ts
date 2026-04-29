@@ -81,6 +81,11 @@ const PERMISSION_KEYS: PermissionKey[] = [
   'settings.positions',
   'settings.school',
   'settings.sms_templates',
+  'subscriptions.view',
+  'subscriptions.create',
+  'subscriptions.renew',
+  'subscriptions.cancel',
+  'subscriptions.revenue',
 ];
 
 export const getMyPermissions = async (): Promise<PermissionKey[]> => {

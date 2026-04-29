@@ -237,6 +237,12 @@ export type SchoolSmsTemplateResponse = {
   updatedAt: string | null
 }
 
+export type SchoolSmsFeatureSettings = {
+  is_enabled: boolean
+  commission_pct: number
+  sms_unit_price_fcfa: number | null
+}
+
 export const fetchSchoolConfig = async (): Promise<SchoolConfigData> => {
   try {
     const response = await apiClient.get("/permissions/config")
@@ -270,6 +276,20 @@ export const updateSchoolStudentAbsenceSmsTemplate = async (payload: {
 
 export const resetSchoolStudentAbsenceSmsTemplate = async (): Promise<void> => {
   await apiClient.delete("/notifications/templates/student-absence")
+}
+
+export const getSchoolSmsFeatureSettings = async (): Promise<SchoolSmsFeatureSettings> => {
+  const response = await apiClient.get<SchoolSmsFeatureSettings>("/settings/sms-price")
+  return response.data
+}
+
+export const updateSchoolSmsUnitPrice = async (
+  smsUnitPriceFcfa: number
+): Promise<SchoolSmsFeatureSettings> => {
+  const response = await apiClient.patch<SchoolSmsFeatureSettings>("/settings/sms-price", {
+    sms_unit_price_fcfa: smsUnitPriceFcfa,
+  })
+  return response.data
 }
 
 export const updateSchoolInfo = async (payload: {

@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   Building2,
   CalendarDays,
@@ -24,6 +24,7 @@ import {
   UserCircle,
   Users,
   Wallet,
+  WalletCards,
   Sun,
   type LucideIcon,
 } from "lucide-react"
@@ -40,6 +41,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { logout as logoutApi } from "@/modules/auth/auth.api"
+import { getSmsFeatureSettings } from "@/modules/subscriptions/subscriptions.api"
 import { useTheme } from "@/shared/hooks/useTheme"
 import { getUserRoleLabel } from "@/shared/lib/user-role-label"
 import { isStaffRole, type AuthRole, type PermissionKey } from "@/shared/store/auth.store"
@@ -101,6 +103,20 @@ const navItems: NavItem[] = [
     href: "/rooms",
     roles: ["director", "staff"],
     requiredPermissions: ["rooms.view"],
+  },
+  {
+    label: "Abonnements",
+    icon: WalletCards,
+    href: "/subscriptions",
+    roles: ["director", "staff"],
+    requiredPermissions: ["subscriptions.view"],
+  },
+  {
+    label: "Revenus abonnements",
+    icon: TrendingUp,
+    href: "/subscriptions/revenue",
+    roles: ["director", "staff"],
+    requiredPermissions: ["subscriptions.revenue"],
   },
   {
     label: "Paramètres",
@@ -202,7 +218,23 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
   const { theme, setTheme, resolvedTheme } = useTheme()
 
   const role = user?.role
-  const visibleItems = isSidebarRole(role) ? navItems.filter((item) => canAccessItem(item, role, permissions)) : []
+  const smsFeatureQuery = useQuery({
+    queryKey: ["subscriptions", "feature-settings", "sidebar"],
+    queryFn: getSmsFeatureSettings,
+    staleTime: 60_000,
+    enabled: role === "director" || isStaffRole(role),
+  })
+  const smsFeatureEnabled = smsFeatureQuery.data?.is_enabled === true
+  const visibleItems = isSidebarRole(role)
+    ? navItems
+        .filter((item) => canAccessItem(item, role, permissions))
+        .filter((item) => {
+          if (item.href === "/subscriptions" || item.href === "/subscriptions/revenue") {
+            return smsFeatureEnabled
+          }
+          return true
+        })
+    : []
 
   const handleTogglePinned = () => {
     if (!pinned && collapsed) {
