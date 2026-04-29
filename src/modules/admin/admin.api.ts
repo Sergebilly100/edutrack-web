@@ -310,6 +310,42 @@ export type SchoolPaymentItem = {
   status: string
 }
 
+export type SchoolSmsFeatureConfig = {
+  is_enabled: boolean
+  commission_pct: number
+  sms_cap_per_student: number
+}
+
+export type SchoolSmsFeatureStats = {
+  config: SchoolSmsFeatureConfig
+  current_month: {
+    subscriptions_active: number
+    subscriptions_new: number
+    total_collected_fcfa: number
+    commission_due_fcfa: number
+    commission_paid_fcfa: number
+    commission_remaining_fcfa: number
+  }
+  history: Array<{
+    month: string
+    subscriptions_active: number
+    subscriptions_new: number
+    total_collected_fcfa: number
+    commission_due_fcfa: number
+    commission_paid_fcfa: number
+    commission_remaining_fcfa: number
+  }>
+  sms_sent_this_month: number
+}
+
+export type SmsFeatureGlobalStatsItem = {
+  school_name: string
+  tenant_id: string
+  subscriptions_active: number
+  commission_remaining_fcfa: number
+  is_overdue: boolean
+}
+
 export type AddSchoolPaymentPayload = {
   date: string
   amount_fcfa: number
@@ -548,3 +584,47 @@ export const updateMaintenanceConfig = (payload: { maintenance_mode: boolean; ma
 
 export const clearAdminCache = () =>
   api.delete<{ success: boolean }>("/admin/cache").then((response) => response.data)
+
+export const activateSchoolSmsFeature = (tenantId: string, payload: { commission_pct: number }) =>
+  api.post<{ is_enabled: boolean; commission_pct: number; activated_at: string }>(
+    `/admin/schools/${tenantId}/sms-feature/activate`,
+    payload
+  ).then((response) => response.data)
+
+export const deactivateSchoolSmsFeature = (tenantId: string) =>
+  api.post<{ is_enabled: boolean }>(`/admin/schools/${tenantId}/sms-feature/deactivate`).then((response) => response.data)
+
+export const updateSchoolSmsFeatureConfig = (
+  tenantId: string,
+  payload: { commission_pct?: number; sms_cap_per_student?: number }
+) =>
+  api.patch<SchoolSmsFeatureConfig>(`/admin/schools/${tenantId}/sms-feature/config`, payload).then((response) => response.data)
+
+export const syncSchoolSmsCommission = (tenantId: string, month?: string) =>
+  api.post<{
+    month: string
+    total_subscriptions_fcfa: number
+    commission_pct: number
+    commission_due_fcfa: number
+    commission_paid_fcfa: number
+  }>(`/admin/schools/${tenantId}/sms-feature/sync-commission`, undefined, {
+    params: month ? { month } : undefined,
+  }).then((response) => response.data)
+
+export const recordSchoolCommissionReceived = (
+  tenantId: string,
+  payload: { period_month: string; amount_fcfa: number; notes?: string }
+) =>
+  api.post<{
+    period_month: string
+    commission_due_fcfa: number
+    commission_paid_fcfa: number
+    commission_remaining_fcfa: number
+    overpaid: boolean
+  }>(`/admin/schools/${tenantId}/sms-feature/record-commission-received`, payload).then((response) => response.data)
+
+export const getSchoolSmsFeatureStats = (tenantId: string) =>
+  api.get<SchoolSmsFeatureStats>(`/admin/schools/${tenantId}/sms-feature/stats`).then((response) => response.data)
+
+export const getSmsFeatureGlobalStats = () =>
+  api.get<{ items: SmsFeatureGlobalStatsItem[] }>("/admin/sms-feature/global-stats").then((response) => response.data.items)

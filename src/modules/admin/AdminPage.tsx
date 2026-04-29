@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   getAdminMetrics,
+  getSmsFeatureGlobalStats,
   getSchoolPayments,
   getRevenueMetrics,
   getSmsDashboard,
@@ -89,6 +90,10 @@ export default function AdminPage() {
     queryKey: ["admin", "school-payments", selectedSchoolId],
     queryFn: () => getSchoolPayments(selectedSchoolId),
     enabled: selectedSchoolId.length > 0,
+  })
+  const smsFeatureGlobalStatsQuery = useQuery({
+    queryKey: ["admin", "sms-feature", "global-stats"],
+    queryFn: getSmsFeatureGlobalStats,
   })
 
   const filteredSchools = useMemo(() => {
@@ -174,6 +179,14 @@ export default function AdminPage() {
             subtitle="Utilisateurs actifs aujourd'hui"
             icon={<Users className="h-4 w-4" />}
             loading={metricsQuery.isLoading}
+          />
+          <StatCard
+            title="Commission SMS totale restante"
+            value={formatFcfa((smsFeatureGlobalStatsQuery.data ?? []).reduce((acc, row) => acc + row.commission_remaining_fcfa, 0))}
+            subtitle="Reversement à recevoir des écoles"
+            icon={<TrendingUp className="h-4 w-4" />}
+            variant={(smsFeatureGlobalStatsQuery.data ?? []).reduce((acc, row) => acc + row.commission_remaining_fcfa, 0) > 0 ? "danger" : "default"}
+            loading={smsFeatureGlobalStatsQuery.isLoading}
           />
           <StatCard
             title="Taux de rétention"
@@ -337,20 +350,21 @@ export default function AdminPage() {
               <TableHead>Utilisateurs</TableHead>
               <TableHead>Dernière connexion</TableHead>
               <TableHead>MRR</TableHead>
+              <TableHead>SMS</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {schoolsQuery.isLoading ? (
               <TableRow>
-                <TableCell className="p-4 text-sm text-muted-foreground" colSpan={7}>
+                <TableCell className="p-4 text-sm text-muted-foreground" colSpan={8}>
                   Chargement des écoles...
                 </TableCell>
               </TableRow>
             ) : null}
             {!schoolsQuery.isLoading && filteredSchools.length === 0 ? (
               <TableRow>
-                <TableCell className="p-4 text-sm text-muted-foreground" colSpan={7}>
+                <TableCell className="p-4 text-sm text-muted-foreground" colSpan={8}>
                   Aucune école trouvée avec ces filtres.
                 </TableCell>
               </TableRow>
@@ -367,6 +381,7 @@ export default function AdminPage() {
                   usersCount: school.nbUsers,
                   lastConnectionAt: school.lastConnection,
                   mrrFcfa: school.mrrFcfa,
+                  smsActive: (smsFeatureGlobalStatsQuery.data ?? []).some((item) => item.tenant_id === school.tenantId),
                 }}
                 onViewDetail={(target) => navigate(`/admin/schools/${target.id}`)}
                 onOpenConfig={(target) => navigate(`/admin/schools/${target.id}`)}

@@ -1,9 +1,19 @@
 import { useEffect, useState } from "react"
 import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowLeft, KeyRound, Send, Users } from "lucide-react"
+import { ArrowLeft, Coins, KeyRound, Send, TrendingUp, Users } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,18 +26,25 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import {
+  activateSchoolSmsFeature,
   addSchoolPayment,
+  deactivateSchoolSmsFeature,
+  getSchoolSmsFeatureStats,
   getSchoolDetails,
   getSchoolPayments,
   getSchoolUsers,
+  recordSchoolCommissionReceived,
   resetTenantSmsTemplate,
   sendSchoolPaymentReminder,
+  syncSchoolSmsCommission,
   type SchoolDetailsResponse,
   type TenantPlan,
   type TenantStatus,
   type TeachingType,
   updateSchoolConfig,
+  updateSchoolSmsFeatureConfig,
 } from "@/modules/admin/admin.api"
+import { StatCard } from "@/shared/components"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 const PLAN_OPTIONS: TenantPlan[] = ["essential", "pro", "establishment"]
@@ -75,6 +92,8 @@ export default function AdminSchoolDetailPage() {
   const { toast } = useToast()
   const locationState = (location.state as AdminSchoolDetailLocationState | null) ?? null
   const createdDirectorCredentials = locationState?.createdDirectorCredentials
+  const tabFromQuery = new URLSearchParams(location.search).get("tab")
+  const [activeTab, setActiveTab] = useState<string>(tabFromQuery === "sms-feature" ? "sms-feature" : "config")
 
   const schoolQuery = useQuery({
     queryKey: ["admin", "school-detail", tenantId],
@@ -89,6 +108,11 @@ export default function AdminSchoolDetailPage() {
   const paymentsQuery = useQuery({
     queryKey: ["admin", "school-payments", tenantId],
     queryFn: () => getSchoolPayments(tenantId as string),
+    enabled: Boolean(tenantId),
+  })
+  const smsFeatureStatsQuery = useQuery({
+    queryKey: ["admin", "school-sms-feature-stats", tenantId],
+    queryFn: () => getSchoolSmsFeatureStats(tenantId as string),
     enabled: Boolean(tenantId),
   })
 
@@ -112,6 +136,16 @@ export default function AdminSchoolDetailPage() {
     periodFrom: "",
     periodTo: "",
   })
+  const [smsConfigDraft, setSmsConfigDraft] = useState({
+    commissionPct: "0",
+    smsCapPerStudent: "60",
+  })
+  const [smsFeatureToggleOpen, setSmsFeatureToggleOpen] = useState(false)
+  const [smsFeatureToggleNextValue, setSmsFeatureToggleNextValue] = useState<boolean | null>(null)
+  const [commissionPaymentOpen, setCommissionPaymentOpen] = useState(false)
+  const [commissionPaymentPeriodMonth, setCommissionPaymentPeriodMonth] = useState("")
+  const [commissionPaymentAmount, setCommissionPaymentAmount] = useState("")
+  const [commissionPaymentNotes, setCommissionPaymentNotes] = useState("")
 
   useEffect(() => {
     if (!schoolQuery.data) return
@@ -129,6 +163,15 @@ export default function AdminSchoolDetailPage() {
       canExportData: metadata.canExportData,
     })
   }, [schoolQuery.data])
+  useEffect(() => {
+    if (!smsFeatureStatsQuery.data) {
+      return
+    }
+    setSmsConfigDraft({
+      commissionPct: String(smsFeatureStatsQuery.data.config.commission_pct),
+      smsCapPerStudent: String(smsFeatureStatsQuery.data.config.sms_cap_per_student),
+    })
+  }, [smsFeatureStatsQuery.data])
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -224,6 +267,67 @@ export default function AdminSchoolDetailPage() {
       toast({ title: "Erreur", description, variant: "destructive" })
     },
   })
+  const activateSmsFeatureMutation = useMutation({
+    mutationFn: (commissionPct: number) => activateSchoolSmsFeature(tenantId as string, { commission_pct: commissionPct }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin", "school-sms-feature-stats", tenantId] })
+      await queryClient.invalidateQueries({ queryKey: ["admin", "sms-feature", "global-stats"] })
+      toast({ title: "Feature SMS activée" })
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible d'activer la feature SMS.", variant: "destructive" })
+    },
+  })
+  const deactivateSmsFeatureMutation = useMutation({
+    mutationFn: () => deactivateSchoolSmsFeature(tenantId as string),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin", "school-sms-feature-stats", tenantId] })
+      await queryClient.invalidateQueries({ queryKey: ["admin", "sms-feature", "global-stats"] })
+      toast({ title: "Feature SMS désactivée" })
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de désactiver la feature SMS.", variant: "destructive" })
+    },
+  })
+  const updateSmsFeatureConfigMutation = useMutation({
+    mutationFn: (payload: { commission_pct?: number; sms_cap_per_student?: number }) =>
+      updateSchoolSmsFeatureConfig(tenantId as string, payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin", "school-sms-feature-stats", tenantId] })
+      await queryClient.invalidateQueries({ queryKey: ["admin", "sms-feature", "global-stats"] })
+      toast({ title: "Configuration SMS mise à jour" })
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de mettre à jour la configuration SMS.", variant: "destructive" })
+    },
+  })
+  const syncSmsCommissionMutation = useMutation({
+    mutationFn: () => syncSchoolSmsCommission(tenantId as string),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin", "school-sms-feature-stats", tenantId] })
+      await queryClient.invalidateQueries({ queryKey: ["admin", "sms-feature", "global-stats"] })
+      toast({ title: "Calculs commission synchronisés" })
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de synchroniser les calculs.", variant: "destructive" })
+    },
+  })
+  const recordCommissionReceivedMutation = useMutation({
+    mutationFn: (payload: { period_month: string; amount_fcfa: number; notes?: string }) =>
+      recordSchoolCommissionReceived(tenantId as string, payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin", "school-sms-feature-stats", tenantId] })
+      await queryClient.invalidateQueries({ queryKey: ["admin", "sms-feature", "global-stats"] })
+      setCommissionPaymentOpen(false)
+      setCommissionPaymentPeriodMonth("")
+      setCommissionPaymentAmount("")
+      setCommissionPaymentNotes("")
+      toast({ title: "Paiement commission enregistré" })
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible d'enregistrer ce paiement.", variant: "destructive" })
+    },
+  })
 
   if (!user) {
     return <Navigate to="/" replace />
@@ -265,6 +369,21 @@ export default function AdminSchoolDetailPage() {
           : null,
       ].filter((item): item is string => item !== null)
     : []
+  const hasSmsFeatureRecord = (() => {
+    const stats = smsFeatureStatsQuery.data
+    if (!stats) {
+      return false
+    }
+    if (stats.config.is_enabled) {
+      return true
+    }
+    if (stats.config.commission_pct !== 0 || stats.config.sms_cap_per_student !== 60) {
+      return true
+    }
+    return stats.history.some((item) =>
+      item.total_collected_fcfa > 0 || item.commission_due_fcfa > 0 || item.commission_paid_fcfa > 0
+    )
+  })()
 
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
@@ -287,10 +406,11 @@ export default function AdminSchoolDetailPage() {
       ) : null}
 
       {school ? (
-        <Tabs defaultValue="config" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="flex h-auto flex-wrap">
             <TabsTrigger value="config">Configuration</TabsTrigger>
             <TabsTrigger value="users">Utilisateurs</TabsTrigger>
+            {hasSmsFeatureRecord ? <TabsTrigger value="sms-feature">SMS & Abonnements</TabsTrigger> : null}
             <TabsTrigger value="sms">SMS</TabsTrigger>
             <TabsTrigger value="subscription">Abonnement & Paiements</TabsTrigger>
             <TabsTrigger value="stats">Statistiques</TabsTrigger>
@@ -501,6 +621,164 @@ export default function AdminSchoolDetailPage() {
             </Card>
           </TabsContent>
 
+          <TabsContent value="sms-feature" className="space-y-4">
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle>Configuration</CardTitle>
+                <CardDescription>Activation et paramètres de la feature SMS abonnements.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <div>
+                    <p className="text-sm font-medium">Activer la feature SMS</p>
+                    <p className="text-xs text-muted-foreground">
+                      État actuel: {smsFeatureStatsQuery.data?.config.is_enabled ? "Activée" : "Désactivée"}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant={smsFeatureStatsQuery.data?.config.is_enabled ? "destructive" : "default"}
+                    onClick={() => {
+                      setSmsFeatureToggleNextValue(!(smsFeatureStatsQuery.data?.config.is_enabled ?? false))
+                      setSmsFeatureToggleOpen(true)
+                    }}
+                  >
+                    {smsFeatureStatsQuery.data?.config.is_enabled ? "Désactiver" : "Activer"}
+                  </Button>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Commission %</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={smsConfigDraft.commissionPct}
+                      onChange={(event) => setSmsConfigDraft((prev) => ({ ...prev, commissionPct: event.target.value }))}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        updateSmsFeatureConfigMutation.mutate({
+                          commission_pct: Number(smsConfigDraft.commissionPct),
+                        })
+                      }
+                    >
+                      Sauvegarder commission
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Plafond SMS/élève/mois</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={smsConfigDraft.smsCapPerStudent}
+                      onChange={(event) => setSmsConfigDraft((prev) => ({ ...prev, smsCapPerStudent: event.target.value }))}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        updateSmsFeatureConfigMutation.mutate({
+                          sms_cap_per_student: Number(smsConfigDraft.smsCapPerStudent),
+                        })
+                      }
+                    >
+                      Sauvegarder plafond
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {smsFeatureStatsQuery.data?.config.is_enabled ? (
+              <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <StatCard
+                  title="Souscriptions actives"
+                  value={smsFeatureStatsQuery.data.current_month.subscriptions_active}
+                  icon={<Users className="h-4 w-4" />}
+                />
+                <StatCard
+                  title="Encaissé ce mois"
+                  value={formatFcfa(smsFeatureStatsQuery.data.current_month.total_collected_fcfa)}
+                  icon={<TrendingUp className="h-4 w-4" />}
+                />
+                <StatCard
+                  title="Commission due"
+                  value={formatFcfa(smsFeatureStatsQuery.data.current_month.commission_due_fcfa)}
+                  icon={<Coins className="h-4 w-4" />}
+                  variant={smsFeatureStatsQuery.data.current_month.commission_due_fcfa > 0 ? "warning" : "default"}
+                />
+              </section>
+            ) : null}
+
+            <div className="flex justify-end">
+              <Button type="button" variant="outline" onClick={() => syncSmsCommissionMutation.mutate()}>
+                Synchroniser les calculs
+              </Button>
+            </div>
+
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle>Suivi des reversements</CardTitle>
+                <CardDescription>Historique 12 mois des commissions SMS.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="overflow-x-auto rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Mois</TableHead>
+                        <TableHead>Total encaissé</TableHead>
+                        <TableHead>Commission due</TableHead>
+                        <TableHead>Versé</TableHead>
+                        <TableHead>Reste</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(smsFeatureStatsQuery.data?.history ?? []).map((item) => {
+                        const remaining = item.commission_remaining_fcfa
+                        return (
+                          <TableRow key={item.month} className={remaining > 0 ? "bg-amber-50/50 dark:bg-amber-950/20" : ""}>
+                            <TableCell>{item.month}</TableCell>
+                            <TableCell>{formatFcfa(item.total_collected_fcfa)}</TableCell>
+                            <TableCell>{formatFcfa(item.commission_due_fcfa)}</TableCell>
+                            <TableCell>{formatFcfa(item.commission_paid_fcfa)}</TableCell>
+                            <TableCell className="space-x-2">
+                              <span>{formatFcfa(remaining)}</span>
+                              {item.commission_paid_fcfa >= item.commission_due_fcfa ? (
+                                <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Soldé</Badge>
+                              ) : null}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setCommissionPaymentPeriodMonth(item.month)
+                                  setCommissionPaymentAmount("")
+                                  setCommissionPaymentNotes("")
+                                  setCommissionPaymentOpen(true)
+                                }}
+                              >
+                                Enregistrer paiement reçu
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="sms" className="space-y-4">
             <Card className="shadow-sm">
               <CardHeader>
@@ -542,7 +820,7 @@ export default function AdminSchoolDetailPage() {
                   du template absence côté école.
                 </p>
                 <Button type="button" variant="ghost" className="px-0" onClick={() => navigate("/admin/sms")}>
-                  Ouvrir SMS &amp; Notifs
+                  Ouvrir Revenus SMS
                 </Button>
               </CardContent>
             </Card>
@@ -756,6 +1034,76 @@ export default function AdminSchoolDetailPage() {
           <AlertDescription>Certaines données de configuration école n&apos;ont pas pu être chargées.</AlertDescription>
         </Alert>
       ) : null}
+
+      <AlertDialog open={smsFeatureToggleOpen} onOpenChange={setSmsFeatureToggleOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {smsFeatureToggleNextValue ? "Activer la feature SMS ?" : "Désactiver la feature SMS ?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {smsFeatureToggleNextValue
+                ? `Activer génère un accès au service SMS pour cette école. La commission sera de ${smsConfigDraft.commissionPct}%. Confirmer ?`
+                : "Les souscriptions en cours restent actives jusqu'à expiration. Aucune nouvelle souscription ne sera possible. Confirmer ?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (smsFeatureToggleNextValue) {
+                  activateSmsFeatureMutation.mutate(Number(smsConfigDraft.commissionPct))
+                } else {
+                  deactivateSmsFeatureMutation.mutate()
+                }
+              }}
+            >
+              Confirmer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={commissionPaymentOpen} onOpenChange={setCommissionPaymentOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Enregistrer paiement reçu</AlertDialogTitle>
+            <AlertDialogDescription>Mois {commissionPaymentPeriodMonth || "-"}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Période</Label>
+              <Input value={commissionPaymentPeriodMonth} readOnly />
+            </div>
+            <div className="space-y-1">
+              <Label>Montant FCFA</Label>
+              <Input value={commissionPaymentAmount} onChange={(event) => setCommissionPaymentAmount(event.target.value.replace(/\D/g, ""))} />
+            </div>
+            <div className="space-y-1">
+              <Label>Notes</Label>
+              <Input value={commissionPaymentNotes} onChange={(event) => setCommissionPaymentNotes(event.target.value)} />
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const amount = Number(commissionPaymentAmount)
+                if (!commissionPaymentPeriodMonth || !Number.isFinite(amount) || amount <= 0) {
+                  return
+                }
+                recordCommissionReceivedMutation.mutate({
+                  period_month: commissionPaymentPeriodMonth,
+                  amount_fcfa: amount,
+                  notes: commissionPaymentNotes.trim() || undefined,
+                })
+              }}
+            >
+              Enregistrer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

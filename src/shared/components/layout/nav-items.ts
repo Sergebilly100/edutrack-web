@@ -145,7 +145,7 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: true,
   },
   {
-    label: "SMS & Notifs",
+    label: "Revenus SMS",
     href: "/admin/sms",
     icon: MessageSquare,
     roles: ["super_admin"],

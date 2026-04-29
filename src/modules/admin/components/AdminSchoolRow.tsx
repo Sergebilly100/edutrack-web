@@ -12,6 +12,7 @@ export type AdminSchoolRowItem = {
   usersCount: number
   lastConnectionAt: string | null
   mrrFcfa: number
+  smsActive: boolean
 }
 
 type AdminSchoolRowProps = {
@@ -106,6 +107,11 @@ export default function AdminSchoolRow({ school, onViewDetail, onOpenConfig }: A
       <TableCell className="text-sm">{school.usersCount}</TableCell>
       <TableCell className="text-sm">{formatRelativeDate(school.lastConnectionAt)}</TableCell>
       <TableCell className="text-sm font-medium">{formatFcfa(school.mrrFcfa)}</TableCell>
+      <TableCell>
+        <Badge variant="outline" className={school.smsActive ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-100 text-slate-700"}>
+          {school.smsActive ? "Actif" : "Inactif"}
+        </Badge>
+      </TableCell>
 
       <TableCell>
         <div className="flex justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
