@@ -22,6 +22,7 @@ import {
   shiftIsoWeek,
   weekDaysFr,
 } from "@/modules/parent-portal/parent.utils"
+import { monthKeyInBusinessTimezone, todayInBusinessTimezone } from "@/shared/lib/business-date"
 
 const SELECTED_STUDENT_STORAGE_KEY = "parent_selected_student_id"
 
@@ -81,8 +82,7 @@ export default function ParentDashboardPage() {
   })
 
   const month = useMemo(() => {
-    const now = new Date()
-    return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`
+    return monthKeyInBusinessTimezone()
   }, [])
 
   const absencesQuery = useQuery({
@@ -111,7 +111,7 @@ export default function ParentDashboardPage() {
       ? {
           type: daysRemaining <= 7 ? "error" : "warning",
           message: `Votre abonnement expire dans ${daysRemaining} jours (le ${formatShortDate(
-            subscriptionQuery.data?.ends_at ?? new Date().toISOString().slice(0, 10)
+            subscriptionQuery.data?.ends_at ?? todayInBusinessTimezone()
           )}). Contactez l'établissement pour renouveler.`,
         }
       : null

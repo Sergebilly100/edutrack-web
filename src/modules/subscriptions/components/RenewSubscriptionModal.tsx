@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import { addDaysIso, addMonthsIso } from "@/shared/lib/business-date"
 
 type PaymentMethod = "cash" | "momo_mtn" | "momo_orange"
 type DurationMonths = 1 | 2 | 3
@@ -52,10 +53,8 @@ const formatDateFr = (isoDate: string) =>
   }).format(new Date(`${isoDate}T00:00:00.000Z`))
 
 const addMonths = (isoDate: string, months: number) => {
-  const base = new Date(`${isoDate}T00:00:00.000Z`)
-  base.setUTCDate(base.getUTCDate() + 1)
-  base.setUTCMonth(base.getUTCMonth() + months)
-  return base.toISOString().slice(0, 10)
+  const startsAt = addDaysIso(isoDate, 1)
+  return addMonthsIso(startsAt, months)
 }
 
 export default function RenewSubscriptionModal({

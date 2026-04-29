@@ -38,6 +38,7 @@ import {
 } from "@/modules/subscriptions/subscriptions.api"
 import { EmptyState, PageLayout } from "@/shared/components"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { todayInBusinessTimezone } from "@/shared/lib/business-date"
 
 const formatFcfa = (value: number) => `${new Intl.NumberFormat("fr-FR").format(value)} FCFA`
 const formatDate = (value: string) =>
@@ -324,7 +325,7 @@ export default function SubscriptionsPage() {
         }}
         parentFullName={renewTarget?.full_name ?? ""}
         studentsCount={renewTarget?.students.length ?? 0}
-        currentEndsAt={renewTarget?.latest_subscription?.ends_at ?? new Date().toISOString().slice(0, 10)}
+        currentEndsAt={renewTarget?.latest_subscription?.ends_at ?? todayInBusinessTimezone()}
         unitPriceFcfa={featureQuery.data.sms_unit_price_fcfa ?? 0}
         isSubmitting={renewMutation.isPending}
         onSubmit={async (payload) => {
