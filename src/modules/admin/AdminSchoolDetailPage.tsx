@@ -313,7 +313,7 @@ export default function AdminSchoolDetailPage() {
     },
   })
   const recordCommissionReceivedMutation = useMutation({
-    mutationFn: (payload: { period_month: string; amount_fcfa: number; notes?: string }) =>
+    mutationFn: (payload: { period_month: string; amount_fcfa: number; notes?: string; idempotency_key: string }) =>
       recordSchoolCommissionReceived(tenantId as string, payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["admin", "school-sms-feature-stats", tenantId] })
@@ -1096,8 +1096,10 @@ export default function AdminSchoolDetailPage() {
                   period_month: commissionPaymentPeriodMonth,
                   amount_fcfa: amount,
                   notes: commissionPaymentNotes.trim() || undefined,
+                  idempotency_key: crypto.randomUUID(),
                 })
               }}
+              disabled={recordCommissionReceivedMutation.isPending}
             >
               Enregistrer
             </AlertDialogAction>

@@ -613,7 +613,7 @@ export const syncSchoolSmsCommission = (tenantId: string, month?: string) =>
 
 export const recordSchoolCommissionReceived = (
   tenantId: string,
-  payload: { period_month: string; amount_fcfa: number; notes?: string }
+  payload: { period_month: string; amount_fcfa: number; notes?: string; idempotency_key: string }
 ) =>
   api.post<{
     period_month: string

@@ -49,7 +49,8 @@ export default function SubscriptionRevenuePage() {
   })
 
   const paymentMutation = useMutation({
-    mutationFn: (payload: { period_month: string; amount_fcfa: number; notes?: string }) => recordCommissionPayment(payload),
+    mutationFn: (payload: { period_month: string; amount_fcfa: number; notes?: string; idempotency_key: string }) =>
+      recordCommissionPayment(payload),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["subscriptions", "revenue", "summary"] }),
@@ -193,6 +194,7 @@ export default function SubscriptionRevenuePage() {
                   period_month: month,
                   amount_fcfa: amount,
                   notes: paymentNotes.trim() || undefined,
+                  idempotency_key: crypto.randomUUID(),
                 })
               }}
               disabled={paymentMutation.isPending}

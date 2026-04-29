@@ -174,6 +174,7 @@ export const recordCommissionPayment = async (payload: {
   period_month: string
   amount_fcfa: number
   notes?: string
+  idempotency_key: string
 }): Promise<void> => {
   try {
     await apiClient.post("/subscriptions/revenue/commission/record-payment", payload)
