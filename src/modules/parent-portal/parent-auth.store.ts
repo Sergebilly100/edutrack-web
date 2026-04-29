@@ -5,6 +5,7 @@ export type ParentAuthUser = {
   role: "parent"
   phone: string
   studentIds: string[]
+  mustChangePassword: boolean
 }
 
 type ParentAuthState = {

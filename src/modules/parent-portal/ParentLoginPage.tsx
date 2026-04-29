@@ -57,8 +57,11 @@ export default function ParentLoginPage() {
                   role: "parent",
                   phone: result.user.phone,
                   studentIds: result.user.studentIds,
+                  mustChangePassword: result.user.mustChangePassword,
                 })
-                navigate("/parent/dashboard", { replace: true })
+                navigate(result.user.mustChangePassword ? "/parent/first-login-password" : "/parent/dashboard", {
+                  replace: true,
+                })
               } catch (error) {
                 setErrorMessage(
                   error instanceof Error

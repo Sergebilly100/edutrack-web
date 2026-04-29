@@ -25,6 +25,12 @@ export default function ParentPortalLayout() {
   if (!user) {
     return <Navigate to="/parent/login" replace />
   }
+  if (user.mustChangePassword && location.pathname !== "/parent/first-login-password") {
+    return <Navigate to="/parent/first-login-password" replace />
+  }
+  if (!user.mustChangePassword && location.pathname === "/parent/first-login-password") {
+    return <Navigate to="/parent/dashboard" replace />
+  }
 
   return (
     <div className="min-h-screen bg-background pb-24 text-base">

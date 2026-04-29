@@ -38,6 +38,9 @@ const parseApiError = (error: unknown, fallback: string): string => {
     if (status === 403 && code === "SERVICE_NOT_AVAILABLE") {
       return "Ce service n'est pas disponible pour votre école."
     }
+    if (status === 403 && code === "PASSWORD_CHANGE_REQUIRED") {
+      return "Vous devez modifier votre mot de passe temporaire."
+    }
   }
 
   if (
@@ -123,6 +126,7 @@ export const parentLogin = async (payload: { phone: string; password: string }) 
         role: "parent"
         phone: string
         studentIds: string[]
+        mustChangePassword: boolean
       }
     }>(
       "/auth/login/parent",

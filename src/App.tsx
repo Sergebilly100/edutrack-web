@@ -33,6 +33,7 @@ const SubscriptionsPage = lazy(() => import("@/modules/subscriptions/Subscriptio
 const SubscriptionRevenuePage = lazy(() => import("@/modules/subscriptions/SubscriptionRevenuePage"))
 const ParentLoginPage = lazy(() => import("@/modules/parent-portal/ParentLoginPage"))
 const ParentPortalLayout = lazy(() => import("@/modules/parent-portal/ParentPortalLayout"))
+const ParentFirstLoginPasswordPage = lazy(() => import("@/modules/parent-portal/ParentFirstLoginPasswordPage"))
 const ParentDashboardPage = lazy(() => import("@/modules/parent-portal/ParentDashboardPage"))
 const ParentAbsenceHistoryPage = lazy(() => import("@/modules/parent-portal/ParentAbsenceHistoryPage"))
 const ParentAccountPage = lazy(() => import("@/modules/parent-portal/ParentAccountPage"))
@@ -169,7 +170,7 @@ function LoginRoute() {
 function ParentLoginRoute() {
   const parentUser = useParentAuthStore((state) => state.user)
   if (parentUser) {
-    return <Navigate to="/parent/dashboard" replace />
+    return <Navigate to={parentUser.mustChangePassword ? "/parent/first-login-password" : "/parent/dashboard"} replace />
   }
   return <ParentLoginPage />
 }
@@ -324,6 +325,7 @@ export default function App() {
         </Route>
 
         <Route path="/parent" element={<ParentPortalLayout />}>
+          <Route path="first-login-password" element={<ParentFirstLoginPasswordPage />} />
           <Route path="dashboard" element={<ParentDashboardPage />} />
           <Route path="absences" element={<ParentAbsenceHistoryPage />} />
           <Route path="account" element={<ParentAccountPage />} />
