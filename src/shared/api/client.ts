@@ -60,6 +60,8 @@ const requestTokenRefresh = async (): Promise<string | null> => {
 
 const redirectToSessionExpired = (): void => {
   const isParentPortal = window.location.pathname.startsWith("/parent")
+  const isAlreadyOnParentLogin = window.location.pathname.startsWith("/parent/login")
+  const hasSessionExpiredReason = new URLSearchParams(window.location.search).get("reason") === "session_expired"
   if (isParentPortal) {
     useParentAuthStore.getState().logout()
   } else {
@@ -67,6 +69,9 @@ const redirectToSessionExpired = (): void => {
     authState.logout()
   }
   queryClient.clear()
+  if (isAlreadyOnParentLogin && hasSessionExpiredReason) {
+    return
+  }
   window.location.href = isParentPortal
     ? "/parent/login?reason=session_expired"
     : "/login?reason=session_expired"
@@ -90,6 +95,8 @@ apiClient.interceptors.response.use(
     const isMaintenance = error.response?.status === 503
     const requestUrl = originalRequest.url ?? ""
     const isAuthEndpoint = requestUrl.includes("/auth/")
+    const isPublicUnauthEndpoint =
+      requestUrl.includes("/school/info") || requestUrl.includes("/settings/public")
 
     if (isMaintenance) {
       const payload = error.response?.data as { error?: string; message?: string } | undefined
@@ -97,7 +104,7 @@ apiClient.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    if (isUnauthorized && !originalRequest._retry && !isAuthEndpoint) {
+    if (isUnauthorized && !originalRequest._retry && !isAuthEndpoint && !isPublicUnauthEndpoint) {
       originalRequest._retry = true
 
       try {

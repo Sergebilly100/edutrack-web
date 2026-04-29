@@ -73,7 +73,7 @@ export default function SubscriptionsPage() {
   const [renewTarget, setRenewTarget] = useState<SubscriptionListItem | null>(null)
   const [cancelTarget, setCancelTarget] = useState<SubscriptionListItem | null>(null)
   const [detailsTarget, setDetailsTarget] = useState<SubscriptionListItem | null>(null)
-  const [newPassword, setNewPassword] = useState<string | null>(null)
+  const [resetCredentials, setResetCredentials] = useState<{ phone: string; password: string } | null>(null)
   const [passwordResetTarget, setPasswordResetTarget] = useState<SubscriptionListItem | null>(null)
 
   const canCreate = hasPermission("subscriptions.create")
@@ -137,7 +137,7 @@ export default function SubscriptionsPage() {
   const resetPasswordMutation = useMutation({
     mutationFn: resetParentSubscriptionPassword,
     onSuccess: (result) => {
-      setNewPassword(result.new_temp_password)
+      setResetCredentials({ phone: result.phone, password: result.new_temp_password })
     },
   })
 
@@ -363,13 +363,38 @@ export default function SubscriptionsPage() {
         <EmptyState title="Aucun abonnement" message="Aucune souscription ne correspond aux filtres." />
       ) : null}
 
-      {newPassword ? (
+      {resetCredentials ? (
         <Alert>
-          <AlertDescription className="space-y-2">
-            <p>Nouveau mot de passe temporaire: <strong>{newPassword}</strong></p>
-            <Button type="button" size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(newPassword)}>
-              Copier le mot de passe
-            </Button>
+          <AlertDescription className="space-y-3">
+            <p className="text-sm font-medium">Identifiants parent réinitialisés</p>
+            <div className="rounded-md border bg-background p-3 text-sm">
+              <p>
+                Téléphone: <strong>{resetCredentials.phone}</strong>
+              </p>
+              <p>
+                Nouveau mot de passe: <strong>{resetCredentials.password}</strong>
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Connexion via le portail parent avec le numéro au format 225XXXXXXXXXX.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  navigator.clipboard.writeText(
+                    `Téléphone: ${resetCredentials.phone}\nMot de passe: ${resetCredentials.password}`
+                  )
+                }
+              >
+                Copier les identifiants
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => setResetCredentials(null)}>
+                Fermer
+              </Button>
+            </div>
           </AlertDescription>
         </Alert>
       ) : null}

@@ -212,9 +212,11 @@ export const cancelSubscription = async (
   }
 }
 
-export const resetParentSubscriptionPassword = async (parentId: string): Promise<{ new_temp_password: string }> => {
+export const resetParentSubscriptionPassword = async (
+  parentId: string
+): Promise<{ phone: string; new_temp_password: string }> => {
   try {
-    const response = await apiClient.post<{ new_temp_password: string }>(
+    const response = await apiClient.post<{ phone: string; new_temp_password: string }>(
       `/subscriptions/parents/${parentId}/reset-password`
     )
     return response.data
