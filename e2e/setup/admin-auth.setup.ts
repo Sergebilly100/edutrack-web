@@ -16,7 +16,10 @@ const loginAndSaveState = async (input: {
     await page.goto("/login")
     await page.getByLabel("Identifiant").fill(input.identifier)
     await page.getByLabel("Mot de passe").fill(input.password)
-    await page.getByLabel("Schéma tenant").fill(input.schemaName)
+    const schemaInput = page.getByLabel("Schéma tenant")
+  if (await schemaInput.count()) {
+    await schemaInput.fill(input.schemaName)
+  }
     await page.getByRole("button", { name: "Se connecter" }).click()
     try {
       await page.waitForURL(`**${input.expectedPath}**`, { timeout: 25000 })

@@ -18,6 +18,7 @@ export default defineConfig({
     { name: "setup-teacher", testMatch: /setup\/teacher-auth\.setup\.ts/ },
     { name: "setup-admin", testMatch: /setup\/admin-auth\.setup\.ts/ },
     { name: "setup-staff", testMatch: /setup\/staff-auth\.setup\.ts/ },
+    { name: "setup-parent", testMatch: /setup\/parent-auth\.setup\.ts/ },
     {
       name: "director-tests",
       use: { ...devices["Pixel 5"] },
@@ -40,6 +41,13 @@ export default defineConfig({
       name: "staff-tests",
       use: { ...devices["Pixel 5"] },
       testMatch: /staff\/.*\.spec\.ts/,
+      testIgnore: /setup\//,
+    },
+    {
+      name: "parent-tests",
+      use: { ...devices["Pixel 5"], storageState: "e2e/.auth/parent.json" },
+      dependencies: ["setup-parent"],
+      testMatch: /parent-portal\/.*\.spec\.ts/,
       testIgnore: /setup\//,
     },
   ],

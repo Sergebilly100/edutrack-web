@@ -67,7 +67,10 @@ export const loginAsDirectorUI = async (page: Page) => {
       await expect(page.getByLabel("Identifiant")).toBeVisible()
       await page.getByLabel("Identifiant").fill(DIRECTOR_IDENTIFIER)
       await page.getByLabel("Mot de passe").fill(DIRECTOR_PASSWORD)
-      await page.getByLabel("Schéma tenant").fill(TENANT_SCHEMA)
+      const schemaInput = page.getByLabel("Schéma tenant")
+      if (await schemaInput.count()) {
+        await schemaInput.fill(TENANT_SCHEMA)
+      }
       await page.getByRole("button", { name: "Se connecter" }).click()
     }
 

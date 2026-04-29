@@ -24,16 +24,23 @@ export const login = async (
   password: string,
   tenantSubdomain?: string
 ): Promise<LoginResponse> => {
+  const hostname = typeof window !== "undefined" ? window.location.hostname : ""
+  const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1"
+  const fallbackSchema =
+    import.meta.env.VITE_DEFAULT_TENANT_SCHEMA ??
+    import.meta.env.VITE_E2E_SCHEMA_NAME ??
+    "school_sainte_marie"
+
   const response = await api.post<LoginResponse>(
     '/auth/login/teacher',
     { identifier, password },
-    tenantSubdomain
-      ? {
-          headers: {
-            'x-tenant-subdomain': tenantSubdomain,
-          },
-        }
-      : undefined
+    {
+      headers: tenantSubdomain
+        ? { "x-tenant-subdomain": tenantSubdomain }
+        : isLocalhost
+          ? { "x-tenant-schema": fallbackSchema }
+          : undefined,
+    }
   );
 
   return response.data;
