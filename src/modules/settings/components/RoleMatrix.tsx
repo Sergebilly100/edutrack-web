@@ -83,11 +83,9 @@ const SUBSCRIPTIONS_PERMISSION_COLUMN = {
 } as const
 
 const SUBSCRIPTIONS_PERMISSION_ROWS = [
-  { key: "view", label: "Voir les abonnements" },
-  { key: "create", label: "Créer un abonnement" },
-  { key: "renew", label: "Renouveler un abonnement" },
-  { key: "cancel", label: "Annuler un abonnement" },
-  { key: "revenue", label: "Voir les revenus et commissions" },
+  { key: "subscriptions_renew", label: "Renouveler un abonnement" },
+  { key: "subscriptions_cancel", label: "Annuler un abonnement" },
+  { key: "subscriptions_revenue", label: "Voir les revenus et commissions" },
 ] as const
 
 type PermissionColumn =
@@ -185,6 +183,15 @@ const resolvePermissionKey = (
   column: PermissionColumn,
   actionKey: string
 ) => {
+  if (actionKey.startsWith("subscriptions_")) {
+    if (column.key !== "subscriptions") {
+      return null
+    }
+    const subscriptionAction = actionKey.replace("subscriptions_", "")
+    const key = `${column.key}.${subscriptionAction}`
+    return (column.permissions as readonly string[]).includes(key) ? key : null
+  }
+
   const key = `${column.key}.${actionKey}`
   return (column.permissions as readonly string[]).includes(key) ? key : null
 }

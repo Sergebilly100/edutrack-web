@@ -342,8 +342,11 @@ export type SmsFeatureGlobalStatsItem = {
   school_name: string
   tenant_id: string
   subscriptions_active: number
+  total_collected_fcfa: number
+  sms_sent_this_month: number
   commission_remaining_fcfa: number
   is_overdue: boolean
+  last_payment_at: string | null
 }
 
 export type AddSchoolPaymentPayload = {
@@ -613,7 +616,13 @@ export const syncSchoolSmsCommission = (tenantId: string, month?: string) =>
 
 export const recordSchoolCommissionReceived = (
   tenantId: string,
-  payload: { period_month: string; amount_fcfa: number; notes?: string; idempotency_key: string }
+  payload: {
+    period_month: string
+    amount_fcfa: number
+    payment_method?: "cash" | "momo_mtn" | "momo_orange" | "bank_transfer"
+    notes?: string
+    idempotency_key: string
+  }
 ) =>
   api.post<{
     period_month: string
@@ -623,8 +632,28 @@ export const recordSchoolCommissionReceived = (
     overpaid: boolean
   }>(`/admin/schools/${tenantId}/sms-feature/record-commission-received`, payload).then((response) => response.data)
 
+export type SchoolCommissionPaymentItem = {
+  id: string
+  period_month: string
+  amount_fcfa: number
+  payment_method: string | null
+  notes: string | null
+  created_at: string
+}
+
+export const getSchoolCommissionPayments = (tenantId: string, month?: string) =>
+  api
+    .get<{ items: SchoolCommissionPaymentItem[] }>(`/admin/schools/${tenantId}/sms-feature/payments`, {
+      params: month ? { month } : undefined,
+    })
+    .then((response) => response.data.items)
+
 export const getSchoolSmsFeatureStats = (tenantId: string) =>
   api.get<SchoolSmsFeatureStats>(`/admin/schools/${tenantId}/sms-feature/stats`).then((response) => response.data)
 
-export const getSmsFeatureGlobalStats = () =>
-  api.get<{ items: SmsFeatureGlobalStatsItem[] }>("/admin/sms-feature/global-stats").then((response) => response.data.items)
+export const getSmsFeatureGlobalStats = (month?: string) =>
+  api
+    .get<{ items: SmsFeatureGlobalStatsItem[] }>("/admin/sms-feature/global-stats", {
+      params: month ? { month } : undefined,
+    })
+    .then((response) => response.data.items)

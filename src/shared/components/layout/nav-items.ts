@@ -91,6 +91,7 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ["director", "staff"],
     requiredPermissions: ["subscriptions.view"],
     mobileVisible: true,
+    matchExact: true,
   },
   {
     label: "Revenus abonnements",

@@ -155,7 +155,7 @@ export default function PositionFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[100vh] max-w-4xl flex-col gap-0 p-0">
+      <DialogContent className="flex max-h-[92vh] w-[95vw] max-w-5xl flex-col gap-0 p-0">
         <DialogHeader className="shrink-0 border-b px-6 py-5">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
@@ -173,8 +173,8 @@ export default function PositionFormModal({
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)}>
-            <div className="space-y-5 overflow-y-auto px-6 py-5">
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="flex max-h-[78vh] flex-col">
+            <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
               <FormField
                 control={form.control}
                 name="name"

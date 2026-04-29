@@ -93,7 +93,7 @@ export default function AdminPage() {
   })
   const smsFeatureGlobalStatsQuery = useQuery({
     queryKey: ["admin", "sms-feature", "global-stats"],
-    queryFn: getSmsFeatureGlobalStats,
+    queryFn: () => getSmsFeatureGlobalStats(),
   })
 
   const filteredSchools = useMemo(() => {

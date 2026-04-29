@@ -30,6 +30,7 @@ import {
   addSchoolPayment,
   deactivateSchoolSmsFeature,
   getSchoolSmsFeatureStats,
+  getSchoolCommissionPayments,
   getSchoolDetails,
   getSchoolPayments,
   getSchoolUsers,
@@ -145,7 +146,14 @@ export default function AdminSchoolDetailPage() {
   const [commissionPaymentOpen, setCommissionPaymentOpen] = useState(false)
   const [commissionPaymentPeriodMonth, setCommissionPaymentPeriodMonth] = useState("")
   const [commissionPaymentAmount, setCommissionPaymentAmount] = useState("")
+  const [commissionPaymentMethod, setCommissionPaymentMethod] = useState<"cash" | "momo_mtn" | "momo_orange" | "bank_transfer">("cash")
   const [commissionPaymentNotes, setCommissionPaymentNotes] = useState("")
+  const [commissionPaymentsMonth, setCommissionPaymentsMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const commissionPaymentsQuery = useQuery({
+    queryKey: ["admin", "school-sms-feature-payments", tenantId, commissionPaymentsMonth],
+    queryFn: () => getSchoolCommissionPayments(tenantId as string, commissionPaymentsMonth),
+    enabled: Boolean(tenantId),
+  })
 
   useEffect(() => {
     if (!schoolQuery.data) return
@@ -313,14 +321,16 @@ export default function AdminSchoolDetailPage() {
     },
   })
   const recordCommissionReceivedMutation = useMutation({
-    mutationFn: (payload: { period_month: string; amount_fcfa: number; notes?: string; idempotency_key: string }) =>
+    mutationFn: (payload: { period_month: string; amount_fcfa: number; payment_method?: "cash" | "momo_mtn" | "momo_orange" | "bank_transfer"; notes?: string; idempotency_key: string }) =>
       recordSchoolCommissionReceived(tenantId as string, payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["admin", "school-sms-feature-stats", tenantId] })
+      await queryClient.invalidateQueries({ queryKey: ["admin", "school-sms-feature-payments", tenantId] })
       await queryClient.invalidateQueries({ queryKey: ["admin", "sms-feature", "global-stats"] })
       setCommissionPaymentOpen(false)
       setCommissionPaymentPeriodMonth("")
       setCommissionPaymentAmount("")
+      setCommissionPaymentMethod("cash")
       setCommissionPaymentNotes("")
       toast({ title: "Paiement commission enregistré" })
     },
@@ -724,44 +734,47 @@ export default function AdminSchoolDetailPage() {
             <Card className="shadow-sm">
               <CardHeader>
                 <CardTitle>Suivi des reversements</CardTitle>
-                <CardDescription>Historique 12 mois des commissions SMS.</CardDescription>
+                <CardDescription>Détail des reversements reçus sur le mois sélectionné.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
+                <div className="max-w-xs">
+                  <Label>Mois à afficher</Label>
+                  <Input
+                    type="month"
+                    value={commissionPaymentsMonth}
+                    onChange={(event) => setCommissionPaymentsMonth(event.target.value)}
+                  />
+                </div>
                 <div className="overflow-x-auto rounded-md border">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Mois</TableHead>
-                        <TableHead>Total encaissé</TableHead>
-                        <TableHead>Commission due</TableHead>
-                        <TableHead>Versé</TableHead>
-                        <TableHead>Reste</TableHead>
+                        <TableHead>Date de versement</TableHead>
+                        <TableHead>Période</TableHead>
+                        <TableHead>Montant</TableHead>
+                        <TableHead>Moyen</TableHead>
+                        <TableHead>Notes</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(smsFeatureStatsQuery.data?.history ?? []).map((item) => {
-                        const remaining = item.commission_remaining_fcfa
+                      {(commissionPaymentsQuery.data ?? []).map((item) => {
                         return (
-                          <TableRow key={item.month} className={remaining > 0 ? "bg-amber-50/50 dark:bg-amber-950/20" : ""}>
-                            <TableCell>{item.month}</TableCell>
-                            <TableCell>{formatFcfa(item.total_collected_fcfa)}</TableCell>
-                            <TableCell>{formatFcfa(item.commission_due_fcfa)}</TableCell>
-                            <TableCell>{formatFcfa(item.commission_paid_fcfa)}</TableCell>
-                            <TableCell className="space-x-2">
-                              <span>{formatFcfa(remaining)}</span>
-                              {item.commission_paid_fcfa >= item.commission_due_fcfa ? (
-                                <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Soldé</Badge>
-                              ) : null}
-                            </TableCell>
+                          <TableRow key={item.id}>
+                            <TableCell>{new Date(item.created_at).toLocaleString("fr-FR")}</TableCell>
+                            <TableCell>{item.period_month}</TableCell>
+                            <TableCell>{formatFcfa(item.amount_fcfa)}</TableCell>
+                            <TableCell>{item.payment_method || "-"}</TableCell>
+                            <TableCell>{item.notes || "-"}</TableCell>
                             <TableCell>
                               <Button
                                 type="button"
                                 size="sm"
                                 variant="outline"
                                 onClick={() => {
-                                  setCommissionPaymentPeriodMonth(item.month)
+                                  setCommissionPaymentPeriodMonth(item.period_month)
                                   setCommissionPaymentAmount("")
+                                  setCommissionPaymentMethod("cash")
                                   setCommissionPaymentNotes("")
                                   setCommissionPaymentOpen(true)
                                 }}
@@ -772,6 +785,13 @@ export default function AdminSchoolDetailPage() {
                           </TableRow>
                         )
                       })}
+                      {!commissionPaymentsQuery.isLoading && (commissionPaymentsQuery.data ?? []).length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-sm text-muted-foreground">
+                            Aucun reversement détaillé sur ce mois.
+                          </TableCell>
+                        </TableRow>
+                      ) : null}
                     </TableBody>
                   </Table>
                 </div>
@@ -1080,6 +1100,20 @@ export default function AdminSchoolDetailPage() {
               <Input value={commissionPaymentAmount} onChange={(event) => setCommissionPaymentAmount(event.target.value.replace(/\D/g, ""))} />
             </div>
             <div className="space-y-1">
+              <Label>Moyen de versement</Label>
+              <Select value={commissionPaymentMethod} onValueChange={(value) => setCommissionPaymentMethod(value as typeof commissionPaymentMethod)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Espèces</SelectItem>
+                  <SelectItem value="momo_mtn">MTN MoMo</SelectItem>
+                  <SelectItem value="momo_orange">Orange Money</SelectItem>
+                  <SelectItem value="bank_transfer">Virement bancaire</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
               <Label>Notes</Label>
               <Input value={commissionPaymentNotes} onChange={(event) => setCommissionPaymentNotes(event.target.value)} />
             </div>
@@ -1095,6 +1129,7 @@ export default function AdminSchoolDetailPage() {
                 recordCommissionReceivedMutation.mutate({
                   period_month: commissionPaymentPeriodMonth,
                   amount_fcfa: amount,
+                  payment_method: commissionPaymentMethod,
                   notes: commissionPaymentNotes.trim() || undefined,
                   idempotency_key: crypto.randomUUID(),
                 })

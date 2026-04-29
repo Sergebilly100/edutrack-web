@@ -14,6 +14,9 @@ export type SubscriptionListItem = {
     status: SubscriptionStatus
     starts_at: string
     ends_at: string
+    created_at: string | null
+    duration_months: number | null
+    total_amount_fcfa: number | null
     monthly_amount_fcfa: number | null
     expires_soon: boolean
   } | null
@@ -77,6 +80,14 @@ export type RevenueHistoryItem = {
   commission_remaining_fcfa: number
   payment_status: "paid" | "partial" | "pending"
 }
+export type RevenuePaymentItem = {
+  id: string
+  period_month: string
+  amount_fcfa: number
+  notes: string | null
+  created_at: string
+  payment_method: string | null
+}
 
 export type SubscriptionClassItem = {
   id: string
@@ -124,6 +135,7 @@ export const listSubscriptionParents = async (params: {
   limit?: number
   search?: string
   status?: SubscriptionStatus
+  month?: string
 }): Promise<SubscriptionParentsResponse> => {
   const response = await apiClient.get<SubscriptionParentsResponse>("/subscriptions/parents", {
     params: {
@@ -131,6 +143,7 @@ export const listSubscriptionParents = async (params: {
       limit: params.limit ?? 100,
       ...(params.search ? { search: params.search } : {}),
       ...(params.status ? { status: params.status } : {}),
+      ...(params.month ? { month: params.month } : {}),
     },
   })
   return response.data
@@ -231,6 +244,8 @@ export const getParentSubscriptionDetails = async (parentId: string) => {
       auto_renew_alert: boolean
       renewed_count: number
       created_at: string
+      cancelled_at: string | null
+      cancelled_by_name: string | null
       students: Array<{ id: string; full_name: string }>
       payments: Array<{
         id: string
@@ -259,9 +274,17 @@ export const getSubscriptionsRevenueHistory = async (months = 12): Promise<Reven
   return response.data.months
 }
 
+export const getSubscriptionsRevenuePayments = async (month: string): Promise<RevenuePaymentItem[]> => {
+  const response = await apiClient.get<{ data: RevenuePaymentItem[] }>("/subscriptions/revenue/payments", {
+    params: { month },
+  })
+  return response.data.data
+}
+
 export const recordCommissionPayment = async (payload: {
   period_month: string
   amount_fcfa: number
+  payment_method?: "cash" | "momo_mtn" | "momo_orange" | "bank_transfer"
   notes?: string
   idempotency_key: string
 }): Promise<void> => {

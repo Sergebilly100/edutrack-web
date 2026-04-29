@@ -52,6 +52,13 @@ const formatDate = (value: string) =>
   new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${value}T00:00:00.000Z`))
 
 type FilterStatus = "all" | SubscriptionStatus
+const toMonth = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`
+const monthLabel = (month: string) => {
+  const [year, m] = month.split("-").map(Number)
+  return new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(
+    new Date(Date.UTC(year, (m ?? 1) - 1, 1))
+  )
+}
 
 export default function SubscriptionsPage() {
   const { toast } = useToast()
@@ -60,11 +67,13 @@ export default function SubscriptionsPage() {
 
   const [status, setStatus] = useState<FilterStatus>("all")
   const [search, setSearch] = useState("")
+  const [month, setMonth] = useState(toMonth(new Date()))
   const [createOpen, setCreateOpen] = useState(false)
   const [renewTarget, setRenewTarget] = useState<SubscriptionListItem | null>(null)
   const [cancelTarget, setCancelTarget] = useState<SubscriptionListItem | null>(null)
   const [detailsTarget, setDetailsTarget] = useState<SubscriptionListItem | null>(null)
   const [newPassword, setNewPassword] = useState<string | null>(null)
+  const [passwordResetTarget, setPasswordResetTarget] = useState<SubscriptionListItem | null>(null)
 
   const canCreate = hasPermission("subscriptions.create")
   const canRenew = hasPermission("subscriptions.renew")
@@ -76,11 +85,12 @@ export default function SubscriptionsPage() {
   })
 
   const parentsQuery = useQuery({
-    queryKey: ["subscriptions", "parents", status, search],
+    queryKey: ["subscriptions", "parents", status, search, month],
     queryFn: () =>
       listSubscriptionParents({
         status: status === "all" ? undefined : status,
         search: search.trim() || undefined,
+        month,
       }),
     refetchInterval: 0,
     enabled: featureQuery.data?.is_enabled === true,
@@ -131,12 +141,9 @@ export default function SubscriptionsPage() {
     () => items.filter((item) => item.latest_subscription?.status === "active").length,
     [items]
   )
-  const thisMonthLabel = useMemo(
-    () =>
-      new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(
-        new Date()
-      ),
-    []
+  const monthSubscriptionsCount = useMemo(
+    () => items.filter((item) => item.latest_subscription?.created_at?.startsWith(month)).length,
+    [items, month]
   )
 
   if (featureQuery.isLoading) {
@@ -166,7 +173,7 @@ export default function SubscriptionsPage() {
         ) : null
       }
     >
-      <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
         <div className="space-y-2">
           <Label>Statut</Label>
           <Select value={status} onValueChange={(value) => setStatus(value as FilterStatus)}>
@@ -194,9 +201,18 @@ export default function SubscriptionsPage() {
             />
           </div>
         </div>
+        <div className="space-y-2">
+          <Label>Mois</Label>
+          <Input
+            type="month"
+            value={month}
+            max={toMonth(new Date())}
+            onChange={(event) => setMonth(event.target.value)}
+          />
+        </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
         <Card>
           <CardContent className="space-y-1 p-4">
             <p className="text-xs text-muted-foreground">Abonnements actifs</p>
@@ -212,7 +228,13 @@ export default function SubscriptionsPage() {
         <Card>
           <CardContent className="space-y-1 p-4">
             <p className="text-xs text-muted-foreground">Historique en cours</p>
-            <p className="text-sm font-medium capitalize">{thisMonthLabel}</p>
+            <p className="text-sm font-medium capitalize">{monthLabel(month)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="space-y-1 p-4">
+            <p className="text-xs text-muted-foreground">Total abonnements du mois</p>
+            <p className="text-2xl font-semibold">{monthSubscriptionsCount}</p>
           </CardContent>
         </Card>
       </section>
@@ -244,7 +266,7 @@ export default function SubscriptionsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => resetPasswordMutation.mutate(item.parent_id)}
+                      onClick={() => setPasswordResetTarget(item)}
                       disabled={resetPasswordMutation.isPending}
                     >
                       Réinitialiser mdp
@@ -276,6 +298,7 @@ export default function SubscriptionsPage() {
           <thead className="bg-muted/40">
             <tr>
               <th className="px-3 py-2 text-left">Parent</th>
+              <th className="px-3 py-2 text-left">Date abonnement</th>
               <th className="px-3 py-2 text-left">Élèves</th>
               <th className="px-3 py-2 text-left">Durée</th>
               <th className="px-3 py-2 text-left">Montant</th>
@@ -293,9 +316,10 @@ export default function SubscriptionsPage() {
                     <p className="font-medium">{item.full_name}</p>
                     <p className="text-xs text-muted-foreground">{item.phone}</p>
                   </td>
+                  <td className="px-3 py-2">{latest?.created_at ? formatDate(latest.created_at.slice(0, 10)) : "-"}</td>
                   <td className="px-3 py-2">{item.students.length}</td>
-                  <td className="px-3 py-2">-</td>
-                  <td className="px-3 py-2">{latest?.monthly_amount_fcfa ? formatFcfa(latest.monthly_amount_fcfa) : "-"}</td>
+                  <td className="px-3 py-2">{latest?.duration_months ? `${latest.duration_months} mois` : "-"}</td>
+                  <td className="px-3 py-2">{latest?.total_amount_fcfa ? formatFcfa(latest.total_amount_fcfa) : "-"}</td>
                   <td className="px-3 py-2">{latest ? <SubscriptionStatusBadge status={latest.status} ends_at={latest.ends_at} /> : "-"}</td>
                   <td className="px-3 py-2">{latest?.ends_at ? formatDate(latest.ends_at) : "-"}</td>
                   <td className="px-3 py-2 text-right">
@@ -312,7 +336,7 @@ export default function SubscriptionsPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => resetPasswordMutation.mutate(item.parent_id)}
+                          onClick={() => setPasswordResetTarget(item)}
                           disabled={resetPasswordMutation.isPending}
                         >
                           Réinitialiser mdp
@@ -338,7 +362,12 @@ export default function SubscriptionsPage() {
 
       {newPassword ? (
         <Alert>
-          <AlertDescription>Nouveau mot de passe temporaire: <strong>{newPassword}</strong></AlertDescription>
+          <AlertDescription className="space-y-2">
+            <p>Nouveau mot de passe temporaire: <strong>{newPassword}</strong></p>
+            <Button type="button" size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(newPassword)}>
+              Copier le mot de passe
+            </Button>
+          </AlertDescription>
         </Alert>
       ) : null}
 
@@ -397,6 +426,29 @@ export default function SubscriptionsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={Boolean(passwordResetTarget)} onOpenChange={(open) => !open && setPasswordResetTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Réinitialiser le mot de passe parent ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action invalide l&apos;ancien mot de passe et peut interrompre l&apos;accès du parent immédiatement.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!passwordResetTarget) return
+                resetPasswordMutation.mutate(passwordResetTarget.parent_id)
+                setPasswordResetTarget(null)
+              }}
+            >
+              Confirmer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Dialog open={Boolean(detailsTarget)} onOpenChange={(open) => !open && setDetailsTarget(null)}>
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
@@ -429,6 +481,14 @@ export default function SubscriptionsPage() {
                     Total souscriptions:{" "}
                     <span className="font-semibold">{detailsQuery.data.subscriptions.length}</span>
                   </p>
+                  <p>
+                    Montant cumulé:{" "}
+                    <span className="font-semibold">
+                      {formatFcfa(
+                        detailsQuery.data.subscriptions.reduce((acc, subscription) => acc + subscription.total_amount_fcfa, 0)
+                      )}
+                    </span>
+                  </p>
                 </CardContent>
               </Card>
               {detailsQuery.data.subscriptions.map((subscription) => (
@@ -446,6 +506,13 @@ export default function SubscriptionsPage() {
                       <p>Date de souscription: <span className="font-medium">{formatDate(subscription.created_at.slice(0, 10))}</span></p>
                       <p>Paiements enregistrés: <span className="font-medium">{subscription.payments.length}</span></p>
                     </div>
+                    {subscription.status === "cancelled" ? (
+                      <Alert>
+                        <AlertDescription>
+                          Annulé le {subscription.cancelled_at ? new Date(subscription.cancelled_at).toLocaleString("fr-FR") : "-"} par {subscription.cancelled_by_name ?? "Inconnu"}.
+                        </AlertDescription>
+                      </Alert>
+                    ) : null}
                     <div>
                       <p className="mb-2 text-sm font-medium">Élèves rattachés</p>
                       <div className="flex flex-wrap gap-2">

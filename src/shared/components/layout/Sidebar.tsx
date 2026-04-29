@@ -110,6 +110,7 @@ const navItems: NavItem[] = [
     href: "/subscriptions",
     roles: ["director", "staff"],
     requiredPermissions: ["subscriptions.view"],
+    matchExact: true,
   },
   {
     label: "Revenus abonnements",
