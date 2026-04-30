@@ -37,6 +37,8 @@ export default function ParentLoginPage() {
         id: result.user.id,
         role: "parent",
         phone: result.user.phone,
+        fullName: result.user.fullName,
+        email: result.user.email,
         studentIds: result.user.studentIds,
         mustChangePassword: result.user.mustChangePassword,
       })

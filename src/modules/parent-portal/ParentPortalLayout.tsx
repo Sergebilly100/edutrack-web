@@ -5,6 +5,7 @@ import { CalendarDays, CalendarX2, Home, LogOut, Moon, Sun, UserCircle2 } from "
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { logout as logoutRequest } from "@/modules/auth/auth.api"
 import { fetchParentSchoolInfo } from "@/modules/parent-portal/parent.api"
 import { useParentAuthStore } from "@/modules/parent-portal/parent-auth.store"
 import { useTheme } from "@/shared/hooks/useTheme"
@@ -78,9 +79,13 @@ export default function ParentPortalLayout() {
               size="icon"
               className="h-12 w-12"
               aria-label="Se déconnecter"
-              onClick={() => {
-                logout()
-                navigate("/parent/login", { replace: true })
+              onClick={async () => {
+                try {
+                  await logoutRequest()
+                } finally {
+                  logout()
+                  navigate("/parent/login", { replace: true })
+                }
               }}
             >
               <LogOut className="h-5 w-5" />

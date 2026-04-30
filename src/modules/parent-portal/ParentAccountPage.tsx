@@ -71,9 +71,13 @@ export default function ParentAccountPage() {
               {parentUser?.phone?.slice(-2) ?? "PA"}
             </div>
             <div>
-              <p className="text-sm font-semibold">Parent</p>
+              <p className="text-sm font-semibold">{parentUser?.fullName ?? "Parent"}</p>
               <p className="text-xs text-muted-foreground">{parentUser?.phone ?? "Non renseigné"}</p>
             </div>
+          </div>
+          <div className="rounded-xl bg-muted/60 p-3">
+            <p className="text-xs font-medium text-muted-foreground">Email</p>
+            <p className="text-sm">{parentUser?.email ?? "Non renseigné"}</p>
           </div>
 
           {(studentsQuery.data ?? []).length > 0 && (
