@@ -105,6 +105,8 @@ export const parentLogin = async (payload: { phone: string; password: string }) 
         id: string
         role: "parent"
         phone: string
+        fullName?: string
+        email?: string
         studentIds: string[]
         mustChangePassword: boolean
       }

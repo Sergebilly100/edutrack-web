@@ -34,16 +34,16 @@ export default function ParentFirstLoginPasswordPage() {
 
   return (
     <div className="mx-auto mt-6 w-full max-w-md">
-      <Card>
-        <CardHeader>
+      <Card className="overflow-hidden">
+        <CardHeader className="border-b bg-gradient-to-b from-blue-50 to-background dark:from-blue-950/30">
           <CardTitle className="text-xl">Sécurisez votre compte</CardTitle>
         </CardHeader>
-        <CardContent>
-          <p className="mb-4 text-base text-muted-foreground">
+        <CardContent className="space-y-4 p-5">
+          <p className="text-base text-muted-foreground">
             Pour continuer, vous devez modifier le mot de passe temporaire qui vous a été remis.
           </p>
           <form
-            className="space-y-3"
+            className="space-y-4"
             onSubmit={(event) => {
               event.preventDefault()
               setErrorMessage(null)

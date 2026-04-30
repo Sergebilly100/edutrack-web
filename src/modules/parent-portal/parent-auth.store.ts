@@ -5,6 +5,8 @@ export type ParentAuthUser = {
   id: string
   role: "parent"
   phone: string
+  fullName?: string
+  email?: string
   studentIds: string[]
   mustChangePassword: boolean
 }
@@ -28,7 +30,13 @@ export const useParentAuthStore = create<ParentAuthState>()(
       setUser: (user) => setState({ user }),
       setAccessToken: (accessToken) => setState({ accessToken }),
       setRefreshToken: (refreshToken) => setState({ refreshToken }),
-      logout: () => setState({ user: null, accessToken: null, refreshToken: null }),
+      logout: () => {
+        setState({ user: null, accessToken: null, refreshToken: null })
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem("parent-auth")
+          window.sessionStorage.removeItem("parent_selected_student_id")
+        }
+      },
     }),
     {
       name: "parent-auth",

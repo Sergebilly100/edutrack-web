@@ -5,7 +5,6 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { parentLogin, fetchParentSchoolInfo } from "@/modules/parent-portal/parent.api"
 import { useParentAuthStore } from "@/modules/parent-portal/parent-auth.store"
@@ -26,10 +25,12 @@ export default function ParentLoginPage() {
   const [phone, setPhone] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const loginMutation = useMutation({
     mutationFn: parentLogin,
     onSuccess: (result) => {
+      sessionStorage.removeItem("parent_subscription_alert_seen")
       setAccessToken(result.accessToken)
       setRefreshToken(result.refreshToken ?? null)
       setUser({
@@ -44,46 +45,57 @@ export default function ParentLoginPage() {
         { replace: true }
       )
     },
+    onError: (error) => {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Vérifiez votre connexion internet et réessayez."
+      )
+    },
   })
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="space-y-3 text-center">
-          <div className="text-3xl font-bold">EduTrack</div>
-          <p className="text-base text-muted-foreground">{schoolInfoQuery.data?.name ?? "Votre école"}</p>
-          <CardTitle className="text-2xl">Portail parent</CardTitle>
+      <Card className="w-full max-w-sm overflow-hidden border">
+        <CardHeader className="space-y-3 pb-2 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground">
+            E
+          </div>
+          <div>
+            <p className="text-xl font-bold">EduTrack</p>
+            <p className="text-sm text-muted-foreground">{schoolInfoQuery.data?.name ?? "Votre école"}</p>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-5">
           <form
             className="space-y-5"
             onSubmit={(event) => {
               event.preventDefault()
-              loginMutation.reset()
+              setErrorMessage(null)
               loginMutation.mutate({ phone: phone.replace(/\s+/g, ""), password })
             }}
           >
             <div className="space-y-2">
               <Label htmlFor="parent-phone" className="text-base">Votre numéro de téléphone</Label>
-              <Input
-                id="parent-phone"
-                type="tel"
-                autoComplete="tel"
-                className="h-12 text-base"
-                placeholder="225 07 XX XX XX XX"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                required
-              />
+              <div className="flex overflow-hidden rounded-lg border border-input bg-background ring-offset-background focus-within:ring-2 focus-within:ring-ring">
+                <input
+                  id="parent-phone"
+                  type="tel"
+                  autoComplete="tel"
+                  className="h-12 flex-1 bg-transparent px-3 text-base outline-none"
+                  placeholder="07 00 00 00 00"
+                  value={phone}
+                  onChange={(event) => setPhone(event.target.value)}
+                  required
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="parent-password" className="text-base">Mot de passe</Label>
               <div className="relative">
-                <Input
+                <input
                   id="parent-password"
                   type={showPassword ? "text" : "password"}
-                  className="h-12 pr-14 text-base"
+                  className="h-12 w-full rounded-md border border-input bg-background px-3 pr-14 text-base"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   required
@@ -91,24 +103,21 @@ export default function ParentLoginPage() {
                 <Button
                   type="button"
                   variant="ghost"
-                  className="absolute right-1 top-1 h-10 px-3 text-base"
+                  className="absolute right-0 top-0 h-12 px-3 text-sm"
                   onClick={() => setShowPassword((prev) => !prev)}
                 >
-                  {showPassword ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
-                  {showPassword ? "Masquer" : "Afficher"}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>
-              <p className="text-base text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 Mot de passe oublié ? Contactez le secrétariat de l'école.
               </p>
             </div>
 
-            {loginMutation.error ? (
+            {errorMessage ? (
               <Alert variant="destructive">
                 <AlertDescription className="text-base">
-                  {loginMutation.error instanceof Error
-                    ? loginMutation.error.message
-                    : "Vérifiez votre connexion internet et réessayez."}
+                  {errorMessage}
                 </AlertDescription>
               </Alert>
             ) : null}

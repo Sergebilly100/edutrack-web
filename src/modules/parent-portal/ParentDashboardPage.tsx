@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { XCircle } from "lucide-react"
 import { Link } from "react-router-dom"
 
 import { AlertBanner, EmptyState } from "@/shared/components"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from "@/lib/utils"
 import {
   getParentAbsences,
   getParentSchedule,
@@ -15,28 +14,11 @@ import {
   getParentSubscriptionStatus,
   listParentStudents,
 } from "@/modules/parent-portal/parent.api"
-import {
-  currentIsoWeek,
-  formatDateFr,
-  formatShortDate,
-  shiftIsoWeek,
-  weekDaysFr,
-} from "@/modules/parent-portal/parent.utils"
+import { currentIsoWeek, formatDateFr, formatShortDate } from "@/modules/parent-portal/parent.utils"
 import { monthKeyInBusinessTimezone, todayInBusinessTimezone } from "@/shared/lib/business-date"
 
 const SELECTED_STUDENT_STORAGE_KEY = "parent_selected_student_id"
-
-type DayViewItem = {
-  date: string
-  label: string
-  slots: Array<{
-    time: string
-    subject: string
-    teacher: string
-    room: string
-    status: "present" | "absent" | "upcoming" | "unknown"
-  }>
-}
+const SUBSCRIPTION_ALERT_SEEN_KEY = "parent_subscription_alert_seen"
 
 export default function ParentDashboardPage() {
   const studentsQuery = useQuery({
@@ -47,7 +29,9 @@ export default function ParentDashboardPage() {
   const [selectedStudentId, setSelectedStudentId] = useState<string>(
     () => sessionStorage.getItem(SELECTED_STUDENT_STORAGE_KEY) ?? ""
   )
-  const [week, setWeek] = useState(currentIsoWeek())
+  const [showSubscriptionAlert, setShowSubscriptionAlert] = useState(
+    () => sessionStorage.getItem(SUBSCRIPTION_ALERT_SEEN_KEY) !== "1"
+  )
 
   useEffect(() => {
     const students = studentsQuery.data ?? []
@@ -73,14 +57,12 @@ export default function ParentDashboardPage() {
   })
 
   const scheduleQuery = useQuery({
-    queryKey: ["parent", "schedule", selectedStudentId, week],
-    queryFn: () => getParentSchedule(selectedStudentId, week),
+    queryKey: ["parent", "schedule", selectedStudentId, "today-widget", currentIsoWeek()],
+    queryFn: () => getParentSchedule(selectedStudentId, currentIsoWeek()),
     enabled: selectedStudentId.length > 0,
   })
 
-  const month = useMemo(() => {
-    return monthKeyInBusinessTimezone()
-  }, [])
+  const month = useMemo(() => monthKeyInBusinessTimezone(), [])
 
   const absencesQuery = useQuery({
     queryKey: ["parent", "latest-absences", selectedStudentId, month],
@@ -96,11 +78,26 @@ export default function ParentDashboardPage() {
     [selectedStudentId, studentsQuery.data]
   )
 
-  const days: DayViewItem[] = (scheduleQuery.data?.days ?? []).map((day, index) => ({
-    date: day.day,
-    label: weekDaysFr[index] ?? "Jour",
-    slots: day.slots,
-  }))
+  const today = todayInBusinessTimezone()
+  const todaySlots = useMemo(() => {
+    const day = (scheduleQuery.data?.days ?? []).find((item) => item.day === today)
+    return day?.slots ?? []
+  }, [scheduleQuery.data, today])
+
+  const todayAbsentCount = todaySlots.filter((slot) => slot.status === "absent").length
+  const todayPresentCount = todaySlots.filter((slot) => slot.status === "present").length
+  const todayUpcomingCount = todaySlots.filter((slot) => slot.status === "upcoming").length
+  const weekCoursesCount = useMemo(
+    () => (scheduleQuery.data?.days ?? []).reduce((acc, day) => acc + day.slots.length, 0),
+    [scheduleQuery.data]
+  )
+  const todayLabel = useMemo(() => {
+    const date = new Date(`${today}T00:00:00.000Z`)
+    const weekday = new Intl.DateTimeFormat("fr-FR", { weekday: "short", timeZone: "UTC" }).format(date)
+    const dayMonth = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", timeZone: "UTC" }).format(date)
+    const normalizedWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1).replace(".", "")
+    return `${normalizedWeekday} ${dayMonth}`
+  }, [today])
 
   const daysRemaining = subscriptionQuery.data?.days_remaining ?? 999
   const subscriptionAlert =
@@ -113,189 +110,155 @@ export default function ParentDashboardPage() {
         }
       : null
 
+  if (studentsQuery.isLoading) {
+    return <Skeleton className="h-24 w-full rounded-lg" />
+  }
+
   return (
     <div className="space-y-4 text-base">
       <section className="space-y-3">
         <h1 className="text-2xl font-semibold">Tableau de bord parent</h1>
+      </section>
 
-        {(studentsQuery.data?.length ?? 0) > 1 ? (
-          <div className="space-y-2">
-            <p className="text-base font-medium">Élève suivi</p>
-            {(studentsQuery.data?.length ?? 0) <= 3 ? (
-              <div className="flex flex-wrap gap-2">
-                {(studentsQuery.data ?? []).map((student) => (
-                  <Button
-                    key={student.id}
-                    type="button"
-                    className="h-12 text-base"
-                    variant={selectedStudentId === student.id ? "default" : "outline"}
-                    onClick={() => handleSelectStudent(student.id)}
-                  >
-                    {student.first_name} {student.last_name}
-                  </Button>
-                ))}
-              </div>
-            ) : (
-              <Select value={selectedStudentId} onValueChange={handleSelectStudent}>
-                <SelectTrigger className="h-12 text-base">
-                  <SelectValue placeholder="Sélectionnez un élève" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(studentsQuery.data ?? []).map((student) => (
-                    <SelectItem key={student.id} value={student.id}>
-                      {student.first_name} {student.last_name} · {student.class_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+      <section>
+        {studentsQuery.isLoading ? (
+          <Skeleton className="h-10 w-full rounded-xl" />
+        ) : (studentsQuery.data?.length ?? 0) > 1 ? (
+          <div className="flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+            {(studentsQuery.data ?? []).map((student) => (
+              <Button
+                key={student.id}
+                type="button"
+                variant={selectedStudentId === student.id ? "default" : "ghost"}
+                className="h-12 flex-shrink-0 rounded-full text-sm"
+                onClick={() => handleSelectStudent(student.id)}
+              >
+                {student.first_name} {student.last_name}
+              </Button>
+            ))}
           </div>
         ) : selectedStudent ? (
-          <p className="text-base text-muted-foreground">
-            Élève suivi: {selectedStudent.first_name} {selectedStudent.last_name} · {selectedStudent.class_name}
-          </p>
+          <div className="flex items-center gap-2 rounded-xl bg-muted/60 px-3 py-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+              {selectedStudent.first_name[0]}{selectedStudent.last_name[0]}
+            </div>
+            <div>
+              <p className="text-sm font-semibold">{selectedStudent.first_name} {selectedStudent.last_name}</p>
+              <p className="text-xs text-muted-foreground">{selectedStudent.class_name}</p>
+            </div>
+          </div>
         ) : null}
       </section>
 
-      {subscriptionAlert ? (
+      {subscriptionAlert && showSubscriptionAlert ? (
         <AlertBanner
           type={subscriptionAlert.type as "warning" | "error"}
           title="Alerte abonnement"
           message={subscriptionAlert.message}
+          onDismiss={() => {
+            setShowSubscriptionAlert(false)
+            sessionStorage.setItem(SUBSCRIPTION_ALERT_SEEN_KEY, "1")
+          }}
         />
       ) : null}
 
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">Cette semaine</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">
-              {statsQuery.data?.absences_this_week ?? 0} absence(s) sur {scheduleQuery.data?.days.reduce((acc, day) => acc + day.slots.length, 0) ?? 0} cours
+      <section className="grid grid-cols-2 gap-3">
+        <div className="rounded-xl bg-muted/60 p-4">
+          <p className="text-xs text-muted-foreground">Cette semaine</p>
+          {statsQuery.isLoading || scheduleQuery.isLoading ? (
+            <Skeleton className="mt-1 h-8 w-20" />
+          ) : (
+            <p className={cn("mt-1 text-3xl font-semibold", (statsQuery.data?.absences_this_week ?? 0) > 0 ? "text-red-600" : "text-emerald-600")}>
+              {statsQuery.data?.absences_this_week ?? 0}
             </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">Ce mois</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">
-              {statsQuery.data?.absences_this_month ?? 0} absence(s) — Taux de présence : {statsQuery.data?.attendance_rate_month ?? 0}%
+          )}
+          <p className="text-xs text-muted-foreground">absence(s) / {weekCoursesCount} cours</p>
+        </div>
+        <div className="rounded-xl bg-muted/60 p-4">
+          <p className="text-xs text-muted-foreground">Ce mois</p>
+          {statsQuery.isLoading ? (
+            <Skeleton className="mt-1 h-8 w-16" />
+          ) : (
+            <p className={cn("mt-1 text-3xl font-semibold", (statsQuery.data?.attendance_rate_month ?? 100) >= 80 ? "text-emerald-600" : "text-red-600")}>
+              {statsQuery.data?.attendance_rate_month ?? 0}%
             </p>
-          </CardContent>
-        </Card>
+          )}
+          <p className="text-xs text-muted-foreground">taux de présence</p>
+        </div>
       </section>
 
       <section className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-xl font-semibold">Programme de la semaine</h2>
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" className="h-12 text-base" onClick={() => setWeek((prev) => shiftIsoWeek(prev, -1))}>
-              <ChevronLeft className="mr-2 h-4 w-4" /> Semaine précédente
-            </Button>
-            <Button type="button" variant="outline" className="h-12 text-base" onClick={() => setWeek((prev) => shiftIsoWeek(prev, 1))}>
-              Semaine suivante <ChevronRight className="ml-2 h-4 w-4" />
-            </Button>
+        <h2 className="text-xl font-semibold">Aujourd'hui - {todayLabel}</h2>
+        {scheduleQuery.isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-20 w-full rounded-xl" />
+            <Skeleton className="h-20 w-full rounded-xl" />
           </div>
-        </div>
-
-        <div className="hidden overflow-x-auto rounded-lg border md:block">
-          <table className="w-full min-w-[900px] text-base">
-            <thead className="bg-muted/40">
-              <tr>
-                {days.map((day) => (
-                  <th key={day.date} className="px-3 py-3 text-left">{day.label} {formatShortDate(day.date)}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                {days.map((day) => (
-                  <td key={day.date} className="align-top">
-                    <div className="space-y-2 p-2">
-                      {day.slots.length === 0 ? (
-                        <div className="rounded-lg bg-muted p-3 text-base">—</div>
-                      ) : (
-                        day.slots.map((slot, index) => (
-                          <div
-                            key={`${day.date}-${index}`}
-                            className={
-                              slot.status === "absent"
-                                ? "rounded-lg border border-red-200 bg-red-50 p-3 text-red-700 dark:border-red-900 dark:bg-red-950/30"
-                                : slot.status === "present"
-                                  ? "rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30"
-                                  : "rounded-lg border border-border bg-muted p-3"
-                            }
-                          >
-                            <p className="font-semibold">{slot.subject}</p>
-                            <p>{slot.time}</p>
-                            <p>{slot.teacher}</p>
-                            {slot.status === "absent" ? <p className="font-semibold">Absent(e)</p> : null}
-                            {slot.status === "present" ? <p className="font-semibold">Présent(e)</p> : null}
-                            {slot.status === "upcoming" ? <p className="font-semibold">Cours à venir</p> : null}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div className="space-y-2 md:hidden">
-          {days.map((day) => (
-            <Collapsible key={day.date} className="rounded-lg border">
-              <CollapsibleTrigger className="flex h-12 w-full items-center justify-between px-3 text-base font-semibold">
-                <span>{day.label} {formatShortDate(day.date)}</span>
-                <span>Voir</span>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-2 border-t p-3">
-                {day.slots.length === 0 ? (
-                  <div className="rounded-lg bg-muted p-3 text-base">—</div>
-                ) : (
-                  day.slots.map((slot, index) => (
-                    <div
-                      key={`${day.date}-mobile-${index}`}
-                      className={
-                        slot.status === "absent"
-                          ? "rounded-lg border border-red-200 bg-red-50 p-3 text-base text-red-700 dark:border-red-900 dark:bg-red-950/30"
-                          : slot.status === "present"
-                            ? "rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-base text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30"
-                            : "rounded-lg border border-border bg-muted p-3 text-base"
-                      }
-                    >
-                      <p className="font-semibold">{slot.subject}</p>
-                      <p>{slot.time}</p>
-                      <p>{slot.teacher}</p>
-                      {slot.status === "absent" ? <p className="font-semibold">Absent(e)</p> : null}
-                      {slot.status === "present" ? <p className="font-semibold">Présent(e)</p> : null}
-                      {slot.status === "upcoming" ? <p className="font-semibold">Cours à venir</p> : null}
-                    </div>
-                  ))
+        ) : todaySlots.length === 0 ? (
+          <EmptyState title="Aucun cours aujourd'hui" message="Aucun créneau programmé pour cette journée." />
+        ) : (
+          <div className="space-y-2">
+            {todaySlots.map((slot, index) => (
+              <div
+                key={`today-slot-${index}`}
+                className={cn(
+                  "rounded-xl border p-3",
+                  slot.status === "absent"
+                    ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30"
+                    : slot.status === "present"
+                      ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30"
+                      : "border-border bg-muted/40"
                 )}
-              </CollapsibleContent>
-            </Collapsible>
-          ))}
-        </div>
+              >
+                <p className="text-sm font-semibold">{slot.subject} · {slot.time}</p>
+                <p className="text-xs text-muted-foreground">
+                  {todayLabel} - {slot.teacher}
+                </p>
+                <div className="mt-2">
+                  {slot.status === "absent" && (
+                    <span className="inline-flex items-center gap-1 rounded-md bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/40 dark:text-red-300">
+                      <XCircle className="h-3 w-3" /> Absent
+                    </span>
+                  )}
+                  {slot.status === "present" && (
+                    <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                      Présent
+                    </span>
+                  )}
+                  {slot.status === "upcoming" && (
+                    <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                      Cours à venir
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Dernières absences</h2>
-        {absencesQuery.data?.length ? (
+        {absencesQuery.isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-20 w-full rounded-xl" />
+            <Skeleton className="h-20 w-full rounded-xl" />
+            <Skeleton className="h-20 w-full rounded-xl" />
+          </div>
+        ) : absencesQuery.data?.length ? (
           <div className="space-y-2">
             {absencesQuery.data.map((row, index) => (
-              <Card key={`${row.date}-${index}`}>
-                <CardContent className="space-y-1 p-4">
-                  <p className="font-semibold">{formatDateFr(row.date)}</p>
-                  <p>{row.subject} · {row.time_label}</p>
-                  <p className="text-muted-foreground">{row.teacher_name}</p>
-                </CardContent>
-              </Card>
+              <div
+                key={`${row.date}-${index}`}
+                className="flex items-start justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/30"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">{row.subject} · {row.time_label}</p>
+                  <p className="text-xs text-muted-foreground">{formatDateFr(row.date)}</p>
+                  <p className="text-xs text-muted-foreground">{row.teacher_name}</p>
+                </div>
+                <XCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" />
+              </div>
             ))}
           </div>
         ) : (

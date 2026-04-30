@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, XCircle } from "lucide-react"
 import { Link } from "react-router-dom"
 
-import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/shared/components"
 import { getParentAbsences, listParentStudents } from "@/modules/parent-portal/parent.api"
 import { currentIsoMonth, formatDateFr, monthLabelFr } from "@/modules/parent-portal/parent.utils"
@@ -50,15 +50,15 @@ export default function ParentAbsenceHistoryPage() {
     [studentsQuery.data, selectedStudentId]
   )
 
+  if (studentsQuery.isLoading) {
+    return <Skeleton className="h-24 w-full rounded-lg" />
+  }
+
   return (
     <div className="space-y-4 text-base">
-      <Link to="/parent/dashboard" className="inline-flex h-12 items-center gap-2 text-base font-semibold">
-        <ArrowLeft className="h-4 w-4" /> Tableau de bord
-      </Link>
-
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold">
-          Historique des absences — {selectedStudent?.first_name ?? "Élève"}
+          Historique des absences - {selectedStudent?.first_name ?? "Élève"}
         </h1>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -96,27 +96,30 @@ export default function ParentAbsenceHistoryPage() {
         </div>
       </div>
 
-      {absencesQuery.data?.length ? (
+      {absencesQuery.isLoading ? (
+        <div className="space-y-2">
+          <Skeleton className="h-20 w-full rounded-xl" />
+          <Skeleton className="h-20 w-full rounded-xl" />
+          <Skeleton className="h-20 w-full rounded-xl" />
+        </div>
+      ) : absencesQuery.data?.length ? (
         <div className="space-y-3">
-          {absencesQuery.data.map((row, index) => {
-            const prev = absencesQuery.data?.[index - 1]
-            const showSeparator = !prev ||
-              (new Date(`${prev.date}T00:00:00.000Z`).getTime() -
-               new Date(`${row.date}T00:00:00.000Z`).getTime()) > 7 * 24 * 3600 * 1000
-            return (
-              <div key={`${row.date}-${index}`} className="space-y-2">
-                {showSeparator ? <p className="text-base font-semibold text-muted-foreground">Semaine</p> : null}
-                <Card>
-                  <CardContent className="space-y-1 p-4">
-                    <p className="font-semibold">{formatDateFr(row.date)}</p>
-                    <p>{row.subject}</p>
-                    <p>{row.time_label} · {row.teacher_name}</p>
-                  </CardContent>
-                </Card>
+          {absencesQuery.data.map((row, index) => (
+            <div
+              key={`${row.date}-${index}`}
+              className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/30"
+            >
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/40">
+                <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
               </div>
-            )
-          })}
-          <p className="text-base font-semibold">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground">{row.subject}</p>
+                <p className="text-xs text-muted-foreground">{formatDateFr(row.date)}</p>
+                <p className="text-xs text-muted-foreground">{row.time_label} · {row.teacher_name}</p>
+              </div>
+            </div>
+          ))}
+          <p className="pt-1 text-sm font-medium text-muted-foreground">
             {absencesQuery.data.length} absence(s) en {monthLabelFr(month)}
           </p>
         </div>
