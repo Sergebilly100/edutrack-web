@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react"
 import axios from "axios"
 
+import { useParentAuthStore } from "@/modules/parent-portal/parent-auth.store"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useAuthStore } from "@/shared/store/auth.store"
 import type { AuthUser } from "@/shared/store/auth.store"
@@ -29,6 +30,9 @@ type JwtPayloadPartial = {
   sub?: string
   schemaName?: string
   role?: string
+  studentIds?: string[]
+  mustChangePassword?: boolean
+  phone?: string
 }
 
 /**
@@ -66,6 +70,8 @@ const decodeJwtPayload = (token: string): JwtPayloadPartial => {
  * avant tout rendu de route protégée.
  */
 export function useRestoreSession(): void {
+  const setParentAccessToken = useParentAuthStore((state) => state.setAccessToken)
+  const setParentUser = useParentAuthStore((state) => state.setUser)
   const setAccessToken = useAuthStore((state) => state.setAccessToken)
   const setUser = useAuthStore((state) => state.setUser)
   const setSessionRestored = useAuthStore((state) => state.setSessionRestored)
@@ -93,11 +99,25 @@ export function useRestoreSession(): void {
         )
 
         const newAccessToken = refreshResponse.data.accessToken
-        setAccessToken(newAccessToken)
 
-        // Étape 2 — Extraire schemaName du JWT (non-sensible, public dans le payload)
+        // Étape 2 — Extraire claims du JWT (non-sensible, public dans le payload)
         const jwtClaims = decodeJwtPayload(newAccessToken)
         const schemaName = jwtClaims.schemaName ?? "unknown"
+        const role = jwtClaims.role
+
+        if (role === "parent") {
+          setParentAccessToken(newAccessToken)
+          setParentUser({
+            id: jwtClaims.sub ?? "",
+            role: "parent",
+            phone: jwtClaims.phone ?? "",
+            studentIds: Array.isArray(jwtClaims.studentIds) ? jwtClaims.studentIds : [],
+            mustChangePassword: Boolean(jwtClaims.mustChangePassword),
+          })
+          return
+        }
+
+        setAccessToken(newAccessToken)
 
         // Étape 3 — Récupérer le profil complet
         const meResponse = await axios.get<MeResponse>("/auth/me", {
@@ -130,6 +150,7 @@ export function useRestoreSession(): void {
         // La redirection vers /login est gérée par App.tsx (RoleRedirect)
         // une fois isSessionRestored = true.
         setPermissions([])
+        setParentUser(null)
       } finally {
         setSessionRestored()
       }

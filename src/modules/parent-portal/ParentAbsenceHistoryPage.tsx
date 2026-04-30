@@ -27,18 +27,17 @@ export default function ParentAbsenceHistoryPage() {
     queryFn: listParentStudents,
   })
 
-  const [selectedStudentId, setSelectedStudentId] = useState("")
+  const [selectedStudentId, setSelectedStudentId] = useState(
+    () => sessionStorage.getItem(SELECTED_STUDENT_STORAGE_KEY) ?? ""
+  )
   const [month, setMonth] = useState(currentIsoMonth())
 
   useEffect(() => {
     const students = studentsQuery.data ?? []
-    if (students.length === 0) {
-      return
-    }
-    const stored = sessionStorage.getItem(SELECTED_STUDENT_STORAGE_KEY)
-    const next = students.find((item) => item.id === stored)?.id ?? students[0].id
-    setSelectedStudentId(next)
-  }, [studentsQuery.data])
+    if (students.length === 0) return
+    if (students.some((s) => s.id === selectedStudentId)) return
+    setSelectedStudentId(students[0].id)
+  }, [studentsQuery.data, selectedStudentId])
 
   const absencesQuery = useQuery({
     queryKey: ["parent", "absences", selectedStudentId, month],
@@ -101,7 +100,9 @@ export default function ParentAbsenceHistoryPage() {
         <div className="space-y-3">
           {absencesQuery.data.map((row, index) => {
             const prev = absencesQuery.data?.[index - 1]
-            const showSeparator = !prev || new Date(`${prev.date}T00:00:00.000Z`).getUTCDate() - new Date(`${row.date}T00:00:00.000Z`).getUTCDate() > 7
+            const showSeparator = !prev ||
+              (new Date(`${prev.date}T00:00:00.000Z`).getTime() -
+               new Date(`${row.date}T00:00:00.000Z`).getTime()) > 7 * 24 * 3600 * 1000
             return (
               <div key={`${row.date}-${index}`} className="space-y-2">
                 {showSeparator ? <p className="text-base font-semibold text-muted-foreground">Semaine</p> : null}

@@ -1,3 +1,4 @@
+import axios from "axios"
 import { apiClient } from "@/shared/api/client"
 
 const SUBDOMAIN_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -19,39 +20,18 @@ const resolveTenantSubdomainFromHost = (): string | undefined => {
 }
 
 const parseApiError = (error: unknown, fallback: string): string => {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "response" in error &&
-    typeof (error as { response?: { status?: number; data?: { error?: string; code?: string } } }).response?.status ===
-      "number"
-  ) {
-    const status = (error as { response: { status: number; data?: { error?: string; code?: string } } }).response.status
-    const code = (error as { response: { data?: { code?: string; error?: string } } }).response.data?.code
-
-    if (status === 401) {
-      return "Numéro ou mot de passe incorrect."
-    }
-    if (status === 403 && code === "SUBSCRIPTION_EXPIRED") {
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status
+    const code = error.response?.data?.code as string | undefined
+    if (status === 401) return "Numéro ou mot de passe incorrect."
+    if (status === 403 && code === "SUBSCRIPTION_EXPIRED")
       return "Votre abonnement a expiré. Contactez l'établissement pour renouveler."
-    }
-    if (status === 403 && code === "SERVICE_NOT_AVAILABLE") {
+    if (status === 403 && code === "SERVICE_NOT_AVAILABLE")
       return "Ce service n'est pas disponible pour votre école."
-    }
-    if (status === 403 && code === "PASSWORD_CHANGE_REQUIRED") {
+    if (status === 403 && code === "PASSWORD_CHANGE_REQUIRED")
       return "Vous devez modifier votre mot de passe temporaire."
-    }
   }
-
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof (error as { message?: string }).message === "string"
-  ) {
-    return (error as { message: string }).message
-  }
-
+  if (error instanceof Error) return error.message
   return fallback
 }
 

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { parentLogin, fetchParentSchoolInfo } from "@/modules/parent-portal/parent.api"
 import { useParentAuthStore } from "@/modules/parent-portal/parent-auth.store"
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 
 export default function ParentLoginPage() {
   const navigate = useNavigate()
@@ -26,8 +26,25 @@ export default function ParentLoginPage() {
   const [phone, setPhone] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [isPending, setIsPending] = useState(false)
+
+  const loginMutation = useMutation({
+    mutationFn: parentLogin,
+    onSuccess: (result) => {
+      setAccessToken(result.accessToken)
+      setRefreshToken(result.refreshToken ?? null)
+      setUser({
+        id: result.user.id,
+        role: "parent",
+        phone: result.user.phone,
+        studentIds: result.user.studentIds,
+        mustChangePassword: result.user.mustChangePassword,
+      })
+      navigate(
+        result.user.mustChangePassword ? "/parent/first-login-password" : "/parent/dashboard",
+        { replace: true }
+      )
+    },
+  })
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
@@ -40,37 +57,10 @@ export default function ParentLoginPage() {
         <CardContent>
           <form
             className="space-y-5"
-            onSubmit={async (event) => {
+            onSubmit={(event) => {
               event.preventDefault()
-              setIsPending(true)
-              setErrorMessage(null)
-
-              try {
-                const result = await parentLogin({
-                  phone: phone.replace(/\s+/g, ""),
-                  password,
-                })
-                setAccessToken(result.accessToken)
-                setRefreshToken(result.refreshToken ?? null)
-                setUser({
-                  id: result.user.id,
-                  role: "parent",
-                  phone: result.user.phone,
-                  studentIds: result.user.studentIds,
-                  mustChangePassword: result.user.mustChangePassword,
-                })
-                navigate(result.user.mustChangePassword ? "/parent/first-login-password" : "/parent/dashboard", {
-                  replace: true,
-                })
-              } catch (error) {
-                setErrorMessage(
-                  error instanceof Error
-                    ? error.message
-                    : "Vérifiez votre connexion internet et réessayez."
-                )
-              } finally {
-                setIsPending(false)
-              }
+              loginMutation.reset()
+              loginMutation.mutate({ phone: phone.replace(/\s+/g, ""), password })
             }}
           >
             <div className="space-y-2">
@@ -113,9 +103,13 @@ export default function ParentLoginPage() {
               </p>
             </div>
 
-            {errorMessage ? (
+            {loginMutation.error ? (
               <Alert variant="destructive">
-                <AlertDescription className="text-base">{errorMessage}</AlertDescription>
+                <AlertDescription className="text-base">
+                  {loginMutation.error instanceof Error
+                    ? loginMutation.error.message
+                    : "Vérifiez votre connexion internet et réessayez."}
+                </AlertDescription>
               </Alert>
             ) : null}
             {searchParams.get("reason") === "session_expired" ? (
@@ -126,8 +120,8 @@ export default function ParentLoginPage() {
               </Alert>
             ) : null}
 
-            <Button type="submit" className="h-12 w-full text-base" disabled={isPending}>
-              {isPending ? "Connexion..." : "Se connecter"}
+            <Button type="submit" className="h-12 w-full text-base" disabled={loginMutation.isPending}>
+              {loginMutation.isPending ? "Connexion..." : "Se connecter"}
             </Button>
           </form>
         </CardContent>

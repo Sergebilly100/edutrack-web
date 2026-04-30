@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { persist } from "zustand/middleware"
 
 export type ParentAuthUser = {
   id: string
@@ -18,12 +19,20 @@ type ParentAuthState = {
   logout: () => void
 }
 
-export const useParentAuthStore = create<ParentAuthState>()((setState) => ({
-  user: null,
-  accessToken: null,
-  refreshToken: null,
-  setUser: (user) => setState({ user }),
-  setAccessToken: (accessToken) => setState({ accessToken }),
-  setRefreshToken: (refreshToken) => setState({ refreshToken }),
-  logout: () => setState({ user: null, accessToken: null, refreshToken: null }),
-}))
+export const useParentAuthStore = create<ParentAuthState>()(
+  persist(
+    (setState) => ({
+      user: null,
+      accessToken: null,
+      refreshToken: null,
+      setUser: (user) => setState({ user }),
+      setAccessToken: (accessToken) => setState({ accessToken }),
+      setRefreshToken: (refreshToken) => setState({ refreshToken }),
+      logout: () => setState({ user: null, accessToken: null, refreshToken: null }),
+    }),
+    {
+      name: "parent-auth",
+      partialize: (state) => ({ user: state.user, accessToken: state.accessToken }),
+    }
+  )
+)

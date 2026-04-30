@@ -1392,7 +1392,7 @@ export default function SalariesPage() {
                 </p> */}
                 <p>
                   Reste à payer :{" "}
-                  <span className="font-semibold">{formatFcfa(payAmountRemainingFromNew ?? 0)}</span>
+                  <span className="font-semibold">{formatFcfa(payDialogDetails?.summary.amountRemainingToPayNow ?? selectedSalaryRow.totalFcfa ?? 0)}</span>
                 </p>
               </div>
             ) : null}

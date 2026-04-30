@@ -44,20 +44,17 @@ export default function ParentDashboardPage() {
     queryFn: listParentStudents,
   })
 
-  const [selectedStudentId, setSelectedStudentId] = useState<string>("")
+  const [selectedStudentId, setSelectedStudentId] = useState<string>(
+    () => sessionStorage.getItem(SELECTED_STUDENT_STORAGE_KEY) ?? ""
+  )
   const [week, setWeek] = useState(currentIsoWeek())
 
   useEffect(() => {
     const students = studentsQuery.data ?? []
-    if (students.length === 0) {
-      return
-    }
-
-    const stored = sessionStorage.getItem(SELECTED_STUDENT_STORAGE_KEY)
-    const match = stored ? students.find((item) => item.id === stored) : null
-    const next = match?.id ?? students[0].id
-    setSelectedStudentId(next)
-  }, [studentsQuery.data])
+    if (students.length === 0) return
+    if (students.some((s) => s.id === selectedStudentId)) return
+    setSelectedStudentId(students[0].id)
+  }, [studentsQuery.data, selectedStudentId])
 
   const handleSelectStudent = (studentId: string) => {
     setSelectedStudentId(studentId)
