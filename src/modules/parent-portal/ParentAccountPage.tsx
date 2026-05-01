@@ -108,10 +108,9 @@ export default function ParentAccountPage() {
                     : "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30"
               )}
             >
-              <p className="text-xs font-medium">Abonnement</p>
-              <p className="text-sm font-semibold capitalize">{subscriptionQuery.data.status}</p>
+              <p className="text-xs font-medium">Abonnement {subscriptionQuery.data.status}</p>
               <p className="text-xs text-muted-foreground">
-                Expire le {formatShortDate(subscriptionQuery.data.ends_at)} · {subscriptionQuery.data.days_remaining}j restants
+                Expire le {formatShortDate(subscriptionQuery.data.ends_at)} · {subscriptionQuery.data.days_remaining} jour(s) restants
               </p>
             </div>
           )}

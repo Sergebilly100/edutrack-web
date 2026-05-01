@@ -13,14 +13,14 @@ import { useTheme } from "@/shared/hooks/useTheme"
 const tabs = [
   { href: "/parent/dashboard", label: "Accueil", icon: Home },
   { href: "/parent/absences", label: "Absences", icon: CalendarX2 },
-  { href: "/parent/schedule", label: "Emploi du temps", icon: CalendarDays },
+  { href: "/parent/schedule", label: "EDT", icon: CalendarDays },
   { href: "/parent/account", label: "Mon compte", icon: UserCircle2 },
 ]
 
 export default function ParentPortalLayout() {
   const location = useLocation()
   const navigate = useNavigate()
-  useTheme()
+  const { resolvedTheme, setTheme } = useTheme()
   const user = useParentAuthStore((state) => state.user)
   const logout = useParentAuthStore((state) => state.logout)
   const schoolInfoQuery = useQuery({
@@ -65,10 +65,7 @@ export default function ParentPortalLayout() {
               variant="ghost"
               size="icon"
               className="h-12 w-12"
-              onClick={() => {
-                const html = document.documentElement
-                html.classList.toggle("dark")
-              }}
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             >
               <Sun className="h-4 w-4 rotate-0 scale-100 transition-transform dark:-rotate-90 dark:scale-0" />
               <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
@@ -108,7 +105,7 @@ export default function ParentPortalLayout() {
                 key={tab.href}
                 to={tab.href}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-1 rounded-xl py-2",
+                  "flex flex-col items-center text-center justify-center gap-1 rounded-xl py-2",
                   active ? "text-primary" : "text-muted-foreground"
                 )}
               >

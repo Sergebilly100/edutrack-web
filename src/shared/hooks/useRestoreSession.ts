@@ -33,6 +33,8 @@ type JwtPayloadPartial = {
   studentIds?: string[]
   mustChangePassword?: boolean
   phone?: string
+  fullName?: string
+  email?: string
 }
 
 /**
@@ -111,6 +113,8 @@ export function useRestoreSession(): void {
             id: jwtClaims.sub ?? "",
             role: "parent",
             phone: jwtClaims.phone ?? "",
+            fullName: jwtClaims.fullName,
+            email: jwtClaims.email,
             studentIds: Array.isArray(jwtClaims.studentIds) ? jwtClaims.studentIds : [],
             mustChangePassword: Boolean(jwtClaims.mustChangePassword),
           })

@@ -120,8 +120,7 @@ export const parentLogin = async (payload: { phone: string; password: string }) 
             ? { "x-tenant-schema": fallbackSchema }
             : undefined,
       }
-    )
-
+    ) 
     return response.data
   } catch (error) {
     throw new Error(parseApiError(error, "Vérifiez votre connexion internet et réessayez."))

@@ -174,8 +174,8 @@ export default function ParentSchedulePage() {
                       : "bg-muted text-muted-foreground"
                 )}
               >
-                <span className="text-[10px] font-medium leading-tight">{day.label}</span>
-                <span className="text-sm font-semibold leading-tight">{new Date(`${day.date}T00:00:00.000Z`).getUTCDate()}</span>
+                <span className="text-[14px] font-medium leading-[0.25]">{day.label}</span>
+                <span className="text-sm font-semibold leading-none">{new Date(`${day.date}T00:00:00.000Z`).getUTCDate()}</span>
               </Button>
             )
           })}
