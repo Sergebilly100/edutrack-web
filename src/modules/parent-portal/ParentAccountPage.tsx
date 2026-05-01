@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
-import { AlertTriangle, CreditCard, Mail, Phone, ShieldCheck } from "lucide-react"
+import { AlertTriangle, CreditCard, Mail, Phone, ShieldCheck, User } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -57,28 +57,27 @@ export default function ParentAccountPage() {
   return (
     <div className="space-y-4 text-base">
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 p-3">
           <CardTitle className="text-xl">Mon compte</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-3 p-3">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground">
-              {parentUser?.phone?.slice(-2) ?? "PA"}
+              <User />
             </div>
             <div>
               <p className="text-sm font-semibold">{parentUser?.fullName ?? "Parent"}</p>
-              <p className="text-xs text-muted-foreground">{parentUser?.phone ?? "Non renseigné"}</p>
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
-            <div className="flex items-start gap-3 rounded-lg bg-muted/60 p-3">
+            <div className="flex items-start gap-3 rounded-lg bg-muted/60 px-3 py-1">
               <Mail className="mt-0.5 h-4 w-4 text-muted-foreground" />
               <div className="min-w-0">
                 <p className="text-xs font-medium text-muted-foreground">Email</p>
                 <p className="truncate text-sm">{parentUser?.email ?? "Non renseigné"}</p>
               </div>
             </div>
-            <div className="flex items-start gap-3 rounded-lg bg-muted/60 p-3">
+            <div className="flex items-start gap-3 rounded-lg bg-muted/60 px-3 py-1">
               <Phone className="mt-0.5 h-4 w-4 text-muted-foreground" />
               <div className="min-w-0">
                 <p className="text-xs font-medium text-muted-foreground">Téléphone</p>
@@ -108,13 +107,12 @@ export default function ParentAccountPage() {
                 <CreditCard className="h-4 w-4 shrink-0 text-muted-foreground" />
               </div>
               <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-                <p>{subscriptionQuery.data.days_remaining} jour(s) restant(s)</p>
-                <p>{formatFcfa(subscriptionQuery.data.monthly_amount_fcfa)} FCFA / mois</p>
+                <p>{subscriptionQuery.data.days_remaining} jour(s) restant(s) - {formatFcfa(subscriptionQuery.data.monthly_amount_fcfa)} FCFA / mois</p>
               </div>
               {subscriptionQuery.data.days_remaining <= 30 ? (
                 <div className="mt-3 flex items-start gap-2 rounded-md bg-background/70 p-2 text-xs">
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  <p>Contactez l'administration pour renouveler votre abonnement.</p>
+                  <p>rendez vous à l'administration de l'écolepour renouveler votre abonnement.</p>
                 </div>
               ) : null}
             </div>
@@ -123,10 +121,10 @@ export default function ParentAccountPage() {
       </Card>
 
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 p-3">
           <CardTitle className="text-xl">Changer mon mot de passe</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3">
           <form
             className="space-y-4"
             onSubmit={(event) => {
@@ -155,15 +153,15 @@ export default function ParentAccountPage() {
           >
             <div className="space-y-1">
               <Label className="text-base" htmlFor="current-password">Mot de passe actuel</Label>
-              <Input id="current-password" className="h-12 text-base" type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required />
+              <Input id="current-password" className="h-10 text-base" type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required />
             </div>
             <div className="space-y-1">
               <Label className="text-base" htmlFor="new-password">Nouveau mot de passe</Label>
-              <Input id="new-password" className="h-12 text-base" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required />
+              <Input id="new-password" className="h-10 text-base" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required />
             </div>
             <div className="space-y-1">
               <Label className="text-base" htmlFor="confirm-password">Confirmer le mot de passe</Label>
-              <Input id="confirm-password" className="h-12 text-base" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required />
+              <Input id="confirm-password" className="h-10 text-base" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required />
             </div>
             <Button type="submit" className="h-12 w-full text-base" disabled={changePasswordMutation.isPending}>
               {changePasswordMutation.isPending ? "Enregistrement..." : "Enregistrer"}

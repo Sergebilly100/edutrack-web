@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { CheckCircle2, ChevronLeft, ChevronRight, XCircle } from "lucide-react"
+import { CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, XCircle } from "lucide-react"
 
 import { EmptyState } from "@/shared/components"
 import { Button } from "@/components/ui/button"
@@ -95,31 +95,46 @@ export default function ParentSchedulePage() {
   return (
     <div className="space-y-4 text-base">
       <section className="space-y-3">
-        <h1 className="text-2xl font-semibold">Emploi du temps</h1>
+        <h1 className="text-xl font-semibold">Emploi du temps</h1>
       </section>
 
       <section>
         {(studentsQuery.data?.length ?? 0) > 1 ? (
-          <div className="flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
-            {(studentsQuery.data ?? []).map((student) => (
-              <Button
-                key={student.id}
-                type="button"
-                variant={selectedStudentId === student.id ? "default" : "ghost"}
-                className="h-12 flex-shrink-0 rounded-full text-sm"
-                onClick={() => handleSelectStudent(student.id)}
-              >
-                {student.first_name} {student.last_name}
-              </Button>
-            ))}
+          <div className="rounded-xl border bg-card p-2 shadow-card">
+            <p className="mb-2 text-sm text-muted-foreground">Enfant sélectionné</p>
+            <div className="flex gap-2 overflow-x-auto [-webkit-overflow-scrolling:touch] justify-center">
+              {(studentsQuery.data ?? []).map((student) => {
+                const active = selectedStudentId === student.id
+                return (
+                  <Button
+                    key={student.id}
+                    type="button"
+                    variant="ghost"
+                    className={cn(
+                      "h-auto min-w-[8.75rem] flex-shrink-0 justify-start gap-2.5 rounded-lg border px-3 py-2.5 text-left",
+                      active ? "border-primary bg-primary text-primary-foreground shadow-sm hover:bg-primary" : "border-transparent bg-muted/50"
+                    )}
+                    onClick={() => handleSelectStudent(student.id)}
+                  >
+                    <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold", active ? "bg-primary-foreground/15" : "bg-primary/10 text-primary")}>
+                      {student.first_name[0]}{student.last_name[0]}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold leading-tight">{student.first_name} {student.last_name}</span>
+                      <span className={cn("block text-xs", active ? "text-primary-foreground/80" : "text-muted-foreground")}>{student.class_name}</span>
+                    </span>
+                  </Button>
+                )
+              })}
+            </div>
           </div>
         ) : selectedStudent ? (
-          <div className="flex items-center gap-2 rounded-xl bg-muted/60 px-3 py-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+          <div className="flex items-center gap-3 rounded-xl border bg-card p-2 shadow-card">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
               {selectedStudent.first_name[0]}{selectedStudent.last_name[0]}
             </div>
-            <div>
-              <p className="text-sm font-semibold">{selectedStudent.first_name} {selectedStudent.last_name}</p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-base font-semibold">{selectedStudent.first_name} {selectedStudent.last_name}</p>
               <p className="text-xs text-muted-foreground">{selectedStudent.class_name}</p>
             </div>
           </div>
@@ -128,13 +143,13 @@ export default function ParentSchedulePage() {
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Programme</h2>
-          <div className="flex items-center gap-1">
+          {/* <h2 className="text-lg font-semibold">Programme</h2> */}
+          <div className="flex items-center gap-1 my-2">
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="h-10 w-10"
+              className="h-10 w-10 bg-muted"
               onClick={() => setWeek((prev) => shiftIsoWeek(prev, -1))}
             >
               <ChevronLeft className="h-5 w-5" />
@@ -144,7 +159,7 @@ export default function ParentSchedulePage() {
               type="button"
               variant="ghost"
               size="icon"
-              className="h-10 w-10"
+              className="h-10 w-10  bg-muted"
               onClick={() => setWeek((prev) => shiftIsoWeek(prev, 1))}
             >
               <ChevronRight className="h-5 w-5" />
@@ -174,7 +189,7 @@ export default function ParentSchedulePage() {
                       : "bg-muted text-muted-foreground"
                 )}
               >
-                <span className="text-[14px] font-medium leading-[0.25]">{day.label}</span>
+                <span className="text-[12px] font-medium leading-[0.25]">{day.label}</span>
                 <span className="text-sm font-semibold leading-none">{new Date(`${day.date}T00:00:00.000Z`).getUTCDate()}</span>
               </Button>
             )

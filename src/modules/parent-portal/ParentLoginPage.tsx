@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Eye, EyeOff } from "lucide-react"
+import { BookOpenCheck, Eye, EyeOff } from "lucide-react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -59,10 +59,10 @@ export default function ParentLoginPage() {
       <Card className="w-full max-w-sm overflow-hidden border">
         <CardHeader className="space-y-3 pb-2 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground">
-            E
+            <BookOpenCheck className="h-7 w-7" /> 
           </div>
           <div>
-            <p className="text-xl font-bold">EduTrack</p>
+            <p className="text-xl font-bold">EduTrack CI</p>
             <p className="text-sm text-muted-foreground">{schoolInfoQuery.data?.name ?? "Votre école"}</p>
           </div>
         </CardHeader>

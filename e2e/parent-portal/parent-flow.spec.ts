@@ -24,7 +24,7 @@ test.describe("Parent portal flow", () => {
       await page.waitForURL("**/parent/dashboard**")
     }
     await expect(page.getByRole("heading", { name: "Suivi de présence" })).toBeVisible()
-    await expect(page.getByRole("heading", { name: "Présence du jour" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Présence aujourd'hui" })).toBeVisible()
     await expect(page.getByText("Absences cette semaine")).toBeVisible()
     await expect(page.getByText("Taux d'absence ce mois")).toBeVisible()
 

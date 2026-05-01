@@ -1,9 +1,22 @@
 import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, UserRound, XCircle } from "lucide-react"
+import {
+  AlertTriangle,
+  Bell,
+  CalendarCheck2,
+  CalendarClock,
+  CalendarX2,
+  CheckCircle2,
+  ChevronRight,
+  Clock3,
+  MinusCircle,
+  PieChart,
+  XCircle,
+  CircleX 
+} from "lucide-react"
 import { Link } from "react-router-dom"
 
-import { AlertBanner, EmptyState } from "@/shared/components"
+import { EmptyState } from "@/shared/components"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
@@ -24,12 +37,12 @@ type TodayStatus = "clear" | "absent" | "upcoming" | "empty" | "unknown"
 
 const statusCopy: Record<TodayStatus, { label: string; tone: string; message: string }> = {
   clear: {
-    label: "Présence confirmée",
+    label: "Présent",
     tone: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200",
     message: "Aucune absence signalée sur les cours déjà passés.",
   },
   absent: {
-    label: "Absence signalée",
+    label: "Absent",
     tone: "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200",
     message: "Au moins une absence a été enregistrée aujourd'hui.",
   },
@@ -54,22 +67,26 @@ const slotStatusMeta = {
   absent: {
     label: "Absent",
     icon: XCircle,
-    className: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+    dotClassName: "bg-red-600 text-red-50",
+    pillClassName: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
   },
   present: {
     label: "Présent",
     icon: CheckCircle2,
-    className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+    dotClassName: "bg-emerald-600 text-emerald-50",
+    pillClassName: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
   },
   upcoming: {
     label: "À venir",
     icon: Clock3,
-    className: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
+    dotClassName: "bg-amber-500 text-amber-950",
+    pillClassName: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
   },
   unknown: {
     label: "Non renseigné",
-    icon: AlertTriangle,
-    className: "bg-muted text-muted-foreground",
+    icon: MinusCircle,
+    dotClassName: "bg-slate-400 text-slate-50",
+    pillClassName: "bg-muted text-muted-foreground",
   },
 }
 
@@ -156,10 +173,18 @@ export default function ParentDashboardPage() {
   const latestAbsence = absencesQuery.data?.[0] ?? null
   const todayLabel = useMemo(() => {
     const date = new Date(`${today}T00:00:00.000Z`)
-    const weekday = new Intl.DateTimeFormat("fr-FR", { weekday: "short", timeZone: "UTC" }).format(date)
-    const dayMonth = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", timeZone: "UTC" }).format(date)
-    const normalizedWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1).replace(".", "")
-    return `${normalizedWeekday} ${dayMonth}`
+    const weekday = new Intl.DateTimeFormat("fr-FR", { weekday: "long", timeZone: "UTC" }).format(date)
+    const dayMonth = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(date)
+    return `${weekday.charAt(0).toUpperCase() + weekday.slice(1)} ${dayMonth}` 
+  }, [today])
+  const weeklyRangeLabel = useMemo(() => {
+    const date = new Date(`${today}T00:00:00.000Z`)
+    const day = date.getUTCDay() || 7
+    const start = new Date(date)
+    start.setUTCDate(date.getUTCDate() - (day - 1))
+    const end = new Date(start)
+    end.setUTCDate(start.getUTCDate() + 6)
+    return `du ${formatShortDate(start.toISOString().slice(0, 10))} au ${formatShortDate(end.toISOString().slice(0, 10))}`
   }, [today])
 
   const daysRemaining = subscriptionQuery.data?.days_remaining ?? 999
@@ -167,225 +192,288 @@ export default function ParentDashboardPage() {
     daysRemaining <= 30
       ? {
           type: daysRemaining <= 7 ? "error" : "warning",
-          message: `Votre abonnement expire dans ${daysRemaining} jour(s), le ${formatShortDate(
-            subscriptionQuery.data?.ends_at ?? todayInBusinessTimezone()
-          )}. Contactez l'administration pour le renouvellement.`,
+          message: `rendez vous à l'administration de l'école pour le renouvellement.`,
         }
       : null
 
   if (studentsQuery.isLoading) {
-    return <Skeleton className="h-24 w-full rounded-lg" />
+    return <Skeleton className="h-28 w-full rounded-xl" />
   }
 
   return (
-    <div className="space-y-5 text-base">
-      <section className="space-y-1">
-        <p className="text-sm font-medium text-muted-foreground">Portail parent</p>
-        <h1 className="text-2xl font-semibold tracking-normal">Suivi de présence</h1>
-      </section>
-
+    <div className="space-y-3 text-base">
       <section>
-        {studentsQuery.isLoading ? (
-          <Skeleton className="h-12 w-full rounded-lg" />
-        ) : (studentsQuery.data?.length ?? 0) > 1 ? (
-          <div className="flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
-            {(studentsQuery.data ?? []).map((student) => (
-              <Button
-                key={student.id}
-                type="button"
-                variant={selectedStudentId === student.id ? "default" : "ghost"}
-                className="h-12 flex-shrink-0 rounded-lg px-3 text-sm"
-                onClick={() => handleSelectStudent(student.id)}
-              >
-                <span className="max-w-[13rem] truncate">{student.first_name} {student.last_name}</span>
-              </Button>
-            ))}
+        {(studentsQuery.data?.length ?? 0) > 1 ? (
+          <div className="rounded-xl border bg-card p-2 shadow-card">
+            <p className="mb-2 text-sm text-muted-foreground">Enfant sélectionné</p>
+            <div className="flex gap-2 overflow-x-auto [-webkit-overflow-scrolling:touch] justify-center">
+              {(studentsQuery.data ?? []).map((student) => {
+                const active = selectedStudentId === student.id
+                return (
+                  <Button
+                    key={student.id}
+                    type="button"
+                    variant="ghost"
+                    className={cn(
+                      "h-auto min-w-[8.75rem] flex-shrink-0 justify-start gap-2.5 rounded-lg border px-3 py-2.5 text-left",
+                      active ? "border-primary bg-primary text-primary-foreground shadow-sm hover:bg-primary" : "border-transparent bg-muted/50"
+                    )}
+                    onClick={() => handleSelectStudent(student.id)}
+                  >
+                    <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold", active ? "bg-primary-foreground/15" : "bg-primary/10 text-primary")}>
+                      {student.first_name[0]}{student.last_name[0]}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold leading-tight">{student.first_name} {student.last_name}</span>
+                      <span className={cn("block text-xs", active ? "text-primary-foreground/80" : "text-muted-foreground")}>{student.class_name}</span>
+                    </span>
+                  </Button>
+                )
+              })}
+            </div>
           </div>
         ) : selectedStudent ? (
-          <div className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-xs font-semibold text-primary-foreground">
+          <div className="flex items-center gap-3 rounded-xl border bg-card p-2 shadow-card">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
               {selectedStudent.first_name[0]}{selectedStudent.last_name[0]}
             </div>
-            <div>
-              <p className="text-sm font-semibold">{selectedStudent.first_name} {selectedStudent.last_name}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-muted-foreground">Votre Enfant</p>
+              <p className="truncate text-base font-semibold">{selectedStudent.first_name} {selectedStudent.last_name}</p>
               <p className="text-xs text-muted-foreground">{selectedStudent.class_name}</p>
             </div>
           </div>
         ) : null}
       </section>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)] lg:items-start">
-        <section className="space-y-3 rounded-lg border bg-card p-4 shadow-card">
+      <section className="overflow-hidden rounded-xl border bg-card shadow-card">
+        <div className={cn("border-b px-2 py-3 sm:px-4", todayStatus === "clear" ? "bg-emerald-50/70 dark:bg-emerald-950/20" : "bg-card")}>
           <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Aujourd'hui, {todayLabel}</p>
-              <h2 className="mt-1 text-xl font-semibold">Présence du jour</h2>
+            <div className="flex min-w-0 gap-2.5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm sm:h-10 sm:w-10">
+                <CalendarCheck2 className="h-[1.125rem] w-[1.125rem] sm:h-5 sm:w-5" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-base font-semibold leading-tight sm:text-lg">Présence aujourd'hui</h1>
+                <p className="mt-1 text-xs text-muted-foreground sm:text-sm">{todayLabel}</p>
+              </div>
             </div>
-            <span className={cn("inline-flex shrink-0 items-center rounded-md border px-2 py-1 text-xs font-semibold", statusCopy[todayStatus].tone)}>
-              {statusCopy[todayStatus].label}
-            </span>
           </div>
+        </div>
 
+        <div className="p-3 sm:p-4">
           {scheduleQuery.isLoading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-16 w-full rounded-lg" />
-              <Skeleton className="h-16 w-full rounded-lg" />
-              <Skeleton className="h-16 w-full rounded-lg" />
+            <div className="space-y-3">
+              <Skeleton className="h-20 w-full rounded-lg" />
+              <Skeleton className="h-20 w-full rounded-lg" />
+              <Skeleton className="h-20 w-full rounded-lg" />
             </div>
           ) : todaySlots.length === 0 ? (
             <EmptyState title="Aucun cours aujourd'hui" message="Aucun créneau programmé pour cette journée." />
           ) : (
-            <div className="space-y-2">
+            <div className="relative">
+              <div className="absolute bottom-6 left-[0.8rem] top-6 w-px bg-border sm:left-[4.25rem]" aria-hidden="true" />
               {todaySlots.map((slot, index) => {
                 const meta = slotStatusMeta[slot.status]
                 const Icon = meta.icon
+                const [startTime, endTime] = slot.time.split("-").map((item) => item?.trim())
                 return (
                   <div
                     key={`today-slot-${index}`}
-                    className="grid grid-cols-[4rem_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border bg-background p-3 sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:gap-3"
+                    className={cn("relative grid grid-cols-[2rem_3.7rem_minmax(0,1fr)_4.25rem] items-center gap-2 border-b py-[0.5625rem] last:border-b-0 sm:grid-cols-[3.75rem_1.85rem_minmax(0,1fr)_4.75rem]", index === 0 && "pt-0", index === todaySlots.length - 1 && "pb-0")}
                   >
-                    <div className="flex min-h-11 items-center justify-center rounded-md bg-muted px-2 text-center">
-                      <p className="text-xs font-semibold leading-tight text-muted-foreground">{slot.time}</p>
+                    <span className={cn("relative z-10 flex h-[1.625rem] w-[1.625rem] items-center justify-center rounded-full shadow-sm sm:h-7 sm:w-7", meta.dotClassName)}>
+                      <Icon className="h-3.5 w-3.5" />
+                    </span>
+                    <div className="text-center">
+                      <p className="text-xs font-semibold leading-tight text-foreground sm:text-sm">{startTime ?? slot.time}</p>
+                      {endTime ? <p className="text-xs text-muted-foreground">- {endTime}</p> : null}
                     </div>
+
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">{slot.subject}</p>
-                      <p className="truncate text-xs text-muted-foreground">{slot.teacher} · {slot.room}</p>
+                      <p className="truncate text-sm font-semibold leading-tight sm:text-base">{slot.subject}</p>
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">{slot.teacher} <span className="mx-1">·</span> {slot.room}</p>
                     </div>
-                    <div className="shrink-0">
-                      <span className={cn("inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium", meta.className)}>
-                        <Icon className="h-3.5 w-3.5" />
-                        {meta.label}
-                      </span>
-                    </div>
+                    <span className={cn("inline-flex justify-center items-center gap-1 rounded-md bg-red-100 px-0.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/40 dark:text-red-300", meta.pillClassName)}>
+                      {meta.label}
+                    </span>
                   </div>
                 )
               })}
             </div>
           )}
 
-          <p className="text-sm text-muted-foreground">{statusCopy[todayStatus].message}</p>
-        </section>
+          <div className="mt-3 flex items-start gap-2 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <p>{statusCopy[todayStatus].message}</p>
+          </div>
+        </div>
+      </section>
 
-        <aside className="space-y-3">
-          {subscriptionAlert && showSubscriptionAlert ? (
-            <AlertBanner
-              type={subscriptionAlert.type as "warning" | "error"}
-              title="Alerte abonnement"
-              message={subscriptionAlert.message}
-              onDismiss={() => {
+      <section className="grid grid-cols-2 gap-2.5 sm:gap-3">
+        <div className="rounded-xl border bg-card p-3 shadow-card sm:p-4">
+          <div className="flex items-start gap-2 sm:gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 sm:h-10 sm:w-10">
+              <CalendarX2 className="h-[1.125rem] w-[1.125rem] sm:h-5 sm:w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs leading-snug text-muted-foreground">Absences cette semaine</p>
+              {statsQuery.isLoading || scheduleQuery.isLoading ? (
+                <Skeleton className="mt-2 h-7 w-14" />
+              ) : (
+                <p className={cn("mt-1 text-2xl font-semibold leading-none tabular-nums", (statsQuery.data?.absences_this_week ?? 0) > 0 ? "text-red-600" : "text-emerald-700")}>
+                  {statsQuery.data?.absences_this_week ?? 0}
+                </p>
+              )}
+              <p className="mt-1 text-xs leading-snug text-muted-foreground">
+                <span className="sm:hidden">sur {weekCoursesCount} cours</span>
+                <span className="hidden sm:inline">{weekCoursesCount} cours · {weeklyRangeLabel}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border bg-card p-3 shadow-card sm:p-4">
+          <div className="flex items-start gap-2 sm:gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 sm:h-10 sm:w-10">
+              <PieChart className="h-[1.125rem] w-[1.125rem] sm:h-5 sm:w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs leading-snug text-muted-foreground">Taux d'absence ce mois</p>
+              {statsQuery.isLoading ? (
+                <Skeleton className="mt-2 h-7 w-16" />
+              ) : (
+                <p className={cn("mt-1 text-2xl font-semibold leading-none tabular-nums", absenceRateMonth > 20 ? "text-red-600" : "text-emerald-700")}>
+                  {absenceRateMonth}%
+                </p>
+              )}
+              <p className="mt-1 text-xs leading-snug text-muted-foreground">
+                <span className="sm:hidden">{statsQuery.data?.absences_this_month ?? 0} absence(s)</span>
+                <span className="hidden sm:inline">{statsQuery.data?.absences_this_month ?? 0} absence(s) enregistrée(s)</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {latestAbsence ? (
+        <Link
+          to="/parent/absences"
+          className="flex items-center gap-3 rounded-xl border bg-card p-3.5 shadow-card transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-4"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300 sm:h-11 sm:w-11">
+            <CalendarX2 className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-muted-foreground sm:text-sm">Dernière absence</p>
+            <p className="truncate text-base font-semibold text-red-600">{formatDateFr(latestAbsence.date)}</p>
+            <p className="truncate text-xs text-muted-foreground sm:text-sm">{latestAbsence.subject} · {latestAbsence.time_label}</p>
+          </div>
+          <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+        </Link>
+      ) : (
+        <div className="flex items-center gap-3 rounded-xl border bg-card p-4 shadow-card">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            <CheckCircle2 className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold">Aucune absence récente</p>
+            <p className="text-xs text-muted-foreground">Aucune absence enregistrée pour cet élève sur la période.</p>
+          </div>
+        </div>
+      )}
+
+      {subscriptionAlert && showSubscriptionAlert ? (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-amber-950 shadow-card dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100 sm:p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200 sm:h-11 sm:w-11">
+              <Bell className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">Abonnement bientôt expiré</p>
+              <p className="mt-1 text-xs leading-snug sm:text-sm">{subscriptionAlert.message}</p>
+            </div>
+            <button
+              type="button"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-amber-800 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 dark:text-amber-100 dark:hover:bg-amber-900/40"
+              onClick={() => {
                 setShowSubscriptionAlert(false)
                 sessionStorage.setItem(SUBSCRIPTION_ALERT_SEEN_KEY, "1")
               }}
-            />
-          ) : null}
+              aria-label="Fermer l'alerte abonnement"
+            >
+              <CircleX className="h-5 w-5"/>
+            </button>
+          </div>
+        </div>
+      ) : null}
 
-          <section className="rounded-lg border bg-card p-4 shadow-card">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-base font-semibold">Résumé</h2>
-              <Link to="/parent/schedule" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
-                EDT
-              </Link>
-            </div>
-            <div className="divide-y rounded-lg border">
-              <div className="flex items-center justify-between gap-3 p-3">
-                <div>
-                  <p className="text-sm font-medium">Absences cette semaine</p>
-                  <p className="text-xs text-muted-foreground">{weekCoursesCount} cours au programme</p>
-                </div>
-                {statsQuery.isLoading || scheduleQuery.isLoading ? (
-                  <Skeleton className="h-6 w-10" />
-                ) : (
-                  <p className={cn("text-lg font-semibold tabular-nums", (statsQuery.data?.absences_this_week ?? 0) > 0 ? "text-red-600" : "text-emerald-600")}>
-                    {statsQuery.data?.absences_this_week ?? 0}
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center justify-between gap-3 p-3">
-                <div>
-                  <p className="text-sm font-medium">Taux d'absence ce mois</p>
-                  <p className="text-xs text-muted-foreground">{statsQuery.data?.absences_this_month ?? 0} absence(s) enregistrée(s)</p>
-                </div>
-                {statsQuery.isLoading ? (
-                  <Skeleton className="h-6 w-12" />
-                ) : (
-                  <p className={cn("text-lg font-semibold tabular-nums", absenceRateMonth > 20 ? "text-red-600" : "text-emerald-600")}>
-                    {absenceRateMonth}%
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center justify-between gap-3 p-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">Dernière absence</p>
-                  {absencesQuery.isLoading ? (
-                    <Skeleton className="mt-1 h-4 w-36" />
-                  ) : latestAbsence ? (
-                    <p className="truncate text-xs text-muted-foreground">{latestAbsence.subject} · {formatDateFr(latestAbsence.date)}</p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">Aucune absence récente</p>
-                  )}
-                </div>
-                <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
-              </div>
-            </div>
-          </section>
-
-          <section className="rounded-lg border bg-card p-4 shadow-card">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-base font-semibold">Dernières absences</h2>
-              <Link to="/parent/absences" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
-                Historique
-              </Link>
-            </div>
-            {absencesQuery.isLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-14 w-full rounded-lg" />
-                <Skeleton className="h-14 w-full rounded-lg" />
-              </div>
-            ) : absencesQuery.data?.length ? (
-              <div className="space-y-2">
-                {absencesQuery.data.slice(0, 3).map((row, index) => (
-                  <div
-                    key={`${row.date}-${index}`}
-                    className="flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/30"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold">{row.subject} · {row.time_label}</p>
-                      <p className="text-xs text-muted-foreground">{formatDateFr(row.date)}</p>
-                      <p className="truncate text-xs text-muted-foreground">{row.teacher_name}</p>
-                    </div>
-                    <XCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <EmptyState title="Aucune absence" message="Aucune absence récente pour cet élève." />
-            )}
-          </section>
-        </aside>
-      </div>
-
-      <section className="grid gap-3 sm:grid-cols-2">
+      <section className="overflow-hidden rounded-xl border bg-card shadow-card">
+        <Link
+          to="/parent/absences"
+          className="flex items-center gap-3 border-b p-3.5 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-4"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+            <CalendarX2 className="h-[1.125rem] w-[1.125rem]" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold">Historique des absences</p>
+            <p className="truncate text-xs text-muted-foreground sm:text-sm">
+              {selectedStudent ? `Consulter toutes les absences de ${selectedStudent.first_name}` : "Consulter toutes les absences"}
+            </p>
+          </div>
+          <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+        </Link>
         <Link
           to="/parent/schedule"
-          className="flex min-h-16 items-center gap-3 rounded-lg border bg-card p-4 shadow-card transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex items-center gap-3 p-3.5 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-4"
         >
-          <CalendarDays className="h-5 w-5 text-primary" />
-          <div>
-            <p className="text-sm font-semibold">Voir l'emploi du temps</p>
-            <p className="text-xs text-muted-foreground">Semaine complète et créneaux à venir</p>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+            <CalendarClock className="h-[1.125rem] w-[1.125rem]" />
           </div>
-        </Link>
-        <Link
-          to="/parent/account"
-          className="flex min-h-16 items-center gap-3 rounded-lg border bg-card p-4 shadow-card transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <UserRound className="h-5 w-5 text-primary" />
-          <div>
-            <p className="text-sm font-semibold">Mon compte</p>
-            <p className="text-xs text-muted-foreground">Infos parent et abonnement</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold">Emploi du temps (EDT)</p>
+            <p className="truncate text-xs text-muted-foreground sm:text-sm">Voir l'emploi du temps complet</p>
           </div>
+          <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
         </Link>
       </section>
+
+      {/* <section className="rounded-xl border bg-card p-3.5 shadow-card sm:p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold">Absences récentes</h2>
+          <Link to="/parent/absences" className="inline-flex items-center gap-1 text-sm font-semibold text-primary">
+            Voir tout <ChevronRight className="h-4 w-4" />
+          </Link>
+        </div>
+        {absencesQuery.isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-14 w-full rounded-lg" />
+            <Skeleton className="h-14 w-full rounded-lg" />
+          </div>
+        ) : absencesQuery.data?.length ? (
+          <div className="divide-y">
+            {absencesQuery.data.slice(0, 3).map((row, index) => (
+              <Link
+                key={`${row.date}-${index}`}
+                to="/parent/absences"
+                className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+                  <XCircle className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold">{formatDateFr(row.date)}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{row.subject} · {row.time_label}</span>
+                </span>
+                <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <EmptyState title="Aucune absence" message="Aucune absence récente pour cet élève." />
+        )}
+      </section> */}
     </div>
   )
 }

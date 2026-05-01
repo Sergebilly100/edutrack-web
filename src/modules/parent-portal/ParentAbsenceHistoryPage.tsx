@@ -57,7 +57,7 @@ export default function ParentAbsenceHistoryPage() {
   return (
     <div className="space-y-4 text-base">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold">
+        <h1 className="text-xl font-semibold">
           Historique des absences - {selectedStudent?.first_name ?? "Élève"}
         </h1>
 
@@ -115,7 +115,7 @@ export default function ParentAbsenceHistoryPage() {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-foreground">{row.subject}</p>
                 <p className="text-xs text-muted-foreground">{formatDateFr(row.date)}</p>
-                <p className="text-xs text-muted-foreground">{row.time_label} · {row.teacher_name}</p>
+                <p className="text-xs text-muted-foreground">{row.time_label} · M/Mme {row.teacher_name}</p>
               </div>
             </div>
           ))}
