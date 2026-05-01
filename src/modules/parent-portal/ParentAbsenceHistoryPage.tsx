@@ -75,7 +75,7 @@ export default function ParentAbsenceHistoryPage() {
             <SelectContent>
               {(studentsQuery.data ?? []).map((student) => (
                 <SelectItem key={student.id} value={student.id}>
-                  {student.first_name} {student.last_name} · {student.class_name}
+                  {student.last_name} {student.first_name} · {student.class_name}
                 </SelectItem>
               ))}
             </SelectContent>

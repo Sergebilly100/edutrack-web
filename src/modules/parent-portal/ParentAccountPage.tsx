@@ -112,7 +112,7 @@ export default function ParentAccountPage() {
               {subscriptionQuery.data.days_remaining <= 30 ? (
                 <div className="mt-3 flex items-start gap-2 rounded-md bg-background/70 p-2 text-xs">
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  <p>rendez vous à l'administration de l'écolepour renouveler votre abonnement.</p>
+                  <p>rendez vous à l'administration de l'école pour renouveler votre abonnement.</p>
                 </div>
               ) : null}
             </div>

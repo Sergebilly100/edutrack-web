@@ -221,10 +221,10 @@ export default function ParentDashboardPage() {
                     onClick={() => handleSelectStudent(student.id)}
                   >
                     <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold", active ? "bg-primary-foreground/15" : "bg-primary/10 text-primary")}>
-                      {student.first_name[0]}{student.last_name[0]}
+                      {student.last_name[0]} {student.first_name[0]}
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold leading-tight">{student.first_name} {student.last_name}</span>
+                      <span className="block truncate text-sm font-semibold leading-tight">{student.last_name} {student.first_name}</span>
                       <span className={cn("block text-xs", active ? "text-primary-foreground/80" : "text-muted-foreground")}>{student.class_name}</span>
                     </span>
                   </Button>
@@ -235,11 +235,11 @@ export default function ParentDashboardPage() {
         ) : selectedStudent ? (
           <div className="flex items-center gap-3 rounded-xl border bg-card p-2 shadow-card">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-              {selectedStudent.first_name[0]}{selectedStudent.last_name[0]}
+              {selectedStudent.last_name[0]} {selectedStudent.first_name[0]}
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-muted-foreground">Votre Enfant</p>
-              <p className="truncate text-base font-semibold">{selectedStudent.first_name} {selectedStudent.last_name}</p>
+              <p className="truncate text-base font-semibold">{selectedStudent.last_name} {selectedStudent.first_name}</p>
               <p className="text-xs text-muted-foreground">{selectedStudent.class_name}</p>
             </div>
           </div>
