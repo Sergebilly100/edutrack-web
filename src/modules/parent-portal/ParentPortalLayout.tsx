@@ -49,7 +49,7 @@ export default function ParentPortalLayout() {
   return (
     <div className="min-h-screen bg-background text-base">
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur-sm">
-        <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-4">
+        <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-4 lg:max-w-5xl">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground">
               E
@@ -91,12 +91,12 @@ export default function ParentPortalLayout() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl px-4 py-4 pb-24">
+      <main className="mx-auto w-full max-w-3xl px-4 py-4 pb-24 lg:max-w-5xl lg:pb-8">
         <Outlet />
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur-sm">
-        <div className="mx-auto grid h-16 w-full max-w-3xl grid-cols-4 px-2">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur-sm lg:static lg:bg-background">
+        <div className="mx-auto grid h-16 w-full max-w-3xl grid-cols-4 px-2 lg:max-w-5xl">
           {tabs.map((tab) => {
             const active = location.pathname === tab.href
             const Icon = tab.icon

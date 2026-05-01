@@ -23,15 +23,10 @@ test.describe("Parent portal flow", () => {
       await page.getByRole("button", { name: "Se connecter" }).click()
       await page.waitForURL("**/parent/dashboard**")
     }
-    await expect(page.getByRole("heading", { name: "Tableau de bord parent" })).toBeVisible()
-    await expect(page.getByText("absence(s)").first()).toBeVisible()
-
-    const desktopProgram = page.locator("table.w-full.min-w-\\[900px\\]")
-    const mobileProgramToggle = page.getByRole("button", { name: "Voir" }).first()
-    const hasDesktopProgram = (await desktopProgram.count()) > 0 && (await desktopProgram.first().isVisible())
-    if (!hasDesktopProgram) {
-      await expect(mobileProgramToggle).toBeVisible()
-    }
+    await expect(page.getByRole("heading", { name: "Suivi de présence" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Présence du jour" })).toBeVisible()
+    await expect(page.getByText("Absences cette semaine")).toBeVisible()
+    await expect(page.getByText("Taux d'absence ce mois")).toBeVisible()
 
     await page.evaluate(() => {
       const link = document.querySelector('a[href="/parent/absences"]') as HTMLAnchorElement | null

@@ -1,31 +1,32 @@
 import { useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
-import { ShieldCheck } from "lucide-react"
+import { AlertTriangle, CreditCard, Mail, Phone, ShieldCheck } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import {
   changeParentPassword,
   getParentSubscriptionStatus,
-  listParentStudents,
 } from "@/modules/parent-portal/parent.api"
 import { useParentAuthStore } from "@/modules/parent-portal/parent-auth.store"
 import { formatShortDate } from "@/modules/parent-portal/parent.utils"
 
+const formatFcfa = (amount: number) => new Intl.NumberFormat("fr-FR").format(amount)
+
+const subscriptionStatusLabel = {
+  active: "Actif",
+  expired: "Expiré",
+  cancelled: "Annulé",
+}
+
 export default function ParentAccountPage() {
   const { toast } = useToast()
   const parentUser = useParentAuthStore((state) => state.user)
-
-  const studentsQuery = useQuery({
-    queryKey: ["parent", "students", "account"],
-    queryFn: listParentStudents,
-  })
 
   const subscriptionQuery = useQuery({
     queryKey: ["parent", "subscription-status", "account"],
@@ -57,17 +58,11 @@ export default function ParentAccountPage() {
     <div className="space-y-4 text-base">
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-xl">Informations</CardTitle>
+          <CardTitle className="text-xl">Mon compte</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {studentsQuery.isLoading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-4 w-48" />
-            </div>
-          ) : null}
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground">
               {parentUser?.phone?.slice(-2) ?? "PA"}
             </div>
             <div>
@@ -75,43 +70,53 @@ export default function ParentAccountPage() {
               <p className="text-xs text-muted-foreground">{parentUser?.phone ?? "Non renseigné"}</p>
             </div>
           </div>
-          <div className="rounded-xl bg-muted/60 p-3">
-            <p className="text-xs font-medium text-muted-foreground">Email</p>
-            <p className="text-sm">{parentUser?.email ?? "Non renseigné"}</p>
-          </div>
-
-          {(studentsQuery.data ?? []).length > 0 && (
-            <div className="rounded-xl bg-muted/60 p-3">
-              <p className="mb-2 text-xs font-medium text-muted-foreground">Élèves suivis</p>
-              <div className="space-y-2">
-                {(studentsQuery.data ?? []).map((student) => (
-                  <div key={student.id} className="flex items-center gap-2">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                      {student.first_name[0]}{student.last_name[0]}
-                    </div>
-                    <span className="text-sm">{student.first_name} {student.last_name}</span>
-                    <span className="ml-auto text-xs text-muted-foreground">{student.class_name}</span>
-                  </div>
-                ))}
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="flex items-start gap-3 rounded-lg bg-muted/60 p-3">
+              <Mail className="mt-0.5 h-4 w-4 text-muted-foreground" />
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground">Email</p>
+                <p className="truncate text-sm">{parentUser?.email ?? "Non renseigné"}</p>
               </div>
             </div>
-          )}
+            <div className="flex items-start gap-3 rounded-lg bg-muted/60 p-3">
+              <Phone className="mt-0.5 h-4 w-4 text-muted-foreground" />
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground">Téléphone</p>
+                <p className="truncate text-sm">{parentUser?.phone ?? "Non renseigné"}</p>
+              </div>
+            </div>
+          </div>
 
           {subscriptionQuery.data && (
             <div
               className={cn(
-                "rounded-xl border p-3",
+                "rounded-lg border p-3",
                 subscriptionQuery.data.days_remaining <= 7
                   ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30"
                   : subscriptionQuery.data.days_remaining <= 30
                     ? "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30"
-                    : "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30"
+                  : "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30"
               )}
             >
-              <p className="text-xs font-medium">Abonnement {subscriptionQuery.data.status}</p>
-              <p className="text-xs text-muted-foreground">
-                Expire le {formatShortDate(subscriptionQuery.data.ends_at)} · {subscriptionQuery.data.days_remaining} jour(s) restants
-              </p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Abonnement</p>
+                  <p className="mt-1 text-sm font-semibold">
+                    {subscriptionStatusLabel[subscriptionQuery.data.status]} jusqu'au {formatShortDate(subscriptionQuery.data.ends_at)}
+                  </p>
+                </div>
+                <CreditCard className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </div>
+              <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                <p>{subscriptionQuery.data.days_remaining} jour(s) restant(s)</p>
+                <p>{formatFcfa(subscriptionQuery.data.monthly_amount_fcfa)} FCFA / mois</p>
+              </div>
+              {subscriptionQuery.data.days_remaining <= 30 ? (
+                <div className="mt-3 flex items-start gap-2 rounded-md bg-background/70 p-2 text-xs">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <p>Contactez l'administration pour renouveler votre abonnement.</p>
+                </div>
+              ) : null}
             </div>
           )}
         </CardContent>
