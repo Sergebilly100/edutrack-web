@@ -124,8 +124,6 @@ export default function AdminSchoolDetailPage() {
     teachingType: "secondaire" as TeachingType,
     studentLabel: "Élève",
     directorTitle: "Directeur",
-    maxUsers: "10",
-    maxSmsPerMonth: "2000",
     canEditSmsTemplate: false,
     canExportData: true,
   })
@@ -165,8 +163,6 @@ export default function AdminSchoolDetailPage() {
       teachingType: metadata.teachingType ?? "secondaire",
       studentLabel: metadata.studentLabel ?? (metadata.teachingType === "superieur" ? "Étudiant(e)" : "Élève"),
       directorTitle: metadata.directorTitle ?? "Directeur",
-      maxUsers: String(metadata.maxUsers),
-      maxSmsPerMonth: String(metadata.maxSmsPerMonth),
       canEditSmsTemplate: metadata.canEditSmsTemplate,
       canExportData: metadata.canExportData,
     })
@@ -190,8 +186,6 @@ export default function AdminSchoolDetailPage() {
         teaching_type: config.teachingType,
         student_label: config.studentLabel,
         director_title: config.directorTitle,
-        max_users: Number(config.maxUsers),
-        max_sms_per_month: Number(config.maxSmsPerMonth),
         can_edit_sms_template: config.canEditSmsTemplate,
         can_export_data: config.canExportData,
       }),
@@ -379,22 +373,6 @@ export default function AdminSchoolDetailPage() {
           : null,
       ].filter((item): item is string => item !== null)
     : []
-  const hasSmsFeatureRecord = (() => {
-    const stats = smsFeatureStatsQuery.data
-    if (!stats) {
-      return false
-    }
-    if (stats.config.is_enabled) {
-      return true
-    }
-    if (stats.config.commission_pct !== 0 || stats.config.sms_cap_per_student !== 60) {
-      return true
-    }
-    return stats.history.some((item) =>
-      item.total_collected_fcfa > 0 || item.commission_due_fcfa > 0 || item.commission_paid_fcfa > 0
-    )
-  })()
-
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
       <div className="flex items-center justify-between">
@@ -420,7 +398,7 @@ export default function AdminSchoolDetailPage() {
           <TabsList className="flex h-auto flex-wrap">
             <TabsTrigger value="config">Configuration</TabsTrigger>
             <TabsTrigger value="users">Utilisateurs</TabsTrigger>
-            {hasSmsFeatureRecord ? <TabsTrigger value="sms-feature">SMS & Abonnements</TabsTrigger> : null}
+            <TabsTrigger value="sms-feature">SMS & Abonnements</TabsTrigger>
             <TabsTrigger value="sms">SMS</TabsTrigger>
             <TabsTrigger value="subscription">Abonnement & Paiements</TabsTrigger>
             <TabsTrigger value="stats">Statistiques</TabsTrigger>
@@ -469,14 +447,6 @@ export default function AdminSchoolDetailPage() {
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>{STATUS_OPTIONS.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent>
                   </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Nombre max d&apos;utilisateurs</Label>
-                  <Input type="number" value={config.maxUsers} onChange={(event) => setConfig((prev) => ({ ...prev, maxUsers: event.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label>SMS autorisés / mois</Label>
-                  <Input type="number" value={config.maxSmsPerMonth} onChange={(event) => setConfig((prev) => ({ ...prev, maxSmsPerMonth: event.target.value }))} />
                 </div>
                 <div className="flex items-center gap-2">
                   <Checkbox id="can-export-data" checked={config.canExportData} onCheckedChange={(checked) => setConfig((prev) => ({ ...prev, canExportData: Boolean(checked) }))} />

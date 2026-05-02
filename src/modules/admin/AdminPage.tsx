@@ -16,6 +16,7 @@ import {
   getAllRecentPayments,
   getRevenueMetrics,
   getSmsDashboard,
+  listAllActiveSchools,
   listSchools,
   type SchoolListItem,
   type TenantPlan,
@@ -30,6 +31,7 @@ import { useAuthStore } from "@/shared/store/auth.store"
 type FilterPlan = "all" | TenantPlan
 type FilterStatus = "all" | TenantStatus
 
+const ALL_ACTIVE_SCHOOLS_VALUE = "all-active"
 const PLAN_OPTIONS: TenantPlan[] = ["essential", "pro", "establishment"]
 const STATUS_OPTIONS: TenantStatus[] = ["trial", "active", "suspended", "cancelled"]
 
@@ -64,7 +66,7 @@ export default function AdminPage() {
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [createModalOpen, setCreateModalOpen] = useState(false)
-  const [selectedSchoolId, setSelectedSchoolId] = useState<string>("")
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string>(ALL_ACTIVE_SCHOOLS_VALUE)
   const isSchoolsView = location.pathname.startsWith("/admin/schools")
 
   const schoolsQuery = useQuery({
@@ -80,9 +82,15 @@ export default function AdminPage() {
     enabled: isSchoolsView,
   })
 
-  const recentActiveSchoolsQuery = useQuery({
-    queryKey: ["admin", "schools", "recent-active"],
-    queryFn: () => listSchools({ page: 1, limit: 10, status: "active" }),
+  const recentSchoolsQuery = useQuery({
+    queryKey: ["admin", "schools", "recent"],
+    queryFn: () => listSchools({ page: 1, limit: 10 }),
+    enabled: !isSchoolsView,
+  })
+
+  const activeSchoolsForPaymentsQuery = useQuery({
+    queryKey: ["admin", "schools", "active-payment-filter"],
+    queryFn: listAllActiveSchools,
     enabled: !isSchoolsView,
   })
 
@@ -103,7 +111,10 @@ export default function AdminPage() {
 
   const schoolPaymentsQuery = useQuery({
     queryKey: ["admin", "school-payments", selectedSchoolId],
-    queryFn: () => getAllRecentPayments(selectedSchoolId || undefined),
+    queryFn: () =>
+      getAllRecentPayments(
+        selectedSchoolId !== ALL_ACTIVE_SCHOOLS_VALUE ? selectedSchoolId : undefined
+      ),
   })
   const smsFeatureGlobalStatsQuery = useQuery({
     queryKey: ["admin", "sms-feature", "global-stats"],
@@ -136,10 +147,25 @@ export default function AdminPage() {
   const metrics = metricsQuery.data
   const visibleSchools = isSchoolsView
     ? schoolsQuery.data?.schools ?? []
-    : recentActiveSchoolsQuery.data?.schools ?? []
-  const retentionRate = computeRetentionRate(schoolsQuery.data?.schools ?? recentActiveSchoolsQuery.data?.schools ?? [])
+    : recentSchoolsQuery.data?.schools ?? []
+  const activeSchoolsForPayments = activeSchoolsForPaymentsQuery.data ?? []
+  const retentionRate = computeRetentionRate(schoolsQuery.data?.schools ?? recentSchoolsQuery.data?.schools ?? [])
   const dau7d = metrics?.dauLast7d[metrics.dauLast7d.length - 1]?.uniqueUsers ?? 0
   const pagination = schoolsQuery.data?.pagination
+  const selectedSmsStats =
+    selectedSchoolId === ALL_ACTIVE_SCHOOLS_VALUE
+      ? {
+          sent: (smsDashboardQuery.data?.bySchool ?? [])
+            .filter((entry) => activeSchoolsForPayments.some((school) => school.tenantId === entry.tenantId))
+            .reduce((total, entry) => total + entry.sent, 0),
+          quota: (smsDashboardQuery.data?.bySchool ?? [])
+            .filter((entry) => activeSchoolsForPayments.some((school) => school.tenantId === entry.tenantId))
+            .reduce((total, entry) => total + entry.quota, 0),
+        }
+      : {
+          sent: smsDashboardQuery.data?.bySchool.find((entry) => entry.tenantId === selectedSchoolId)?.sent ?? 0,
+          quota: smsDashboardQuery.data?.bySchool.find((entry) => entry.tenantId === selectedSchoolId)?.quota ?? 0,
+        }
 
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
@@ -204,7 +230,7 @@ export default function AdminPage() {
         </section>
       ) : null}
 
-      {metricsQuery.isError || revenueQuery.isError || schoolsQuery.isError || smsDashboardQuery.isError || recentActiveSchoolsQuery.isError ? (
+      {metricsQuery.isError || revenueQuery.isError || schoolsQuery.isError || smsDashboardQuery.isError || recentSchoolsQuery.isError || activeSchoolsForPaymentsQuery.isError ? (
         <Alert variant="destructive">
           <AlertDescription>Impossible de charger la console admin. Vérifiez la connexion API.</AlertDescription>
         </Alert>
@@ -219,17 +245,18 @@ export default function AdminPage() {
           <Card>
             <CardHeader className="space-y-1">
               <CardTitle className="text-lg">Paiements récents</CardTitle>
-              <CardDescription>Historique des derniers paiements pour l&apos;école sélectionnée.</CardDescription>
+              <CardDescription>Historique des derniers paiements des écoles actives.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-2">
                 <p className="text-sm font-medium">École</p>
                 <Select value={selectedSchoolId} onValueChange={setSelectedSchoolId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner une école" />
+                    <SelectValue placeholder="Toutes les écoles actives" />
                   </SelectTrigger>
                   <SelectContent>
-                    {visibleSchools.map((school) => (
+                    <SelectItem value={ALL_ACTIVE_SCHOOLS_VALUE}>Toutes les écoles actives</SelectItem>
+                    {activeSchoolsForPayments.map((school) => (
                       <SelectItem key={school.tenantId} value={school.tenantId}>
                         {school.name}
                       </SelectItem>
@@ -290,10 +317,10 @@ export default function AdminPage() {
               ) : (
                 <>
                   <p className="text-3xl font-bold">
-                    {smsDashboardQuery.data?.bySchool.find((entry) => entry.tenantId === selectedSchoolId)?.sent ?? 0}
+                    {selectedSmsStats.sent}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Quota: {smsDashboardQuery.data?.bySchool.find((entry) => entry.tenantId === selectedSchoolId)?.quota ?? 0}
+                    Quota: {selectedSmsStats.quota}
                   </p>
                 </>
               )}
@@ -303,6 +330,12 @@ export default function AdminPage() {
       ) : null}
 
       <section className="rounded-lg border border-border bg-card p-4 md:p-6">
+        {!isSchoolsView ? (
+          <div className="mb-4 space-y-1">
+            <h2 className="text-lg font-semibold">Écoles récentes</h2>
+            <p className="text-sm text-muted-foreground">Les 10 dernières écoles créées.</p>
+          </div>
+        ) : null}
         <div className="mb-4 grid gap-3 md:grid-cols-3">
           <div className="space-y-2">
             <p className="text-sm font-medium">Recherche</p>
@@ -360,14 +393,14 @@ export default function AdminPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(isSchoolsView ? schoolsQuery.isLoading : recentActiveSchoolsQuery.isLoading) ? (
+            {(isSchoolsView ? schoolsQuery.isLoading : recentSchoolsQuery.isLoading) ? (
               <TableRow>
                 <TableCell className="p-4 text-sm text-muted-foreground" colSpan={8}>
                   Chargement des écoles...
                 </TableCell>
               </TableRow>
             ) : null}
-            {!(isSchoolsView ? schoolsQuery.isLoading : recentActiveSchoolsQuery.isLoading) && visibleSchools.length === 0 ? (
+            {!(isSchoolsView ? schoolsQuery.isLoading : recentSchoolsQuery.isLoading) && visibleSchools.length === 0 ? (
               <TableRow>
                 <TableCell className="p-4 text-sm text-muted-foreground" colSpan={8}>
                   Aucune école trouvée avec ces filtres.

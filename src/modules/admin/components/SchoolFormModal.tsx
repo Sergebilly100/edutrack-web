@@ -108,9 +108,10 @@ export default function SchoolFormModal({ open, onOpenChange, onCreated }: Schoo
 
   useEffect(() => {
     if (!subdomainEdited) {
-      form.setValue("subdomain", slugify(watchedSchoolName), {
-        shouldDirty: true,
-        shouldValidate: true,
+      const nextSubdomain = slugify(watchedSchoolName)
+      form.setValue("subdomain", nextSubdomain, {
+        shouldDirty: nextSubdomain.length > 0,
+        shouldValidate: nextSubdomain.length > 0,
       })
     }
   }, [form, subdomainEdited, watchedSchoolName])

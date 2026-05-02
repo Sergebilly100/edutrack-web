@@ -456,6 +456,24 @@ export const listSchools = (query: SchoolListQuery = {}) =>
     })
     .then((response) => response.data)
 
+export const listAllActiveSchools = async () => {
+  const firstPage = await listSchools({ page: 1, limit: 200, status: "active" })
+  if (firstPage.pagination.totalPages <= 1) {
+    return firstPage.schools
+  }
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: firstPage.pagination.totalPages - 1 }, (_, index) =>
+      listSchools({ page: index + 2, limit: 200, status: "active" })
+    )
+  )
+
+  return [
+    ...firstPage.schools,
+    ...remainingPages.flatMap((page) => page.schools),
+  ]
+}
+
 export const createSchool = (payload: CreateSchoolPayload) =>
   api.post<RawCreateSchoolResponse>("/admin/schools", payload).then((response) => {
     const data = response.data
