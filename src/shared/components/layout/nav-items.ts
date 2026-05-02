@@ -146,8 +146,15 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: true,
   },
   {
-    label: "Revenus SMS",
+    label: "Pilotage SMS",
     href: "/admin/sms",
+    icon: MessageSquare,
+    roles: ["super_admin"],
+    mobileVisible: true,
+  },
+  {
+    label: "Revenus SMS",
+    href: "/admin/revenuSms",
     icon: MessageSquare,
     roles: ["super_admin"],
     mobileVisible: true,

@@ -227,7 +227,7 @@ export type SmsTemplateType =
   | "teacher_late_director"
   | "custom"
 
-export type SmsProvider = "mock" | "infobip" | "twilio" | "orange_api" | "custom"
+export type SmsProvider = "mock" | "infobip" | "africas_talking" | "twilio" | "orange_api" | "custom"
 
 export type SmsTemplateItem = {
   id: string

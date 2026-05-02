@@ -17,6 +17,7 @@ const AdminMaintenancePage = lazy(() => import("@/modules/admin/AdminMaintenance
 const AdminPlansPage = lazy(() => import("@/modules/admin/AdminPlansPage"))
 const AdminRevenuePage = lazy(() => import("@/modules/admin/AdminRevenuePage"))
 const AdminSchoolDetailPage = lazy(() => import("@/modules/admin/AdminSchoolDetailPage"))
+const AdminRevenuSmsPage = lazy(() => import("@/modules/admin/AdminRevenuSmsPage"))
 const AdminSmsPage = lazy(() => import("@/modules/admin/AdminSmsPage"))
 const AccountPage = lazy(() => import("@/modules/account/AccountPage"))
 const AttendancePage = lazy(() => import("@/modules/attendance/AttendancePage"))
@@ -313,6 +314,7 @@ export default function App() {
           <Route path="/admin/revenue" element={<AdminRevenuePage />} />
           <Route path="/admin/plans" element={<AdminPlansPage />} />
           <Route path="/admin/sms" element={<AdminSmsPage />} />
+          <Route path="/admin/revenuSms" element={<AdminRevenuSmsPage />} />
           <Route path="/admin/maintenance" element={<AdminMaintenancePage />} />
           <Route path="/admin/account" element={<AdminAccountPage />} />
           <Route path="/import" element={<PermissionRoute href="/import" element={<ImportPage />} />} />
