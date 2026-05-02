@@ -12,7 +12,7 @@ import {
   StudentsIcon,
   TeachersIcon,
 } from "@/shared/components/icons"
-import { Building2, MessageSquare, ReceiptText, Settings2, TrendingUp, User, WalletCards } from "lucide-react"
+import { Building2, Landmark, HandCoins, MessageSquareCode, ReceiptText, Settings2, TrendingUp, User, WalletCards } from "lucide-react"
 
 import { isStaffRole, type AuthRole, type PermissionKey } from "@/shared/store/auth.store"
 
@@ -132,13 +132,6 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: true,
   },
   {
-    label: "Revenus",
-    href: "/admin/revenue",
-    icon: TrendingUp,
-    roles: ["super_admin"],
-    mobileVisible: true,
-  },
-  {
     label: "Plan & Tarifs",
     href: "/admin/plans",
     icon: ReceiptText,
@@ -148,14 +141,21 @@ export const NAV_ITEMS: NavItem[] = [
   {
     label: "Pilotage SMS",
     href: "/admin/sms",
-    icon: MessageSquare,
+    icon: MessageSquareCode,
+    roles: ["super_admin"],
+    mobileVisible: true,
+  },
+  {
+    label: "Revenus Écoles",
+    href: "/admin/revenue",
+    icon: Landmark,
     roles: ["super_admin"],
     mobileVisible: true,
   },
   {
     label: "Revenus SMS",
     href: "/admin/revenuSms",
-    icon: MessageSquare,
+    icon: HandCoins,
     roles: ["super_admin"],
     mobileVisible: true,
   },

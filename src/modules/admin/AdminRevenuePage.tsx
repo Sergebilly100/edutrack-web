@@ -37,7 +37,7 @@ export default function AdminRevenuePage() {
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Revenus</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Revenus des Écoles</h1>
         <p className="text-sm text-muted-foreground">Dashboard financier EduTrack CI.</p>
       </header>
 

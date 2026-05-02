@@ -190,8 +190,8 @@ const user = useAuthStore((state) => state.user)
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
       <header className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight">SMS & Notifs</h1>
-              <p className="text-sm text-muted-foreground">Pilotage plateforme SMS (fourniture, qualité, conformité, consommation).</p>
+            <h1 className="text-2xl font-semibold tracking-tight">Pilotage SMS</h1>
+              <p className="text-sm text-muted-foreground">Pilotage et config plateforme SMS (fournisseurs, qualité, conformité, consommation).</p>
       </header>
 
       <Tabs defaultValue="overview" className="space-y-4">

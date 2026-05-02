@@ -27,6 +27,9 @@ import {
   WalletCards,
   Sun,
   type LucideIcon,
+  MessageSquareCode,
+  HandCoins,
+  Landmark,
 } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -134,10 +137,10 @@ const navItems: NavItem[] = [
     matchExact: true,
   },
   { label: "Écoles", icon: Building2, href: "/admin/schools", roles: ["super_admin"] },
-  { label: "Revenus Écoles", icon: TrendingUp, href: "/admin/revenue", roles: ["super_admin"] },
   { label: "Plan & Tarifs", icon: ReceiptText, href: "/admin/plans", roles: ["super_admin"] },
-  { label: "Pilotage SMS", icon: MessageSquare, href: "/admin/sms", roles: ["super_admin"] },
-  { label: "Revenus SMS", icon: MessageSquare, href: "/admin/revenuSms", roles: ["super_admin"] },
+  { label: "Pilotage SMS", icon: MessageSquareCode, href: "/admin/sms", roles: ["super_admin"] },
+  { label: "Revenus Écoles", icon: Landmark, href: "/admin/revenue", roles: ["super_admin"] },
+  { label: "Revenus SMS", icon: HandCoins, href: "/admin/revenuSms", roles: ["super_admin"] },
   { label: "Maintenance", icon: Settings2, href: "/admin/maintenance", roles: ["super_admin"] },
   { label: "Mon compte", icon: User, href: "/admin/account", roles: ["super_admin"] },
 ]

@@ -50,7 +50,7 @@ export default function AdminSmsPage() {
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Revenus SMS — Toutes les écoles</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Revenus SMS - Toutes les écoles</h1>
         <p className="text-sm text-muted-foreground">
           Suivi global des commissions SMS en attente de reversement.
         </p>
