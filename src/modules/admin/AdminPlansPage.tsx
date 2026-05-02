@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
 import {
@@ -20,20 +19,14 @@ import { useAuthStore } from "@/shared/store/auth.store"
 
 type EditablePlan = {
   monthlyPriceFcfa: string
-  annualPriceFcfa: string
-  defaultBillingCycle: "monthly" | "annual"
   maxUsers: string
   maxAdminPositions: string
-  maxSmsPerMonth: string
 }
 
 const toEditablePlan = (item: PlanCatalogItem): EditablePlan => ({
   monthlyPriceFcfa: String(item.monthlyPriceFcfa),
-  annualPriceFcfa: String(item.annualPriceFcfa),
-  defaultBillingCycle: item.defaultBillingCycle,
   maxUsers: String(item.maxUsers),
   maxAdminPositions: String(item.maxAdminPositions),
-  maxSmsPerMonth: String(item.maxSmsPerMonth),
 })
 
 export default function AdminPlansPage() {
@@ -43,27 +36,18 @@ export default function AdminPlansPage() {
   const [edits, setEdits] = useState<Record<TenantPlan, EditablePlan>>({
     essential: {
       monthlyPriceFcfa: "0",
-      annualPriceFcfa: "0",
-      defaultBillingCycle: "monthly",
       maxUsers: "5",
       maxAdminPositions: "5",
-      maxSmsPerMonth: "2000",
     },
     pro: {
       monthlyPriceFcfa: "0",
-      annualPriceFcfa: "0",
-      defaultBillingCycle: "monthly",
       maxUsers: "20",
       maxAdminPositions: "15",
-      maxSmsPerMonth: "6000",
     },
     establishment: {
       monthlyPriceFcfa: "0",
-      annualPriceFcfa: "0",
-      defaultBillingCycle: "monthly",
       maxUsers: "50",
       maxAdminPositions: "30",
-      maxSmsPerMonth: "12000",
     },
   })
 
@@ -90,11 +74,8 @@ export default function AdminPlansPage() {
     mutationFn: ({ plan, data }: { plan: TenantPlan; data: EditablePlan }) =>
       updatePlanCatalog(plan, {
         monthly_price_fcfa: Number(data.monthlyPriceFcfa),
-        annual_price_fcfa: Number(data.annualPriceFcfa),
-        default_billing_cycle: data.defaultBillingCycle,
         max_users: Number(data.maxUsers),
         max_admin_positions: Number(data.maxAdminPositions),
-        max_sms_per_month: Number(data.maxSmsPerMonth),
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["admin", "plans"] })
@@ -162,42 +143,6 @@ export default function AdminPlansPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Tarif annuel (FCFA)</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={draft.annualPriceFcfa}
-                    onChange={(event) =>
-                      setEdits((prev) => ({
-                        ...prev,
-                        [planItem.plan]: { ...prev[planItem.plan], annualPriceFcfa: event.target.value },
-                      }))
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Échéance par défaut</Label>
-                  <Select
-                    value={draft.defaultBillingCycle}
-                    onValueChange={(value) =>
-                      setEdits((prev) => ({
-                        ...prev,
-                        [planItem.plan]: { ...prev[planItem.plan], defaultBillingCycle: value as "monthly" | "annual" },
-                      }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="monthly">Mensuelle</SelectItem>
-                      <SelectItem value="annual">Annuelle</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
                   <Label>Nombre max utilisateurs</Label>
                   <Input
                     type="number"
@@ -222,21 +167,6 @@ export default function AdminPlansPage() {
                       setEdits((prev) => ({
                         ...prev,
                         [planItem.plan]: { ...prev[planItem.plan], maxAdminPositions: event.target.value },
-                      }))
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Quota SMS mensuel</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={draft.maxSmsPerMonth}
-                    onChange={(event) =>
-                      setEdits((prev) => ({
-                        ...prev,
-                        [planItem.plan]: { ...prev[planItem.plan], maxSmsPerMonth: event.target.value },
                       }))
                     }
                   />

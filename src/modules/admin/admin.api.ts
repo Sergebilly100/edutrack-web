@@ -7,6 +7,7 @@ export type TeachingType = "primaire" | "secondaire" | "superieur" | "mixte"
 export type SchoolListItem = {
   tenantId: string
   name: string
+  city: string | null
   plan: TenantPlan
   status: TenantStatus
   nbUsers: number
@@ -27,6 +28,9 @@ export type SchoolListResponse = {
 export type SchoolListQuery = {
   page?: number
   limit?: number
+  plan?: TenantPlan
+  status?: TenantStatus
+  search?: string
 }
 
 export type CreateSchoolPayload = {
@@ -35,7 +39,8 @@ export type CreateSchoolPayload = {
   city: string
   teaching_type: TeachingType
   plan: TenantPlan
-  max_admin_positions: number
+  trial_days?: number
+  // Format: MM/YYYY - MM/YYYY (ex: 09/2025 - 06/2026)
   active_school_year: string
   director_name: string
   director_phone: string
@@ -123,6 +128,7 @@ export type SchoolDetailsResponse = {
 }
 
 export type UpdateSchoolConfigPayload = {
+  name?: string
   max_admin_positions?: number
   max_users?: number
   max_sms_per_month?: number
@@ -159,21 +165,15 @@ export type SchoolUsersResponse = {
 export type PlanCatalogItem = {
   plan: TenantPlan
   monthlyPriceFcfa: number
-  annualPriceFcfa: number
-  defaultBillingCycle: "monthly" | "annual"
   maxUsers: number
   maxAdminPositions: number
-  maxSmsPerMonth: number
   updatedAt: string
 }
 
 export type UpdatePlanCatalogPayload = {
   monthly_price_fcfa?: number
-  annual_price_fcfa?: number
-  default_billing_cycle?: "monthly" | "annual"
   max_users?: number
   max_admin_positions?: number
-  max_sms_per_month?: number
 }
 
 export type AdminMetricsResponse = {
@@ -521,6 +521,13 @@ export const getSchoolPayments = (tenantId: string) =>
   api
     .get<{ items: SchoolPaymentItem[] }>(`/admin/schools/${tenantId}/payments`)
     .then((response) => response.data.items)
+
+export const getAllRecentPayments = (tenantId?: string) =>
+  api
+    .get<SchoolPaymentItem[]>("/admin/payments/recent", {
+      params: tenantId ? { tenantId } : {},
+    })
+    .then((response) => response.data)
 
 export const addSchoolPayment = (tenantId: string, payload: AddSchoolPaymentPayload) =>
   api.post<{ success: boolean }>(`/admin/schools/${tenantId}/payments`, payload).then((response) => response.data)

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useForm, useWatch } from "react-hook-form"
+import { useNavigate } from "react-router-dom"
 import { z } from "zod"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -57,8 +58,8 @@ const schoolFormSchema = z.object({
       message: "Email invalide",
     }),
   plan: z.enum(["essential", "pro", "establishment"]),
-  maxAdminPositions: z.number().int().min(1).max(50),
-  activeSchoolYear: z.string().trim().regex(/^\d{4}-\d{4}$/, "Format attendu : YYYY-YYYY"),
+  trialDays: z.number().int().min(0).max(365),
+  activeSchoolYear: z.string().trim().regex(/^\d{2}\/\d{4} - \d{2}\/\d{4}$/, "Format : MM/YYYY - MM/YYYY"),
 })
 
 type SchoolFormValues = z.infer<typeof schoolFormSchema>
@@ -81,9 +82,11 @@ const slugify = (value: string) =>
 export default function SchoolFormModal({ open, onOpenChange, onCreated }: SchoolFormModalProps) {
   const user = useAuthStore((state) => state.user)
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const { toast } = useToast()
 
   const [subdomainEdited, setSubdomainEdited] = useState(false)
+  const [createdCredentials, setCreatedCredentials] = useState<CreateSchoolResponse | null>(null)
   const form = useForm<SchoolFormValues>({
     resolver: zodResolver(schoolFormSchema),
     mode: "onChange",
@@ -96,7 +99,7 @@ export default function SchoolFormModal({ open, onOpenChange, onCreated }: Schoo
       directorPhone: "",
       directorEmail: "",
       plan: "essential",
-      maxAdminPositions: 5,
+      trialDays: 0,
       activeSchoolYear: "",
     },
   })
@@ -116,6 +119,7 @@ export default function SchoolFormModal({ open, onOpenChange, onCreated }: Schoo
     if (!open) {
       form.reset()
       setSubdomainEdited(false)
+      setCreatedCredentials(null)
     }
   }, [form, open])
 
@@ -128,8 +132,8 @@ export default function SchoolFormModal({ open, onOpenChange, onCreated }: Schoo
       await queryClient.invalidateQueries({ queryKey: ["admin", "schools", 1, 25] })
 
       toast({ title: "École créée avec succès" })
-      onOpenChange(false)
       onCreated?.(response)
+      setCreatedCredentials(response)
     },
     onError: () => {
       toast({
@@ -152,7 +156,7 @@ export default function SchoolFormModal({ open, onOpenChange, onCreated }: Schoo
       city: values.city,
       teaching_type: values.teachingType as TeachingType,
       plan: values.plan,
-      max_admin_positions: values.maxAdminPositions,
+      trial_days: values.trialDays,
       active_school_year: values.activeSchoolYear,
       director_name: values.directorName,
       director_phone: values.directorPhone,
@@ -161,6 +165,34 @@ export default function SchoolFormModal({ open, onOpenChange, onCreated }: Schoo
   }
 
   const isSuperAdmin = user?.role === "super_admin"
+  const copyCreatedCredentials = async () => {
+    if (!createdCredentials) {
+      return
+    }
+
+    const credentials = createdCredentials.directorCredentials
+    await navigator.clipboard.writeText(
+      [
+        `École: ${createdCredentials.schoolSchemaName}`,
+        `Directeur: ${credentials.name}`,
+        `Téléphone: ${credentials.phone}`,
+        `Mot de passe: ${credentials.password}`,
+      ].join("\n")
+    )
+    toast({ title: "Identifiants copiés" })
+  }
+
+  const goToCreatedSchool = () => {
+    if (!createdCredentials) {
+      return
+    }
+    onOpenChange(false)
+    navigate(`/admin/schools/${createdCredentials.tenantId}`, {
+      state: {
+        createdDirectorCredentials: createdCredentials.directorCredentials,
+      },
+    })
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -170,7 +202,38 @@ export default function SchoolFormModal({ open, onOpenChange, onCreated }: Schoo
           <DialogDescription>Création d&apos;une école et du compte directeur.</DialogDescription>
         </DialogHeader>
 
-        {!isSuperAdmin ? (
+        {createdCredentials ? (
+          <div className="space-y-4">
+            <Alert>
+              <AlertTitle>Identifiants directeur</AlertTitle>
+              <AlertDescription>Ce mot de passe ne sera plus affiché.</AlertDescription>
+            </Alert>
+            <div className="rounded-lg border border-border p-4 text-sm">
+              <dl className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs text-muted-foreground">Directeur</dt>
+                  <dd className="font-medium">{createdCredentials.directorCredentials.name}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Téléphone</dt>
+                  <dd className="font-medium">{createdCredentials.directorCredentials.phone}</dd>
+                </div>
+                <div className="sm:col-span-2">
+                  <dt className="text-xs text-muted-foreground">Mot de passe généré</dt>
+                  <dd className="break-all font-mono text-sm">{createdCredentials.directorCredentials.password}</dd>
+                </div>
+              </dl>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={copyCreatedCredentials}>
+                Copier tout
+              </Button>
+              <Button type="button" onClick={goToCreatedSchool}>
+                Accéder à la config école
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : !isSuperAdmin ? (
           <Alert variant="destructive">
             <AlertTitle>Accès refusé</AlertTitle>
             <AlertDescription>Seul un super admin peut créer une école.</AlertDescription>
@@ -257,7 +320,7 @@ export default function SchoolFormModal({ open, onOpenChange, onCreated }: Schoo
                       <FormItem>
                         <FormLabel>Année scolaire active</FormLabel>
                         <FormControl>
-                          <Input placeholder="2026-2027" {...field} />
+                          <Input placeholder="09/2025 - 06/2026" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -342,15 +405,17 @@ export default function SchoolFormModal({ open, onOpenChange, onCreated }: Schoo
                   />
                   <FormField
                     control={form.control}
-                    name="maxAdminPositions"
+                    name="trialDays"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Max postes admin</FormLabel>
+                        <FormLabel>Période d&apos;essai (jours)</FormLabel>
                         <FormControl>
                           <Input
                             type="number"
-                            min={1}
+                            min={0}
+                            max={365}
                             step={1}
+                            placeholder="0 = pas d'essai"
                             value={field.value}
                             onChange={(event) => {
                               const parsed = Number(event.target.value)
@@ -359,6 +424,7 @@ export default function SchoolFormModal({ open, onOpenChange, onCreated }: Schoo
                             onBlur={field.onBlur}
                           />
                         </FormControl>
+                        <p className="text-xs text-muted-foreground">0 = activation immédiate</p>
                         <FormMessage />
                       </FormItem>
                     )}

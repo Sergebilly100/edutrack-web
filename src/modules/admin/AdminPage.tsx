@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { Navigate, useLocation, useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { BarChart3, Building2, TrendingUp, Users } from "lucide-react"
@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   getAdminMetrics,
   getSmsFeatureGlobalStats,
-  getSchoolPayments,
+  getAllRecentPayments,
   getRevenueMetrics,
   getSmsDashboard,
   listSchools,
@@ -62,13 +62,28 @@ export default function AdminPage() {
   const [planFilter, setPlanFilter] = useState<FilterPlan>("all")
   const [statusFilter, setStatusFilter] = useState<FilterStatus>("all")
   const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [selectedSchoolId, setSelectedSchoolId] = useState<string>("")
   const isSchoolsView = location.pathname.startsWith("/admin/schools")
 
   const schoolsQuery = useQuery({
-    queryKey: ["admin", "schools", page, limit],
-    queryFn: () => listSchools({ page, limit }),
+    queryKey: ["admin", "schools", page, limit, planFilter, statusFilter, debouncedSearch],
+    queryFn: () =>
+      listSchools({
+        page,
+        limit,
+        plan: planFilter !== "all" ? planFilter : undefined,
+        status: statusFilter !== "all" ? statusFilter : undefined,
+        search: debouncedSearch || undefined,
+      }),
+    enabled: isSchoolsView,
+  })
+
+  const recentActiveSchoolsQuery = useQuery({
+    queryKey: ["admin", "schools", "recent-active"],
+    queryFn: () => listSchools({ page: 1, limit: 10, status: "active" }),
+    enabled: !isSchoolsView,
   })
 
   const metricsQuery = useQuery({
@@ -88,34 +103,21 @@ export default function AdminPage() {
 
   const schoolPaymentsQuery = useQuery({
     queryKey: ["admin", "school-payments", selectedSchoolId],
-    queryFn: () => getSchoolPayments(selectedSchoolId),
-    enabled: selectedSchoolId.length > 0,
+    queryFn: () => getAllRecentPayments(selectedSchoolId || undefined),
   })
   const smsFeatureGlobalStatsQuery = useQuery({
     queryKey: ["admin", "sms-feature", "global-stats"],
     queryFn: () => getSmsFeatureGlobalStats(),
   })
 
-  const filteredSchools = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase()
-    return (schoolsQuery.data?.schools ?? []).filter((school) => {
-      const matchesPlan = planFilter === "all" || school.plan === planFilter
-      const matchesStatus = statusFilter === "all" || school.status === statusFilter
-      const matchesSearch = normalizedSearch.length === 0 || school.name.toLowerCase().includes(normalizedSearch)
-      return matchesPlan && matchesStatus && matchesSearch
-    })
-  }, [schoolsQuery.data?.schools, planFilter, search, statusFilter])
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setDebouncedSearch(search.trim()), 300)
+    return () => window.clearTimeout(timeoutId)
+  }, [search])
 
   useEffect(() => {
-    if (selectedSchoolId.length > 0) {
-      return
-    }
-
-    const firstSchoolId = schoolsQuery.data?.schools?.[0]?.tenantId
-    if (firstSchoolId) {
-      setSelectedSchoolId(firstSchoolId)
-    }
-  }, [schoolsQuery.data?.schools, selectedSchoolId])
+    setPage(1)
+  }, [planFilter, statusFilter, debouncedSearch])
 
   if (!user) {
     return <Navigate to="/" replace />
@@ -132,7 +134,10 @@ export default function AdminPage() {
   }
 
   const metrics = metricsQuery.data
-  const retentionRate = computeRetentionRate(schoolsQuery.data?.schools ?? [])
+  const visibleSchools = isSchoolsView
+    ? schoolsQuery.data?.schools ?? []
+    : recentActiveSchoolsQuery.data?.schools ?? []
+  const retentionRate = computeRetentionRate(schoolsQuery.data?.schools ?? recentActiveSchoolsQuery.data?.schools ?? [])
   const dau7d = metrics?.dauLast7d[metrics.dauLast7d.length - 1]?.uniqueUsers ?? 0
   const pagination = schoolsQuery.data?.pagination
 
@@ -199,7 +204,7 @@ export default function AdminPage() {
         </section>
       ) : null}
 
-      {metricsQuery.isError || revenueQuery.isError || schoolsQuery.isError || smsDashboardQuery.isError ? (
+      {metricsQuery.isError || revenueQuery.isError || schoolsQuery.isError || smsDashboardQuery.isError || recentActiveSchoolsQuery.isError ? (
         <Alert variant="destructive">
           <AlertDescription>Impossible de charger la console admin. Vérifiez la connexion API.</AlertDescription>
         </Alert>
@@ -224,7 +229,7 @@ export default function AdminPage() {
                     <SelectValue placeholder="Sélectionner une école" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(schoolsQuery.data?.schools ?? []).map((school) => (
+                    {visibleSchools.map((school) => (
                       <SelectItem key={school.tenantId} value={school.tenantId}>
                         {school.name}
                       </SelectItem>
@@ -258,7 +263,7 @@ export default function AdminPage() {
                       {!schoolPaymentsQuery.isLoading && (schoolPaymentsQuery.data ?? []).length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={4} className="text-sm text-muted-foreground">
-                            Aucun paiement enregistré pour cette école.
+                            Aucun paiement enregistré.
                           </TableCell>
                         </TableRow>
                       ) : null}
@@ -355,27 +360,27 @@ export default function AdminPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {schoolsQuery.isLoading ? (
+            {(isSchoolsView ? schoolsQuery.isLoading : recentActiveSchoolsQuery.isLoading) ? (
               <TableRow>
                 <TableCell className="p-4 text-sm text-muted-foreground" colSpan={8}>
                   Chargement des écoles...
                 </TableCell>
               </TableRow>
             ) : null}
-            {!schoolsQuery.isLoading && filteredSchools.length === 0 ? (
+            {!(isSchoolsView ? schoolsQuery.isLoading : recentActiveSchoolsQuery.isLoading) && visibleSchools.length === 0 ? (
               <TableRow>
                 <TableCell className="p-4 text-sm text-muted-foreground" colSpan={8}>
                   Aucune école trouvée avec ces filtres.
                 </TableCell>
               </TableRow>
             ) : null}
-            {filteredSchools.map((school) => (
+            {visibleSchools.map((school) => (
               <AdminSchoolRow
                 key={school.tenantId}
                 school={{
                   id: school.tenantId,
                   name: school.name,
-                  city: "Ville non renseignée",
+                  city: school.city ?? "—",
                   plan: school.plan,
                   status: school.status,
                   usersCount: school.nbUsers,
@@ -420,13 +425,6 @@ export default function AdminPage() {
       <SchoolFormModal
         open={createModalOpen}
         onOpenChange={setCreateModalOpen}
-        onCreated={(created) => {
-          navigate(`/admin/schools/${created.tenantId}`, {
-            state: {
-              createdDirectorCredentials: created.directorCredentials,
-            },
-          })
-        }}
       />
     </div>
   )
