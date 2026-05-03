@@ -15,9 +15,9 @@ import RevenueOverviewCard from "@/modules/subscriptions/components/RevenueOverv
 import { Badge } from "@/components/ui/badge"
 import {
   getSubscriptionsRevenueHistory,
+  getSubscriptionsRevenueDetails,
   getSubscriptionsRevenuePayments,
   getSubscriptionsRevenueSummary,
-  listSubscriptionParents,
   recordCommissionPayment,
 } from "@/modules/subscriptions/subscriptions.api"
 import { usePermissions } from "@/shared/hooks/usePermissions"
@@ -59,8 +59,8 @@ export default function SubscriptionRevenuePage() {
     queryFn: () => getSubscriptionsRevenueHistory(12),
   })
   const monthSubscriptionsQuery = useQuery({
-    queryKey: ["subscriptions", "parents", "month", month],
-    queryFn: () => listSubscriptionParents({ month, limit: 100 }),
+    queryKey: ["subscriptions", "revenue", "details", month],
+    queryFn: () => getSubscriptionsRevenueDetails(month),
   })
   const paymentsQuery = useQuery({
     queryKey: ["subscriptions", "revenue", "payments", month],
@@ -85,11 +85,11 @@ export default function SubscriptionRevenuePage() {
 
   const summary = summaryQuery.data
   const history = historyQuery.data ?? []
-  const monthSubscriptions = monthSubscriptionsQuery.data?.data ?? []
+  const monthSubscriptions = monthSubscriptionsQuery.data ?? []
   const currentMonth = toMonth(new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)))
   const canGoNextMonth = month !== currentMonth
   const canRecordPayment = user?.role === "super_admin" && hasPermission("subscriptions.revenue")
-  const monthSubscriptionsCollected = summary?.total_collected_fcfa ?? 0
+  const monthSubscriptionsCollected = monthSubscriptions.reduce((sum, item) => sum + item.amount_fcfa, 0)
 
   return (
     <PageLayout
@@ -177,25 +177,25 @@ export default function SubscriptionRevenuePage() {
                   <TableHead>Parent</TableHead>
                   <TableHead>Téléphone</TableHead>
                   <TableHead>Élèves</TableHead>
-                  <TableHead>Date souscription</TableHead>
+	                  <TableHead>Date encaissement</TableHead>
                   <TableHead>Durée</TableHead>
                   <TableHead>Montant</TableHead>
                   <TableHead>Fin abonnement</TableHead>
-                  <TableHead>Statut</TableHead>
+	                  <TableHead>Moyen</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {monthSubscriptions.map((item) => (
-                  <TableRow key={item.parent_id}>
-                    <TableCell>{item.full_name}</TableCell>
-                    <TableCell>{item.phone}</TableCell>
-                    <TableCell>{item.students.length}</TableCell>
-                    <TableCell>{item.latest_subscription?.created_at?.slice(0, 10) ?? "-"}</TableCell>
-                    <TableCell>{item.latest_subscription?.duration_months ? `${item.latest_subscription.duration_months} mois` : "-"}</TableCell>
-                    <TableCell>{formatFcfa(item.latest_subscription?.total_amount_fcfa ?? 0)}</TableCell>
-                    <TableCell>{item.latest_subscription?.ends_at ?? "-"}</TableCell>
-                    <TableCell>{item.latest_subscription?.status ?? "-"}</TableCell>
-                  </TableRow>
+	                {monthSubscriptions.map((item) => (
+	                  <TableRow key={item.payment_id}>
+	                    <TableCell>{item.full_name}</TableCell>
+	                    <TableCell>{item.phone}</TableCell>
+	                    <TableCell>{item.students_count}</TableCell>
+	                    <TableCell>{item.paid_at.slice(0, 10)}</TableCell>
+	                    <TableCell>{item.duration_months} mois</TableCell>
+	                    <TableCell>{formatFcfa(item.amount_fcfa)}</TableCell>
+	                    <TableCell>{item.ends_at}</TableCell>
+	                    <TableCell>{item.payment_method}</TableCell>
+	                  </TableRow>
                 ))}
               </TableBody>
             </Table>

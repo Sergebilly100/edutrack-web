@@ -45,6 +45,7 @@ export type CreateSchoolPayload = {
   director_name: string
   director_phone: string
   director_email?: string
+  monetizeParentAlerts?: boolean
 }
 
 export type CreateSchoolResponse = {
@@ -314,6 +315,7 @@ export type SchoolSmsFeatureConfig = {
   is_enabled: boolean
   commission_pct: number
   sms_cap_per_student: number
+  monetize_parent_alerts: boolean
 }
 
 export type SchoolSmsFeatureStats = {
@@ -624,7 +626,7 @@ export const deactivateSchoolSmsFeature = (tenantId: string) =>
 
 export const updateSchoolSmsFeatureConfig = (
   tenantId: string,
-  payload: { commission_pct?: number; sms_cap_per_student?: number }
+  payload: { commission_pct?: number; sms_cap_per_student?: number; monetizeParentAlerts?: boolean }
 ) =>
   api.patch<SchoolSmsFeatureConfig>(`/admin/schools/${tenantId}/sms-feature/config`, payload).then((response) => response.data)
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CalendarDays, ChevronLeft, ChevronRight, Download, Wallet } from "lucide-react"
+import { CalendarDays, ChevronLeft, ChevronRight, Download, TriangleAlert, Wallet } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -28,6 +28,7 @@ import {
   getPreviousMonth,
   getRecentMonthOptions,
   getSalarySummary,
+  getSalaryUnpaidAlerts,
   getTeacherPaymentHistory,
   getTeacherSalaryDetails,
   isFutureMonth,
@@ -61,8 +62,15 @@ const resolveDownloadFileName = (downloadUrl: string | null): string | null => {
   }
 }
 
-const toSalaryRowStatus = (value: SalarySummaryItem["status"]): "pending" | "paid" | "disputed" | null => {
-  if (value === "pending" || value === "paid" || value === "disputed") {
+const toSalaryRowStatus = (
+  value: SalarySummaryItem["status"]
+): "pending" | "paid" | "disputed" | "nothing_to_pay" | null => {
+  if (
+    value === "pending" ||
+    value === "paid" ||
+    value === "disputed" ||
+    value === "nothing_to_pay"
+  ) {
     return value
   }
 
@@ -128,6 +136,9 @@ const toDisplayedStatus = (row: SalarySummaryItem, details: SalaryTeacherDetails
   if (row.status === "disputed") {
     return "Litige"
   }
+  if (row.status === "nothing_to_pay") {
+    return "Rien à payer"
+  }
   if (details?.summary.isPartiallyPaid || row.isPartiallyPaid) {
     return "Payé partiellement"
   }
@@ -143,6 +154,9 @@ const getStatusBadgeClass = (status: SalarySummaryItem["status"], isPartiallyPai
   }
   if (status === "disputed") {
     return "border-red-200 bg-red-50 text-red-700"
+  }
+  if (status === "nothing_to_pay") {
+    return "border-slate-200 bg-slate-50 text-slate-700"
   }
   if (status === "paid") {
     return "border-green-200 bg-green-50 text-green-700"
@@ -221,6 +235,12 @@ export default function SalariesPage() {
   const salarySummaryQuery = useQuery({
     queryKey: ["salaries", "summary", selectedMonth],
     queryFn: () => getSalarySummary(selectedMonth),
+    staleTime: STALE_TIME,
+  })
+
+  const unpaidAlertsQuery = useQuery({
+    queryKey: ["salaries", "unpaid-alerts", getCurrentMonth()],
+    queryFn: () => getSalaryUnpaidAlerts(getCurrentMonth()),
     staleTime: STALE_TIME,
   })
 
@@ -368,6 +388,7 @@ export default function SalariesPage() {
       }, 0),
     [vacataireRows]
   )
+  const unpaidAlert = unpaidAlertsQuery.data
 
   const isSelectedMonthFuture = isFutureMonth(selectedMonth)
   const teacherOptions = useMemo(
@@ -655,6 +676,23 @@ export default function SalariesPage() {
 
           {isSelectedMonthFuture ? (
             <p className="text-sm text-amber-700">Le calcul est désactivé pour un mois futur.</p>
+          ) : null}
+
+          {unpaidAlert && unpaidAlert.count > 0 ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
+              <div className="flex items-start gap-3">
+                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm font-semibold">Salaires des mois passés à régler</p>
+                  <p className="text-sm">
+                    {unpaidAlert.count} fiche(s) non soldée(s), pour {formatFcfa(unpaidAlert.totalRemainingFcfa)}.
+                  </p>
+                  <p className="text-xs">
+                    Mois concernés: {unpaidAlert.months.map((item) => formatMonthLabel(item.month)).join(", ")}
+                  </p>
+                </div>
+              </div>
+            </div>
           ) : null}
 
           {exportJobId ? (
@@ -1193,7 +1231,13 @@ export default function SalariesPage() {
                                   : "border-slate-200 bg-slate-50 text-slate-700"
                             )}
                           >
-                            {item.status === "paid" ? "Payé" : item.status === "disputed" ? "Litige" : "En attente"}
+                            {item.status === "paid"
+                              ? "Payé"
+                              : item.status === "disputed"
+                                ? "Litige"
+                                : item.status === "nothing_to_pay"
+                                    ? "Rien à payer"
+                                    : "En attente"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">

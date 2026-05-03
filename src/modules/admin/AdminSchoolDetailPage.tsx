@@ -138,6 +138,7 @@ export default function AdminSchoolDetailPage() {
   const [smsConfigDraft, setSmsConfigDraft] = useState({
     commissionPct: "0",
     smsCapPerStudent: "60",
+    monetizeParentAlerts: false,
   })
   const [smsFeatureToggleOpen, setSmsFeatureToggleOpen] = useState(false)
   const [smsFeatureToggleNextValue, setSmsFeatureToggleNextValue] = useState<boolean | null>(null)
@@ -174,6 +175,7 @@ export default function AdminSchoolDetailPage() {
     setSmsConfigDraft({
       commissionPct: String(smsFeatureStatsQuery.data.config.commission_pct),
       smsCapPerStudent: String(smsFeatureStatsQuery.data.config.sms_cap_per_student),
+      monetizeParentAlerts: smsFeatureStatsQuery.data.config.monetize_parent_alerts,
     })
   }, [smsFeatureStatsQuery.data])
 
@@ -292,7 +294,7 @@ export default function AdminSchoolDetailPage() {
     },
   })
   const updateSmsFeatureConfigMutation = useMutation({
-    mutationFn: (payload: { commission_pct?: number; sms_cap_per_student?: number }) =>
+    mutationFn: (payload: { commission_pct?: number; sms_cap_per_student?: number; monetizeParentAlerts?: boolean }) =>
       updateSchoolSmsFeatureConfig(tenantId as string, payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["admin", "school-sms-feature-stats", tenantId] })
@@ -603,12 +605,49 @@ export default function AdminSchoolDetailPage() {
 
           <TabsContent value="sms-feature" className="space-y-4">
             <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle>Configuration</CardTitle>
-                <CardDescription>Activation et paramètres de la feature SMS abonnements.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between rounded-md border p-3">
+	              <CardHeader>
+	                <CardTitle>Configuration</CardTitle>
+	                <CardDescription>Mode des alertes parents et abonnements SMS.</CardDescription>
+	              </CardHeader>
+	              <CardContent className="space-y-4">
+                <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Monétiser les alertes parents</p>
+                    <p className="text-xs text-muted-foreground">
+                      {smsConfigDraft.monetizeParentAlerts
+                        ? "Seuls les parents avec abonnement actif reçoivent les alertes d'absence."
+                        : "Tous les contacts parents reçoivent les alertes d'absence, sans abonnement requis."}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="monetize-parent-alerts"
+                      checked={smsConfigDraft.monetizeParentAlerts}
+                      onCheckedChange={(checked) =>
+                        setSmsConfigDraft((prev) => ({ ...prev, monetizeParentAlerts: Boolean(checked) }))
+                      }
+                    />
+                    <Label htmlFor="monetize-parent-alerts">
+                      {smsConfigDraft.monetizeParentAlerts ? "Payant" : "Gratuit"}
+                    </Label>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    updateSmsFeatureConfigMutation.mutate({
+                      monetizeParentAlerts: smsConfigDraft.monetizeParentAlerts,
+                    })
+                  }
+                >
+                  Sauvegarder mode alertes parents
+                </Button>
+
+                {smsConfigDraft.monetizeParentAlerts ? (
+                  <>
+	                <div className="flex items-center justify-between rounded-md border p-3">
                   <div>
                     <p className="text-sm font-medium">Activer la feature SMS</p>
                     <p className="text-xs text-muted-foreground">
@@ -669,13 +708,19 @@ export default function AdminSchoolDetailPage() {
                     >
                       Sauvegarder plafond
                     </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {smsFeatureStatsQuery.data?.config.is_enabled ? (
-              <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+	                  </div>
+	                </div>
+                  </>
+                ) : (
+                  <p className="rounded-md border border-muted bg-muted/30 p-3 text-sm text-muted-foreground">
+                    La feature SMS abonnements et les reversements sont masqués tant que les alertes parents ne sont pas monétisées.
+                  </p>
+                )}
+	              </CardContent>
+	            </Card>
+	
+	            {smsConfigDraft.monetizeParentAlerts && smsFeatureStatsQuery.data?.config.is_enabled ? (
+	              <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <StatCard
                   title="Souscriptions actives"
                   value={smsFeatureStatsQuery.data.current_month.subscriptions_active}
@@ -695,13 +740,15 @@ export default function AdminSchoolDetailPage() {
               </section>
             ) : null}
 
-            <div className="flex justify-end">
-              <Button type="button" variant="outline" onClick={() => syncSmsCommissionMutation.mutate()}>
-                Synchroniser les calculs
-              </Button>
-            </div>
-
-            <Card className="shadow-sm">
+            {smsConfigDraft.monetizeParentAlerts ? (
+              <>
+  	            <div className="flex justify-end">
+  	              <Button type="button" variant="outline" onClick={() => syncSmsCommissionMutation.mutate()}>
+  	                Synchroniser les calculs
+  	              </Button>
+  	            </div>
+	
+  	            <Card className="shadow-sm">
               <CardHeader>
                 <CardTitle>Suivi des reversements</CardTitle>
                 <CardDescription>Détail des reversements reçus sur le mois sélectionné.</CardDescription>
@@ -766,7 +813,9 @@ export default function AdminSchoolDetailPage() {
                   </Table>
                 </div>
               </CardContent>
-            </Card>
+  	            </Card>
+              </>
+            ) : null}
           </TabsContent>
 
           <TabsContent value="sms" className="space-y-4">

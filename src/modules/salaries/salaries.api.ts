@@ -1,6 +1,6 @@
 import { apiClient as api } from "@/shared/api/client"
 
-export type SalaryStatus = "pending" | "paid" | "disputed" | "Salaire fixe"
+export type SalaryStatus = "pending" | "paid" | "disputed" | "nothing_to_pay" | "Salaire fixe"
 
 export type SalarySummaryItem = {
   teacherId: string
@@ -14,6 +14,19 @@ export type SalarySummaryItem = {
   salaryRecordId: string | null
   isPartiallyPaid: boolean
   paidAt: string | null
+}
+
+export type SalaryUnpaidAlertMonth = {
+  month: string
+  recordsCount: number
+  totalRemainingFcfa: number
+}
+
+export type SalaryUnpaidAlertResponse = {
+  referenceMonth: string
+  count: number
+  totalRemainingFcfa: number
+  months: SalaryUnpaidAlertMonth[]
 }
 
 export type SalarySummaryResponse = {
@@ -86,7 +99,7 @@ export type SalaryPaymentHistoryItem = {
   month: string
   hoursPaid: number | null
   amountFcfa: number
-  status: "pending" | "paid" | "disputed"
+  status: "pending" | "paid" | "disputed" | "nothing_to_pay"
   paidAt: string | null
   paidBy: string | null
   paidByName: string | null
@@ -161,7 +174,13 @@ const addMonths = (month: string, amount: number): string => {
 }
 
 const parseSalaryStatus = (value: unknown): SalaryStatus => {
-  if (value === "pending" || value === "paid" || value === "disputed" || value === "Salaire fixe") {
+  if (
+    value === "pending" ||
+    value === "paid" ||
+    value === "disputed" ||
+    value === "nothing_to_pay" ||
+    value === "Salaire fixe"
+  ) {
     return value
   }
 
@@ -236,6 +255,34 @@ const parseAttendanceStatus = (value: unknown): SalaryDetailAttendanceStatus => 
     return value
   }
   return "not_marked"
+}
+
+const parseUnpaidAlertMonth = (value: unknown): SalaryUnpaidAlertMonth => {
+  const row = isRecord(value) ? value : {}
+
+  return {
+    month: asString(row.month),
+    recordsCount: asNumber(row.recordsCount, 0),
+    totalRemainingFcfa: asNumber(row.totalRemainingFcfa, 0),
+  }
+}
+
+export const getSalaryUnpaidAlerts = async (month: string): Promise<SalaryUnpaidAlertResponse> => {
+  const response = await api.get("/billing/salary/unpaid-alerts", {
+    params: { month },
+  })
+  const payload = isRecord(response.data) ? response.data : {}
+  const months = Array.isArray(payload.months) ? payload.months.map((entry) => parseUnpaidAlertMonth(entry)) : []
+
+  return {
+    referenceMonth: asString(payload.referenceMonth, month),
+    count: asNumber(payload.count, months.reduce((sum, row) => sum + row.recordsCount, 0)),
+    totalRemainingFcfa: asNumber(
+      payload.totalRemainingFcfa,
+      months.reduce((sum, row) => sum + row.totalRemainingFcfa, 0)
+    ),
+    months,
+  }
 }
 
 export const getTeacherSalaryDetails = async (
@@ -337,8 +384,13 @@ export const updateSalaryStatus = async (input: UpdateSalaryStatusInput): Promis
   })
 }
 
-const parseSalaryHistoryStatus = (value: unknown): "pending" | "paid" | "disputed" => {
-  if (value === "pending" || value === "paid" || value === "disputed") {
+const parseSalaryHistoryStatus = (value: unknown): "pending" | "paid" | "disputed" | "nothing_to_pay" => {
+  if (
+    value === "pending" ||
+    value === "paid" ||
+    value === "disputed" ||
+    value === "nothing_to_pay"
+  ) {
     return value
   }
   return "pending"

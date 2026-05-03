@@ -130,7 +130,7 @@ export type DashboardCounts = {
   activeStudents: number
 }
 
-export type DashboardSalaryStatus = "pending" | "paid" | "disputed" | "Salaire fixe"
+export type DashboardSalaryStatus = "pending" | "paid" | "disputed" | "nothing_to_pay" | "Salaire fixe"
 
 export type DashboardSalarySummaryItem = {
   teacherId: string
@@ -476,7 +476,11 @@ const normalizeSalaryItem = (item: unknown): DashboardSalarySummaryItem => {
 
   const statusRaw = asString(row.status ?? row.salary_status)
   const parsedStatus: DashboardSalaryStatus =
-    statusRaw === "paid" || statusRaw === "pending" || statusRaw === "disputed" || statusRaw === "Salaire fixe"
+    statusRaw === "paid" ||
+    statusRaw === "pending" ||
+    statusRaw === "disputed" ||
+    statusRaw === "nothing_to_pay" ||
+    statusRaw === "Salaire fixe"
       ? statusRaw
       : "pending"
 

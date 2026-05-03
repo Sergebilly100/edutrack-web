@@ -7,6 +7,7 @@ import { z } from "zod"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -60,6 +61,7 @@ const schoolFormSchema = z.object({
   plan: z.enum(["essential", "pro", "establishment"]),
   trialDays: z.number().int().min(0).max(365),
   activeSchoolYear: z.string().trim().regex(/^\d{2}\/\d{4} - \d{2}\/\d{4}$/, "Format : MM/YYYY - MM/YYYY"),
+  monetizeParentAlerts: z.boolean(),
 })
 
 type SchoolFormValues = z.infer<typeof schoolFormSchema>
@@ -101,6 +103,7 @@ export default function SchoolFormModal({ open, onOpenChange, onCreated }: Schoo
       plan: "essential",
       trialDays: 0,
       activeSchoolYear: "",
+      monetizeParentAlerts: false,
     },
   })
 
@@ -162,6 +165,7 @@ export default function SchoolFormModal({ open, onOpenChange, onCreated }: Schoo
       director_name: values.directorName,
       director_phone: values.directorPhone,
       director_email: values.directorEmail?.trim() ? values.directorEmail.trim() : undefined,
+      monetizeParentAlerts: values.monetizeParentAlerts,
     })
   }
 
@@ -324,6 +328,25 @@ export default function SchoolFormModal({ open, onOpenChange, onCreated }: Schoo
                           <Input placeholder="09/2025 - 06/2026" {...field} />
                         </FormControl>
                         <FormMessage />
+                      </FormItem>
+                    )}
+	                  />
+                  <FormField
+                    control={form.control}
+                    name="monetizeParentAlerts"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2 rounded-md border p-3">
+                        <div className="flex items-start gap-3">
+                          <FormControl>
+                            <Checkbox checked={field.value} onCheckedChange={(checked) => field.onChange(Boolean(checked))} />
+                          </FormControl>
+                          <div className="space-y-1">
+                            <FormLabel>Monétiser les alertes parents</FormLabel>
+                            <p className="text-xs text-muted-foreground">
+                              Activé: seuls les parents avec abonnement actif reçoivent les alertes. Désactivé: les alertes partent à tous les contacts parents.
+                            </p>
+                          </div>
+                        </div>
                       </FormItem>
                     )}
                   />

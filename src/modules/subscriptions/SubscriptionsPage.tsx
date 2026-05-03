@@ -36,7 +36,6 @@ import {
   cancelSubscription,
   createSubscriptionParent,
   getParentSubscriptionDetails,
-  getSubscriptionsRevenueSummary,
   getSmsFeatureSettings,
   listSubscriptionParents,
   renewSubscriptionParent,
@@ -96,12 +95,16 @@ export default function SubscriptionsPage() {
     refetchInterval: 0,
     enabled: featureQuery.data?.is_enabled === true,
   })
-  const revenueSummaryQuery = useQuery({
-    queryKey: ["subscriptions", "revenue", "summary", month],
-    queryFn: () => getSubscriptionsRevenueSummary(month),
+  const activeParentsQuery = useQuery({
+    queryKey: ["subscriptions", "parents", "active-count", month],
+    queryFn: () =>
+      listSubscriptionParents({
+        status: "active",
+        month,
+        limit: 1,
+      }),
     enabled: featureQuery.data?.is_enabled === true,
   })
-
   const detailsQuery = useQuery({
     queryKey: ["subscriptions", "details", detailsTarget?.parent_id],
     queryFn: () => getParentSubscriptionDetails(detailsTarget!.parent_id),
@@ -143,7 +146,8 @@ export default function SubscriptionsPage() {
 
   const items = parentsQuery.data?.data ?? []
 
-  const activeCount = revenueSummaryQuery.data?.subscriptions_active_count ?? 0
+  const activeCount = activeParentsQuery.data?.pagination.total ?? 0
+  // const monthSubscriptionsCount = parentsQuery.data?.pagination.total ?? items.length
   const monthSubscriptionsCount = useMemo(
     () => items.filter((item) => item.latest_subscription?.created_at?.startsWith(month)).length,
     [items, month]
@@ -307,6 +311,7 @@ export default function SubscriptionsPage() {
               <th className="px-3 py-2 text-left">Montant</th>
               <th className="px-3 py-2 text-left">Statut</th>
               <th className="px-3 py-2 text-left">Expire le</th>
+              <th className="px-3 py-2 text-left">Jours restants</th>
               <th className="px-3 py-2 text-right">Actions</th>
             </tr>
           </thead>
@@ -323,9 +328,14 @@ export default function SubscriptionsPage() {
                   <td className="px-3 py-2">{item.students.length}</td>
                   <td className="px-3 py-2">{latest?.duration_months ? `${latest.duration_months} mois` : "-"}</td>
                   <td className="px-3 py-2">{latest?.total_amount_fcfa ? formatFcfa(latest.total_amount_fcfa) : "-"}</td>
-                  <td className="px-3 py-2">{latest ? <SubscriptionStatusBadge status={latest.status} ends_at={latest.ends_at} /> : "-"}</td>
-                  <td className="px-3 py-2">{latest?.ends_at ? formatDate(latest.ends_at) : "-"}</td>
-                  <td className="px-3 py-2 text-right">
+	                  <td className="px-3 py-2">{latest ? <SubscriptionStatusBadge status={latest.status} ends_at={latest.ends_at} /> : "-"}</td>
+	                  <td className="px-3 py-2">{latest?.ends_at ? formatDate(latest.ends_at) : "-"}</td>
+                  <td className="px-3 py-2">
+                    {latest?.days_remaining !== null && latest?.days_remaining !== undefined && latest.status !== "cancelled" && latest.status !== "expired"
+                      ? `${latest.days_remaining} jour(s)`
+                      : "-"}
+                  </td>
+	                  <td className="px-3 py-2 text-right">
                     <div className="inline-flex gap-2">
                       <Button size="sm" variant="outline" onClick={() => setDetailsTarget(item)}>
                         Détails

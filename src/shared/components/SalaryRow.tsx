@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { TableCell, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 
-export type SalaryStatus = "pending" | "paid" | "disputed"
+export type SalaryStatus = "pending" | "paid" | "disputed" | "nothing_to_pay"
 
 export interface SalaryRowTeacher {
   id: string
@@ -57,6 +57,10 @@ const statusMeta: Record<SalaryStatus, { label: string; className: string }> = {
   disputed: {
     label: "Litige",
     className: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200",
+  },
+  nothing_to_pay: {
+    label: "Rien à payer",
+    className: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200",
   },
 }
 

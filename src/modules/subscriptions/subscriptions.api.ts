@@ -19,6 +19,7 @@ export type SubscriptionListItem = {
     total_amount_fcfa: number | null
     monthly_amount_fcfa: number | null
     expires_soon: boolean
+    days_remaining: number | null
   } | null
   students: Array<{ id: string; full_name: string }>
 }
@@ -87,6 +88,21 @@ export type RevenuePaymentItem = {
   notes: string | null
   created_at: string
   payment_method: string | null
+}
+
+export type RevenueSubscriptionDetailItem = {
+  payment_id: string
+  parent_id: string
+  full_name: string
+  phone: string
+  subscription_id: string
+  paid_at: string
+  amount_fcfa: number
+  payment_method: string
+  duration_months: number
+  starts_at: string
+  ends_at: string
+  students_count: number
 }
 
 export type SubscriptionClassItem = {
@@ -279,6 +295,13 @@ export const getSubscriptionsRevenueHistory = async (months = 12): Promise<Reven
 
 export const getSubscriptionsRevenuePayments = async (month: string): Promise<RevenuePaymentItem[]> => {
   const response = await apiClient.get<{ data: RevenuePaymentItem[] }>("/subscriptions/revenue/payments", {
+    params: { month },
+  })
+  return response.data.data
+}
+
+export const getSubscriptionsRevenueDetails = async (month: string): Promise<RevenueSubscriptionDetailItem[]> => {
+  const response = await apiClient.get<{ data: RevenueSubscriptionDetailItem[] }>("/subscriptions/revenue/subscriptions", {
     params: { month },
   })
   return response.data.data

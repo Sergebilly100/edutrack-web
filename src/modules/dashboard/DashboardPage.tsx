@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { fetchSchoolInfo } from "@/modules/onboarding/onboarding.api"
 import { getStudentAbsenceStats, getTodayAbsences, type StudentAbsenceStat } from "@/modules/students/students.api"
+import { getSalaryUnpaidAlerts } from "@/modules/salaries/salaries.api"
 import {
   getAttendanceHistory,
   getCurrentMonthKey,
@@ -125,6 +126,15 @@ const toDashboardSalaryRow = (item: DashboardSalarySummaryItem): DashboardSalary
       salaryRowStatus: item.status === "pending" ? "pending" : "paid",
       salaryStatusLabel: "Payé partiellement",
       salaryStatusClassName: "border-amber-200 bg-amber-50 text-amber-700",
+    }
+  }
+
+  if (item.status === "nothing_to_pay") {
+    return {
+      ...item,
+      salaryRowStatus: "nothing_to_pay",
+      salaryStatusLabel: "Rien à payer",
+      salaryStatusClassName: "border-slate-200 bg-slate-50 text-slate-700",
     }
   }
 
@@ -342,6 +352,14 @@ export default function DashboardPage() {
     enabled: canViewSalary,
   })
 
+  const salaryUnpaidAlertsQuery = useQuery({
+    queryKey: ["dashboard", "salary-unpaid-alerts", currentMonth],
+    queryFn: () => getSalaryUnpaidAlerts(currentMonth),
+    staleTime: QUERY_STALE_TIME,
+    retry: false,
+    enabled: canViewSalary,
+  })
+
   const previousSalarySummaryQuery = useQuery({
     queryKey: ["dashboard", "salary-summary-v3", previousMonth],
     queryFn: () => getSalarySummary(previousMonth),
@@ -451,7 +469,9 @@ export default function DashboardPage() {
   }, [salarySummaryQuery.data])
 
   const activeAlertsCount =
-    (coverageQuery.data?.nextWeekHasCoverage === false ? 1 : 0) + (weeklyAbsenceCount > 3 ? 1 : 0)
+    (coverageQuery.data?.nextWeekHasCoverage === false ? 1 : 0) +
+    (weeklyAbsenceCount > 3 ? 1 : 0) +
+    ((salaryUnpaidAlertsQuery.data?.count ?? 0) > 0 ? 1 : 0)
 
   const schoolName = schoolQuery.data?.name?.trim() || "École"
   const riskMonthStart = `${currentMonth}-01`
@@ -647,6 +667,18 @@ export default function DashboardPage() {
               action={{
                 label: "Voir les profs",
                 onClick: () => navigate("/teachers"),
+              }}
+            />
+          ) : null}
+
+          {(salaryUnpaidAlertsQuery.data?.count ?? 0) > 0 ? (
+            <AlertBanner
+              type="warning"
+              title="Salaires des mois passés à régler"
+              message={`${salaryUnpaidAlertsQuery.data?.count ?? 0} fiche(s) non soldée(s), pour ${new Intl.NumberFormat("fr-FR").format(salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0)} FCFA.`}
+              action={{
+                label: "Voir les salaires",
+                onClick: () => navigate("/salaries"),
               }}
             />
           ) : null}
