@@ -68,14 +68,14 @@ export function OfflineIndicator({ forceState = "auto" }: OfflineIndicatorProps)
       {mode === "offline" ? (
         <div className="bg-amber-500 text-white text-sm font-medium py-2 px-4 flex items-center gap-2">
           <OfflineIcon className="h-4 w-4" />
-          <span>Hors ligne — vos actions sont sauvegardées localement</span>
+          <span>Hors ligne - vos actions sont sauvegardées localement</span>
         </div>
       ) : null}
 
       {mode === "recovered" ? (
         <div className="bg-green-600 text-white text-sm font-medium py-2 px-4 flex items-center gap-2">
           <OnlineIcon className="h-4 w-4" />
-          <span>Connexion rétablie — synchronisation en cours...</span>
+          <span>Connexion rétablie - synchronisation en cours...</span>
         </div>
       ) : null}
     </div>

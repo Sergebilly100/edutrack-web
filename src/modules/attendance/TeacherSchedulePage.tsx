@@ -14,6 +14,7 @@ import { CalendarIcon } from "@/shared/components/icons"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
 import { useAuthStore } from "@/shared/store/auth.store"
 import { useRollCallStore } from "@/shared/store/rollCall.store"
+import { Badge } from "@/components/ui/badge"
 
 // JS getDay() : 0=Dim → remap ISO 1=Lun … 6=Sam, 7=Dim
 const getDayOfWeek = (date: Date) => {
@@ -22,22 +23,33 @@ const getDayOfWeek = (date: Date) => {
 }
 
 const formatDateRange = (start: Date, end: Date) => {
-  const formatter = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "long" })
+  const formatter = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short" })
   return `${formatter.format(start)} au ${formatter.format(end)}`
 }
 
+const formatSelectedDate = (date: Date) =>
+  new Intl.DateTimeFormat("fr-FR", {
+    weekday: "short",
+    day: "2-digit",
+  }).format(date)
+
 const sortByTime = (left: ScheduleSlot, right: ScheduleSlot) =>
   `${left.start_time}-${left.end_time}`.localeCompare(`${right.start_time}-${right.end_time}`)
+
+const getDefaultTeachingDate = () => {
+  const date = new Date()
+  date.setHours(0, 0, 0, 0)
+  if (date.getDay() === 0) {
+    date.setDate(date.getDate() + 1)
+  }
+  return date
+}
 
 export default function TeacherSchedulePage() {
   const user = useAuthStore((state) => state.user)
   const { isOnline } = useNetworkStatus()
 
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    return today
-  })
+  const [selectedDate, setSelectedDate] = useState(getDefaultTeachingDate)
   const [activeSlot, setActiveSlot] = useState<ScheduleSlot | null>(null)
 
   const selectedDateKey = toDateKey(selectedDate)
@@ -81,6 +93,7 @@ export default function TeacherSchedulePage() {
   const markFlowDone = useRollCallStore((state) => state.markDone)
 
   const selectedDayOfWeek = getDayOfWeek(selectedDate)
+  const defaultTeachingDate = useMemo(() => getDefaultTeachingDate(), [])
 
   const daySlots = useMemo(() => {
     return (scheduleQuery.data ?? [])
@@ -146,12 +159,16 @@ export default function TeacherSchedulePage() {
   }
 
   return (
-    <div className="space-y-6" data-testid="teacher-schedule-page">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Mon planning</h1>
-        <p className="text-sm font-medium text-muted-foreground">
-          Semaine du {formatDateRange(weekStart, weekEnd)}
-        </p>
+    <div className="space-y-4 pb-4" data-testid="teacher-schedule-page">
+      <header className="rounded-lg border bg-card p-4 shadow-sm">
+        <p className="text-xs font-semibold uppercase text-muted-foreground">Aujourd'hui et semaine</p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Mon planning</h1>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <span className="font-medium">Semaine du {formatDateRange(weekStart, weekEnd)}</span>
+          <span aria-hidden="true">
+            <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">{formatSelectedDate(selectedDate)}</Badge>
+          </span>
+        </div>
       </header>
 
       {!isOnline ? <OfflineIndicator forceState="offline" /> : <OfflineIndicator />}
@@ -163,22 +180,22 @@ export default function TeacherSchedulePage() {
       />
 
       {scheduleQuery.isLoading ? (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, index) => (
-            <Skeleton key={index} className="h-[108px] rounded-xl" />
+            <Skeleton key={index} className="h-[108px] rounded-lg" />
           ))}
         </div>
       ) : null}
 
       {scheduleQuery.isError ? (
         <Alert variant="destructive">
-          <AlertDescription>Impossible de charger votre planning pour le moment.</AlertDescription>
+          <AlertDescription>Impossible de charger votre planning. Vérifiez la connexion, puis réessayez.</AlertDescription>
         </Alert>
       ) : null}
 
       {!scheduleQuery.isLoading && attendanceQuery.isError ? (
         <Alert variant="destructive">
-          <AlertDescription>Impossible de charger vos statuts de pointage.</AlertDescription>
+          <AlertDescription>Impossible de charger vos statuts de pointage. Les cours restent visibles, mais les badges peuvent être incomplets.</AlertDescription>
         </Alert>
       ) : null}
 
@@ -186,12 +203,17 @@ export default function TeacherSchedulePage() {
         <EmptyState
           icon={CalendarIcon}
           title="Pas de cours ce jour"
-          description="Aucun planning actif pour cette période. Sélectionnez un autre jour."
+          description="Aucun créneau actif pour ce jour. Sélectionnez un autre jour de la semaine."
+          action={
+            toDateKey(selectedDate) !== toDateKey(defaultTeachingDate)
+              ? { label: "Revenir au prochain jour de cours", onClick: () => setSelectedDate(defaultTeachingDate) }
+              : undefined
+          }
         />
       ) : null}
 
       {!scheduleQuery.isLoading && daySlots.length > 0 ? (
-        <ul className="space-y-3" data-testid="teacher-schedule-list">
+        <ul className="space-y-2" data-testid="teacher-schedule-list">
           {daySlots.map((slot) => (
             <CourseCard
               key={slot.id}

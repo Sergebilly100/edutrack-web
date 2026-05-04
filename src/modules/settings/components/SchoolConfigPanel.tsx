@@ -54,6 +54,9 @@ import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 const SETTINGS_QUERY_KEY = ["settings", "school-config"] as const
+const PHONE_CI_REGEX = /^225\d{10}$/
+
+const normalizePhoneInput = (value: string) => value.replace(/\D/g, "").slice(0, 13)
 
 export default function SchoolConfigPanel() {
   const queryClient = useQueryClient()
@@ -318,6 +321,18 @@ export default function SchoolConfigPanel() {
   const assignableUsers = schoolConfigQuery.data?.users ?? []
   const canEditLimits = user?.role === "super_admin"
   const school = schoolConfigQuery.data?.school
+  const parsedMaxAdminPositions = Number(maxAdminPositions)
+  const isMaxAdminPositionsValid =
+    maxAdminPositions.length > 0 &&
+    Number.isInteger(parsedMaxAdminPositions) &&
+    parsedMaxAdminPositions >= 0 &&
+    parsedMaxAdminPositions <= 500
+  const isAdministrativePhoneValid = newUserPhone.trim().length === 0 || PHONE_CI_REGEX.test(newUserPhone.trim())
+  const canSubmitAdministrativeUser =
+    newUserName.trim().length >= 2 &&
+    (editingUserId ? true : newUserPassword.length >= 8) &&
+    (newUserEmail.trim().length > 0 || newUserPhone.trim().length > 0) &&
+    isAdministrativePhoneValid
 
   const handleDeletePosition = (position: PositionPayload) => {
     setDeleteTarget({ type: "position", id: position.id, name: position.name })
@@ -358,6 +373,15 @@ export default function SchoolConfigPanel() {
       toast({
         title: "Contact requis",
         description: "Ajoutez un email ou un numéro de téléphone.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (phone && !PHONE_CI_REGEX.test(phone)) {
+      toast({
+        title: "Téléphone invalide",
+        description: "Le téléphone doit respecter le format 225XXXXXXXXXX.",
         variant: "destructive",
       })
       return
@@ -638,7 +662,7 @@ export default function SchoolConfigPanel() {
                     ? "border-amber-200 bg-amber-50 text-amber-900"
                     : "border-green-200 bg-green-50 text-green-900"
                 )}>
-                  <AlertTitle>État actuelle</AlertTitle>
+                  <AlertTitle>État actuel</AlertTitle>
                   <AlertDescription>
                     {allowTeacherQrSkipDraft
                       ? "Les enseignants peuvent terminer le flux de pointage sans scanner le QR code de salle."
@@ -717,6 +741,7 @@ export default function SchoolConfigPanel() {
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => openAssignDialog(position)}
+                            aria-label={`Assigner un utilisateur au poste ${position.name}`}
                           >
                             <UserPlus className="h-3.5 w-3.5" />
                           </Button>
@@ -728,6 +753,7 @@ export default function SchoolConfigPanel() {
                               setPositionToEdit(position)
                               setPositionModalOpen(true)
                             }}
+                            aria-label={`Modifier le poste ${position.name}`}
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
@@ -737,6 +763,7 @@ export default function SchoolConfigPanel() {
                             className="h-7 w-7"
                             onClick={() => handleDeletePosition(position)}
                             disabled={deleteMutation.isPending}
+                            aria-label={`Supprimer le poste ${position.name}`}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -769,17 +796,26 @@ export default function SchoolConfigPanel() {
                     id="max-admin-positions"
                     type="number"
                     min={0}
+                    max={500}
                     step={1}
+                    inputMode="numeric"
                     value={maxAdminPositions}
                     readOnly={!canEditLimits}
-                    onChange={(event) => setMaxAdminPositions(event.target.value)}
+                    onChange={(event) => setMaxAdminPositions(event.target.value.replace(/\D/g, "").slice(0, 3))}
                   />
+                  {canEditLimits && !isMaxAdminPositionsValid ? (
+                    <p className="text-xs text-destructive">Saisissez un entier entre 0 et 500.</p>
+                  ) : null}
                 </div>
 
                 {!canEditLimits ? (
                   <p className="text-xs text-muted-foreground">Seul le super admin peut modifier cette limite.</p>
                 ) : (
-                  <Button onClick={() => saveLimitMutation.mutate()} disabled={saveLimitMutation.isPending} className="w-full">
+                  <Button
+                    onClick={() => saveLimitMutation.mutate()}
+                    disabled={saveLimitMutation.isPending || !isMaxAdminPositionsValid}
+                    className="w-full"
+                  >
                     {saveLimitMutation.isPending ? "Sauvegarde..." : "Mettre à jour"}
                   </Button>
                 )}
@@ -839,15 +875,20 @@ export default function SchoolConfigPanel() {
                   <Input
                     id="new-admin-phone"
                     value={newUserPhone}
-                    onChange={(event) => setNewUserPhone(event.target.value)}
-                    placeholder="+2250700000000"
+                    onChange={(event) => setNewUserPhone(normalizePhoneInput(event.target.value))}
+                    inputMode="tel"
+                    maxLength={13}
+                    placeholder="2250700000000"
                   />
+                  <p className={isAdministrativePhoneValid ? "text-xs text-muted-foreground" : "text-xs text-destructive"}>
+                    Format attendu: 225XXXXXXXXXX.
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Button
                   onClick={handleCreateAdministrativeUser}
-                  disabled={createUserMutation.isPending || updateUserMutation.isPending}
+                  disabled={createUserMutation.isPending || updateUserMutation.isPending || !canSubmitAdministrativeUser}
                   className="gap-2"
                 >
                   {editingUserId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
@@ -950,6 +991,7 @@ export default function SchoolConfigPanel() {
                             setResetPasswordTarget(schoolUser)
                             setResetPasswordValue("")
                           }}
+                          aria-label={`Réinitialiser le mot de passe de ${schoolUser.name}`}
                         >
                           <KeyRound className="h-3.5 w-3.5" />
                         </Button>
@@ -959,6 +1001,7 @@ export default function SchoolConfigPanel() {
                           size="icon"
                           className="h-7 w-7"
                           onClick={() => handleEditAdministrativeUser(schoolUser)}
+                          aria-label={`Modifier ${schoolUser.name}`}
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
@@ -969,6 +1012,7 @@ export default function SchoolConfigPanel() {
                           className="h-7 w-7"
                           disabled={deleteUserMutation.isPending || deleteTarget?.type === "user"}
                           onClick={() => handleDeleteAdministrativeUser(schoolUser)}
+                          aria-label={`Supprimer ${schoolUser.name}`}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>

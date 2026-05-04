@@ -6,40 +6,66 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
+    --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --motion-fast: 100ms;
+    --motion-base: 150ms;
+    --motion-medium: 220ms;
+    --background: 214 45% 98.8%;
+    --foreground: 222.2 70% 8%;
+    --card: 214 42% 99.2%;
+    --card-foreground: 222.2 70% 8%;
+    --popover: 214 42% 99.2%;
+    --popover-foreground: 222.2 70% 8%;
+    --primary: 218 78% 46%;
+    --primary-foreground: 214 45% 98.8%;
+    --secondary: 212 35% 95.5%;
     --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
+    --muted: 212 35% 95.5%;
+    --muted-foreground: 217 18% 42%;
+    --accent: 212 55% 94.5%;
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    --destructive-foreground: 214 45% 98.8%;
+    --border: 214 27% 88.5%;
+    --input: 214 27% 88.5%;
+    --ring: 218 78% 46%;
     --radius: 0.5rem;
-    --sidebar-bg: 0 0% 99%;
-    --sidebar-border: 214.3 31.8% 91.4%;
-    --topbar-bg: 0 0% 100%;
-    --stat-card-bg: 0 0% 100%;
+    --sidebar-bg: 214 45% 97.5%;
+    --sidebar-border: 214 27% 88.5%;
+    --topbar-bg: 214 42% 99.2%;
+    --stat-card-bg: 214 42% 99.2%;
+    --surface-base: oklch(0.985 0.006 248);
+    --surface-panel: oklch(0.994 0.005 248);
+    --surface-chrome: oklch(0.972 0.012 248);
+    --nav-active-bg: oklch(0.94 0.045 248);
+    --nav-active-fg: oklch(0.39 0.15 254);
+    --nav-active-border: oklch(0.78 0.09 252);
+    --stat-default-bg: oklch(0.955 0.014 248);
+    --stat-default-fg: oklch(0.36 0.035 248);
+    --stat-success-bg: oklch(0.94 0.055 154);
+    --stat-success-fg: oklch(0.38 0.115 154);
+    --stat-warning-bg: oklch(0.95 0.065 75);
+    --stat-warning-fg: oklch(0.43 0.115 65);
+    --stat-danger-bg: oklch(0.94 0.055 26);
+    --stat-danger-fg: oklch(0.42 0.14 26);
+    --help-info-bg: oklch(0.955 0.035 248);
+    --help-info-fg: oklch(0.31 0.11 252);
+    --help-info-border: oklch(0.82 0.07 248);
+    --help-warning-bg: oklch(0.955 0.055 75);
+    --help-warning-fg: oklch(0.36 0.1 62);
+    --help-warning-border: oklch(0.82 0.09 74);
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    --background: 222 56% 5.5%;
     --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
+    --card: 222 47% 7.2%;
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
+    --popover: 222 47% 7.2%;
     --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
+    --primary: 216 86% 62%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
@@ -49,13 +75,33 @@
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
-    --sidebar-bg: 222.2 84% 3.5%;
+    --border: 218 28% 18.5%;
+    --input: 218 28% 18.5%;
+    --ring: 216 86% 62%;
+    --sidebar-bg: 222 56% 4.5%;
     --sidebar-border: 217.2 32.6% 13%;
-    --topbar-bg: 222.2 84% 4.9%;
-    --stat-card-bg: 222.2 84% 6%;
+    --topbar-bg: 222 47% 7.2%;
+    --stat-card-bg: 222 47% 7.2%;
+    --surface-base: oklch(0.17 0.026 250);
+    --surface-panel: oklch(0.205 0.025 250);
+    --surface-chrome: oklch(0.19 0.03 250);
+    --nav-active-bg: oklch(0.28 0.075 252);
+    --nav-active-fg: oklch(0.78 0.12 248);
+    --nav-active-border: oklch(0.45 0.09 250);
+    --stat-default-bg: oklch(0.27 0.025 250);
+    --stat-default-fg: oklch(0.83 0.025 250);
+    --stat-success-bg: oklch(0.28 0.065 154);
+    --stat-success-fg: oklch(0.78 0.105 154);
+    --stat-warning-bg: oklch(0.30 0.065 70);
+    --stat-warning-fg: oklch(0.82 0.105 76);
+    --stat-danger-bg: oklch(0.29 0.07 26);
+    --stat-danger-fg: oklch(0.78 0.11 26);
+    --help-info-bg: oklch(0.25 0.055 248);
+    --help-info-fg: oklch(0.83 0.09 248);
+    --help-info-border: oklch(0.39 0.075 248);
+    --help-warning-bg: oklch(0.27 0.055 72);
+    --help-warning-fg: oklch(0.84 0.095 78);
+    --help-warning-border: oklch(0.42 0.08 72);
   }
 }
 
@@ -72,6 +118,7 @@
 
   body {
     @apply bg-background text-foreground;
+    background-color: var(--surface-base);
     overflow: hidden;
     font-feature-settings: "cv11", "ss01", "tnum";
   }
@@ -92,5 +139,49 @@
 
   [data-radix-dropdown-menu-content] {
     background-color: hsl(var(--popover)) !important;
+  }
+
+  .route-surface {
+    animation: route-enter var(--motion-medium) var(--ease-out-expo) both;
+  }
+
+  .motion-surface {
+    animation: surface-pop 180ms var(--ease-out-quint) both;
+  }
+
+  .fresh-data-pulse {
+    animation: fresh-data-pulse 720ms var(--ease-out-expo) both;
+  }
+
+  @keyframes fresh-data-pulse {
+    0% {
+      box-shadow: inset 0 0 0 1px color-mix(in oklch, hsl(var(--primary)) 0%, transparent);
+      background-color: transparent;
+    }
+    34% {
+      box-shadow: inset 0 0 0 1px color-mix(in oklch, hsl(var(--primary)) 26%, transparent);
+      background-color: color-mix(in oklch, hsl(var(--primary)) 7%, transparent);
+    }
+    100% {
+      box-shadow: inset 0 0 0 1px color-mix(in oklch, hsl(var(--primary)) 0%, transparent);
+      background-color: transparent;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
+
+    .route-surface,
+    .motion-surface,
+    .fresh-data-pulse {
+      animation: none !important;
+    }
   }
 }

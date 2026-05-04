@@ -71,7 +71,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     <div className="min-h-screen bg-background">
       <div
         className={cn(
-          "fixed inset-0 z-40 bg-black/40 transition-opacity md:hidden",
+          "fixed inset-0 z-40 bg-slate-950/45 transition-opacity md:hidden",
           mobileSidebarOpen ? "opacity-100" : "pointer-events-none opacity-0"
         )}
         onClick={() => setMobileSidebarOpen(false)}

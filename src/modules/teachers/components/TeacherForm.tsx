@@ -186,8 +186,16 @@ export default function TeacherForm({
             <FormItem>
               <FormLabel>Téléphone</FormLabel>
               <FormControl>
-                <Input placeholder="2250701234567" {...field} />
+                <Input
+                  placeholder="2250701234567"
+                  inputMode="tel"
+                  maxLength={13}
+                  autoComplete="tel"
+                  {...field}
+                  onChange={(event) => field.onChange(event.target.value.replace(/\D/g, "").slice(0, 13))}
+                />
               </FormControl>
+              <p className="text-xs text-muted-foreground">Format attendu: 225XXXXXXXXXX.</p>
               <FormMessage />
             </FormItem>
           )}
@@ -255,6 +263,7 @@ export default function TeacherForm({
                 <FormControl>
                   <Input
                     type="number"
+                    inputMode="numeric"
                     min={1}
                     step={1}
                     placeholder="5000"
@@ -275,6 +284,7 @@ export default function TeacherForm({
                 <FormControl>
                   <Input
                     type="number"
+                    inputMode="numeric"
                     min={1}
                     step={1}
                     placeholder="350000"

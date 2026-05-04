@@ -1,3 +1,5 @@
+import { CheckCircle2, Clock3, FileText, History, WalletCards } from "lucide-react"
+
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -44,23 +46,27 @@ const teacherTypeMeta: Record<SalaryRowTeacher["type"], { label: string; classNa
   },
 }
 
-const statusMeta: Record<SalaryStatus, { label: string; className: string }> = {
+const statusMeta: Record<SalaryStatus, { label: string; className: string; icon: typeof Clock3 }> = {
   pending: {
     label: "En attente",
     className:
       "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200",
+    icon: Clock3,
   },
   paid: {
     label: "Payé",
     className: "border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/40 dark:text-green-200",
+    icon: CheckCircle2,
   },
   disputed: {
     label: "Litige",
     className: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200",
+    icon: FileText,
   },
   nothing_to_pay: {
     label: "Rien à payer",
     className: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200",
+    icon: CheckCircle2,
   },
 }
 
@@ -114,17 +120,24 @@ export function SalaryRow({
     periodSummary.hoursPlanned > 0
       ? Math.max(0, Math.min(100, (periodSummary.hoursDone / periodSummary.hoursPlanned) * 100))
       : 0
+  const status = statusMeta[periodSummary.status]
+  const StatusIcon = status.icon
+  const isPayable = periodSummary.canMarkPaid && (periodSummary.status === "pending" || periodSummary.isPartiallyPaid)
 
   return (
     <TableRow
-      className={cn(periodSummary.status === "paid" ? "bg-muted/30 opacity-80" : "")}
+      className={cn(
+        "transition-[background-color,box-shadow] duration-150 ease-out-quint hover:bg-muted/30",
+        isPayable ? "hover:shadow-sm" : "",
+        periodSummary.status === "paid" ? "bg-muted/20 opacity-85" : ""
+      )}
       data-testid={dataTestIdPrefix ? `${dataTestIdPrefix}-row-${teacher.id}` : undefined}
     >
-      <TableCell className="min-w-[220px]">
+      <TableCell className="min-w-[220px] py-3">
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9 border border-border/60">
             <AvatarFallback
-              className="text-xs font-semibold text-slate-700 dark:text-slate-100"
+              className="text-xs font-semibold text-slate-700 dark:text-slate-700"
               style={{ backgroundColor: getAvatarColor(teacher.name) }}
             >
               {getInitials(teacher.name)}
@@ -139,7 +152,7 @@ export function SalaryRow({
         </div>
       </TableCell>
 
-      <TableCell className="min-w-[220px]">
+      <TableCell className="min-w-[220px] py-3">
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>{`${periodSummary.hoursDone}h / ${periodSummary.hoursPlanned}h`}</span>
@@ -147,31 +160,32 @@ export function SalaryRow({
           </div>
           <div className="h-2 w-full rounded-full bg-muted">
             <div
-              className={cn("h-2 rounded-full transition-all", getProgressColor(progressRatio))}
+              className={cn("h-2 rounded-full transition-[width,background-color] duration-300 ease-out-expo", getProgressColor(progressRatio))}
               style={{ width: `${progressRatio}%` }}
             />
           </div>
         </div>
       </TableCell>
 
-      <TableCell className="min-w-[140px]">
+      <TableCell className="min-w-[140px] py-3">
         <p className="text-sm font-semibold tabular-nums">{formatFcfa(periodSummary.amountFcfa)}</p>
       </TableCell>
 
-      <TableCell>
+      <TableCell className="py-3">
         <Badge
           variant="outline"
           className={cn(
-            "text-xs font-medium",
-            periodSummary.statusClassName ?? statusMeta[periodSummary.status].className
+            "gap-1 text-xs font-medium",
+            periodSummary.statusClassName ?? status.className
           )}
           data-testid={dataTestIdPrefix ? `${dataTestIdPrefix}-status-${teacher.id}` : undefined}
         >
-          {periodSummary.statusLabel ?? statusMeta[periodSummary.status].label}
+          <StatusIcon className="h-3 w-3" />
+          {periodSummary.statusLabel ?? status.label}
         </Badge>
       </TableCell>
 
-      <TableCell className="min-w-[200px]">
+      <TableCell className="min-w-[200px] py-3">
         <div className="flex flex-wrap justify-end gap-2">
           {periodSummary.status === "pending" && periodSummary.canMarkPaid ? (
             <Button
@@ -180,7 +194,8 @@ export function SalaryRow({
               onClick={() => onMarkPaid(teacher.id)}
               data-testid={dataTestIdPrefix ? `${dataTestIdPrefix}-mark-paid-${teacher.id}` : undefined}
             >
-              Marquer payé
+              <WalletCards className="h-3.5 w-3.5" />
+              Valider paiement
             </Button>
           ) : null}
           {periodSummary.status === "paid" && periodSummary.isPartiallyPaid && periodSummary.canMarkPaid ? (
@@ -190,7 +205,8 @@ export function SalaryRow({
               onClick={() => onMarkPaid(teacher.id)}
               data-testid={dataTestIdPrefix ? `${dataTestIdPrefix}-mark-paid-${teacher.id}` : undefined}
             >
-              Marquer payé
+              <WalletCards className="h-3.5 w-3.5" />
+              Compléter paiement
             </Button>
           ) : null}
           <Button
@@ -200,7 +216,8 @@ export function SalaryRow({
             onClick={() => onDetails(teacher.id)}
             data-testid={dataTestIdPrefix ? `${dataTestIdPrefix}-export-${teacher.id}` : undefined}
           >
-            Détails
+            <FileText className="h-3.5 w-3.5" />
+            Dossier
           </Button>
           {onHistory ? (
             <Button
@@ -210,6 +227,7 @@ export function SalaryRow({
               onClick={() => onHistory(teacher.id)}
               data-testid={dataTestIdPrefix ? `${dataTestIdPrefix}-history-${teacher.id}` : undefined}
             >
+              <History className="h-3.5 w-3.5" />
               Historique
             </Button>
           ) : null}

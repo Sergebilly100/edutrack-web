@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { ImportType } from "@/modules/import-export/import-export.api"
 import { fetchImportHistory } from "@/modules/schedule/schedule.api"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
+import { ContextualHelp } from "@/shared/components/ContextualHelp"
 import { CalendarClockIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useAuthStore } from "@/shared/store/auth.store"
@@ -61,7 +62,7 @@ export default function ImportPage() {
   const history = historyQuery.data ?? []
 
   return (
-    <div className="space-y-6 px-4 py-6 md:px-1 md:py-2">
+    <div className="space-y-6 px-4 md:px-1">
       <OfflineIndicator />
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Import de données</h1>
@@ -77,9 +78,9 @@ export default function ImportPage() {
           allowedImportTypes={allowedImportTypes}
         />
       ) : (
-        <Alert variant="destructive">
-          <AlertDescription>Aucune permission d&apos;import active (import.students / import.teachers / import.schedule).</AlertDescription>
-        </Alert>
+        <ContextualHelp title="Import indisponible pour votre poste" tone="warning">
+          Aucun droit d&apos;import n&apos;est actif sur votre profil. Demandez au directeur d&apos;ajouter au moins un droit: élèves, professeurs ou emploi du temps.
+        </ContextualHelp>
       )}
 
       {canViewHistory ? (
@@ -103,7 +104,9 @@ export default function ImportPage() {
             ) : null}
 
             {!historyQuery.isLoading && !historyQuery.isError && history.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucun import disponible pour le moment.</p>
+              <ContextualHelp title="Aucun import confirmé">
+                Les imports validés apparaîtront ici avec la date, le type et les lignes traitées. Lancez d&apos;abord un import depuis le formulaire ci-dessus.
+              </ContextualHelp>
             ) : null}
 
             {!historyQuery.isLoading && !historyQuery.isError && history.length > 0 ? (

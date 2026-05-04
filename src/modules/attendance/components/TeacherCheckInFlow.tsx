@@ -29,7 +29,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { useOfflineMutation } from "@/shared/hooks/useOfflineMutation"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
 import { useRollCallStore } from "@/shared/store/rollCall.store"
-import { CheckIcon } from "@/shared/components/icons"
+import { AbsentIcon, CheckIcon, PresentIcon } from "@/shared/components/icons"
 import { cn } from "@/lib/utils"
 
 interface TeacherCheckInFlowProps {
@@ -232,8 +232,8 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
       setShowRollCallPrompt(true)
     } catch {
       toast({
-        title: "Échec de la validation",
-        description: "Impossible de confirmer votre présence ou de valider la salle.",
+        title: "Validation impossible",
+        description: "Impossible de confirmer votre présence ou de valider la salle. Réessayez dans quelques instants.",
         variant: "destructive",
       })
     }
@@ -272,8 +272,8 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
       setQrValidated(true)
     } catch {
       toast({
-        title: "Échec du bypass QR",
-        description: "Impossible de valider le bypass QR pour le moment.",
+        title: "Validation sans QR impossible",
+        description: "Impossible de confirmer la salle sans QR pour le moment.",
         variant: "destructive",
       })
       return
@@ -363,8 +363,8 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
       onClose()
     } catch {
       toast({
-        title: "Échec de l'appel",
-        description: "Impossible d'envoyer la liste des absents.",
+        title: "Appel non envoyé",
+        description: "Impossible d'envoyer la liste des absents. Vérifiez la connexion, puis réessayez.",
         variant: "destructive",
       })
     }
@@ -387,8 +387,8 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
       onClose()
     } catch {
       toast({
-        title: "Échec de la clôture",
-        description: "Impossible d'enregistrer la fin du cours.",
+        title: "Clôture impossible",
+        description: "Impossible d'enregistrer la fin du cours. Réessayez avant de quitter la salle.",
         variant: "destructive",
       })
     }
@@ -411,8 +411,8 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
       onClose()
     } catch {
       toast({
-        title: "Échec de la clôture",
-        description: "Impossible de terminer le cours sans scan QR.",
+        title: "Clôture sans QR impossible",
+        description: "Impossible de terminer le cours sans scan QR pour le moment.",
         variant: "destructive",
       })
     }
@@ -468,6 +468,9 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                         !current && !completed && "bg-muted text-muted-foreground"
                       )}
                     >
+                      <span className="sr-only">
+                        {item === 1 ? "Présence" : item === 2 ? "Salle" : "Appel élèves"}
+                      </span>
                       {completed ? <CheckIcon className="h-4 w-4" /> : item}
                     </div>
                     {item < 3 ? <div className="h-px flex-1 bg-border" /> : null}
@@ -494,7 +497,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
 
               {/* Note explicative sur le process 2 étapes */}
               <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-                Votre présence sera confirmée après le scan du QR code de la salle (étape 2).
+                Votre présence sera confirmée après la vérification de la salle.
               </p>
 
               <Button
@@ -505,7 +508,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                 disabled={checkInScheduled}
                 onClick={() => { void handleCheckIn() }}
               >
-                {checkInScheduled ? "En attente du scan QR..." : "Je suis présent(e)"}
+                {checkInScheduled ? "Prêt pour le QR" : "Je suis présent(e)"}
               </Button>
             </section>
           ) : null}
@@ -519,7 +522,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
               {/* Rappel : le check-in sera envoyé ICI */}
               <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2">
                 <p className="text-xs font-medium text-blue-800">
-                  Scannez le QR code de la salle pour confirmer définitivement votre présence.
+                  Scannez le QR code de la salle pour confirmer votre présence.
                 </p>
               </div>
 
@@ -546,7 +549,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                     disabled={checkInMutation.isPending || qrMutation.isPending}
                     onClick={() => { void handleQrSubmit(manualQrCode) }}
                   >
-                    {checkInMutation.isPending || qrMutation.isPending ? "..." : "Valider"}
+                    {checkInMutation.isPending || qrMutation.isPending ? "Validation..." : "Valider"}
                   </Button>
                 </div>
               </div>
@@ -574,7 +577,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                   disabled={checkInMutation.isPending || qrSkipMutation.isPending}
                   onClick={() => { void handleSkipQr() }}
                 >
-                  Passer cette étape
+                  Valider sans QR
                 </Button>
               ) : null}
             </section>
@@ -604,7 +607,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                 ) : (
                   <span className="flex items-center gap-1.5 rounded-md border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
                     <span className="h-2 w-2 rounded-full bg-green-400" />
-                    Tous les élèves marqués ✓
+                    Tous les élèves sont marqués
                   </span>
                 )}
               </div>
@@ -619,7 +622,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
 
               {!studentsQuery.isLoading && !studentsQuery.data?.length ? (
                 <Alert>
-                  <AlertDescription>Aucun élève trouvé pour cette classe.</AlertDescription>
+                  <AlertDescription>Aucun élève trouvé pour cette classe. Vérifiez la liste des élèves avant de valider l'appel.</AlertDescription>
                 </Alert>
               ) : null}
 
@@ -669,7 +672,8 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                             )}
                             onClick={() => markStudent(student.id, "present")}
                           >
-                            ✓ Présent
+                            <PresentIcon className="mr-1 h-3.5 w-3.5" />
+                            Présent
                           </Button>
                           <Button
                             type="button"
@@ -684,7 +688,8 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                             )}
                             onClick={() => markStudent(student.id, "absent")}
                           >
-                            ✕ Absent
+                            <AbsentIcon className="mr-1 h-3.5 w-3.5" />
+                            Absent
                           </Button>
                         </div>
                       </div>
@@ -742,7 +747,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                     disabled={qrMutation.isPending}
                     onClick={() => { void handleFinishCourse(manualQrCode) }}
                   >
-                    {qrMutation.isPending ? "..." : "Valider"}
+                    {qrMutation.isPending ? "Validation..." : "Valider"}
                   </Button>
                 </div>
               </div>
@@ -756,7 +761,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                   disabled={qrSkipMutation.isPending}
                   onClick={() => { void handleFinishCourseWithoutQr() }}
                 >
-                  Passer cette étape
+                  Terminer sans QR
                 </Button>
               ) : null}
             </section>
@@ -773,14 +778,14 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
               <div className="space-y-2 text-sm text-muted-foreground">
                 <p>Votre présence est confirmée. Souhaitez-vous faire le pointage des élèves maintenant ou plus tard ?</p>
                 <p className="font-medium text-amber-700">
-                  ⚠ Le pointage doit être effectué avant {formatTime(slot.end_time)}.
+                  Le pointage doit être effectué avant {formatTime(slot.end_time)}.
                 </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleRollCallLater}>Non, plus tard</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRollCallNow}>Oui, maintenant</AlertDialogAction>
+            <AlertDialogCancel onClick={handleRollCallLater}>Le faire plus tard</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRollCallNow}>Faire l'appel maintenant</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

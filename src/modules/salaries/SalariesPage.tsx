@@ -37,7 +37,7 @@ import {
   type SalaryTeacherDetails,
   type SalarySummaryItem,
 } from "@/modules/salaries/salaries.api"
-import { EmptyState, OfflineIndicator, SalaryRow, StatCard, emptyStateIcons } from "@/shared/components"
+import { ContextualHelp, EmptyState, OfflineIndicator, SalaryRow, StatCard, emptyStateIcons } from "@/shared/components"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 
 const STALE_TIME = 60_000
@@ -678,23 +678,6 @@ export default function SalariesPage() {
             <p className="text-sm text-amber-700">Le calcul est désactivé pour un mois futur.</p>
           ) : null}
 
-          {unpaidAlert && unpaidAlert.count > 0 ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
-              <div className="flex items-start gap-3">
-                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                <div className="min-w-0 space-y-1">
-                  <p className="text-sm font-semibold">Salaires des mois passés à régler</p>
-                  <p className="text-sm">
-                    {unpaidAlert.count} fiche(s) non soldée(s), pour {formatFcfa(unpaidAlert.totalRemainingFcfa)}.
-                  </p>
-                  <p className="text-xs">
-                    Mois concernés: {unpaidAlert.months.map((item) => formatMonthLabel(item.month)).join(", ")}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : null}
-
           {exportJobId ? (
             <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-3 text-sm" data-testid="salaries-export-job-panel">
               <Badge variant="outline">
@@ -749,7 +732,7 @@ export default function SalariesPage() {
           <StatCard
             title="Total à payer"
             value={formatFcfa(totalPending)}
-            subtitle="Somme des salaires pending"
+            subtitle="Somme des salaires à régler"
             icon={<Wallet className="h-4 w-4" />}
             variant="warning"
             loading={salarySummaryQuery.isLoading}
@@ -757,7 +740,7 @@ export default function SalariesPage() {
           <StatCard
             title="Total payé"
             value={formatFcfa(totalPaid)}
-            subtitle="Somme des salaires paid"
+            subtitle="Somme des salaires payé"
             icon={<Download className="h-4 w-4" />}
             variant="success"
             loading={salarySummaryQuery.isLoading}
@@ -765,17 +748,44 @@ export default function SalariesPage() {
           <StatCard
             title="Profs vacataires"
             value={vacataireRows.length}
-            subtitle="Population variable du mois"
+            subtitle="En exercice ce mois"
             icon={<CalendarDays className="h-4 w-4" />}
             variant="default"
             loading={salarySummaryQuery.isLoading}
           />
         </section>
 
+        {unpaidAlert && unpaidAlert.count > 0 ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
+              <div className="flex items-start gap-3">
+                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm font-semibold">Salaires des mois passés à régler</p>
+                  <p className="text-sm">
+                    {unpaidAlert.count} fiche(s) non soldée(s), pour {formatFcfa(unpaidAlert.totalRemainingFcfa)}.
+                  </p>
+                  <p className="text-xs">
+                    Mois concernés: {unpaidAlert.months.map((item) => formatMonthLabel(item.month)).join(", ")}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+        {(!canComputeSalaries || !canMarkSalaryAsPaid) ? (
+          <ContextualHelp title="Droits disponibles sur votre poste">
+            {!canComputeSalaries && !canMarkSalaryAsPaid
+              ? "Vous pouvez consulter les salaires, mais le recalcul et la validation de paiement nécessitent des droits supplémentaires."
+              : !canComputeSalaries
+                ? "Le recalcul des fiches n'est pas disponible pour votre poste. Les montants affichés restent ceux déjà calculés."
+                : "La validation de paiement n'est pas disponible pour votre poste. Les boutons de paiement restent masqués."}
+          </ContextualHelp>
+        ) : null}
+
         <section className="rounded-lg border border-border bg-card p-4 shadow-sm md:p-6" data-testid="salaries-vacataire-section">
           <div className="mb-4 flex items-center justify-between gap-2">
             <h2 className="text-lg font-semibold">Salaires vacataires • {formatMonthLabel(selectedMonth)}</h2>
-            <Badge variant="outline">{vacataireRows.length} ligne(s)</Badge>
+            <Badge variant="outline">{vacataireRows.length} vacataire(s)</Badge>
           </div>
 
           {salarySummaryQuery.isLoading ? (
@@ -784,7 +794,7 @@ export default function SalariesPage() {
             <EmptyState
               icon={emptyStateIcons.noTeachers}
               title="Aucun salaire vacataire"
-              message="Aucune donnée vacataire disponible pour ce mois."
+              message="Aucune heure pointée ou fiche calculée n'est disponible pour ce mois. Vérifiez le mois sélectionné ou recalculez les salaires si vous avez le droit."
             />
           ) : (
             <div className="overflow-x-auto">
@@ -872,7 +882,9 @@ export default function SalariesPage() {
           </div>
 
           {permanentRows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucun professeur permanent pour ce mois.</p>
+            <ContextualHelp title="Aucun salaire fixe">
+              Aucun professeur permanent n&apos;est rattaché à ce mois. Si ce résultat est inattendu, vérifiez les profils professeurs et le mois sélectionné.
+            </ContextualHelp>
           ) : (
             <div className="overflow-x-auto">
               <Table data-testid="salaries-fixed-table">

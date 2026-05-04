@@ -39,6 +39,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useToast } from "@/components/ui/use-toast"
 import { getTeachers } from "@/modules/teachers/teachers.api"
 import { OfflineIndicator, WeekCoverageAlert } from "@/shared/components"
+import { EmptyState } from "@/shared/components/EmptyState"
 import {
   AddIcon,
   ChevronLeftIcon,
@@ -665,7 +666,7 @@ export default function SchedulePage() {
   const todayDayValue = mondayKey === currentMondayKey ? isoDayOfWeek(today) : null
 
   return (
-    <div className="space-y-6 px-4 py-6 md:px-1 md:py-2">
+    <div className="space-y-6 px-4 md:px-1">
       <OfflineIndicator />
       <header className="space-y-4">
         <WeekCoverageAlert
@@ -680,7 +681,7 @@ export default function SchedulePage() {
           </div>
 
           {canEditSchedule ? (
-            <Button onClick={() => openCreateModal()} disabled={!data?.period}>
+            <Button onClick={() => openCreateModal()} disabled={!data?.period} className="w-full sm:w-auto">
               <AddIcon className="mr-2 h-4 w-4" />Ajouter un créneau
             </Button>
           ) : (
@@ -689,8 +690,8 @@ export default function SchedulePage() {
         </div>
 
         {/* ── Barre de contrôles ─────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-2 shadow-sm">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             <Button
               type="button"
               variant="outline"
@@ -701,7 +702,7 @@ export default function SchedulePage() {
             >
               <ChevronLeftIcon className="h-4 w-4" />
             </Button>
-            <p className="text-sm font-medium">{formatWeekRange(selectedWeekMonday)}</p>
+            <p className="min-w-0 flex-1 text-sm font-medium sm:flex-none">{formatWeekRange(selectedWeekMonday)}</p>
             <Button
               type="button"
               variant="outline"
@@ -804,16 +805,18 @@ export default function SchedulePage() {
       </header>
 
       {scheduleQuery.isLoading ? (
-        <p className="text-sm text-muted-foreground">Chargement…</p>
+        <div className="rounded-lg border bg-card p-4 text-sm text-muted-foreground shadow-sm">
+          Chargement de l'emploi du temps...
+        </div>
       ) : null}
       {scheduleQuery.isError ? (
         <Alert variant="destructive">
-          <AlertDescription>Impossible de charger l'emploi du temps.</AlertDescription>
+          <AlertDescription>Impossible de charger l'emploi du temps. Vérifiez la connexion, puis réessayez.</AlertDescription>
         </Alert>
       ) : null}
       {!scheduleQuery.isLoading && data && !data.period && viewMode === "list" ? (
         <Alert>
-          <AlertDescription>Aucune période active pour cette semaine.</AlertDescription>
+          <AlertDescription>Aucune période active pour cette semaine. Changez de semaine ou configurez une période avant d'ajouter des créneaux.</AlertDescription>
         </Alert>
       ) : null}
 
@@ -868,7 +871,7 @@ export default function SchedulePage() {
                   </thead>
                   <tbody>
                     {listRows.map((row) => (
-                      <tr key={row.startTime} className="align-top hover:bg-muted/20">
+                    <tr key={row.startTime} className="align-top transition-colors hover:bg-muted/20">
                         {/* Label de la ligne */}
                         <td className="border p-2 text-xs font-medium text-muted-foreground whitespace-nowrap">
                           {row.label}
@@ -887,7 +890,7 @@ export default function SchedulePage() {
                                     key={item.id}
                                     type="button"
                                     onClick={() => { setSelectedSchedule(item); setDetailOpen(true) }}
-                                    className="w-full rounded-md border bg-muted/30 p-2 text-left text-xs whitespace-normal break-words transition hover:bg-muted/60"
+                                    className="w-full rounded-md border bg-muted/30 p-2 text-left text-xs whitespace-normal break-words shadow-sm transition-[background-color,box-shadow,transform] duration-150 ease-out-quint hover:-translate-y-px hover:bg-muted/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                   >
                                     <p className="font-semibold leading-tight">{item.teacher.name}</p>
                                     <p className="text-muted-foreground">{item.class.name}</p>
@@ -920,8 +923,8 @@ export default function SchedulePage() {
           {/* Vue mobile */}
           <Card className="md:hidden">
             <CardHeader>
-              <CardTitle>Vue mobile</CardTitle>
-              <CardDescription>Liste par jour</CardDescription>
+              <CardTitle>Créneaux par jour</CardTitle>
+              <CardDescription>Sélectionnez un jour pour voir ses cours.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Tabs value={mobileDay} onValueChange={setMobileDay}>
@@ -942,7 +945,7 @@ export default function SchedulePage() {
                       key={item.id}
                       type="button"
                       onClick={() => { setSelectedSchedule(item); setDetailOpen(true) }}
-                      className="w-full rounded-lg border bg-muted/30 p-3 text-left"
+                      className="w-full rounded-lg border bg-muted/30 p-3 text-left shadow-sm transition-[background-color,box-shadow,transform] duration-150 ease-out-quint hover:-translate-y-px hover:bg-muted/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <p className="text-xs font-semibold">{item.timeSlot.label}</p>
                       <p className="text-sm font-medium">{item.subject}</p>
@@ -953,7 +956,16 @@ export default function SchedulePage() {
                     </button>
                   ))}
                 {filteredSchedules.filter((s) => String(s.dayOfWeek) === mobileDay).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Aucun créneau pour ce jour.</p>
+                  <EmptyState
+                    icon={ScheduleIcon}
+                    title="Aucun cours ce jour"
+                    message="Ce jour n'a pas encore de créneau dans la période sélectionnée."
+                    action={canEditSchedule && data.period ? {
+                      label: "Ajouter un créneau",
+                      onClick: () => openCreateModal({ dayOfWeek: Number(mobileDay), hour: 8 }),
+                      icon: AddIcon,
+                    } : undefined}
+                  />
                 ) : null}
               </div>
             </CardContent>
@@ -973,12 +985,23 @@ export default function SchedulePage() {
             </DialogDescription>
           </DialogHeader>
           {selectedSchedule ? (
-            <div className="space-y-2 text-sm">
-              <p><span className="font-medium">Matière :</span> {selectedSchedule.subject}</p>
-              <p><span className="font-medium">Professeur :</span> {selectedSchedule.teacher.name}</p>
-              <p><span className="font-medium">Classe :</span> {selectedSchedule.class.name}</p>
-              <p><span className="font-medium">Salle :</span> {selectedSchedule.room.name}</p>
-              <p><span className="font-medium">Horaire :</span> {selectedSchedule.timeSlot.startTime} → {selectedSchedule.timeSlot.endTime}</p>
+            <div className="grid gap-3 text-sm sm:grid-cols-2">
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <p className="text-xs font-medium text-muted-foreground">Matière</p>
+                <p className="mt-1 font-semibold">{selectedSchedule.subject}</p>
+              </div>
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <p className="text-xs font-medium text-muted-foreground">Horaire</p>
+                <p className="mt-1 font-semibold">{selectedSchedule.timeSlot.startTime} - {selectedSchedule.timeSlot.endTime}</p>
+              </div>
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <p className="text-xs font-medium text-muted-foreground">Professeur</p>
+                <p className="mt-1 font-semibold">{selectedSchedule.teacher.name}</p>
+              </div>
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <p className="text-xs font-medium text-muted-foreground">Classe et salle</p>
+                <p className="mt-1 font-semibold">{selectedSchedule.class.name} · {selectedSchedule.room.name}</p>
+              </div>
             </div>
           ) : null}
           {canEditSchedule && selectedSchedule ? (
@@ -1040,7 +1063,7 @@ export default function SchedulePage() {
       <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer ce créneau ?</AlertDialogTitle>
+            <AlertDialogTitle>Supprimer ce créneau de {selectedSchedule?.subject ?? "cours"} ?</AlertDialogTitle>
             <AlertDialogDescription>
               {selectedSchedule?.hasPastAttendance
                 ? `Ce créneau sera désactivé à partir de l'occurrence sélectionnée. L'historique des ${selectedSchedule.pastAttendanceCount} cours passés sera conservé.`
@@ -1048,7 +1071,7 @@ export default function SchedulePage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutation.isPending}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Garder le créneau</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (!selectedSchedule) return
@@ -1071,7 +1094,7 @@ export default function SchedulePage() {
               }}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? "Suppression..." : "Confirmer"}
+              {deleteMutation.isPending ? "Suppression..." : "Supprimer le créneau"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1085,7 +1108,7 @@ export default function SchedulePage() {
         <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle>{editingSchedule ? "Modifier un créneau" : "Ajouter un créneau"}</DialogTitle>
-            <DialogDescription>Choisissez le professeur, la classe, le jour et les horaires.</DialogDescription>
+            <DialogDescription>Renseignez les informations nécessaires pour placer ce cours dans la semaine sélectionnée.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
@@ -1144,7 +1167,7 @@ export default function SchedulePage() {
                     placeholder="Ex: Mathématiques"
                   />
                   <p className="text-[11px] text-amber-600">
-                    Ce professeur n'a pas de matières configurées dans son profil.
+                    Ce professeur n'a pas encore de matière configurée dans son profil.
                   </p>
                 </div>
               )}
@@ -1154,7 +1177,7 @@ export default function SchedulePage() {
               <Label>Classe</Label>
               <Select value={formState.classId}
                 onValueChange={(v) => setFormState((p) => ({ ...p, classId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
                 <SelectContent>
                   {(data?.catalog.classes ?? []).map((c) => (
                     <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
@@ -1168,7 +1191,7 @@ export default function SchedulePage() {
                 <Label>Jour</Label>
                 <Select value={formState.dayOfWeek}
                   onValueChange={(v) => setFormState((p) => ({ ...p, dayOfWeek: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Choisir un jour" /></SelectTrigger>
                   <SelectContent>
                     {DAYS.map((day) => (
                       <SelectItem key={day.value} value={String(day.value)}>{day.label}</SelectItem>
@@ -1206,7 +1229,7 @@ export default function SchedulePage() {
               <Label>Salle</Label>
               <Select value={formState.roomId}
                 onValueChange={(v) => setFormState((p) => ({ ...p, roomId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Choisir une salle" /></SelectTrigger>
                 <SelectContent>
                   {(data?.catalog.rooms ?? []).map((r) => (
                     <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
@@ -1220,7 +1243,7 @@ export default function SchedulePage() {
             <Button variant="outline" onClick={() => setFormOpen(false)}>Annuler</Button>
             <Button onClick={() => void handleSubmit()}
               disabled={upsertMutation.isPending || !formState.schedulePeriodId}>
-              {upsertMutation.isPending ? "Enregistrement..." : "Enregistrer"}
+              {upsertMutation.isPending ? "Enregistrement..." : editingSchedule ? "Enregistrer les modifications" : "Ajouter le créneau"}
             </Button>
           </DialogFooter>
         </DialogContent>

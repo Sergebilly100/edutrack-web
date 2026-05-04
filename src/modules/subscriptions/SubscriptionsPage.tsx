@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Search } from "lucide-react"
+import { CheckCircle2, MoreHorizontal, Search } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
@@ -16,6 +16,13 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Dialog,
   DialogContent,
@@ -43,7 +50,7 @@ import {
   type SubscriptionListItem,
   type SubscriptionStatus,
 } from "@/modules/subscriptions/subscriptions.api"
-import { EmptyState, PageLayout } from "@/shared/components"
+import { ContextualHelp, EmptyState, PageLayout } from "@/shared/components"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { todayInBusinessTimezone } from "@/shared/lib/business-date"
 
@@ -57,6 +64,94 @@ const monthLabel = (month: string) => {
   const [year, m] = month.split("-").map(Number)
   return new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(
     new Date(Date.UTC(year, (m ?? 1) - 1, 1))
+  )
+}
+
+type SubscriptionActionsProps = {
+  item: SubscriptionListItem
+  canCreate: boolean
+  canRenew: boolean
+  canCancel: boolean
+  resetPasswordPending: boolean
+  onDetails: (item: SubscriptionListItem) => void
+  onRenew: (item: SubscriptionListItem) => void
+  onResetPassword: (item: SubscriptionListItem) => void
+  onCancel: (item: SubscriptionListItem) => void
+  compact?: boolean
+}
+
+function SubscriptionActions({
+  item,
+  canCreate,
+  canRenew,
+  canCancel,
+  resetPasswordPending,
+  onDetails,
+  onRenew,
+  onResetPassword,
+  onCancel,
+  compact = false,
+}: SubscriptionActionsProps) {
+  const latest = item.latest_subscription
+  const canShowRenew = canRenew && Boolean(latest)
+  const canShowCancel = canCancel && latest?.status === "active"
+  const hasMenuActions = canCreate || canShowCancel || (compact && canShowRenew)
+
+  return (
+    <div className={compact ? "grid grid-cols-[1fr_auto] gap-2" : "inline-flex items-center gap-2"}>
+
+      <Button size="sm" variant="outline" onClick={() => onDetails(item)}>
+        Voir dossier
+      </Button>
+
+      {!compact && canShowRenew ? (
+        <Button size="sm" variant="outline" onClick={() => onRenew(item)}>
+          Renouveler l'accès
+        </Button>
+      ) : null}
+
+      {hasMenuActions && latest?.status !== "cancelled" && latest?.status !== "expired" ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className={compact ? "w-10 px-0" : "px-2"}
+              aria-label={`Actions pour ${item.full_name}`}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            {compact && canShowRenew ? (
+              <DropdownMenuItem onClick={() => onRenew(item)}>
+                Renouveler l'accès
+              </DropdownMenuItem>
+            ) : null}
+            {canCreate ? (
+              <DropdownMenuItem
+                onClick={() => onResetPassword(item)}
+                disabled={resetPasswordPending}
+              >
+                Réinitialiser le mot de passe
+              </DropdownMenuItem>
+            ) : null}
+            {canShowCancel ? (
+              <>
+                {(compact && canShowRenew) || canCreate ? <DropdownMenuSeparator /> : null}
+                <DropdownMenuItem
+                  onClick={() => onCancel(item)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  Annuler l'abonnement
+                </DropdownMenuItem>
+              </>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+    </div>
   )
 }
 
@@ -74,6 +169,7 @@ export default function SubscriptionsPage() {
   const [detailsTarget, setDetailsTarget] = useState<SubscriptionListItem | null>(null)
   const [resetCredentials, setResetCredentials] = useState<{ phone: string; password: string } | null>(null)
   const [passwordResetTarget, setPasswordResetTarget] = useState<SubscriptionListItem | null>(null)
+  const [credentialsCopied, setCredentialsCopied] = useState(false)
 
   const canCreate = hasPermission("subscriptions.create")
   const canRenew = hasPermission("subscriptions.renew")
@@ -115,6 +211,10 @@ export default function SubscriptionsPage() {
     mutationFn: createSubscriptionParent,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["subscriptions", "parents"] })
+      toast({
+        title: "Abonnement créé",
+        description: "Le parent peut maintenant se connecter au portail avec ses identifiants.",
+      })
     },
   })
 
@@ -123,7 +223,10 @@ export default function SubscriptionsPage() {
       renewSubscriptionParent(parentId, payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["subscriptions", "parents"] })
-      toast({ title: "Abonnement renouvelé" })
+      toast({
+        title: "Abonnement prolongé",
+        description: "L'accès parent reste actif pour la nouvelle période.",
+      })
     },
   })
 
@@ -132,7 +235,10 @@ export default function SubscriptionsPage() {
       cancelSubscription(parentId, subscriptionId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["subscriptions", "parents"] })
-      toast({ title: "Abonnement annulé" })
+      toast({
+        title: "Abonnement annulé",
+        description: "L'accès parent est maintenant désactivé pour cette souscription.",
+      })
       setCancelTarget(null)
     },
   })
@@ -141,6 +247,7 @@ export default function SubscriptionsPage() {
     mutationFn: resetParentSubscriptionPassword,
     onSuccess: (result) => {
       setResetCredentials({ phone: result.phone, password: result.new_temp_password })
+      setCredentialsCopied(false)
     },
   })
 
@@ -162,7 +269,7 @@ export default function SubscriptionsPage() {
       <PageLayout title="Abonnements parents">
         <EmptyState
           title="Fonctionnalité non activée"
-          message="Cette fonctionnalité n'est pas activée pour votre école."
+          message="Le suivi des abonnements parents dépend du service SMS Parents. Demandez l'activation à EduTrack, puis définissez le tarif dans Paramètres école."
         />
       </PageLayout>
     )
@@ -174,74 +281,76 @@ export default function SubscriptionsPage() {
       subtitle={`(${activeCount} actifs)`}
       actions={
         canCreate ? (
-          <Button type="button" onClick={() => setCreateOpen(true)}>
+          <Button type="button" className="w-full sm:w-auto" onClick={() => setCreateOpen(true)}>
             Nouvel abonnement
           </Button>
         ) : null
       }
     >
-      <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <div className="space-y-2">
-          <Label>Statut</Label>
-          <Select value={status} onValueChange={(value) => setStatus(value as FilterStatus)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous</SelectItem>
-              <SelectItem value="active">Actif</SelectItem>
-              <SelectItem value="expired">Expiré</SelectItem>
-              <SelectItem value="cancelled">Annulé</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      <section className="rounded-lg border bg-card p-3 shadow-sm sm:p-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <div className="space-y-2">
+            <Label>État de l'accès</Label>
+            <Select value={status} onValueChange={(value) => setStatus(value as FilterStatus)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous</SelectItem>
+                <SelectItem value="active">Actif</SelectItem>
+                <SelectItem value="expired">Expiré</SelectItem>
+                <SelectItem value="cancelled">Annulé</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-        <div className="space-y-2">
-          <Label>Mois</Label>
-          <Input
-            type="month"
-            value={month}
-            max={toMonth(new Date())}
-            onChange={(event) => setMonth(event.target.value)}
-          />
-        </div>
-        <div className="space-y-2 md:col-span-2">
-          <Label>Recherche</Label>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div className="space-y-2">
+            <Label>Mois de souscription</Label>
             <Input
-              className="pl-9"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Nom parent ou téléphone"
+              type="month"
+              value={month}
+              max={toMonth(new Date())}
+              onChange={(event) => setMonth(event.target.value)}
             />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label>Retrouver un parent</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Nom du parent ou téléphone"
+              />
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <Card>
-          <CardContent className="space-y-1 p-4">
+      <section className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
+        <Card className="rounded-lg shadow-sm">
+          <CardContent className="space-y-1 p-3 sm:p-4">
             <p className="text-xs text-muted-foreground">Abonnements actifs</p>
-            <p className="text-2xl font-semibold">{activeCount}</p>
+            <p className="text-xl font-semibold tabular-nums sm:text-2xl">{activeCount}</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="space-y-1 p-4">
-            <p className="text-xs text-muted-foreground">Parents abonnés</p>
-            <p className="text-2xl font-semibold">{items.length}</p>
+        <Card className="rounded-lg shadow-sm">
+          <CardContent className="space-y-1 p-3 sm:p-4">
+            <p className="text-xs text-muted-foreground">Parents inscrits</p>
+            <p className="text-xl font-semibold tabular-nums sm:text-2xl">{items.length}</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="space-y-1 p-4">
-            <p className="text-xs text-muted-foreground">Historique en cours</p>
+        <Card className="rounded-lg shadow-sm">
+          <CardContent className="space-y-1 p-3 sm:p-4">
+            <p className="text-xs text-muted-foreground">Période affichée</p>
             <p className="text-sm font-medium capitalize">{monthLabel(month)}</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="space-y-1 p-4">
-            <p className="text-xs text-muted-foreground">Total abonnements du mois</p>
-            <p className="text-2xl font-semibold">{monthSubscriptionsCount}</p>
+        <Card className="rounded-lg shadow-sm">
+          <CardContent className="space-y-1 p-3 sm:p-4">
+            <p className="text-xs text-muted-foreground">Souscriptions du mois</p>
+            <p className="text-xl font-semibold tabular-nums sm:text-2xl">{monthSubscriptionsCount}</p>
           </CardContent>
         </Card>
       </section>
@@ -250,41 +359,28 @@ export default function SubscriptionsPage() {
         {items.map((item) => {
           const latest = item.latest_subscription
           return (
-            <Card key={item.parent_id}>
+            <Card key={item.parent_id} className="rounded-lg shadow-sm">
               <CardContent className="space-y-3 p-4">
                 <div className="flex items-start justify-between gap-2">
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-semibold">{item.full_name}</p>
                     <p className="text-xs text-muted-foreground">{item.phone}</p>
                   </div>
                   {latest ? <SubscriptionStatusBadge status={latest.status} ends_at={latest.ends_at} /> : <Badge variant="outline">Sans abonnement</Badge>}
                 </div>
                 <p className="text-xs text-muted-foreground">{item.students.length} élève(s)</p>
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setDetailsTarget(item)}>
-                    Détails
-                  </Button>
-                  {canRenew && latest ? (
-                    <Button size="sm" variant="outline" onClick={() => setRenewTarget(item)}>
-                      Renouveler
-                    </Button>
-                  ) : null}
-                  {canCreate ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setPasswordResetTarget(item)}
-                      disabled={resetPasswordMutation.isPending}
-                    >
-                      Réinitialiser mdp
-                    </Button>
-                  ) : null}
-                  {canCancel && latest?.status === "active" ? (
-                    <Button size="sm" variant="destructive" onClick={() => setCancelTarget(item)}>
-                      Annuler
-                    </Button>
-                  ) : null}
-                </div>
+                <SubscriptionActions
+                  item={item}
+                  canCreate={canCreate}
+                  canRenew={canRenew}
+                  canCancel={canCancel}
+                  resetPasswordPending={resetPasswordMutation.isPending}
+                  onDetails={setDetailsTarget}
+                  onRenew={setRenewTarget}
+                  onResetPassword={setPasswordResetTarget}
+                  onCancel={setCancelTarget}
+                  compact
+                />
               </CardContent>
             </Card>
           )
@@ -292,75 +388,61 @@ export default function SubscriptionsPage() {
       </section>
 
       {parentsQuery.isLoading ? (
-        <p className="text-sm text-muted-foreground">Chargement des abonnements…</p>
+        <p className="text-sm text-muted-foreground">Recherche des abonnements parents…</p>
       ) : null}
       {parentsQuery.isError ? (
         <Alert variant="destructive">
-          <AlertDescription>Impossible de charger la liste des abonnements.</AlertDescription>
+          <AlertDescription>Impossible de charger les abonnements parents. Vérifiez la connexion, puis réessayez.</AlertDescription>
         </Alert>
       ) : null}
 
-      <section className="hidden overflow-x-auto rounded-lg border md:block">
+      <section className="hidden overflow-x-auto rounded-lg border bg-card shadow-sm md:block">
         <table className="w-full min-w-[960px] text-sm">
-          <thead className="bg-muted/40">
+          <thead className="bg-muted/50">
             <tr>
-              <th className="px-3 py-2 text-left">Parent</th>
-              <th className="px-3 py-2 text-left">Date abonnement</th>
-              <th className="px-3 py-2 text-left">Élèves</th>
-              <th className="px-3 py-2 text-left">Durée</th>
-              <th className="px-3 py-2 text-left">Montant</th>
-              <th className="px-3 py-2 text-left">Statut</th>
-              <th className="px-3 py-2 text-left">Expire le</th>
-              <th className="px-3 py-2 text-left">Jours restants</th>
-              <th className="px-3 py-2 text-right">Actions</th>
+              <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Parent</th>
+              <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Date abonnement</th>
+              <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Élèves</th>
+              <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Durée</th>
+              <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Montant</th>
+              <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Statut</th>
+              <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Expire le</th>
+              <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Jours restants</th>
+              <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase text-muted-foreground">Actions</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item) => {
               const latest = item.latest_subscription
               return (
-                <tr key={item.parent_id} className="border-t">
-                  <td className="px-3 py-2">
+                <tr key={item.parent_id} className="border-t transition-colors hover:bg-muted/30">
+                  <td className="px-3 py-2.5">
                     <p className="font-medium">{item.full_name}</p>
                     <p className="text-xs text-muted-foreground">{item.phone}</p>
                   </td>
-                  <td className="px-3 py-2">{latest?.created_at ? formatDate(latest.created_at.slice(0, 10)) : "-"}</td>
-                  <td className="px-3 py-2">{item.students.length}</td>
-                  <td className="px-3 py-2">{latest?.duration_months ? `${latest.duration_months} mois` : "-"}</td>
-                  <td className="px-3 py-2">{latest?.total_amount_fcfa ? formatFcfa(latest.total_amount_fcfa) : "-"}</td>
-	                  <td className="px-3 py-2">{latest ? <SubscriptionStatusBadge status={latest.status} ends_at={latest.ends_at} /> : "-"}</td>
-	                  <td className="px-3 py-2">{latest?.ends_at ? formatDate(latest.ends_at) : "-"}</td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2.5">{latest?.created_at ? formatDate(latest.created_at.slice(0, 10)) : "-"}</td>
+                  <td className="px-3 py-2.5">{item.students.length}</td>
+                  <td className="px-3 py-2.5">{latest?.duration_months ? `${latest.duration_months} mois` : "-"}</td>
+                  <td className="px-3 py-2.5 font-medium tabular-nums">{latest?.total_amount_fcfa ? formatFcfa(latest.total_amount_fcfa) : "-"}</td>
+                  <td className="px-3 py-2.5">{latest ? <SubscriptionStatusBadge status={latest.status} ends_at={latest.ends_at} /> : "-"}</td>
+                  <td className="px-3 py-2.5">{latest?.ends_at ? formatDate(latest.ends_at) : "-"}</td>
+                  <td className="px-3 py-2.5">
                     {latest?.days_remaining !== null && latest?.days_remaining !== undefined && latest.status !== "cancelled" && latest.status !== "expired"
                       ? `${latest.days_remaining} jour(s)`
                       : "-"}
                   </td>
-	                  <td className="px-3 py-2 text-right">
-                    <div className="inline-flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => setDetailsTarget(item)}>
-                        Détails
-                      </Button>
-                      {canRenew && latest ? (
-                        <Button size="sm" variant="outline" onClick={() => setRenewTarget(item)}>
-                          Renouveler
-                        </Button>
-                      ) : null}
-                      {canCreate ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setPasswordResetTarget(item)}
-                          disabled={resetPasswordMutation.isPending}
-                        >
-                          Réinitialiser mdp
-                        </Button>
-                      ) : null}
-                      {canCancel && latest?.status === "active" ? (
-                        <Button size="sm" variant="destructive" onClick={() => setCancelTarget(item)}>
-                          Annuler
-                        </Button>
-                      ) : null}
-                    </div>
+                  <td className="px-3 py-2.5 text-right">
+                    <SubscriptionActions
+                      item={item}
+                      canCreate={canCreate}
+                      canRenew={canRenew}
+                      canCancel={canCancel}
+                      resetPasswordPending={resetPasswordMutation.isPending}
+                      onDetails={setDetailsTarget}
+                      onRenew={setRenewTarget}
+                      onResetPassword={setPasswordResetTarget}
+                      onCancel={setCancelTarget}
+                    />
                   </td>
                 </tr>
               )
@@ -370,22 +452,34 @@ export default function SubscriptionsPage() {
       </section>
 
       {items.length === 0 && !parentsQuery.isLoading ? (
-        <EmptyState title="Aucun abonnement" message="Aucune souscription ne correspond aux filtres." />
+        <div className="space-y-3">
+          <EmptyState
+            title="Aucun parent trouvé"
+            message="Aucune souscription ne correspond à cette recherche. Essayez un autre mois, un autre statut, ou créez un abonnement parent."
+            action={canCreate ? { label: "Créer un abonnement", onClick: () => setCreateOpen(true) } : undefined}
+          />
+          <ContextualHelp title="À vérifier">
+            Changez le mois ou l'état de l'accès, puis relancez la recherche. Si la liste reste vide, créez un abonnement parent depuis le bouton en haut de page.
+          </ContextualHelp>
+        </div>
       ) : null}
 
       {resetCredentials ? (
         <Alert>
           <AlertDescription className="space-y-3">
-            <p className="text-sm font-medium">Identifiants parent réinitialisés</p>
+            <p className="flex items-center gap-2 text-sm font-medium">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              Identifiants parent prêts à envoyer
+            </p>
             <div className="rounded-md border bg-background p-3 text-sm">
               <p>
                 Téléphone: <strong>{resetCredentials.phone}</strong>
               </p>
               <p>
-                Nouveau mot de passe: <strong>{resetCredentials.password}</strong>
+                Mot de passe temporaire: <strong>{resetCredentials.password}</strong>
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Connexion via le portail parent avec le numéro au format 225XXXXXXXXXX.
+                Le parent devra utiliser ce mot de passe temporaire sur le portail parent.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -393,13 +487,15 @@ export default function SubscriptionsPage() {
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={() =>
-                  navigator.clipboard.writeText(
+                onClick={async () => {
+                  await navigator.clipboard.writeText(
                     `Téléphone: ${resetCredentials.phone}\nMot de passe: ${resetCredentials.password}`
                   )
-                }
+                  setCredentialsCopied(true)
+                  toast({ title: "Identifiants copiés", description: "Vous pouvez les transmettre au parent." })
+                }}
               >
-                Copier les identifiants
+                {credentialsCopied ? "Copié" : "Copier les identifiants"}
               </Button>
               <Button type="button" size="sm" variant="ghost" onClick={() => setResetCredentials(null)}>
                 Fermer
@@ -441,13 +537,13 @@ export default function SubscriptionsPage() {
       <AlertDialog open={Boolean(cancelTarget)} onOpenChange={(open) => !open && setCancelTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Annuler cet abonnement ?</AlertDialogTitle>
+            <AlertDialogTitle>Annuler l'abonnement de {cancelTarget?.full_name ?? "ce parent"} ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette action mettra immédiatement le statut à "annulé".
+              Le parent perdra l'accès au suivi de ses enfants pour cette souscription. Vous pourrez créer ou renouveler un abonnement plus tard si besoin.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Fermer</AlertDialogCancel>
+            <AlertDialogCancel>Garder l'abonnement actif</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 const item = cancelTarget
@@ -458,7 +554,7 @@ export default function SubscriptionsPage() {
                 cancelMutation.mutate({ parentId: item.parent_id, subscriptionId: subscription.id })
               }}
             >
-              Confirmer
+              Annuler l'abonnement
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -467,13 +563,13 @@ export default function SubscriptionsPage() {
       <AlertDialog open={Boolean(passwordResetTarget)} onOpenChange={(open) => !open && setPasswordResetTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Réinitialiser le mot de passe parent ?</AlertDialogTitle>
+            <AlertDialogTitle>Créer un nouveau mot de passe pour {passwordResetTarget?.full_name ?? "ce parent"} ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette action invalide l&apos;ancien mot de passe et peut interrompre l&apos;accès du parent immédiatement.
+              L'ancien mot de passe ne fonctionnera plus. Copiez le nouveau mot de passe après confirmation pour le transmettre au parent.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>Ne rien changer</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (!passwordResetTarget) return
@@ -481,7 +577,7 @@ export default function SubscriptionsPage() {
                 setPasswordResetTarget(null)
               }}
             >
-              Confirmer
+              Créer le mot de passe
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -490,15 +586,15 @@ export default function SubscriptionsPage() {
       <Dialog open={Boolean(detailsTarget)} onOpenChange={(open) => !open && setDetailsTarget(null)}>
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Détails abonnement parent</DialogTitle>
+            <DialogTitle>Dossier abonnement parent</DialogTitle>
             <DialogDescription>
               {detailsTarget?.full_name} · {detailsTarget?.phone}
             </DialogDescription>
           </DialogHeader>
-          {detailsQuery.isLoading ? <p className="text-sm text-muted-foreground">Chargement…</p> : null}
+          {detailsQuery.isLoading ? <p className="text-sm text-muted-foreground">Chargement du dossier parent…</p> : null}
           {detailsQuery.isError ? (
             <Alert variant="destructive">
-              <AlertDescription>Impossible de charger les détails de cet abonnement.</AlertDescription>
+              <AlertDescription>Impossible de charger ce dossier parent. Fermez la fenêtre, puis réessayez.</AlertDescription>
             </Alert>
           ) : null}
           {detailsQuery.data ? (

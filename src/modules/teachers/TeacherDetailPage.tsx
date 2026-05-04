@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -37,6 +38,9 @@ import {
   updateTeacher,
 } from "@/modules/teachers/teachers.api"
 import { fetchWeeklySchedule } from "@/modules/schedule/schedule.api"
+import {
+  getTeacherSalaryDetails,
+} from "@/modules/salaries/salaries.api"
 import {
   DocumentList,
   DocumentUpload,
@@ -114,6 +118,25 @@ const dayMeta: Record<number, { label: string; className: string }> = {
   5: { label: "Vendredi", className: "border-emerald-200 bg-emerald-50 text-emerald-700" },
   6: { label: "Samedi", className: "border-rose-200 bg-rose-50 text-rose-700" },
   7: { label: "Dimanche", className: "border-slate-200 bg-slate-50 text-slate-700" },
+}
+
+const toDisplayedStatus = (status: string, isPartiallyPaid: boolean | null): string => {
+  if (status === "Salaire fixe") {
+    return "Salaire fixe"
+  }
+  if (status === "disputed") {
+    return "Litige"
+  }
+  if (status === "nothing_to_pay") {
+    return "Rien à payer"
+  }
+  if (isPartiallyPaid) {
+    return "Payé partiellement"
+  }
+  if (status === "paid") {
+    return "Payé"
+  }
+  return "En attente"
 }
 
 function WeeklyScheduleCard({ teacherId }: { teacherId: string }) {
@@ -259,6 +282,7 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
   const currentPage = Math.min(page, totalPages)
   const start = (currentPage - 1) * pageSize
   const pagedRows = rowsSorted.slice(start, start + pageSize)
+console.log(data);
 
   return (
     <div className="space-y-4">
@@ -291,7 +315,7 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-4">
         <Card>
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground">Heures prévues</p>
@@ -324,12 +348,6 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
             </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-xs text-muted-foreground">Statut salaire</p>
-            <p className="text-lg font-semibold">{data.summary.status}</p>
-          </CardContent>
-        </Card>
       </div>
 
       <Card>
@@ -343,6 +361,7 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
             </p>
           ) : (
             <div className="space-y-3">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -356,8 +375,6 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
                     <TableHead>Sortie de salle</TableHead>
                     <TableHead>Salle</TableHead>
                     <TableHead>Pointage élèves</TableHead>
-                    {/* <TableHead>Prévu</TableHead>
-                    <TableHead>Fait</TableHead> */}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -383,27 +400,30 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
                         {row.checkedOutAt ? row.checkedOutAt.slice(11, 16) : "—"}
                       </TableCell>
                       <TableCell>
-                        {row.roomMismatch ? (
-                          <Badge variant="destructive">Incorrecte</Badge>
-                        ) : (
-                          <Badge className="border-green-200 bg-green-50 text-green-700">Correcte</Badge>
-                        )}
+                        {/* C'est seulement si le prof est présent qu'on vérifie si la salle était correcte */}
+                        {row.attendanceStatus === "present" ?  (
+                            row.roomMismatch ? (
+                              <Badge variant="destructive">Incorrecte</Badge>
+                            ) : (
+                              <Badge className="border-green-200 bg-green-50 text-green-700">Correcte</Badge>
+                            )
+                          ) : ("N/A")
+                        }
                       </TableCell>
                       <TableCell>
-                        {row.rollcallMissing ? (
+                        {row.attendanceStatus === "present" && row.rollcallMissing ? (
                           <Badge className="border-amber-200 bg-amber-50 text-amber-700">Manquant</Badge>
-                        ) : row.rollcallDone ? (
+                        ) : row.attendanceStatus === "present" && row.rollcallDone ? (
                           <Badge className="border-green-200 bg-green-50 text-green-700">Effectué</Badge>
                         ) : (
                           <Badge variant="outline">N/A</Badge>
                         )}
                       </TableCell>
-                      {/* <TableCell>{row.hoursPlanned.toFixed(2)}h</TableCell>
-                      <TableCell>{row.hoursDone.toFixed(2)}h</TableCell> */}
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
+              </div>
 
               <div className="flex items-center justify-between">
                 <p className="text-xs text-muted-foreground">
@@ -536,6 +556,75 @@ function InfosPanel({ teacherId }: { teacherId: string }) {
   )
 }
 
+function SyntheseInfos({ teacherId }: { teacherId: string }) {
+
+  const month= getCurrentMonth()
+
+  const monthlyQuery = useQuery({
+    queryKey: [],
+    queryFn: () => getTeacherSalaryDetails(teacherId, month),
+  })
+
+  if (monthlyQuery.isError || !monthlyQuery.data) {
+    return <p className="text-sm text-red-600">Impossible de charger les infos de présences du mois.</p>
+  }
+
+  const data = monthlyQuery.data
+
+  const toSortableTime = (value: string) => {
+    const trimmed = value.trim()
+    if (/^\d{2}:\d{2}:\d{2}$/.test(trimmed)) return trimmed.slice(0, 5)
+    if (/^\d{2}:\d{2}$/.test(trimmed)) return trimmed
+    return "00:00"
+  }
+
+  const now = new Date()
+  const allRows = [...data.rows]
+  const absenceHours = allRows.reduce((acc, row) => {
+    const rowDateTime = new Date(`${row.date}T${toSortableTime(row.endTime)}:00`)
+    if (
+      rowDateTime.getTime() <= now.getTime() &&
+      (row.attendanceStatus === "absent" || row.attendanceStatus === "not_marked")
+    ) {
+      return acc + row.hoursPlanned
+    }
+    return acc
+  }, 0)
+
+  const remainingHours = allRows.reduce((acc, row) => {
+    const rowDateTime = new Date(`${row.date}T${toSortableTime(row.startTime)}:00`)
+    if (rowDateTime.getTime() > now.getTime()) {
+      return acc + row.hoursPlanned
+    }
+    return acc
+  }, 0)
+
+  return (
+    <div className="grid gap-px bg-border sm:grid-cols-5">
+      <div className="bg-background px-4 py-3">
+        <p className="text-[11px] font-medium uppercase text-muted-foreground">Heures prévues</p>
+        <p className="mt-1 text-lg font-semibold tabular-nums">{data.summary.hoursPlanned.toFixed(1)}h</p>
+      </div>
+      <div className="bg-background px-4 py-3">
+        <p className="text-[11px] font-medium uppercase text-muted-foreground">Heures faites</p>
+        <p className="mt-1 text-lg font-semibold tabular-nums">{data.summary.hoursDone.toFixed(1)}h</p>
+      </div>
+      <div className="bg-background px-4 py-3">
+        <p className="text-[11px] font-medium uppercase text-muted-foreground">Heures d'absence</p>
+        <p className="mt-1 text-lg font-semibold tabular-nums">{absenceHours.toFixed(1)}h</p>
+      </div>
+      <div className="bg-background px-4 py-3">
+        <p className="text-[11px] font-medium uppercase text-muted-foreground">Heures restantes</p>
+        <p className="mt-1 text-lg font-semibold tabular-nums">{remainingHours.toFixed(1)}h</p>
+      </div>
+      <div className="bg-background px-4 py-3">
+        <p className="text-[11px] font-medium uppercase text-muted-foreground">Statut salaire</p>
+        <p className="mt-1 text-lg font-semibold tabular-nums">{toDisplayedStatus(data.summary.status, data.summary.isPartiallyPaid)}</p>
+      </div>
+    </div>
+  )
+}
+
 export default function TeacherDetailPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -567,7 +656,6 @@ export default function TeacherDetailPage() {
     setBlockReason("")
   }
 
-  // ── Mutation blocage — cible teachers.is_blocked via blockTeacher ──────────
   const blockMutation = useMutation({
     mutationFn: (reason: string) => blockTeacher(teacherId, reason),
     onSuccess: async () => {
@@ -585,7 +673,6 @@ export default function TeacherDetailPage() {
     },
   })
 
-  // ── Mutation déblocage — efface teachers.is_blocked via unblockTeacher ─────
   const unblockMutation = useMutation({
     mutationFn: () => unblockTeacher(teacherId),
     onSuccess: async () => {
@@ -637,6 +724,12 @@ export default function TeacherDetailPage() {
   ).length
   const attendanceRate =
     currentMonthRows.length > 0 ? (presentLikeCount / currentMonthRows.length) * 100 : 0
+  const absentOrMissingCount = currentMonthRows.filter(
+    (row) => row.attendanceStatus === "absent" || row.attendanceStatus === "not_marked"
+  ).length
+  const issueCount = currentMonthRows.filter(
+    (row) => row.roomMismatch || row.rollcallMissing || row.attendanceStatus === "late"
+  ).length
 
   const monthStats = {
     hours_done: Math.round((currentMonthSummary?.hoursDone ?? 0) * 10) / 10,
@@ -688,6 +781,15 @@ export default function TeacherDetailPage() {
         </Button>
       }
     >
+      <div className="mb-4 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="flex flex-col gap-4 bg-muted/30 px-4 py-4 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0 space-y-1">
+            <p className="truncate text-sm font-semibold">Synthèse du mois en cours</p>
+          </div>
+        </div>
+        <SyntheseInfos teacherId={teacher.id} />
+      </div>
+
       {teacher.isBlocked ? (
         <Alert variant="destructive" className="mb-4">
           <WarningIcon className="h-4 w-4" />
@@ -732,7 +834,6 @@ export default function TeacherDetailPage() {
         </Tabs>
       </div>
 
-      {/* ── Modal de blocage ── */}
       <Dialog open={blockDialogOpen} onOpenChange={(open) => { if (!open) closeBlockDialog() }}>
         <DialogContent>
           <DialogHeader>
@@ -741,8 +842,9 @@ export default function TeacherDetailPage() {
           </DialogHeader>
 
           <div className="space-y-2">
-            <p className="text-sm font-medium">Raison du blocage</p>
+            <Label htmlFor="teacher-detail-block-reason">Raison du blocage</Label>
             <Input
+              id="teacher-detail-block-reason"
               value={blockReason}
               onChange={(event) => setBlockReason(event.target.value)}
               placeholder="Ex: Dossier RH incomplet"
@@ -759,8 +861,6 @@ export default function TeacherDetailPage() {
               disabled={blockMutation.isPending || blockReason.trim().length === 0}
               data-testid="teacher-block-confirm-button"
               onClick={() => {
-                // blockReason est maintenant transmis à blockTeacher()
-                // qui le persistera dans teachers.blocked_reason
                 void blockMutation.mutateAsync(blockReason.trim())
               }}
             >

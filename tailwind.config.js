@@ -37,10 +37,14 @@ module.exports = {
       transitionDuration: {
         DEFAULT: "150ms",
         fast: "100ms",
+        220: "220ms",
         slow: "300ms"
       },
       transitionTimingFunction: {
-        DEFAULT: "cubic-bezier(0.4, 0, 0.2, 1)"
+        DEFAULT: "cubic-bezier(0.25, 1, 0.5, 1)",
+        out: "cubic-bezier(0.25, 1, 0.5, 1)",
+        "out-quint": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "out-expo": "cubic-bezier(0.16, 1, 0.3, 1)"
       },
       keyframes: {
         "fade-in": {
@@ -55,6 +59,18 @@ module.exports = {
           from: { opacity: "0", transform: "translateY(-4px)" },
           to: { opacity: "1", transform: "translateY(0)" }
         },
+        "route-enter": {
+          from: { opacity: "0", transform: "translateY(8px)" },
+          to: { opacity: "1", transform: "translateY(0)" }
+        },
+        "surface-pop": {
+          from: { opacity: "0", transform: "translateY(4px) scale(0.985)" },
+          to: { opacity: "1", transform: "translateY(0) scale(1)" }
+        },
+        "check-in": {
+          from: { opacity: "0", transform: "scale(0.75) rotate(-8deg)" },
+          to: { opacity: "1", transform: "scale(1) rotate(0)" }
+        },
         "accordion-down": {
           from: { height: "0" },
           to: { height: "var(--radix-accordion-content-height)" }
@@ -65,11 +81,14 @@ module.exports = {
         }
       },
       animation: {
-        "fade-in": "fade-in 150ms ease-out",
-        "slide-up": "slide-up 150ms ease-out",
-        "slide-down": "slide-down 150ms ease-out",
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out"
+        "fade-in": "fade-in 150ms cubic-bezier(0.25, 1, 0.5, 1)",
+        "slide-up": "slide-up 150ms cubic-bezier(0.25, 1, 0.5, 1)",
+        "slide-down": "slide-down 150ms cubic-bezier(0.25, 1, 0.5, 1)",
+        "route-enter": "route-enter 220ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "surface-pop": "surface-pop 180ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "check-in": "check-in 140ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "accordion-down": "accordion-down 0.2s cubic-bezier(0.25, 1, 0.5, 1)",
+        "accordion-up": "accordion-up 0.16s cubic-bezier(0.25, 1, 0.5, 1)"
       }
     }
   },

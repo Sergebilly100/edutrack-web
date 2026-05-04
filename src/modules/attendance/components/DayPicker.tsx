@@ -78,12 +78,13 @@ export default function DayPicker({ selectedDate, onChange, highlightDates = [] 
                 type="button"
                 onClick={() => onChange(day)}
                 className={cn(
-                  "relative flex flex-1 flex-col items-center justify-center rounded-xl px-0.5 py-2 min-h-[56px] text-center transition-colors",
+                  "relative flex flex-1 flex-col items-center justify-center rounded-xl px-0.5 py-2 min-h-[56px] text-center transition-[background-color,color,box-shadow,transform] duration-150 ease-out-quint active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none motion-reduce:active:scale-100",
                   selected
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
                 aria-pressed={selected}
+                aria-label={`Afficher les cours du ${day.toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long" })}`}
               >
                 <span
                   className={cn(

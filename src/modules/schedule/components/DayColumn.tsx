@@ -71,12 +71,12 @@ export default function DayColumn({
         </p>
       </div>
 
-      <div className="relative border-l" style={{ height: gridHeight }}>
+      <div className="relative border-l bg-background" style={{ height: gridHeight }}>
         {hours.map((hour) => (
           <button
             key={hour}
             type="button"
-            className="block h-16 w-full border-b hover:bg-muted/40"
+            className="block h-16 w-full border-b transition-colors duration-150 ease-out-quint hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             onClick={() => onSlotAdd(day.value, hour)}
             aria-label={`Ajouter un créneau le ${day.label} à ${String(hour).padStart(2, "0")}h`}
           />

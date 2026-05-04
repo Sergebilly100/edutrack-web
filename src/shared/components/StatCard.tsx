@@ -16,10 +16,10 @@ export interface StatCardProps {
 }
 
 const variantClasses: Record<NonNullable<StatCardProps["variant"]>, string> = {
-  default: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
-  success: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
-  warning: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-  danger: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+  default: "bg-[var(--stat-default-bg)] text-[var(--stat-default-fg)]",
+  success: "bg-[var(--stat-success-bg)] text-[var(--stat-success-fg)]",
+  warning: "bg-[var(--stat-warning-bg)] text-[var(--stat-warning-fg)]",
+  danger: "bg-[var(--stat-danger-bg)] text-[var(--stat-danger-fg)]",
 }
 
 export function StatCard({
@@ -38,8 +38,8 @@ export function StatCard({
   return (
     <article
       className={cn(
-        "rounded-xl border border-border/60 bg-card p-5 shadow-card transition hover:shadow-card-hover",
-        "dark:bg-slate-900",
+        "rounded-lg border border-border/70 bg-[var(--surface-panel)] p-4 shadow-sm transition hover:border-primary/30 hover:shadow-card",
+        "sm:p-5",
         clickable ? "cursor-pointer focus-visible:outline-none focus-visible:shadow-focus" : ""
       )}
       onClick={onClick}
@@ -58,11 +58,11 @@ export function StatCard({
     >
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-2">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <p className="text-xs font-semibold uppercase text-muted-foreground sm:text-sm sm:normal-case">{title}</p>
           {loading ? (
             <Skeleton className="h-8 w-20" />
           ) : (
-            <p className="text-2xl font-semibold tabular-nums">{value}</p>
+            <p className="text-xl font-semibold tabular-nums tracking-tight sm:text-2xl">{value}</p>
           )}
         </div>
         <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", variantClasses[variant])}>

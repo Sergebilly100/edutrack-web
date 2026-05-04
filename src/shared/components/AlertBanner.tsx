@@ -39,7 +39,7 @@ export function AlertBanner({ type, title, message, action, onDismiss }: AlertBa
             type="button"
             variant="ghost"
             size="icon"
-            className="h-7 w-7 rounded-md hover:bg-black/5 dark:hover:bg-white/10"
+            className="h-7 w-7 rounded-md hover:bg-slate-950/5 dark:hover:bg-slate-50/10"
             onClick={onDismiss}
             aria-label="Fermer l'alerte"
           >

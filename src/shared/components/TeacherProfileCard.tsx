@@ -3,15 +3,6 @@ import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 
 type TeacherProfile = {
   id: string
@@ -70,9 +61,7 @@ export function TeacherProfileCard({
   onUnblock,
   onViewDocuments,
 }: TeacherProfileCardProps) {
-  const [isBlocking, setIsBlocking] = useState(false)
   const [isUnblocking, setIsUnblocking] = useState(false)
-  const [openBlockDialog, setOpenBlockDialog] = useState(false)
   const isBlocked = monthStats.status === "blocked"
 
   return (
@@ -80,7 +69,7 @@ export function TeacherProfileCard({
       <CardContent className="space-y-5 p-5">
         <div className="flex flex-col items-center text-center">
           <div
-            className="flex h-20 w-20 items-center justify-center rounded-full border border-border/60 text-xl font-semibold text-slate-700 dark:text-slate-100"
+            className="flex h-20 w-20 items-center justify-center rounded-full border border-border/60 text-xl font-semibold text-slate-700 dark:text-slate-700"
             style={{ backgroundColor: getAvatarBackground(teacher.name) }}
           >
             {getInitials(teacher.name)}
@@ -159,42 +148,14 @@ export function TeacherProfileCard({
               {isUnblocking ? "Déblocage..." : "Débloquer"}
             </Button>
           ) : (
-            <Dialog open={openBlockDialog} onOpenChange={setOpenBlockDialog}>
-              <DialogTrigger asChild>
-                <Button type="button" variant="destructive" className="flex-1">
-                  Bloquer
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Bloquer ce professeur ?</DialogTitle>
-                  <DialogDescription>
-                    Le compte sera désactivé temporairement pour les pointages et accès sensibles.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setOpenBlockDialog(false)}>
-                    Annuler
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    disabled={isBlocking}
-                    onClick={async () => {
-                      setIsBlocking(true)
-                      try {
-                        await onBlock(teacher.id)
-                        setOpenBlockDialog(false)
-                      } finally {
-                        setIsBlocking(false)
-                      }
-                    }}
-                  >
-                    {isBlocking ? "Blocage..." : "Confirmer"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <Button
+              type="button"
+              variant="destructive"
+              className="flex-1"
+              onClick={() => void onBlock(teacher.id)}
+            >
+              Bloquer
+            </Button>
           )}
         </div>
       </CardContent>

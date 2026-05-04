@@ -212,14 +212,17 @@ export default function WeekGrid({
       {/* État de chargement — skeleton overlay léger */}
       {isLoading ? (
         <div className="flex h-24 items-center justify-center rounded-md border bg-muted/30">
-          <p className="text-sm text-muted-foreground">Chargement…</p>
+          <p className="text-sm text-muted-foreground">Chargement de la semaine...</p>
         </div>
       ) : !hasPeriod ? (
         /* FIX BUG 1 : Pas de période active → grille vide explicite */
         <div className="flex h-40 items-center justify-center rounded-md border border-dashed bg-muted/20">
-          <p className="text-sm text-muted-foreground">
-            Aucune période d'emploi du temps pour cette semaine.
-          </p>
+          <div className="space-y-1 text-center">
+            <p className="text-sm font-medium">Aucune période active cette semaine</p>
+            <p className="text-xs text-muted-foreground">
+              Sélectionnez une autre semaine ou créez une période avant d'ajouter des créneaux.
+            </p>
+          </div>
         </div>
       ) : (
         <div className="overflow-x-auto">

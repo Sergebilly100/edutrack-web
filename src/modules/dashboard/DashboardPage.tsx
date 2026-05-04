@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Bell, CheckCircle2, ChevronRight, GraduationCap, RefreshCw, Users, Wallet } from "lucide-react"
+import { Bell, CheckCircle2, ChevronRight, GraduationCap, MessageSquareText, RefreshCw, TriangleAlert, Users, Wallet, X } from "lucide-react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -16,6 +16,7 @@ import {
   getAttendanceHistory,
   getCurrentMonthKey,
   getDashboardCounts,
+  getSMSLog,
   getNextWeekCoverageState,
   getPreviousMonthKey,
   getSalarySummary,
@@ -25,6 +26,7 @@ import {
   getTotalPendingSalaries,
   type DashboardCourseItem,
   type DashboardSalarySummaryItem,
+  type DashboardSmsItem,
 } from "@/modules/dashboard/dashboard.api"
 import { AlertBanner } from "@/shared/components/AlertBanner"
 import { EmptyState, emptyStateIcons } from "@/shared/components/EmptyState"
@@ -37,6 +39,7 @@ import { useAuthStore } from "@/shared/store/auth.store"
 
 const QUERY_STALE_TIME = 60_000
 const TODAY_REFETCH_INTERVAL = 120_000
+const DASHBOARD_DISMISSED_NOTIFICATIONS_KEY = "edutrack:dashboard:dismissed-notifications"
 
 const formatToday = (value: Date) =>
   value.toLocaleDateString("fr-FR", {
@@ -110,6 +113,124 @@ type DashboardSalaryRow = DashboardSalarySummaryItem & {
   salaryStatusClassName?: string
 }
 
+type DashboardNotification = {
+  id: string
+  title: string
+  message: string
+  meta: string
+  tone: "warning" | "info" | "success" | "danger"
+}
+
+const smsStatusTone: Record<DashboardSmsItem["status"], DashboardNotification["tone"]> = {
+  queued: "warning",
+  sent: "success",
+  delivered: "success",
+  failed: "danger",
+  unknown: "info",
+}
+
+const notificationToneClass: Record<DashboardNotification["tone"], string> = {
+  warning: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100",
+  info: "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-100",
+  success: "border-green-200 bg-green-50 text-green-800 dark:border-green-900/50 dark:bg-green-950/40 dark:text-green-100",
+  danger: "border-red-200 bg-red-50 text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-100",
+}
+
+const formatNotificationTime = (value: string | null): string => {
+  if (!value) {
+    return "Date inconnue"
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return date.toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+function DashboardNotificationsPanel({
+  notifications,
+  onDismiss,
+  onDismissAll,
+  onClose,
+}: {
+  notifications: DashboardNotification[]
+  onDismiss: (id: string) => void
+  onDismissAll: () => void
+  onClose: () => void
+}) {
+  return (
+    <aside
+      role="dialog"
+      aria-modal="false"
+      aria-labelledby="dashboard-notifications-title"
+      className="fixed inset-x-3 bottom-3 top-auto z-50 max-h-[82vh] overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-xl md:inset-x-auto md:bottom-auto md:right-8 md:top-20 md:w-[calc(100vw-1.5rem)] md:max-w-md"
+    >
+      <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+        <div>
+          <p id="dashboard-notifications-title" className="text-sm font-semibold">Notifications</p>
+          <p className="text-xs text-muted-foreground">
+            {notifications.length === 0 ? "Aucune action urgente" : `${notifications.length} point(s) à suivre`}
+          </p>
+        </div>
+        <div className="flex items-center gap-1">
+          {notifications.length > 0 ? (
+            <Button type="button" variant="ghost" size="sm" onClick={onDismissAll}>
+              Tout marquer comme traité
+            </Button>
+          ) : null}
+          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} aria-label="Fermer les notifications">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="max-h-[62vh] space-y-2 overflow-y-auto p-3 md:max-h-[70vh]">
+        {notifications.length === 0 ? (
+          <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+            Tout est à jour. Les nouvelles alertes reviendront ici dès qu'une action sera nécessaire.
+          </div>
+        ) : (
+          notifications.map((notification) => (
+            <div key={notification.id} className="rounded-lg border bg-background p-3 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border ${notificationToneClass[notification.tone]}`}>
+                  {notification.tone === "warning" || notification.tone === "danger" ? (
+                    <TriangleAlert className="h-4 w-4" />
+                  ) : (
+                    <MessageSquareText className="h-4 w-4" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">{notification.title}</p>
+                  <p className="mt-1 text-sm leading-5 text-muted-foreground">{notification.message}</p>
+                  <p className="mt-2 text-xs font-medium text-muted-foreground">{notification.meta}</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={() => onDismiss(notification.id)}
+                  aria-label="Masquer cette notification"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </aside>
+  )
+}
+
 const toDashboardSalaryRow = (item: DashboardSalarySummaryItem): DashboardSalaryRow => {
   if (item.status === "Salaire fixe") {
     return {
@@ -142,6 +263,28 @@ const toDashboardSalaryRow = (item: DashboardSalarySummaryItem): DashboardSalary
     ...item,
     salaryRowStatus: item.status,
   }
+}
+
+const readDismissedNotificationIds = (): Set<string> => {
+  if (typeof window === "undefined") {
+    return new Set()
+  }
+
+  try {
+    const raw = window.localStorage.getItem(DASHBOARD_DISMISSED_NOTIFICATIONS_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    return new Set(Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [])
+  } catch {
+    return new Set()
+  }
+}
+
+const writeDismissedNotificationIds = (ids: Set<string>) => {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  window.localStorage.setItem(DASHBOARD_DISMISSED_NOTIFICATIONS_KEY, JSON.stringify([...ids]))
 }
 
 function DashboardSkeleton() {
@@ -186,7 +329,7 @@ function TodayPresenceList({
       <EmptyState
         icon={emptyStateIcons.noCourses}
         title="Aucun créneau aujourd'hui"
-        message="Aucun cours n'est planifié pour la journée en cours."
+        message="Aucun cours n'est planifié aujourd'hui. Vérifiez l'emploi du temps si une classe devait avoir cours."
       />
     )
   }
@@ -244,7 +387,7 @@ function TodayStudentAbsenceList({
       <EmptyState
         icon={emptyStateIcons.allGood}
         title="Aucune absence aujourd'hui"
-        message="Aucun élève n'a été marqué absent pour le moment."
+        message="Aucun élève n'a été marqué absent pour le moment. Les nouvelles absences apparaîtront ici en temps réel."
       />
     )
   }
@@ -304,6 +447,8 @@ export default function DashboardPage() {
   const [refreshSuccess, setRefreshSuccess] = useState(false)
   const [showAllTodayPresence, setShowAllTodayPresence] = useState(false)
   const [showAllTodayStudentAbsences, setShowAllTodayStudentAbsences] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState<Set<string>>(readDismissedNotificationIds)
   const user = useAuthStore((state) => state.user)
   const permissions = useAuthStore((state) => state.permissions)
   const currentMonth = useMemo(() => getCurrentMonthKey(new Date()), [])
@@ -358,6 +503,14 @@ export default function DashboardPage() {
     staleTime: QUERY_STALE_TIME,
     retry: false,
     enabled: canViewSalary,
+  })
+
+  const smsLogQuery = useQuery({
+    queryKey: ["dashboard", "sms-log", "notifications"],
+    queryFn: () => getSMSLog(8),
+    staleTime: QUERY_STALE_TIME,
+    retry: false,
+    enabled: isDirector,
   })
 
   const previousSalarySummaryQuery = useQuery({
@@ -468,11 +621,6 @@ export default function DashboardPage() {
     return items.map((item) => toDashboardSalaryRow(item)).slice(0, 5)
   }, [salarySummaryQuery.data])
 
-  const activeAlertsCount =
-    (coverageQuery.data?.nextWeekHasCoverage === false ? 1 : 0) +
-    (weeklyAbsenceCount > 3 ? 1 : 0) +
-    ((salaryUnpaidAlertsQuery.data?.count ?? 0) > 0 ? 1 : 0)
-
   const schoolName = schoolQuery.data?.name?.trim() || "École"
   const riskMonthStart = `${currentMonth}-01`
   const riskMonthEnd = new Date(
@@ -507,6 +655,66 @@ export default function DashboardPage() {
   )
   const canToggleTodayPresence = (todayQuery.data?.courses ?? []).length > 5
   const canToggleTodayStudentAbsences = todayStudentAbsenceItems.length > 5
+  const notificationItems = useMemo<DashboardNotification[]>(() => {
+    const items: DashboardNotification[] = []
+
+    if (coverageQuery.data?.nextWeekHasCoverage === false) {
+      items.push({
+        id: "coverage-next-week",
+        title: "Semaine prochaine à compléter",
+        message: "Certains créneaux de la semaine prochaine ne sont pas encore couverts.",
+        meta: "Action conseillée: ouvrir l'emploi du temps",
+        tone: "warning",
+      })
+    }
+
+    if (weeklyAbsenceCount > 3) {
+      items.push({
+        id: "teacher-absences-week",
+        title: "Absences professeurs à surveiller",
+        message: `${weeklyAbsenceCount} absences non justifiées ont été relevées sur les 7 derniers jours.`,
+        meta: "Action conseillée: consulter les professeurs",
+        tone: "warning",
+      })
+    }
+
+    if ((salaryUnpaidAlertsQuery.data?.count ?? 0) > 0) {
+      items.push({
+        id: "salary-unpaid-alerts",
+        title: "Paiements salaires à terminer",
+        message: `${salaryUnpaidAlertsQuery.data?.count ?? 0} fiche(s) restent à solder, pour ${new Intl.NumberFormat("fr-FR").format(salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0)} FCFA.`,
+        meta: "Action conseillée: ouvrir les salaires",
+        tone: "warning",
+      })
+    }
+
+    for (const sms of smsLogQuery.data ?? []) {
+      items.push({
+        id: `sms-${sms.id}`,
+        title: sms.status === "failed" ? "SMS non envoyé" : "Notification SMS",
+        message: sms.message || "Message indisponible",
+        meta: `${formatNotificationTime(sms.sentAt ?? sms.createdAt)} · ${sms.recipientPhone}`,
+        tone: smsStatusTone[sms.status],
+      })
+    }
+
+    return items
+  }, [
+    coverageQuery.data?.nextWeekHasCoverage,
+    salaryUnpaidAlertsQuery.data?.count,
+    salaryUnpaidAlertsQuery.data?.totalRemainingFcfa,
+    smsLogQuery.data,
+    weeklyAbsenceCount,
+  ])
+  const visibleNotifications = useMemo(
+    () => notificationItems.filter((item) => !dismissedNotificationIds.has(item.id)),
+    [dismissedNotificationIds, notificationItems]
+  )
+  const activeAlertsCount = visibleNotifications.length
+
+  useEffect(() => {
+    writeDismissedNotificationIds(dismissedNotificationIds)
+  }, [dismissedNotificationIds])
 
   useEffect(() => {
     if (!refreshSuccess) return
@@ -564,16 +772,16 @@ export default function DashboardPage() {
     const onMobileRefresh = () => {
       void handleDashboardRefresh()
     }
-    const onMobileScrollAlerts = () => {
-      alertsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    const onMobileToggleNotifications = () => {
+      setNotificationsOpen((current) => !current)
     }
 
     window.addEventListener("dashboard:mobile-refresh", onMobileRefresh)
-    window.addEventListener("dashboard:mobile-scroll-alerts", onMobileScrollAlerts)
+    window.addEventListener("dashboard:mobile-toggle-notifications", onMobileToggleNotifications)
 
     return () => {
       window.removeEventListener("dashboard:mobile-refresh", onMobileRefresh)
-      window.removeEventListener("dashboard:mobile-scroll-alerts", onMobileScrollAlerts)
+      window.removeEventListener("dashboard:mobile-toggle-notifications", onMobileToggleNotifications)
       window.dispatchEvent(
         new CustomEvent("dashboard:mobile-header-state", {
           detail: {
@@ -598,12 +806,12 @@ export default function DashboardPage() {
     <>
       <OfflineIndicator />
 
-      <div className="space-y-6 animate-fade-in">
+      <div className={`space-y-6 animate-fade-in rounded-lg ${refreshSuccess ? "fresh-data-pulse" : ""}`}>
         <header className="-mx-4 border-b bg-background px-4 py-4 md:sticky md:top-0 md:z-30 md:-mx-6 md:px-6">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
               <h1 className="text-2xl font-semibold tracking-tight">Bonjour, {user?.name ?? "Directeur"}</h1>
-              {/* <p className="text-sm capitalize text-muted-foreground">{formatToday(new Date())}</p> */}
+              <p className="text-sm text-muted-foreground">{formatToday(new Date())}</p>
               <Badge variant="outline" className="mt-1">{schoolName}</Badge>
             </div>
             <div className="hidden items-center gap-2 md:flex">
@@ -612,7 +820,7 @@ export default function DashboardPage() {
                 variant="outline"
                 size="icon"
                 aria-label="Voir les notifications"
-                onClick={() => alertsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                onClick={() => setNotificationsOpen((current) => !current)}
                 className="relative"
               >
                 <Bell className="h-4 w-4" />
@@ -635,12 +843,12 @@ export default function DashboardPage() {
                 {isRefreshing ? (
                   <>
                     <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
-                    Chargement...
+                    Mise à jour...
                   </>
                 ) : refreshSuccess ? (
                   <>
                     <CheckCircle2 className="mr-1 h-4 w-4 text-green-600" />
-                    OK
+                    À jour
                   </>
                 ) : (
                   <>
@@ -652,6 +860,21 @@ export default function DashboardPage() {
             </div>
           </div>
         </header>
+
+        {notificationsOpen ? (
+          <DashboardNotificationsPanel
+            notifications={visibleNotifications}
+            onDismiss={(id) =>
+              setDismissedNotificationIds((current) => {
+                const next = new Set(current)
+                next.add(id)
+                return next
+              })
+            }
+            onDismissAll={() => setDismissedNotificationIds(new Set(notificationItems.map((item) => item.id)))}
+            onClose={() => setNotificationsOpen(false)}
+          />
+        ) : null}
 
         <section ref={alertsRef} className="space-y-3 animate-fade-in">
           <WeekCoverageAlert
@@ -665,7 +888,7 @@ export default function DashboardPage() {
               title="Absences profs élevées cette semaine"
               message={`${weeklyAbsenceCount} absences non justifiées ont été relevées sur les 7 derniers jours.`}
               action={{
-                label: "Voir les profs",
+                label: "Ouvrir les professeurs",
                 onClick: () => navigate("/teachers"),
               }}
             />
@@ -674,10 +897,10 @@ export default function DashboardPage() {
           {(salaryUnpaidAlertsQuery.data?.count ?? 0) > 0 ? (
             <AlertBanner
               type="warning"
-              title="Salaires des mois passés à régler"
-              message={`${salaryUnpaidAlertsQuery.data?.count ?? 0} fiche(s) non soldée(s), pour ${new Intl.NumberFormat("fr-FR").format(salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0)} FCFA.`}
+              title="Salaires à terminer"
+              message={`${salaryUnpaidAlertsQuery.data?.count ?? 0} fiche(s) restent à solder, pour ${new Intl.NumberFormat("fr-FR").format(salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0)} FCFA.`}
               action={{
-                label: "Voir les salaires",
+                label: "Ouvrir les salaires",
                 onClick: () => navigate("/salaries"),
               }}
             />
@@ -722,7 +945,7 @@ export default function DashboardPage() {
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <Card className="xl:col-span-2">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-lg font-semibold">Présences profs - Aujourd'hui</CardTitle>
+            <CardTitle className="text-lg font-semibold">Présences professeurs aujourd'hui</CardTitle>
               {canToggleTodayPresence ? (
                 <Button
                   type="button"
@@ -752,7 +975,7 @@ export default function DashboardPage() {
                 <EmptyState
                   icon={emptyStateIcons.allGood}
                   title="Aucun profil à risque"
-                  message="Aucune absence significative détectée ce mois-ci."
+                  message="Aucun professeur ne dépasse le seuil d'alerte ce mois-ci."
                 />
               ) : (
                 <div className="space-y-2">
@@ -793,7 +1016,7 @@ export default function DashboardPage() {
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-lg font-semibold">Absence élève/étudiant - Aujourd&apos;hui</CardTitle>
+              <CardTitle className="text-lg font-semibold">Absences élèves aujourd'hui</CardTitle>
               {canToggleTodayStudentAbsences ? (
                 <Button
                   type="button"
@@ -833,7 +1056,7 @@ export default function DashboardPage() {
                 <EmptyState
                   icon={emptyStateIcons.allGood}
                   title="Aucun élève à risque"
-                  message="Aucune absence significative détectée ce mois-ci."
+                  message="Aucun élève ne dépasse le seuil d'alerte ce mois-ci."
                 />
               ) : (
                 <div className="space-y-2">
@@ -881,7 +1104,7 @@ export default function DashboardPage() {
                 <EmptyState
                   icon={emptyStateIcons.noTeachers}
                   title="Aucune fiche salaire"
-                  message="Aucune ligne de salaire n'est disponible pour ce mois."
+                  message="Aucune ligne de salaire n'est disponible pour ce mois. Les fiches apparaîtront ici dès que des heures seront enregistrées."
                 />
               ) : (
                 <div className="overflow-x-auto">

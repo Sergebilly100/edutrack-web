@@ -21,13 +21,16 @@ export function TeacherTopBar() {
   }
 
   return (
-    <header className="sticky top-0 z-40 h-12 border-b bg-background">
+    <header className="sticky top-0 z-40 h-14 border-b bg-[var(--surface-chrome)] backdrop-blur">
       <div className="grid h-full grid-cols-[auto_1fr_auto] items-center gap-2 px-4">
-        <div className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-[11px] font-semibold text-primary">
+        <div className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-[11px] font-semibold text-primary shadow-sm">
           ET
         </div>
 
-        <p className="truncate text-center text-sm font-medium">{user?.name ?? "Professeur"}</p>
+        <div className="min-w-0 text-center">
+          <p className="truncate text-sm font-semibold leading-tight">{user?.name ?? "Professeur"}</p>
+          <p className="text-[11px] font-medium text-muted-foreground">Espace professeur</p>
+        </div>
 
         <div className="flex items-center gap-1">
           <ThemeToggle />

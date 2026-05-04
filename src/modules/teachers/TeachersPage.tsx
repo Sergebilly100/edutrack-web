@@ -2,6 +2,7 @@ import { useMemo, useState } from "react"
 import type { ColumnDef, Column } from "@tanstack/react-table"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate, useSearchParams } from "react-router-dom"
+import axios from "axios"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -22,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -86,6 +88,11 @@ const downloadBlob = (blob: Blob, filename: string) => {
   window.URL.revokeObjectURL(url)
 }
 
+const getApiErrorMessage = (error: unknown, fallback: string) =>
+  axios.isAxiosError(error) && typeof error.response?.data?.error === "string"
+    ? error.response.data.error
+    : fallback
+
 type TeacherStatsMap = Record<
   string,
   { attendanceRate: number; hoursWorked: number; amountDue: number }
@@ -148,7 +155,7 @@ function TeacherRowActions({
             onClick={(event) => event.stopPropagation()}
           >
             <MoreIcon className="h-4 w-4" />
-            <span className="sr-only">Actions</span>
+            <span className="sr-only">Actions pour {teacher.name}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
@@ -196,6 +203,10 @@ export default function TeachersPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [exportPeriod, setExportPeriod] = useState(getDefaultExportPeriod)
   const activeTab = searchParams.get("tab") === "analyse" ? "analyse" : "liste"
+  const isExportPeriodValid =
+    exportPeriod.dateFrom.length > 0 &&
+    exportPeriod.dateTo.length > 0 &&
+    exportPeriod.dateFrom <= exportPeriod.dateTo
 
   const last30Days = useMemo(() => getLast30DaysPeriod(), [])
 
@@ -246,10 +257,10 @@ export default function TeachersPage() {
       await queryClient.invalidateQueries({ queryKey: ["teachers"] })
       toast({ title: "Professeur ajouté" })
     },
-    onError: () => {
+    onError: (error) => {
       toast({
         title: "Erreur",
-        description: "Impossible d'ajouter le professeur",
+        description: getApiErrorMessage(error, "Impossible d'ajouter le professeur."),
         variant: "destructive",
       })
     },
@@ -271,10 +282,10 @@ export default function TeachersPage() {
         title: variables.teacher.isBlocked ? "Professeur débloqué" : "Professeur bloqué",
       })
     },
-    onError: () => {
+    onError: (error) => {
       toast({
         title: "Erreur",
-        description: "Impossible de modifier le statut",
+        description: getApiErrorMessage(error, "Impossible de modifier le statut."),
         variant: "destructive",
       })
     },
@@ -287,10 +298,10 @@ export default function TeachersPage() {
       setTeacherForExport(null)
       toast({ title: "Export généré" })
     },
-    onError: () => {
+    onError: (error) => {
       toast({
         title: "Erreur",
-        description: "Impossible d'exporter les heures",
+        description: getApiErrorMessage(error, "Impossible d'exporter les heures."),
         variant: "destructive",
       })
     },
@@ -310,6 +321,10 @@ export default function TeachersPage() {
     () => tableData.filter((teacher) => !teacher.isBlocked).length,
     [tableData]
   )
+  const blockedCount = Math.max(tableData.length - activeCount, 0)
+  const vacataireCount = tableData.filter((teacher) => teacher.type === "vacataire").length
+  const permanentCount = tableData.filter((teacher) => teacher.type === "permanent").length
+  const subjectsVisibleCount = subjectOptions.length
 
   const columns = useMemo<ColumnDef<TeacherTableRow>[]>(
     () => [
@@ -318,12 +333,12 @@ export default function TeachersPage() {
         accessorFn: (row) => row.name,
         header: ({ column }) => <SortableHeader column={column} label="Nom" />,
         cell: ({ row }) => (
-          <div className="flex items-center gap-3">
-            <Avatar className="h-8 w-8">
+          <div className="flex min-w-0 items-center gap-3">
+            <Avatar className="h-8 w-8 flex-shrink-0">
               <AvatarFallback>{initials(row.original.name)}</AvatarFallback>
             </Avatar>
-            <div>
-              <p className="text-sm font-medium">{row.original.name}</p>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{row.original.name}</p>
               <p className="text-xs text-muted-foreground">@{row.original.username}</p>
             </div>
           </div>
@@ -355,28 +370,6 @@ export default function TeachersPage() {
           </Badge>
         ),
       },
-      // {
-      //   accessorKey: "attendanceRate",
-      //   header: ({ column }) => <SortableHeader column={column} label="Présence" />,
-      //   cell: ({ row }) => (
-      //     <div className="flex items-center gap-2">
-      //       <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
-      //         <div
-      //           className={cn(
-      //             "h-full rounded-full",
-      //             row.original.attendanceRate >= 90
-      //               ? "bg-green-500"
-      //               : row.original.attendanceRate >= 70
-      //                 ? "bg-amber-500"
-      //                 : "bg-red-500"
-      //           )}
-      //           style={{ width: `${row.original.attendanceRate}%` }}
-      //         />
-      //       </div>
-      //       <span className="text-xs tabular-nums">{row.original.attendanceRate}%</span>
-      //     </div>
-      //   ),
-      // },
       {
         accessorKey: "isBlocked",
         header: "Statut",
@@ -450,7 +443,44 @@ export default function TeachersPage() {
         </TabsList>
 
         <TabsContent value="liste" className="space-y-6">
-          {/* ── Filtres ── */}
+          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+            <div className="flex flex-col gap-4 bg-muted/30 px-4 py-4 md:flex-row md:items-center md:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold">Pilotage professeurs</p>
+                <p className="text-xs text-muted-foreground">
+                  Les statuts RH, les types de contrat et les matières visibles sont regroupés avant la table.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="secondary" className="rounded-md px-2.5 py-1">
+                  {teachersQuery.isLoading ? "..." : `${activeCount} actifs`}
+                </Badge>
+                <Badge variant={blockedCount > 0 ? "destructive" : "secondary"} className="rounded-md px-2.5 py-1">
+                  {teachersQuery.isLoading ? "..." : `${blockedCount} bloqués`}
+                </Badge>
+                <Badge variant="outline" className="rounded-md px-2.5 py-1">
+                  {teachersQuery.isLoading ? "..." : `${subjectsVisibleCount} matières`}
+                </Badge>
+              </div>
+            </div>
+            <div className="grid gap-px bg-border sm:grid-cols-3">
+              <div className="bg-background px-4 py-3">
+                <p className="text-[11px] font-medium uppercase text-muted-foreground">Vacataires</p>
+                <p className="mt-1 text-lg font-semibold tabular-nums">{teachersQuery.isLoading ? "-" : vacataireCount}</p>
+              </div>
+              <div className="bg-background px-4 py-3">
+                <p className="text-[11px] font-medium uppercase text-muted-foreground">Permanents</p>
+                <p className="mt-1 text-lg font-semibold tabular-nums">{teachersQuery.isLoading ? "-" : permanentCount}</p>
+              </div>
+              <div className="bg-background px-4 py-3">
+                <p className="text-[11px] font-medium uppercase text-muted-foreground">Filtre actif</p>
+                <p className="mt-1 truncate text-sm font-medium">
+                  {typeFilter === "all" && statusFilter === "all" && !subjectFilter ? "Tous les professeurs" : "Vue affinée"}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div
             className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-sm"
             data-testid="teachers-filters"
@@ -524,13 +554,13 @@ export default function TeachersPage() {
                     icon={<AppIcon icon={TeachersIcon} size="md" className="text-muted-foreground" />}
                     title="Aucun professeur"
                     message="Ajoutez un professeur ou ajustez les filtres pour afficher des résultats."
-                    action={canCreateTeacher ? { label: "Ajouter un prof", onClick: () => setCreateOpen(true) } : undefined}
+                    action={canCreateTeacher ? { label: "Ajouter un professeur", onClick: () => setCreateOpen(true), icon: AddIcon } : undefined}
                   />
                 }
                 mobileCard={(teacher) => (
                   <button
                     type="button"
-                    className="flex w-full items-center gap-3 rounded-xl border bg-card p-4 text-left shadow-sm"
+                    className="flex w-full items-center gap-3 rounded-xl border bg-card p-4 text-left shadow-sm transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={() => navigate(`/teachers/${teacher.id}`)}
                     data-testid="teacher-mobile-card"
                   >
@@ -609,8 +639,9 @@ export default function TeachersPage() {
             {/* Motif uniquement pour le blocage */}
             {!teacherForStatusChange?.isBlocked ? (
               <div className="space-y-2">
-                <p className="text-sm font-medium">Raison du blocage</p>
+                <Label htmlFor="teacher-block-reason">Raison du blocage</Label>
                 <Input
+                  id="teacher-block-reason"
                   value={blockReasonInput}
                   onChange={(event) => setBlockReasonInput(event.target.value)}
                   placeholder="Ex: Dossier RH incomplet"
@@ -663,8 +694,9 @@ export default function TeachersPage() {
 
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
-              <p className="text-sm font-medium">Date de début</p>
+              <Label htmlFor="teacher-export-from">Date de début</Label>
               <Input
+                id="teacher-export-from"
                 type="date"
                 value={exportPeriod.dateFrom}
                 onChange={(event) =>
@@ -673,8 +705,9 @@ export default function TeachersPage() {
               />
             </div>
             <div className="space-y-2">
-              <p className="text-sm font-medium">Date de fin</p>
+              <Label htmlFor="teacher-export-to">Date de fin</Label>
               <Input
+                id="teacher-export-to"
                 type="date"
                 value={exportPeriod.dateTo}
                 onChange={(event) =>
@@ -684,12 +717,18 @@ export default function TeachersPage() {
             </div>
           </div>
 
+          {!isExportPeriodValid ? (
+            <Alert variant="destructive">
+              <AlertDescription>La date de début doit être antérieure ou égale à la date de fin.</AlertDescription>
+            </Alert>
+          ) : null}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setTeacherForExport(null)}>
               Annuler
             </Button>
             <Button
-              disabled={exportMutation.isPending}
+              disabled={exportMutation.isPending || !isExportPeriodValid}
               onClick={() => {
                 if (!teacherForExport) return
                 void exportMutation.mutateAsync({

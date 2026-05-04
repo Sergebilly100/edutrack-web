@@ -182,8 +182,8 @@ function NavItemComponent({ item, collapsed }: { item: NavItem; collapsed: boole
       to={item.href}
       className={cn(
         "flex items-center gap-3 rounded-lg px-3 min-h-[44px] text-sm font-medium",
-        "transition-colors hover:bg-accent hover:text-accent-foreground",
-        isActive && "bg-accent text-accent-foreground",
+        "transition-[background-color,color,box-shadow,transform] duration-150 ease-out-quint hover:bg-accent hover:text-accent-foreground active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100",
+        isActive && "bg-[var(--nav-active-bg)] text-[var(--nav-active-fg)] ring-1 ring-[var(--nav-active-border)]",
         collapsed && "justify-center px-0 w-11"
       )}
     >
@@ -274,7 +274,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
             <button
               type="button"
               onClick={handleTogglePinned}
-              className="hidden lg:flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
+              className="hidden lg:flex h-8 w-8 items-center justify-center rounded-lg transition-[background-color,color,transform] duration-150 ease-out-quint hover:bg-accent active:scale-95 motion-reduce:transition-none motion-reduce:active:scale-100"
               aria-label={pinned ? "Désépingler" : "Épingler"}
             >
               {pinned ? <Pin className="w-4 h-4 text-primary" /> : <PinOff className="w-4 h-4 text-muted-foreground" />}
@@ -284,7 +284,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
             type="button"
             onClick={handleToggleCollapsed}
             className={cn(
-              "hidden lg:flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
+              "hidden lg:flex h-8 w-8 items-center justify-center rounded-lg transition-[background-color,color,transform] duration-150 ease-out-quint active:scale-95 motion-reduce:transition-none motion-reduce:active:scale-100",
               pinned ? "text-muted-foreground/60" : "hover:bg-accent"
             )}
             aria-label={collapsed ? "Ouvrir" : "Réduire"}
@@ -315,7 +315,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
                 type="button"
                 onClick={() => setTheme(value)}
                 className={cn(
-                  "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+                  "flex h-7 w-7 items-center justify-center rounded-md transition-[background-color,color,box-shadow,transform] duration-150 ease-out-quint active:scale-95 motion-reduce:transition-none motion-reduce:active:scale-100",
                   theme === value ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                 )}
                 aria-label={value}
@@ -331,7 +331,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
         <button
           type="button"
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-          className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-accent"
+          className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg transition-[background-color,color,transform] duration-150 ease-out-quint hover:bg-accent active:scale-95 motion-reduce:transition-none motion-reduce:active:scale-100"
           aria-label="Changer le thème"
         >
           {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -344,7 +344,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
             type="button"
             className={cn(
               "mt-auto flex w-full items-center gap-3 rounded-lg p-2",
-              "cursor-pointer border-t pt-3 transition-colors hover:bg-accent",
+              "cursor-pointer border-t pt-3 transition-[background-color,color,transform] duration-150 ease-out-quint hover:bg-accent active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100",
               collapsed && "justify-center"
             )}
           >
@@ -391,8 +391,8 @@ export function DesktopSidebar() {
   return (
     <aside
       className={cn(
-        "hidden lg:flex flex-col border-r bg-background shrink-0 h-screen sticky top-0",
-        "transition-[width] duration-200 ease-in-out",
+        "hidden lg:flex flex-col border-r bg-[hsl(var(--sidebar-bg))] shrink-0 h-screen sticky top-0",
+        "transition-[width] duration-200 ease-out-expo motion-reduce:transition-none",
         effectiveCollapsed ? "w-[56px]" : "w-[240px]"
       )}
     >
@@ -412,7 +412,7 @@ export function MobileSidebar() {
 
   return (
     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-      <SheetContent side="left" className="w-[280px] p-0">
+      <SheetContent side="left" className="w-[280px] bg-[hsl(var(--sidebar-bg))] p-0">
         <div className="sr-only">
           <SheetTitle>Navigation principale</SheetTitle>
         </div>
@@ -429,7 +429,7 @@ export function MobileMenuButton() {
     <button
       type="button"
       onClick={() => setMobileOpen(true)}
-      className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-accent transition-colors"
+      className="flex h-9 w-9 items-center justify-center rounded-lg transition-[background-color,color,transform] duration-150 ease-out-quint hover:bg-accent active:scale-95 motion-reduce:transition-none motion-reduce:active:scale-100"
       aria-label="Ouvrir le menu de navigation"
     >
       <Menu className="w-5 h-5" />

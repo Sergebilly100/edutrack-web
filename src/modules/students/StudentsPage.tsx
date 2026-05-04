@@ -2,6 +2,7 @@ import { useMemo, useState } from "react"
 import type { Column, ColumnDef } from "@tanstack/react-table"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate, useSearchParams } from "react-router-dom"
+import axios from "axios"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -54,6 +55,15 @@ const initials = (value: string) =>
     .slice(0, 2)
     .map((chunk) => chunk[0]?.toUpperCase() ?? "")
     .join("")
+
+const PHONE_CI_REGEX = /^225\d{10}$/
+
+const normalizePhoneInput = (value: string) => value.replace(/\D/g, "").slice(0, 13)
+
+const isValidOptionalPhone = (value: string) => {
+  const clean = value.trim()
+  return clean.length === 0 || PHONE_CI_REGEX.test(clean)
+}
 
 function SortableHeader<TData>({ column, label }: { column: Column<TData, unknown>; label: string }) {
   return (
@@ -143,12 +153,19 @@ export default function StudentsPage() {
       await queryClient.invalidateQueries({ queryKey: ["students"] })
       setCreateDialogOpen(false)
       resetCreateStudentForm()
-      toast({ title: "Élève ajouté" })
+      toast({
+        title: "Élève ajouté",
+        description: "La fiche est disponible dans la liste.",
+      })
     },
-    onError: () => {
+    onError: (error) => {
+      const description =
+        axios.isAxiosError(error) && typeof error.response?.data?.error === "string"
+          ? error.response.data.error
+          : "Impossible d'ajouter l'élève."
       toast({
         title: "Erreur",
-        description: "Impossible d'ajouter l'élève.",
+        description,
         variant: "destructive",
       })
     },
@@ -199,6 +216,21 @@ export default function StudentsPage() {
     [absencesMap, students]
   )
 
+  const activeStudentsCount = useMemo(
+    () => students.filter((student) => student.isActive).length,
+    [students]
+  )
+  const inactiveStudentsCount = Math.max(students.length - activeStudentsCount, 0)
+  const absenceWatchCount = tableData.filter((student) => student.monthlyAbsences > 3).length
+  const visibleClassesCount = new Set(students.map((student) => student.classId)).size
+
+  const isCreateStudentValid =
+    newStudent.classId.length > 0 &&
+    newStudent.firstName.trim().length > 0 &&
+    newStudent.lastName.trim().length > 0 &&
+    isValidOptionalPhone(newStudent.parentPhone) &&
+    isValidOptionalPhone(newStudent.parentPhone2)
+
   const columns = useMemo<ColumnDef<StudentTableRow>[]>(
     () => [
       {
@@ -206,12 +238,12 @@ export default function StudentsPage() {
         accessorFn: (row) => row.name,
         header: ({ column }) => <SortableHeader column={column} label="Nom" />,
         cell: ({ row }) => (
-          <div className="flex items-center gap-3">
-            <Avatar className="h-8 w-8">
+          <div className="flex min-w-0 items-center gap-3">
+            <Avatar className="h-8 w-8 flex-shrink-0">
               <AvatarFallback>{initials(row.original.name)}</AvatarFallback>
             </Avatar>
-            <div>
-              <p className="text-sm font-medium">{row.original.name}</p>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{row.original.name}</p>
               <p className="text-xs text-muted-foreground">Élève</p>
             </div>
           </div>
@@ -220,16 +252,16 @@ export default function StudentsPage() {
       {
         accessorKey: "className",
         header: "Classe",
-        cell: ({ row }) => <span className="text-sm">{row.original.className}</span>,
+        cell: ({ row }) => <span className="block max-w-[14rem] truncate text-sm">{row.original.className}</span>,
       },
       {
         id: "parent",
         accessorFn: (row) => `${row.parentDisplayName} ${row.parentPhoneDisplay}`,
         header: "Parent",
         cell: ({ row }) => (
-          <div className="space-y-0.5">
+          <div className="min-w-0 space-y-0.5">
             <p className="text-sm font-medium">{row.original.parentDisplayName}</p>
-            <p className="text-xs text-muted-foreground">{row.original.parentPhoneDisplay}</p>
+            <p className="max-w-[12rem] truncate text-xs text-muted-foreground">{row.original.parentPhoneDisplay}</p>
           </div>
         ),
       },
@@ -297,6 +329,46 @@ export default function StudentsPage() {
         </TabsList>
 
         <TabsContent value="liste" className="space-y-4">
+          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+            <div className="flex flex-col gap-4 bg-muted/30 px-4 py-4 md:flex-row md:items-center md:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold">Vue opérationnelle élèves</p>
+                <p className="text-xs text-muted-foreground">
+                  Suivez les effectifs visibles, les statuts et les absences du mois avant d&apos;ouvrir une fiche.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="secondary" className="rounded-md px-2.5 py-1">
+                  {studentsQuery.isLoading ? "..." : `${activeStudentsCount} actifs`}
+                </Badge>
+                <Badge variant={inactiveStudentsCount > 0 ? "outline" : "secondary"} className="rounded-md px-2.5 py-1">
+                  {studentsQuery.isLoading ? "..." : `${inactiveStudentsCount} inactifs`}
+                </Badge>
+                <Badge variant={absenceWatchCount > 0 ? "destructive" : "secondary"} className="rounded-md px-2.5 py-1">
+                  {studentsQuery.isLoading ? "..." : `${absenceWatchCount} à surveiller`}
+                </Badge>
+              </div>
+            </div>
+            <div className="grid gap-px bg-border sm:grid-cols-3">
+              <div className="bg-background px-4 py-3">
+                <p className="text-[11px] font-medium uppercase text-muted-foreground">Classes filtrées</p>
+                <p className="mt-1 text-lg font-semibold tabular-nums">{studentsQuery.isLoading ? "-" : visibleClassesCount}</p>
+              </div>
+              <div className="bg-background px-4 py-3">
+                <p className="text-[11px] font-medium uppercase text-muted-foreground">Parent contact</p>
+                <p className="mt-1 text-lg font-semibold tabular-nums">
+                  {studentsQuery.isLoading ? "-" : students.filter((student) => student.parentPhone || student.parentPhone2).length}
+                </p>
+              </div>
+              <div className="bg-background px-4 py-3">
+                <p className="text-[11px] font-medium uppercase text-muted-foreground">Filtre actif</p>
+                <p className="mt-1 truncate text-sm font-medium">
+                  {classFilter === "all" && statusFilter === "all" && !searchTerm ? "Tous les élèves" : "Vue affinée"}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-sm">
             <div className="grid gap-3 md:grid-cols-3">
               <Select
@@ -367,6 +439,11 @@ export default function StudentsPage() {
                   icon={<AppIcon icon={StudentsIcon} size="md" className="text-muted-foreground" />}
                   title="Aucun élève"
                   message="Aucun élève trouvé avec les filtres actuels."
+                  action={
+                    canCreateStudent
+                      ? { label: "Ajouter un élève", onClick: () => setCreateDialogOpen(true), icon: AddIcon }
+                      : undefined
+                  }
                 />
               }
               mobileCard={(student) => (
@@ -385,11 +462,11 @@ export default function StudentsPage() {
                     <p className="truncate text-sm font-medium">{student.name}</p>
                     <p className="truncate text-xs text-muted-foreground">{student.className}</p>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
+                  <div className="min-w-0 flex flex-col items-end gap-1">
                     <Badge variant={student.monthlyAbsences > 3 ? "destructive" : "secondary"} className="text-xs">
                       {student.monthlyAbsences} abs.
                     </Badge>
-                    <span className="text-xs text-muted-foreground">{student.parentPhoneDisplay}</span>
+                    <span className="max-w-28 truncate text-xs text-muted-foreground">{student.parentPhoneDisplay}</span>
                   </div>
                   <ChevronRightIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                 </Button>
@@ -412,7 +489,7 @@ export default function StudentsPage() {
           }
         }}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Ajouter un élève</DialogTitle>
             <DialogDescription>Renseignez les informations principales de l&apos;élève.</DialogDescription>
@@ -467,22 +544,34 @@ export default function StudentsPage() {
                 <Input
                   id="student-parent-phone"
                   value={newStudent.parentPhone}
+                  inputMode="tel"
+                  maxLength={13}
+                  placeholder="2250701234567"
                   onChange={(event) =>
-                    setNewStudent((current) => ({ ...current, parentPhone: event.target.value }))
+                    setNewStudent((current) => ({ ...current, parentPhone: normalizePhoneInput(event.target.value) }))
                   }
                 />
+                <p className="text-xs text-muted-foreground">Format attendu: 225XXXXXXXXXX.</p>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="student-parent-phone-2">Téléphone parent 2</Label>
                 <Input
                   id="student-parent-phone-2"
                   value={newStudent.parentPhone2}
+                  inputMode="tel"
+                  maxLength={13}
+                  placeholder="2250701234567"
                   onChange={(event) =>
-                    setNewStudent((current) => ({ ...current, parentPhone2: event.target.value }))
+                    setNewStudent((current) => ({ ...current, parentPhone2: normalizePhoneInput(event.target.value) }))
                   }
                 />
               </div>
             </div>
+            {!isValidOptionalPhone(newStudent.parentPhone) || !isValidOptionalPhone(newStudent.parentPhone2) ? (
+              <Alert variant="destructive">
+                <AlertDescription>Les numéros doivent respecter le format 225XXXXXXXXXX.</AlertDescription>
+              </Alert>
+            ) : null}
           </div>
 
           <DialogFooter>
@@ -502,12 +591,10 @@ export default function StudentsPage() {
               }
               disabled={
                 createStudentMutation.isPending ||
-                newStudent.classId.length === 0 ||
-                newStudent.firstName.trim().length === 0 ||
-                newStudent.lastName.trim().length === 0
+                !isCreateStudentValid
               }
             >
-              {createStudentMutation.isPending ? "Création..." : "Ajouter"}
+              {createStudentMutation.isPending ? "Création..." : "Ajouter l'élève"}
             </Button>
           </DialogFooter>
         </DialogContent>

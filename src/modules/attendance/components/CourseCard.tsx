@@ -110,18 +110,18 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
     <li
       data-testid={`teacher-course-card-${slot.id}`}
       className={cn(
-        "min-h-[80px] rounded-xl border bg-card p-4 shadow-sm",
+        "min-h-[80px] rounded-xl border bg-card p-4 shadow-sm transition-[background-color,border-color,box-shadow,transform] duration-150 ease-out-quint hover:-translate-y-px hover:shadow-md",
         (status === "now" || status === "starting_soon") &&
           !rollCallPending &&
           !checkinQrDone &&
           "border-primary",
         status === "missed" && "border-red-300",
         status === "done" && "bg-muted/30",
-        rollCallPending && rollCallStillOpen && "border-amber-300 bg-amber-50/40",
-        checkinQrDone && rollCallStillOpen && "border-blue-200 bg-blue-50/30"
+        rollCallPending && rollCallStillOpen && "border-amber-300 bg-amber-50/40 dark:bg-amber-950/20",
+        checkinQrDone && rollCallStillOpen && "border-blue-200 bg-blue-50/30 dark:bg-blue-950/20"
       )}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         {/* Infos du cours */}
         <div className="space-y-1 min-w-0">
           <p className="text-xs text-muted-foreground">
@@ -161,7 +161,7 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
         </div>
 
         {/* Actions et badges */}
-        <div className="flex shrink-0 flex-col items-end gap-2">
+        <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
           {/* Cours terminé avec pointage */}
           {status === "done" ? (
             <Badge
@@ -223,7 +223,7 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
             <Button
               type="button"
               size="sm"
-              className="active:scale-95 transition-transform"
+              className="w-full sm:w-auto"
               data-testid={`teacher-start-course-${slot.id}`}
               onClick={() => onStartCourse(slot)}
             >
@@ -237,7 +237,7 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
               type="button"
               size="sm"
               variant="outline"
-              className="border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 active:scale-95 transition-transform"
+              className="w-full border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-200 sm:w-auto"
               data-testid={`teacher-resume-course-${slot.id}`}
               onClick={() => onStartCourse(slot)}
             >
@@ -251,7 +251,7 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
               type="button"
               size="sm"
               variant="outline"
-              className="border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 active:scale-95 transition-transform"
+              className="w-full border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-200 sm:w-auto"
               data-testid={`teacher-rollcall-${slot.id}`}
               onClick={() => onStartCourse(slot)}
             >
@@ -264,7 +264,7 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
               type="button"
               size="sm"
               variant="outline"
-              className="border-green-300 bg-green-50 text-green-700 hover:bg-green-100 active:scale-95 transition-transform"
+              className="w-full border-green-300 bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-950/30 dark:text-green-200 sm:w-auto"
               data-testid={`teacher-finish-course-${slot.id}`}
               onClick={() => onStartCourse(slot)}
             >

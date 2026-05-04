@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -48,6 +49,15 @@ const formatSlot = (startTime: string | null, endTime: string | null) => {
     return "—"
   }
   return `${startTime.slice(0, 5)} - ${endTime.slice(0, 5)}`
+}
+
+const PHONE_CI_REGEX = /^225\d{10}$/
+
+const normalizePhoneInput = (value: string) => value.replace(/\D/g, "").slice(0, 13)
+
+const isValidOptionalPhone = (value: string) => {
+  const clean = value.trim()
+  return clean.length === 0 || PHONE_CI_REGEX.test(clean)
 }
 
 export default function StudentDetailPage() {
@@ -155,6 +165,8 @@ export default function StudentDetailPage() {
     return Math.max(0, schoolDaysEstimate - absences)
   }, [studentQuery.data?.absenceSummary.thisMonth])
 
+  const areContactsValid = isValidOptionalPhone(parentPhone) && isValidOptionalPhone(parentPhone2)
+
   if (!studentId) {
     return (
       <div className="p-4 md:p-6">
@@ -196,6 +208,15 @@ export default function StudentDetailPage() {
     (recentAbsencesPage - 1) * recentAbsencesPageSize,
     recentAbsencesPage * recentAbsencesPageSize
   )
+  const sentSmsCount = student.parentSms.filter((row) => row.status === "sent" || row.status === "delivered").length
+  const failedSmsCount = student.parentSms.filter((row) => row.status === "failed").length
+  const hasParentContact = Boolean(parentPhone.trim() || parentPhone2.trim())
+  const absenceRiskLabel =
+    student.absenceSummary.thisMonth > 3
+      ? "Suivi renforcé"
+      : student.absenceSummary.thisMonth > 0
+        ? "À surveiller"
+        : "RAS ce mois"
 
   return (
     <PageLayout
@@ -208,22 +229,47 @@ export default function StudentDetailPage() {
         </Button>
       }
     >
-      <Card>
-        <CardContent className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between md:p-6">
-          <div className="flex items-center gap-3">
-            <Avatar className="h-12 w-12">
-              <AvatarFallback>{initials(student.firstName, student.lastName)}</AvatarFallback>
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="flex flex-col gap-4 bg-muted/30 px-4 py-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <Avatar className="h-12 w-12 flex-shrink-0">
+              <AvatarFallback className="text-sm font-semibold">
+                {initials(student.firstName, student.lastName)}
+              </AvatarFallback>
             </Avatar>
-            <div>
-              <p className="text-lg font-semibold">{student.lastName} {student.firstName}</p>
-              <p className="text-sm text-muted-foreground">{student.className}</p>
+            <div className="min-w-0">
+              <p className="truncate text-lg font-semibold">{student.lastName} {student.firstName}</p>
+              <p className="truncate text-sm text-muted-foreground">{student.className}</p>
             </div>
           </div>
-          <Badge variant={student.isActive ? "secondary" : "destructive"}>
-            {student.isActive ? "Actif" : "Inactif"}
-          </Badge>
-        </CardContent>
-      </Card>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant={student.isActive ? "secondary" : "destructive"} className="rounded-md px-2.5 py-1">
+              {student.isActive ? "Actif" : "Inactif"}
+            </Badge>
+            <Badge variant={student.absenceSummary.thisMonth > 3 ? "destructive" : "outline"} className="rounded-md px-2.5 py-1">
+              {absenceRiskLabel}
+            </Badge>
+          </div>
+        </div>
+        <div className="grid gap-px bg-border sm:grid-cols-4">
+          <div className="bg-background px-4 py-3">
+            <p className="text-[11px] font-medium uppercase text-muted-foreground">Absences mois</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums">{student.absenceSummary.thisMonth}</p>
+          </div>
+          <div className="bg-background px-4 py-3">
+            <p className="text-[11px] font-medium uppercase text-muted-foreground">Cette semaine</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums">{student.absenceSummary.thisWeek}</p>
+          </div>
+          <div className="bg-background px-4 py-3">
+            <p className="text-[11px] font-medium uppercase text-muted-foreground">Contact parent</p>
+            <p className="mt-1 truncate text-sm font-medium">{hasParentContact ? "Renseigné" : "Manquant"}</p>
+          </div>
+          <div className="bg-background px-4 py-3">
+            <p className="text-[11px] font-medium uppercase text-muted-foreground">SMS envoyés</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums">{sentSmsCount}</p>
+          </div>
+        </div>
+      </div>
 
       <Tabs defaultValue="absences" className="space-y-4">
         <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
@@ -261,6 +307,7 @@ export default function StudentDetailPage() {
                 <p className="text-sm text-muted-foreground">Aucune absence récente.</p>
               ) : (
                 <div className="space-y-3">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -296,6 +343,7 @@ export default function StudentDetailPage() {
                       })}
                     </TableBody>
                   </Table>
+                  </div>
 
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs text-muted-foreground">
@@ -343,9 +391,22 @@ export default function StudentDetailPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-2 md:grid-cols-2">
-                <Input value={parentName} onChange={(event) => setParentName(event.target.value)} placeholder="Nom parent 1" />
+                <div className="space-y-1.5">
+                  <Label htmlFor="student-parent-name">Nom parent 1</Label>
+                  <Input id="student-parent-name" value={parentName} onChange={(event) => setParentName(event.target.value)} placeholder="Nom parent 1" />
+                </div>
                 <div className="flex gap-2">
-                  <Input value={parentPhone} onChange={(event) => setParentPhone(event.target.value)} placeholder="Téléphone parent 1" />
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <Label htmlFor="student-parent-phone">Téléphone parent 1</Label>
+                    <Input
+                      id="student-parent-phone"
+                      value={parentPhone}
+                      onChange={(event) => setParentPhone(normalizePhoneInput(event.target.value))}
+                      inputMode="tel"
+                      maxLength={13}
+                      placeholder="2250701234567"
+                    />
+                  </div>
                   <Button type="button" variant="outline" asChild disabled={!parentPhone.trim()}>
                     <a href={parentPhone.trim() ? `tel:${parentPhone.trim()}` : undefined}>
                       <Phone className="h-4 w-4" />
@@ -355,9 +416,22 @@ export default function StudentDetailPage() {
               </div>
 
               <div className="grid gap-2 md:grid-cols-2">
-                <Input value={parentName2} onChange={(event) => setParentName2(event.target.value)} placeholder="Nom parent 2" />
+                <div className="space-y-1.5">
+                  <Label htmlFor="student-parent-name-2">Nom parent 2</Label>
+                  <Input id="student-parent-name-2" value={parentName2} onChange={(event) => setParentName2(event.target.value)} placeholder="Nom parent 2" />
+                </div>
                 <div className="flex gap-2">
-                  <Input value={parentPhone2} onChange={(event) => setParentPhone2(event.target.value)} placeholder="Téléphone parent 2" />
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <Label htmlFor="student-parent-phone-2">Téléphone parent 2</Label>
+                    <Input
+                      id="student-parent-phone-2"
+                      value={parentPhone2}
+                      onChange={(event) => setParentPhone2(normalizePhoneInput(event.target.value))}
+                      inputMode="tel"
+                      maxLength={13}
+                      placeholder="2250701234567"
+                    />
+                  </div>
                   <Button type="button" variant="outline" asChild disabled={!parentPhone2.trim()}>
                     <a href={parentPhone2.trim() ? `tel:${parentPhone2.trim()}` : undefined}>
                       <Phone className="h-4 w-4" />
@@ -365,8 +439,13 @@ export default function StudentDetailPage() {
                   </Button>
                 </div>
               </div>
+              {!areContactsValid ? (
+                <Alert variant="destructive">
+                  <AlertDescription>Les téléphones parents doivent respecter le format 225XXXXXXXXXX.</AlertDescription>
+                </Alert>
+              ) : null}
 
-              <Button type="button" onClick={() => saveContactsMutation.mutate()} disabled={saveContactsMutation.isPending}>
+              <Button type="button" onClick={() => saveContactsMutation.mutate()} disabled={saveContactsMutation.isPending || !areContactsValid}>
                 {saveContactsMutation.isPending ? "Enregistrement..." : "Modifier les contacts"}
               </Button>
             </CardContent>
@@ -424,6 +503,12 @@ export default function StudentDetailPage() {
               {student.parentSms.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Aucun SMS trouvé pour cet élève.</p>
               ) : (
+                <div className="space-y-3">
+                <div className="mb-3 flex flex-wrap gap-2">
+                  <Badge variant="secondary">{sentSmsCount} envoyés</Badge>
+                  <Badge variant={failedSmsCount > 0 ? "destructive" : "outline"}>{failedSmsCount} échecs</Badge>
+                </div>
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -453,6 +538,8 @@ export default function StudentDetailPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
+                </div>
               )}
             </CardContent>
           </Card>
