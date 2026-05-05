@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { fetchSchoolInfo } from '@/modules/onboarding/onboarding.api';
 import { usePermissions } from '@/shared/hooks/usePermissions';
+import { clearDashboardDismissedNotifications } from '@/shared/lib/dashboard-notifications';
 import { useAuthStore } from '@/shared/store/auth.store';
 
 import { login } from './auth.api';
@@ -59,6 +60,7 @@ export default function LoginPage() {
     setAccessToken(null);
     setRefreshToken(null);
     setPermissions([]);
+    clearDashboardDismissedNotifications();
 
     try {
       const tenantSubdomain = resolveTenantSubdomainFromHost();

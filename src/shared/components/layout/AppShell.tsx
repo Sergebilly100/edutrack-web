@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react"
-import { Bell, RefreshCw } from "lucide-react"
+import { RefreshCw } from "lucide-react"
 import { Navigate, Outlet, useLocation } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { NotificationButton } from "@/shared/components/layout/NotificationButton"
 import { DesktopSidebar, MobileMenuButton, MobileSidebar } from "@/shared/components/layout/Sidebar"
 import { useAuthStore } from "@/shared/store/auth.store"
 
@@ -53,23 +54,9 @@ export function AppShell({ children }: AppShellProps) {
           <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-[var(--surface-chrome)] px-4 backdrop-blur lg:hidden">
             <MobileMenuButton />
             <span className="truncate text-sm font-semibold">EduTrack CI</span>
-            {isDashboardRoute ? (
-              <div className="ml-auto flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  aria-label="Voir les notifications"
-                  onClick={() => window.dispatchEvent(new Event("dashboard:mobile-toggle-notifications"))}
-                  className="relative h-9 w-9"
-                >
-                  <Bell className="h-4 w-4" />
-                  {mobileAlertsCount > 0 ? (
-                    <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-white">
-                      {mobileAlertsCount}
-                    </span>
-                  ) : null}
-                </Button>
+            <div className="ml-auto flex items-center gap-2">
+              <NotificationButton count={isDashboardRoute ? mobileAlertsCount : 0} />
+              {isDashboardRoute ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -81,8 +68,8 @@ export function AppShell({ children }: AppShellProps) {
                 >
                   <RefreshCw className={mobileIsRefreshing ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
                 </Button>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </header>
 
           <main className="flex-1 overflow-y-auto px-4 pb-4 pt-0 md:px-6 md:pb-6 md:pt-0">

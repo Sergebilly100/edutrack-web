@@ -35,12 +35,11 @@ import { SalaryRow } from "@/shared/components/SalaryRow"
 import type { SalaryStatus } from "@/shared/components/SalaryRow"
 import { StatCard } from "@/shared/components/StatCard"
 import { WeekCoverageAlert } from "@/shared/components/WeekCoverageAlert"
+import { DASHBOARD_DISMISSED_NOTIFICATIONS_KEY } from "@/shared/lib/dashboard-notifications"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 const QUERY_STALE_TIME = 60_000
 const TODAY_REFETCH_INTERVAL = 120_000
-const DASHBOARD_DISMISSED_NOTIFICATIONS_KEY = "edutrack:dashboard:dismissed-notifications"
-
 const formatToday = (value: Date) =>
   value.toLocaleDateString("fr-FR", {
     weekday: "long",
@@ -274,7 +273,7 @@ const readDismissedNotificationIds = (): Set<string> => {
   }
 
   try {
-    const raw = window.localStorage.getItem(DASHBOARD_DISMISSED_NOTIFICATIONS_KEY)
+    const raw = window.sessionStorage.getItem(DASHBOARD_DISMISSED_NOTIFICATIONS_KEY)
     const parsed = raw ? JSON.parse(raw) : []
     return new Set(Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [])
   } catch {
@@ -287,7 +286,7 @@ const writeDismissedNotificationIds = (ids: Set<string>) => {
     return
   }
 
-  window.localStorage.setItem(DASHBOARD_DISMISSED_NOTIFICATIONS_KEY, JSON.stringify([...ids]))
+  window.sessionStorage.setItem(DASHBOARD_DISMISSED_NOTIFICATIONS_KEY, JSON.stringify([...ids]))
 }
 
 function DashboardSkeleton() {
@@ -713,11 +712,32 @@ export default function DashboardPage() {
     () => notificationItems.filter((item) => !dismissedNotificationIds.has(item.id)),
     [dismissedNotificationIds, notificationItems]
   )
+  const visibleNotificationIds = useMemo(
+    () => new Set(visibleNotifications.map((item) => item.id)),
+    [visibleNotifications]
+  )
   const activeAlertsCount = visibleNotifications.length
+  const dismissNotification = useCallback((id: string) => {
+    setDismissedNotificationIds((current) => {
+      const next = new Set(current)
+      next.add(id)
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     writeDismissedNotificationIds(dismissedNotificationIds)
   }, [dismissedNotificationIds])
+
+  useEffect(() => {
+    const state = location.state as { openNotifications?: boolean } | null
+    if (!state?.openNotifications) {
+      return
+    }
+
+    setNotificationsOpen(true)
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.pathname, location.state, navigate])
 
   useEffect(() => {
     if (!refreshSuccess) return
@@ -867,13 +887,7 @@ export default function DashboardPage() {
         {notificationsOpen ? (
           <DashboardNotificationsPanel
             notifications={visibleNotifications}
-            onDismiss={(id) =>
-              setDismissedNotificationIds((current) => {
-                const next = new Set(current)
-                next.add(id)
-                return next
-              })
-            }
+            onDismiss={dismissNotification}
             onDismissAll={() => setDismissedNotificationIds(new Set(notificationItems.map((item) => item.id)))}
             onClose={() => setNotificationsOpen(false)}
           />
@@ -920,11 +934,12 @@ export default function DashboardPage() {
             onNavigateToSchedule={() => navigate("/schedule")}
           />
 
-          {weeklyAbsenceCount > 3 ? (
+          {weeklyAbsenceCount > 3 && visibleNotificationIds.has("teacher-absences-week") ? (
             <AlertBanner
               type="warning"
               title="Absences profs élevées cette semaine"
               message={`${weeklyAbsenceCount} absences non justifiées ont été relevées sur les 7 derniers jours.`}
+              onDismiss={() => dismissNotification("teacher-absences-week")}
               action={{
                 label: "Ouvrir les professeurs",
                 onClick: () => navigate("/teachers"),
@@ -932,11 +947,12 @@ export default function DashboardPage() {
             />
           ) : null}
 
-          {(salaryUnpaidAlertsQuery.data?.count ?? 0) > 0 ? (
+          {(salaryUnpaidAlertsQuery.data?.count ?? 0) > 0 && visibleNotificationIds.has("salary-unpaid-alerts") ? (
             <AlertBanner
               type="warning"
               title="Salaires à terminer"
               message={`${salaryUnpaidAlertsQuery.data?.count ?? 0} fiche(s) restent à solder, pour ${new Intl.NumberFormat("fr-FR").format(salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0)} FCFA.`}
+              onDismiss={() => dismissNotification("salary-unpaid-alerts")}
               action={{
                 label: "Ouvrir les salaires",
                 onClick: () => navigate("/salaries"),

@@ -1,5 +1,7 @@
 import { create } from "zustand"
 
+import { clearDashboardDismissedNotifications } from "@/shared/lib/dashboard-notifications"
+
 export type AuthRole = "director" | "staff" | "teacher" | "super_admin"
 
 export const isStaffRole = (role: AuthRole | undefined): role is "staff" => role === "staff"
@@ -88,5 +90,8 @@ export const useAuthStore = create<AuthState>()((setState) => ({
   setSessionRestored: () => setState({ isSessionRestored: true }),
   setPermissions: (permissions) => setState({ permissions }),
   logout: () =>
-    setState({ user: null, permissions: [], accessToken: null, refreshToken: null }),
+    setState(() => {
+      clearDashboardDismissedNotifications()
+      return { user: null, permissions: [], accessToken: null, refreshToken: null }
+    }),
 }))

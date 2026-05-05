@@ -45,6 +45,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils"
 import { logout as logoutApi } from "@/modules/auth/auth.api"
 import { getSmsFeatureSettings } from "@/modules/subscriptions/subscriptions.api"
+import { NotificationButton } from "@/shared/components/layout/NotificationButton"
 import { useTheme } from "@/shared/hooks/useTheme"
 import { getUserRoleLabel } from "@/shared/lib/user-role-label"
 import { isStaffRole, type AuthRole, type PermissionKey } from "@/shared/store/auth.store"
@@ -213,6 +214,7 @@ function NavItemComponent({ item, collapsed }: { item: NavItem; collapsed: boole
 
 function SidebarContent({ collapsed }: { collapsed: boolean }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
   const user = useAuthStore((state) => state.user)
   const clearSession = useAuthStore((state) => state.logout)
@@ -302,40 +304,52 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
       </nav>
 
       {!collapsed && (
-        <div className="flex items-center justify-between rounded-lg px-2 py-1.5 transition-colors hover:bg-accent">
-          <span className="text-xs font-medium text-muted-foreground">Thème</span>
-          <div className="flex gap-0.5">
-            {([
-              { value: "light", icon: Sun },
-              { value: "dark", icon: Moon },
-              { value: "system", icon: Monitor },
-            ] as const).map(({ value, icon: Icon }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setTheme(value)}
-                className={cn(
-                  "flex h-7 w-7 items-center justify-center rounded-md transition-[background-color,color,box-shadow,transform] duration-150 ease-out-quint active:scale-95 motion-reduce:transition-none motion-reduce:active:scale-100",
-                  theme === value ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                )}
-                aria-label={value}
-              >
-                <Icon className="h-3.5 w-3.5" />
-              </button>
-            ))}
+        <div className="space-y-1">
+          {user?.role === "director" && location.pathname !== "/dashboard" ? (
+            <div className="flex items-center justify-between rounded-lg px-2 py-1.5 transition-colors hover:bg-accent">
+              <span className="text-xs font-medium text-muted-foreground">Notifications</span>
+              <NotificationButton />
+            </div>
+          ) : null}
+
+          <div className="flex items-center justify-between rounded-lg px-2 py-1.5 transition-colors hover:bg-accent">
+            <span className="text-xs font-medium text-muted-foreground">Thème</span>
+            <div className="flex gap-0.5">
+              {([
+                { value: "light", icon: Sun },
+                { value: "dark", icon: Moon },
+                { value: "system", icon: Monitor },
+              ] as const).map(({ value, icon: Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setTheme(value)}
+                  className={cn(
+                    "flex h-7 w-7 items-center justify-center rounded-md transition-[background-color,color,box-shadow,transform] duration-150 ease-out-quint active:scale-95 motion-reduce:transition-none motion-reduce:active:scale-100",
+                    theme === value ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                  aria-label={value}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
       {collapsed && (
-        <button
-          type="button"
-          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-          className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg transition-[background-color,color,transform] duration-150 ease-out-quint hover:bg-accent active:scale-95 motion-reduce:transition-none motion-reduce:active:scale-100"
-          aria-label="Changer le thème"
-        >
-          {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </button>
+        <div className="space-y-1">
+          {user?.role === "director" && location.pathname !== "/dashboard" ? <NotificationButton className="mx-auto" /> : null}
+          <button
+            type="button"
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg transition-[background-color,color,transform] duration-150 ease-out-quint hover:bg-accent active:scale-95 motion-reduce:transition-none motion-reduce:active:scale-100"
+            aria-label="Changer le thème"
+          >
+            {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+        </div>
       )}
 
       <DropdownMenu>

@@ -421,7 +421,7 @@ export default function TeachersPage() {
       subtitle="Gestion des profs, blocage et export"
       actions={
         canCreateTeacher ? (
-          <Button className="min-h-[44px]" onClick={() => setCreateOpen(true)}>
+          <Button type="button" onClick={() => setCreateOpen(true)}>
             <AddIcon className="mr-2 h-4 w-4" />
             Ajouter un prof
           </Button>
