@@ -12,6 +12,17 @@ interface AppShellProps {
   children?: ReactNode
 }
 
+type DashboardMobileHeaderState = {
+  activeAlertsCount: number
+  isRefreshing: boolean
+}
+
+declare global {
+  interface Window {
+    __edutrackDashboardMobileHeaderState?: DashboardMobileHeaderState
+  }
+}
+
 export function AppShell({ children }: AppShellProps) {
   const user = useAuthStore((state) => state.user)
   const location = useLocation()
@@ -26,14 +37,23 @@ export function AppShell({ children }: AppShellProps) {
       return
     }
 
+    const applyHeaderState = (state: DashboardMobileHeaderState | undefined) => {
+      setMobileAlertsCount(state?.activeAlertsCount ?? 0)
+      setMobileIsRefreshing(state?.isRefreshing ?? false)
+    }
+
     const onHeaderState = (event: Event) => {
-      const customEvent = event as CustomEvent<{ activeAlertsCount: number; isRefreshing: boolean }>
-      setMobileAlertsCount(customEvent.detail?.activeAlertsCount ?? 0)
-      setMobileIsRefreshing(customEvent.detail?.isRefreshing ?? false)
+      const customEvent = event as CustomEvent<DashboardMobileHeaderState>
+      applyHeaderState(customEvent.detail)
     }
 
     window.addEventListener("dashboard:mobile-header-state", onHeaderState)
-    return () => window.removeEventListener("dashboard:mobile-header-state", onHeaderState)
+    applyHeaderState(window.__edutrackDashboardMobileHeaderState)
+    window.dispatchEvent(new Event("dashboard:mobile-header-request"))
+
+    return () => {
+      window.removeEventListener("dashboard:mobile-header-state", onHeaderState)
+    }
   }, [isDashboardRoute])
 
   if (!user) {

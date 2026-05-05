@@ -1,8 +1,23 @@
+import { useEffect, useMemo, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { Bell } from "lucide-react"
-import { useLocation, useNavigate } from "react-router-dom"
+import { useLocation } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { getSalaryUnpaidAlerts } from "@/modules/salaries/salaries.api"
+import {
+  getAttendanceHistory,
+  getCurrentMonthKey,
+  getNextWeekCoverageState,
+  getSMSLog,
+} from "@/modules/dashboard/dashboard.api"
+import { NotificationsPanel, type NotificationPanelItem } from "@/shared/components/layout/NotificationsPanel"
+import {
+  buildDirectorDashboardNotifications,
+  readDashboardDismissedNotificationIds,
+  writeDashboardDismissedNotificationIds,
+} from "@/shared/lib/dashboard-notifications"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 type NotificationButtonProps = {
@@ -11,38 +26,138 @@ type NotificationButtonProps = {
 }
 
 export function NotificationButton({ count = 0, className }: NotificationButtonProps) {
-  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(readDashboardDismissedNotificationIds)
   const location = useLocation()
   const user = useAuthStore((state) => state.user)
+  const currentMonth = useMemo(() => getCurrentMonthKey(new Date()), [])
+  const isDashboardRoute = location.pathname === "/dashboard"
+  const queryEnabled = user?.role === "director" && !isDashboardRoute
+  const historyQuery = useQuery({
+    queryKey: ["dashboard", "history-v3", 7],
+    queryFn: () => getAttendanceHistory(7),
+    staleTime: 60_000,
+    retry: false,
+    enabled: queryEnabled,
+  })
+  const coverageQuery = useQuery({
+    queryKey: ["dashboard", "coverage-v3"],
+    queryFn: getNextWeekCoverageState,
+    staleTime: 60_000,
+    retry: false,
+    enabled: queryEnabled,
+  })
+  const salaryUnpaidAlertsQuery = useQuery({
+    queryKey: ["dashboard", "salary-unpaid-alerts", currentMonth],
+    queryFn: () => getSalaryUnpaidAlerts(currentMonth),
+    staleTime: 60_000,
+    retry: false,
+    enabled: queryEnabled,
+  })
+  const smsLogQuery = useQuery({
+    queryKey: ["dashboard", "sms-log", "notifications"],
+    queryFn: () => getSMSLog(8),
+    staleTime: 60_000,
+    retry: false,
+    enabled: queryEnabled,
+  })
+  const weeklyAbsenceCount = useMemo(() => {
+    return (historyQuery.data ?? []).reduce((acc, row) => acc + row.absentCount, 0)
+  }, [historyQuery.data])
+  const isLoading =
+    historyQuery.isLoading ||
+    coverageQuery.isLoading ||
+    salaryUnpaidAlertsQuery.isLoading ||
+    smsLogQuery.isLoading
+  const isError =
+    historyQuery.isError ||
+    coverageQuery.isError ||
+    salaryUnpaidAlertsQuery.isError ||
+    smsLogQuery.isError
+  const notificationItems = useMemo<NotificationPanelItem[]>(() => {
+    return buildDirectorDashboardNotifications({
+      nextWeekHasCoverage: coverageQuery.data?.nextWeekHasCoverage,
+      weeklyAbsenceCount,
+      salaryUnpaidCount: salaryUnpaidAlertsQuery.data?.count ?? 0,
+      salaryUnpaidTotalFcfa: salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0,
+      smsLog: smsLogQuery.data ?? [],
+    })
+  }, [
+    coverageQuery.data?.nextWeekHasCoverage,
+    salaryUnpaidAlertsQuery.data?.count,
+    salaryUnpaidAlertsQuery.data?.totalRemainingFcfa,
+    smsLogQuery.data,
+    weeklyAbsenceCount,
+  ])
+  const visibleNotifications = useMemo(
+    () => notificationItems.filter((item) => !dismissedIds.has(item.id)),
+    [dismissedIds, notificationItems]
+  )
+  const visibleCount = isDashboardRoute ? count : visibleNotifications.length
+
+  useEffect(() => {
+    setDismissedIds(readDashboardDismissedNotificationIds())
+  }, [location.pathname])
+
+  useEffect(() => {
+    writeDashboardDismissedNotificationIds(dismissedIds)
+  }, [dismissedIds])
+
+  const dismissNotification = (id: string) => {
+    setDismissedIds((current) => {
+      const next = new Set(current)
+      next.add(id)
+      return next
+    })
+  }
+
+  const dismissAllNotifications = () => {
+    setDismissedIds(new Set(notificationItems.map((item) => item.id)))
+  }
 
   if (user?.role !== "director") {
     return null
   }
 
   const handleClick = () => {
-    if (location.pathname === "/dashboard") {
+    if (isDashboardRoute) {
       window.dispatchEvent(new Event("dashboard:mobile-toggle-notifications"))
       return
     }
 
-    navigate("/dashboard", { state: { openNotifications: true } })
+    setOpen(true)
   }
 
   return (
-    <Button
-      type="button"
-      variant="outline"
-      size="icon"
-      aria-label="Voir les notifications"
-      onClick={handleClick}
-      className={cn("relative h-9 w-9", className)}
-    >
-      <Bell className="h-4 w-4" />
-      {count > 0 ? (
-        <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-white">
-          {count}
-        </span>
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        aria-label="Voir les notifications"
+        onClick={handleClick}
+        className={cn("relative h-9 w-9", className)}
+      >
+        <Bell className="h-4 w-4" />
+        {visibleCount > 0 ? (
+          <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-white">
+            {visibleCount}
+          </span>
+        ) : null}
+      </Button>
+
+      {!isDashboardRoute ? (
+        open ? (
+          <NotificationsPanel
+            notifications={visibleNotifications}
+            isLoading={isLoading}
+            isError={isError}
+            onDismiss={dismissNotification}
+            onDismissAll={dismissAllNotifications}
+            onClose={() => setOpen(false)}
+          />
+        ) : null
       ) : null}
-    </Button>
+    </>
   )
 }
