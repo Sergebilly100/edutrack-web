@@ -130,9 +130,6 @@ const formatSalaryDescriptor = (row: SalarySummaryItem | null, details: SalaryTe
 }
 
 const toDisplayedStatus = (row: SalarySummaryItem, details: SalaryTeacherDetails | null): string => {
-  if (row.status === "Salaire fixe") {
-    return "Salaire fixe"
-  }
   if (row.status === "disputed") {
     return "Litige"
   }
@@ -314,6 +311,54 @@ export default function SalariesPage() {
     },
   })
 
+  const computeAndMarkPaidMutation = useMutation({
+    mutationFn: async (input: { teacherId: string; month: string; notes?: string }) => {
+      // Étape 1 : recalcul de la fiche pour ce mois
+      await computeSalaries(input.month)
+      // Étape 2 : récupération du salaryRecordId fraîchement calculé
+      const summary = await getSalarySummary(input.month)
+      const teacherMonth = summary.items.find((item) => item.teacherId === input.teacherId)
+
+      if (!teacherMonth?.salaryRecordId) {
+        // Pas de fiche → le prof n'a pas de données ce mois (congé, etc.)
+        throw new Error("SALARY_RECORD_NOT_READY")
+      }
+      if (teacherMonth.status === "paid" && !teacherMonth.isPartiallyPaid) {
+        // Doublon : déjà payé ce mois
+        throw new Error("SALARY_ALREADY_PAID_FOR_MONTH")
+      }
+
+      // Étape 3 : marquer comme payé
+      await updateSalaryStatus({
+        recordId: teacherMonth.salaryRecordId,
+        status: "paid",
+        notes: input.notes,
+      })
+    },
+    onSuccess: async () => {
+      setPayDialogOpen(false)
+      setSelectedSalaryRow(null)
+      setPayDialogDetails(null)
+      setHoursToPayInput("")
+      setPaymentNotes("")
+      // Invalider les deux mois potentiellement touchés
+      await queryClient.invalidateQueries({ queryKey: ["salaries", "summary", selectedMonth] })
+      await queryClient.invalidateQueries({ queryKey: ["salaries", "summary", payTargetMonth] })
+      toast({ title: "Salaire marqué comme payé" })
+    },
+    onError: (error: unknown) => {
+      const code =
+        error instanceof Error ? error.message : ""
+      const description =
+        code === "SALARY_RECORD_NOT_READY"
+          ? "Le salaire de ce mois n'est pas prêt pour le paiement."
+          : code === "SALARY_ALREADY_PAID_FOR_MONTH"
+            ? "Ce mois est déjà payé pour ce professeur."
+            : "Impossible de finaliser le paiement pour le mois sélectionné."
+      toast({ title: "Erreur", description, variant: "destructive" })
+    },
+  })
+
   const exportBulkMutation = useMutation({
     mutationFn: (input: { periodFrom: string; periodTo: string; teacherId?: string }) =>
       queueBulkSalaryExport(input),
@@ -337,6 +382,7 @@ export default function SalariesPage() {
   const detailsMutation = useMutation({
     mutationFn: (teacherId: string) => getTeacherSalaryDetails(teacherId, selectedMonth),
   })
+
   const paymentHistoryMutation = useMutation({
     mutationFn: (teacherId: string) => getTeacherPaymentHistory(teacherId, 2000),
   })
@@ -349,7 +395,7 @@ export default function SalariesPage() {
   )
 
   const permanentRows = useMemo(
-    () => items.filter((item) => item.teacherType === "permanent" || item.status === "Salaire fixe"),
+    () => items.filter((item) => item.teacherType === "permanent"),
     [items]
   )
   const vacataireTotalPages = Math.max(1, Math.ceil(vacataireRows.length / pageSize))
@@ -365,26 +411,35 @@ export default function SalariesPage() {
     return permanentRows.slice(start, start + pageSize)
   }, [fixedCurrentPage, permanentRows])
 
+  // montant restant à payer = totalFcfa - amountAlreadyPaid,
+  // ce qui gère correctement les paiements partiels
   const totalPending = useMemo(
     () =>
       vacataireRows.reduce((acc, row) => {
-        if (row.status !== "pending") {
+        // Exclure les lignes déjà entièrement payées ou sans montant dû
+        if (row.status === "paid" || row.status === "nothing_to_pay") {
           return acc
         }
-
-        return acc + (row.totalFcfa ?? 0)
+        // Pour un partiellement payé : seule la portion restante est "en attente"
+        const remaining = Math.max(0, (row.totalFcfa ?? 0) - row.amountAlreadyPaid)
+        return acc + remaining
       }, 0),
     [vacataireRows]
   )
 
+  // on somme amountAlreadyPaid pour tous les vacataires ayant reçu un paiement,
+  // quel que soit leur status (paid OU isPartiallyPaid avec pending).
+  // amountAlreadyPaid est maintenant disponible.
   const totalPaid = useMemo(
     () =>
       vacataireRows.reduce((acc, row) => {
-        if (row.status !== "paid") {
+        // amountAlreadyPaid = ce qui a été effectivement versé.
+        // On l'inclut si > 0, indépendamment du status (gère les partiels).
+        const paid = row.amountAlreadyPaid
+        if (paid <= 0) {
           return acc
         }
-
-        return acc + (row.totalFcfa ?? 0)
+        return acc + paid
       }, 0),
     [vacataireRows]
   )
@@ -412,43 +467,60 @@ export default function SalariesPage() {
     }
   }
 
-  const openMarkPaidDialog = async (row: SalarySummaryItem) => {
-    if (row.teacherType !== "permanent" && !row.salaryRecordId) {
-      toast({
-        title: "Action indisponible",
-        description: "Ce salaire doit être calculé avant d'être marqué payé.",
-        variant: "destructive",
-      })
-      return
-    }
+  // logique claire :
+  // 1. Si vacataire sans salaryRecordId → on tente le compute automatique
+  // 2. Si toujours pas de salaryRecordId après compute → toast + sortie
+  // 3. Si OK → ouvrir le dialog
+  // Note : on n'utilise plus de mutation de paramètre (let + réassignation propre)
+  const openMarkPaidDialog = async (initialRow: SalarySummaryItem) => {
+    // On travaille sur une copie locale pour éviter la mutation du paramètre
+    let row: SalarySummaryItem = initialRow
 
+    // Un vacataire sans salaryRecordId n'a pas encore de fiche calculée.
+    // On tente un compute automatique pour créer la fiche avant d'ouvrir le dialog.
     if (row.teacherType !== "permanent" && !row.salaryRecordId) {
       try {
+        // computeSalaries crée ou met à jour salary_records pour ce mois
         await computeSalaries(selectedMonth)
+        // On recharge le résumé pour récupérer le salaryRecordId fraîchement créé
         const freshSummary = await getSalarySummary(selectedMonth)
-        const freshRow = freshSummary.items.find(i => i.teacherId === row.teacherId)
+        const freshRow = freshSummary.items.find((item) => item.teacherId === initialRow.teacherId)
+
         if (!freshRow?.salaryRecordId) {
-          toast({ title: "Action indisponible", description: "Aucune heure enregistrée ce mois." })
+          // Aucune heure enregistrée ce mois : impossible de créer une fiche
+          toast({
+            title: "Action indisponible",
+            description: "Aucune heure enregistrée ce mois pour ce vacataire.",
+            variant: "destructive",
+          })
           return
         }
-        // Continuer avec freshRow
+
+        // On continue avec la ligne fraîche qui contient le salaryRecordId
         row = freshRow
       } catch {
-        toast({ title: "Erreur", description: "Impossible de préparer le paiement." })
+        toast({
+          title: "Erreur",
+          description: "Impossible de préparer la fiche de salaire pour le paiement.",
+          variant: "destructive",
+        })
         return
       }
     }
 
+    // Ici row.salaryRecordId est garanti non-null pour les vacataires
     setSelectedSalaryRow(row)
     setPayDialogDetails(null)
     setHoursToPayInput("")
     setPaymentNotes("")
+
     const initialMonth =
       row.teacherType === "permanent"
         ? payMonthOptions.includes(selectedMonth)
           ? selectedMonth
           : getCurrentMonth()
         : selectedMonth
+
     setPayTargetMonth(initialMonth)
     setPayDialogOpen(true)
     await loadPayDialogDetails(row.teacherId, initialMonth)
@@ -501,12 +573,14 @@ export default function SalariesPage() {
     }
     return payDialogDetails.payments.reduce((sum, item) => sum + (item.hoursPaid ?? 0), 0)
   }, [payDialogDetails])
+
   const payHoursRemaining = useMemo(() => {
     if (!payDialogDetails) {
       return 0
     }
     return Math.max(0, Math.round((payDialogDetails.summary.hoursDone - payHoursAlreadyPaid) * 100) / 100)
   }, [payDialogDetails, payHoursAlreadyPaid])
+
   const payHoursSinceLastPayment = useMemo(() => {
     if (!payDialogDetails || !payDialogDetails.payment.paidAt) {
       return 0
@@ -916,8 +990,7 @@ export default function SalariesPage() {
                       <TableCell className="text-right">
                         {canMarkSalaryAsPaid &&
                         (row.status === "pending" ||
-                        (row.status === "paid" && row.isPartiallyPaid) ||
-                        row.status === "Salaire fixe") ? (
+                        (row.status === "paid" && row.isPartiallyPaid)) ? (
                           <Button type="button" size="sm" className="mr-2" onClick={() => void openMarkPaidDialog(row)}>
                             Marquer payé
                           </Button>
@@ -1492,81 +1565,62 @@ export default function SalariesPage() {
             </Button>
             <Button
               type="button"
-              onClick={async () => {
-                if (!selectedSalaryRow) {
-                  return
-                }
-                if (selectedSalaryRow.teacherType === "permanent") {
-                  try {
-                    await computeSalaries(payTargetMonth)
-                    const summary = await getSalarySummary(payTargetMonth)
-                    const teacherMonth = summary.items.find((item) => item.teacherId === selectedSalaryRow.teacherId)
-                    if (!teacherMonth?.salaryRecordId) {
-                      toast({
-                        title: "Action indisponible",
-                        description: "Le salaire de ce mois n'est pas prêt pour le paiement.",
-                        variant: "destructive",
-                      })
-                      return
-                    }
-                    if (teacherMonth.status === "paid" && !teacherMonth.isPartiallyPaid) {
-                      toast({
-                        title: "Paiement déjà effectué",
-                        description: "Ce mois est déjà payé pour ce professeur.",
-                        variant: "destructive",
-                      })
-                      return
-                    }
+              onClick={() => {
+                if (!selectedSalaryRow) return
 
-                    markPaidMutation.mutate({
-                      recordId: teacherMonth.salaryRecordId,
-                      notes: paymentNotes,
-                    })
-                  } catch {
-                    toast({
-                      title: "Erreur",
-                      description: "Impossible de finaliser le paiement pour le mois sélectionné.",
-                      variant: "destructive",
-                    })
-                  }
+                if (selectedSalaryRow.teacherType === "permanent") {
+                  // Déclenche la mutation qui encapsule compute → getSummary → markPaid
+                  computeAndMarkPaidMutation.mutate({
+                    teacherId: selectedSalaryRow.teacherId,
+                    month: payTargetMonth,
+                    notes: paymentNotes,
+                  })
                   return
                 }
-                if (!selectedSalaryRow.salaryRecordId) {
+
+                // Vacataire : salaryRecordId est garanti non-null ici
+                // (openMarkPaidDialog l'assure via le fallback compute)
+                if (!selectedSalaryRow.salaryRecordId) return
+
+                if (parsedHoursToPay === null) {
+                  toast({
+                    title: "Saisie invalide",
+                    description: "Veuillez saisir un nombre d'heures valide.",
+                    variant: "destructive",
+                  })
                   return
                 }
-                if (selectedSalaryRow.teacherType === "vacataire") {
-                  if (parsedHoursToPay === null) {
-                    toast({
-                      title: "Saisie invalide",
-                      description: "Veuillez saisir un nombre d'heures valide.",
-                      variant: "destructive",
-                    })
-                    return
-                  }
-                  if (parsedHoursToPay - payHoursRemaining > 0.0001) {
-                    toast({
-                      title: "Saisie invalide",
-                      description: "Le nombre d'heures dépasse le restant à payer.",
-                      variant: "destructive",
-                    })
-                    return
-                  }
+
+                if (parsedHoursToPay - payHoursRemaining > 0.0001) {
+                  toast({
+                    title: "Saisie invalide",
+                    description: "Le nombre d'heures dépasse le restant à payer.",
+                    variant: "destructive",
+                  })
+                  return
                 }
+
                 markPaidMutation.mutate({
                   recordId: selectedSalaryRow.salaryRecordId,
                   notes: paymentNotes,
-                  hoursToPay: selectedSalaryRow.teacherType === "vacataire" ? parsedHoursToPay ?? undefined : undefined,
+                  hoursToPay: parsedHoursToPay,
                 })
               }}
               disabled={
+                // On désactive si l'une ou l'autre mutation est en cours
                 markPaidMutation.isPending ||
+                computeAndMarkPaidMutation.isPending ||
                 !selectedSalaryRow ||
                 (selectedSalaryRow.teacherType !== "permanent" && !selectedSalaryRow.salaryRecordId) ||
                 (selectedSalaryRow.teacherType === "vacataire" && parsedHoursToPay === null) ||
-                (selectedSalaryRow.teacherType === "permanent" && payDialogDetails?.summary.status === "paid")
+                (selectedSalaryRow.teacherType === "permanent" &&
+                  payDialogDetails?.summary.status === "paid" &&
+                  !payDialogDetails?.summary.isPartiallyPaid)
               }
             >
-              Confirmer le paiement
+              {(markPaidMutation.isPending || computeAndMarkPaidMutation.isPending)
+                ? "En cours…"
+                : "Confirmer le paiement"}
             </Button>
           </DialogFooter>
         </DialogContent>

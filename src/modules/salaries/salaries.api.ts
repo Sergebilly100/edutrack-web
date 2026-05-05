@@ -1,6 +1,6 @@
 import { apiClient as api } from "@/shared/api/client"
 
-export type SalaryStatus = "pending" | "paid" | "disputed" | "nothing_to_pay" | "Salaire fixe"
+export type SalaryStatus = "pending" | "paid" | "disputed" | "nothing_to_pay"
 
 export type SalarySummaryItem = {
   teacherId: string
@@ -10,6 +10,10 @@ export type SalarySummaryItem = {
   hoursDone: number
   hourlyRate: number | null
   totalFcfa: number | null
+  // Montant effectivement versé (≤ totalFcfa).
+  // Utilisé pour calculer totalPaid dans SalariesPage.
+  // Distinct de totalFcfa pour les paiements partiels.
+  amountAlreadyPaid: number
   status: SalaryStatus
   salaryRecordId: string | null
   isPartiallyPaid: boolean
@@ -178,8 +182,7 @@ const parseSalaryStatus = (value: unknown): SalaryStatus => {
     value === "pending" ||
     value === "paid" ||
     value === "disputed" ||
-    value === "nothing_to_pay" ||
-    value === "Salaire fixe"
+    value === "nothing_to_pay" 
   ) {
     return value
   }
@@ -198,6 +201,9 @@ const parseSalaryItem = (value: unknown): SalarySummaryItem => {
     hoursDone: asNumber(row.hoursDone, 0),
     hourlyRate: row.hourlyRate === null ? null : asNumber(row.hourlyRate, 0),
     totalFcfa: row.totalFcfa === null ? null : asNumber(row.totalFcfa, 0),
+    // amountAlreadyPaid : montant versé réel renvoyé par le service.
+    // Défaut 0 si absent (compatibilité avec données antérieures à ce déploiement).
+    amountAlreadyPaid: asNumber(row.amountAlreadyPaid, 0),
     status: parseSalaryStatus(row.status),
     salaryRecordId: asNullableString(row.salaryRecordId),
     isPartiallyPaid: Boolean(row.isPartiallyPaid),
@@ -508,25 +514,16 @@ const parseJobPayload = (value: unknown): ExportJobStatus => {
   }
 }
 
+// > **Note :** `queueTeacherSalaryExport` a un catch différent (fallback sur une autre route GET).
+// > Celui-là est intentionnel (route alternative) et ne doit pas être modifié.
 export const queueSchoolSalaryExport = async (month: string): Promise<{ jobId: string }> => {
-  try {
-    const response = await api.get(
-      "/billing/salary/export/school", 
-      { 
-        params: { month }, 
-      }
-    )
-
-    const payload = isRecord(response.data) ? response.data : {}
-    return { jobId: asString(payload.jobId) }
-  } catch {
-    const fallback = await api.get("/billing/salary/export/school", {
-      params: { month },
-    })
-
-    const payload = isRecord(fallback.data) ? fallback.data : {}
-    return { jobId: asString(payload.jobId) }
-  }
+  // Pas de try/catch : si le serveur est indisponible, l'erreur remonte à useMutation
+  // qui l'affiche via son handler onError. Un catch identique n'apporte rien.
+  const response = await api.get("/billing/salary/export/school", {
+    params: { month },
+  })
+  const payload = isRecord(response.data) ? response.data : {}
+  return { jobId: asString(payload.jobId) }
 }
 
 export const queueTeacherSalaryExport = async (
