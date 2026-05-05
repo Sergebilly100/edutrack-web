@@ -166,68 +166,71 @@ function DashboardNotificationsPanel({
   onClose: () => void
 }) {
   return (
-    <aside
-      role="dialog"
-      aria-modal="false"
-      aria-labelledby="dashboard-notifications-title"
-      className="fixed inset-x-3 bottom-3 top-auto z-50 max-h-[82vh] overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-xl md:inset-x-auto md:bottom-auto md:right-8 md:top-20 md:w-[calc(100vw-1.5rem)] md:max-w-md"
-    >
-      <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
-        <div>
-          <p id="dashboard-notifications-title" className="text-sm font-semibold">Notifications</p>
-          <p className="text-xs text-muted-foreground">
-            {notifications.length === 0 ? "Aucune action urgente" : `${notifications.length} point(s) à suivre`}
-          </p>
-        </div>
-        <div className="flex items-center gap-1">
-          {notifications.length > 0 ? (
-            <Button type="button" variant="ghost" size="sm" onClick={onDismissAll}>
-              Tout marquer comme traité
-            </Button>
-          ) : null}
-          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} aria-label="Fermer les notifications">
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      <div className="max-h-[62vh] space-y-2 overflow-y-auto p-3 md:max-h-[70vh]">
-        {notifications.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            Tout est à jour. Les nouvelles alertes reviendront ici dès qu'une action sera nécessaire.
+    <div className="!m-0 fixed inset-0 z-40 bg-black/30 backdrop-blur-sm transition-all" onClick={onClose}>
+      <aside
+        role="dialog"
+        aria-modal="false"
+        aria-labelledby="dashboard-notifications-title"
+        className="fixed inset-x-3 bottom-auto top-14 z-50 max-h-[82vh] overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-xl md:inset-x-auto md:bottom-auto md:right-8 md:top-14 md:w-[calc(100vw-1.5rem)] md:max-w-md bg-[var(--stat-default-bg)] text-[var(--stat-default-fg)]"
+      >
+        <div className="flex items-center justify-between gap-3 border-b px-3 py-3">
+          <div>
+            <p id="dashboard-notifications-title" className="text-sm font-semibold">Notifications</p>
+            <p className="text-xs text-muted-foreground">
+              {notifications.length === 0 ? "" : `${notifications.length} point(s) à suivre`}
+            </p>
           </div>
-        ) : (
-          notifications.map((notification) => (
-            <div key={notification.id} className="rounded-lg border bg-background p-3 shadow-sm">
-              <div className="flex items-start gap-3">
-                <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border ${notificationToneClass[notification.tone]}`}>
-                  {notification.tone === "warning" || notification.tone === "danger" ? (
-                    <TriangleAlert className="h-4 w-4" />
-                  ) : (
-                    <MessageSquareText className="h-4 w-4" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold">{notification.title}</p>
-                  <p className="mt-1 text-sm leading-5 text-muted-foreground">{notification.message}</p>
-                  <p className="mt-2 text-xs font-medium text-muted-foreground">{notification.meta}</p>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  onClick={() => onDismiss(notification.id)}
-                  aria-label="Masquer cette notification"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+          <div className="flex items-center gap-1">
+            {notifications.length > 0 ? (
+              <Button type="button" variant="ghost" size="sm" onClick={onDismissAll}>
+                Tout marquer comme traité
+              </Button>
+            ) : null}
+            <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} aria-label="Fermer les notifications">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="max-h-[62vh] space-y-2 overflow-y-auto p-3 md:max-h-[70vh]">
+          {notifications.length === 0 ? (
+            <div className="rounded-lg border border-dashed p-2 text-xs text-center text-muted-foreground">
+              Tout est à jour. <br />
+              Les nouvelles alertes reviendront ici dès qu'une action sera nécessaire.
             </div>
-          ))
-        )}
-      </div>
-    </aside>
+          ) : (
+            notifications.map((notification) => (
+              <div key={notification.id} className="rounded-lg border bg-background p-3 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border ${notificationToneClass[notification.tone]}`}>
+                    {notification.tone === "warning" || notification.tone === "danger" ? (
+                      <TriangleAlert className="h-4 w-4" />
+                    ) : (
+                      <MessageSquareText className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold">{notification.title}</p>
+                    <p className="mt-1 text-sm leading-5 text-muted-foreground">{notification.message}</p>
+                    <p className="mt-2 text-xs font-medium text-muted-foreground">{notification.meta}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0"
+                    onClick={() => onDismiss(notification.id)}
+                    aria-label="Masquer cette notification"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </aside>
+    </div>
   )
 }
 
@@ -876,37 +879,6 @@ export default function DashboardPage() {
           />
         ) : null}
 
-        <section ref={alertsRef} className="space-y-3 animate-fade-in">
-          <WeekCoverageAlert
-            nextWeekHasCoverage={coverageQuery.data?.nextWeekHasCoverage ?? true}
-            onNavigateToSchedule={() => navigate("/schedule")}
-          />
-
-          {weeklyAbsenceCount > 3 ? (
-            <AlertBanner
-              type="warning"
-              title="Absences profs élevées cette semaine"
-              message={`${weeklyAbsenceCount} absences non justifiées ont été relevées sur les 7 derniers jours.`}
-              action={{
-                label: "Ouvrir les professeurs",
-                onClick: () => navigate("/teachers"),
-              }}
-            />
-          ) : null}
-
-          {(salaryUnpaidAlertsQuery.data?.count ?? 0) > 0 ? (
-            <AlertBanner
-              type="warning"
-              title="Salaires à terminer"
-              message={`${salaryUnpaidAlertsQuery.data?.count ?? 0} fiche(s) restent à solder, pour ${new Intl.NumberFormat("fr-FR").format(salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0)} FCFA.`}
-              action={{
-                label: "Ouvrir les salaires",
-                onClick: () => navigate("/salaries"),
-              }}
-            />
-          ) : null}
-        </section>
-
         <section className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4" data-testid="dashboard-statcards">
           <StatCard
             title="Profs actifs"
@@ -940,6 +912,37 @@ export default function DashboardPage() {
             icon={<Wallet className="h-4 w-4" />}
             variant={pendingSalaries.totalFcfa > 0 ? "warning" : "default"}
           />
+        </section>
+
+        <section ref={alertsRef} className="space-y-3 animate-fade-in">
+          <WeekCoverageAlert
+            nextWeekHasCoverage={coverageQuery.data?.nextWeekHasCoverage ?? true}
+            onNavigateToSchedule={() => navigate("/schedule")}
+          />
+
+          {weeklyAbsenceCount > 3 ? (
+            <AlertBanner
+              type="warning"
+              title="Absences profs élevées cette semaine"
+              message={`${weeklyAbsenceCount} absences non justifiées ont été relevées sur les 7 derniers jours.`}
+              action={{
+                label: "Ouvrir les professeurs",
+                onClick: () => navigate("/teachers"),
+              }}
+            />
+          ) : null}
+
+          {(salaryUnpaidAlertsQuery.data?.count ?? 0) > 0 ? (
+            <AlertBanner
+              type="warning"
+              title="Salaires à terminer"
+              message={`${salaryUnpaidAlertsQuery.data?.count ?? 0} fiche(s) restent à solder, pour ${new Intl.NumberFormat("fr-FR").format(salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0)} FCFA.`}
+              action={{
+                label: "Ouvrir les salaires",
+                onClick: () => navigate("/salaries"),
+              }}
+            />
+          ) : null}
         </section>
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
