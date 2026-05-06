@@ -104,7 +104,7 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
   const canFinishCourse =
     readyToFinish &&
     now <= finishWindowEnd &&
-    !attendance?.room_scan_end_at
+    !attendance?.checked_out_at
 
   return (
     <li

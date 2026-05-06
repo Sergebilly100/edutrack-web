@@ -12,6 +12,8 @@ export type SchoolInfoResponse = {
   address?: string
   phone?: string
   onboarding_completed?: boolean
+  use_real_hours?: boolean
+  geo_check_enabled?: boolean
 }
 
 export type TeacherCreatePayload = {

@@ -156,6 +156,25 @@ export type DashboardSalarySummary = {
   items: DashboardSalarySummaryItem[]
 }
 
+export type DashboardTeacherComplianceItem = {
+  teacherId: string
+  teacherName: string
+  totalCheckins: number
+  totalCheckouts: number
+  complianceRate: number
+  rank: number
+}
+
+export type DashboardSuspiciousAttendanceItem = {
+  attendanceId: string
+  teacherName: string
+  courseName: string
+  date: string
+  checkedInAt: string | null
+  checkinDistance: number | null
+  checkinAccuracy: number | null
+}
+
 export type DashboardRiskTeacher = {
   teacherId: string
   teacherName: string
@@ -600,6 +619,41 @@ export const getSalarySummary = async (month: string): Promise<DashboardSalarySu
   })
 
   return normalizeSalarySummary(response.data, month)
+}
+
+export const getTeacherCompliance = async (month: string): Promise<DashboardTeacherComplianceItem[]> => {
+  const response = await api.get<unknown>("/attendance/teacher-compliance", { params: { month } })
+  const rows = Array.isArray(response.data) ? response.data : []
+
+  return rows.map((entry) => {
+    const row = isRecord(entry) ? entry : {}
+    return {
+      teacherId: asString(row.teacherId ?? row.teacher_id),
+      teacherName: asString(row.teacherName ?? row.teacher_name),
+      totalCheckins: asNumber(row.totalCheckins ?? row.total_checkins),
+      totalCheckouts: asNumber(row.totalCheckouts ?? row.total_checkouts),
+      complianceRate: asNumber(row.complianceRate ?? row.compliance_rate),
+      rank: asNumber(row.rank),
+    }
+  })
+}
+
+export const getSuspiciousAttendances = async (month: string): Promise<DashboardSuspiciousAttendanceItem[]> => {
+  const response = await api.get<unknown>("/attendance/suspicious", { params: { month } })
+  const rows = Array.isArray(response.data) ? response.data : []
+
+  return rows.map((entry) => {
+    const row = isRecord(entry) ? entry : {}
+    return {
+      attendanceId: asString(row.attendanceId ?? row.attendance_id),
+      teacherName: asString(row.teacherName ?? row.teacher_name),
+      courseName: asString(row.courseName ?? row.course_name),
+      date: asString(row.date),
+      checkedInAt: asNullableString(row.checkedInAt ?? row.checked_in_at),
+      checkinDistance: row.checkinDistance === null ? null : asNumber(row.checkinDistance ?? row.checkin_distance),
+      checkinAccuracy: row.checkinAccuracy === null ? null : asNumber(row.checkinAccuracy ?? row.checkin_accuracy),
+    }
+  })
 }
 
 const getTeacherSalaryDetails = async (

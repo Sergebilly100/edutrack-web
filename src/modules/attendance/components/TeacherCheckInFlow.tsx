@@ -54,6 +54,33 @@ const formatTime = (time: string) => {
 
 const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
+const motivationalMessages = [
+  "Le directeur verra que vous faites partie des meilleurs de l'équipe",
+  "Votre sérieux est valorisé. Terminez le cours pour le confirmer",
+  "Les profs qui scannent la fin sont prioritaires lors des renouvellements",
+  "Votre taux de conformité est visible par la direction. Gardez le cap",
+]
+
+const getGeoPosition = async (enabled: boolean) => {
+  if (!enabled || !("geolocation" in navigator)) {
+    return {}
+  }
+
+  return new Promise<{ latitude?: number; longitude?: number; accuracy?: number }>((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        })
+      },
+      () => resolve({}),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    )
+  })
+}
+
 export const shouldMarkCheckinQrDoneOnSheetClose = ({
   step,
   isRollCallPending,
@@ -151,6 +178,11 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
     refetchOnMount: "always",
   })
   const canSkipQrStep = attendancePolicyQuery.data?.allow_teacher_qr_skip ?? false
+  const geoCheckEnabled = attendancePolicyQuery.data?.geo_check_enabled ?? false
+  const motivationalMessage = useMemo(
+    () => motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)],
+    []
+  )
 
   const { absentCount, presentCount, unmarkedCount } = useMemo(() => {
     let absent = 0; let present = 0; let unmarked = 0
@@ -201,9 +233,11 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
 
     try {
       // ── 1. Envoyer le checkIn au backend (présence confirmée) ──
+      const geo = await getGeoPosition(geoCheckEnabled)
       const checkInResult = await checkInMutation.mutateAsync({
         schedule_id: slot.id,
         date: attendanceDate,
+        ...geo,
       })
       const resolvedLateMinutes = checkInResult?.late_minutes ?? null
       setLateMinutes(resolvedLateMinutes)
@@ -357,7 +391,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
       rollCallStore.markReadyToFinish(slot.id, attendanceDate)
       toast({
         title: `Appel enregistré — ${absentCount} absent(s)`,
-        description: "Terminez le cours en scannant à nouveau le QR de la salle.",
+        description: "Terminez le cours à la fin pour confirmer les heures effectuées.",
       })
       void queryClient.invalidateQueries({ queryKey: ["teacher-attendance", attendanceDate] })
       onClose()
@@ -370,49 +404,28 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
     }
   }
 
-  const handleFinishCourse = async (token: string) => {
-    const qrToken = token.trim()
-    if (!qrToken) return
+  const finishCourseMutation = useMutation({ mutationFn: teacherScheduleApi.checkOut })
 
+  const handleFinishCourse = async () => {
     try {
-      await qrMutation.mutateAsync({
-        qr_token: qrToken,
-        scan_type: "end",
+      const geo = await getGeoPosition(geoCheckEnabled)
+      const result = await finishCourseMutation.mutateAsync({
         schedule_id: slot.id,
+        date: attendanceDate,
+        ...geo,
       })
 
       rollCallStore.markDone(slot.id, attendanceDate) // Marquer comme done
-      toast({ title: "Cours terminé", description: "Heure de fin enregistrée." })
+      toast({
+        title: "Cours terminé",
+        description: `${result.actual_minutes} min enregistrées.`,
+      })
       void queryClient.invalidateQueries({ queryKey: ["teacher-attendance", attendanceDate] })
       onClose()
     } catch {
       toast({
         title: "Clôture impossible",
         description: "Impossible d'enregistrer la fin du cours. Réessayez avant de quitter la salle.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleFinishCourseWithoutQr = async () => {
-    if (!canSkipQrStep) {
-      return
-    }
-
-    try {
-      await qrSkipMutation.mutateAsync({
-        scan_type: "end",
-        schedule_id: slot.id,
-        date: attendanceDate,
-      })
-      rollCallStore.markDone(slot.id, attendanceDate) // Marquer comme done même si QR non validé
-      toast({ title: "Cours terminé", description: "Fin du cours validée sans scan QR." })
-      void queryClient.invalidateQueries({ queryKey: ["teacher-attendance", attendanceDate] })
-      onClose()
-    } catch {
-      toast({
-        title: "Clôture sans QR impossible",
-        description: "Impossible de terminer le cours sans scan QR pour le moment.",
         variant: "destructive",
       })
     }
@@ -719,52 +732,26 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
           {/* // ── Step 4 — Fin du cours + scan QR ───────────────────────────────── */}
           {step === 4 ? (
             <section className="space-y-4 rounded-xl border p-2" data-testid="teacher-checkin-step-4">
-              <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2">
-                <p className="text-xs font-medium text-green-800">
-                  Scannez le QR de la salle pour terminer le cours.
+              <div className="space-y-2 rounded-lg border border-green-200 bg-green-50 px-3 py-3">
+                <p className="text-sm font-medium text-green-800">
+                  Cours en cours : {slot.subject_name} {slot.class_name}
                 </p>
+                <p className="text-xs text-green-700">
+                  Début : {formatTime(slot.start_time)} - Salle {slot.room_name}
+                </p>
+                <p className="text-xs text-green-700">{motivationalMessage}</p>
               </div>
 
-              <QRScanner
-                scheduleId={slot.id}
-                scanType="end"
-                onTokenDetected={(token) => { void handleFinishCourse(token) }}
-              />
-
-              <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
-                <p className="text-sm font-medium text-amber-800">Entrer le code manuellement</p>
-                <div className="flex gap-2">
-                  <Input
-                    value={manualQrCode}
-                    onChange={(e) => setManualQrCode(e.target.value)}
-                    placeholder="Code QR"
-                    data-testid="teacher-finish-manual-qr-input"
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="min-h-[35px] p-1"
-                    data-testid="teacher-finish-manual-qr-submit"
-                    disabled={qrMutation.isPending}
-                    onClick={() => { void handleFinishCourse(manualQrCode) }}
-                  >
-                    {qrMutation.isPending ? "Validation..." : "Valider"}
-                  </Button>
-                </div>
-              </div>
-
-              {canSkipQrStep ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full bg-primary"
-                  data-testid="teacher-finish-skip-qr"
-                  disabled={qrSkipMutation.isPending}
-                  onClick={() => { void handleFinishCourseWithoutQr() }}
-                >
-                  Terminer sans QR
-                </Button>
-              ) : null}
+              <Button
+                type="button"
+                size="lg"
+                className="w-full min-h-[72px] bg-red-600 text-white hover:bg-red-700"
+                data-testid="teacher-finish-course-submit"
+                disabled={finishCourseMutation.isPending}
+                onClick={() => { void handleFinishCourse() }}
+              >
+                {finishCourseMutation.isPending ? "Clôture en cours..." : "Terminer le cours"}
+              </Button>
             </section>
           ) : null}
         </SheetContent>

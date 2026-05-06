@@ -7,6 +7,9 @@ export type RoomListItem = {
   name: string
   building: string | null
   capacity: number | null
+  latitude: number | null
+  longitude: number | null
+  geoRadius: number
   isActive: boolean
   createdAt: string
   stats: {
@@ -58,6 +61,9 @@ const parseRoom = (value: unknown): RoomListItem => {
     name: asString(row.name),
     building: asNullableString(row.building),
     capacity: asNullableNumber(row.capacity),
+    latitude: asNullableNumber(row.latitude),
+    longitude: asNullableNumber(row.longitude),
+    geoRadius: asNumber(row.geoRadius ?? row.geo_radius, 100),
     isActive: asBoolean(row.isActive, true),
     createdAt: asString(row.createdAt),
     stats: {
@@ -78,22 +84,38 @@ export const createRoom = async (input: {
   name: string
   building?: string | null
   capacity?: number | null
+  latitude?: number | null
+  longitude?: number | null
+  geoRadius?: number | null
 }): Promise<void> => {
   await api.post("/rooms", {
     name: input.name.trim(),
     building: input.building?.trim() ? input.building.trim() : null,
     capacity: input.capacity ?? null,
+    latitude: input.latitude ?? null,
+    longitude: input.longitude ?? null,
+    geoRadius: input.geoRadius ?? 100,
   })
 }
 
 export const updateRoom = async (
   roomId: string,
-  input: { name?: string; building?: string | null; capacity?: number | null }
+  input: {
+    name?: string
+    building?: string | null
+    capacity?: number | null
+    latitude?: number | null
+    longitude?: number | null
+    geoRadius?: number | null
+  }
 ): Promise<void> => {
-  await api.put(`/rooms/${roomId}`, {
+  await api.patch(`/rooms/${roomId}`, {
     ...(input.name !== undefined ? { name: input.name.trim() } : {}),
     ...(input.building !== undefined ? { building: input.building?.trim() ? input.building.trim() : null } : {}),
     ...(input.capacity !== undefined ? { capacity: input.capacity } : {}),
+    ...(input.latitude !== undefined ? { latitude: input.latitude } : {}),
+    ...(input.longitude !== undefined ? { longitude: input.longitude } : {}),
+    ...(input.geoRadius !== undefined ? { geoRadius: input.geoRadius } : {}),
   })
 }
 

@@ -30,12 +30,18 @@ type RoomFormState = {
   name: string
   building: string
   capacity: string
+  latitude: string
+  longitude: string
+  geoRadius: string
 }
 
 const EMPTY_FORM: RoomFormState = {
   name: "",
   building: "",
   capacity: "",
+  latitude: "",
+  longitude: "",
+  geoRadius: "100",
 }
 
 const toNullableCapacity = (value: string): number | null => {
@@ -53,6 +59,21 @@ const toNullableCapacity = (value: string): number | null => {
 }
 
 const formatCapacity = (value: number | null): string => (value === null ? "Non défini" : `${value} places`)
+const formatGps = (room: RoomListItem): string =>
+  room.latitude !== null && room.longitude !== null ? `GPS configuré (${room.geoRadius}m)` : "GPS non configuré"
+
+const toNullableCoordinate = (value: string): number | null => {
+  const normalized = value.trim()
+  if (!normalized) return null
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const toGeoRadius = (value: string): number => {
+  const parsed = Number(value.trim())
+  if (!Number.isInteger(parsed)) return 100
+  return Math.min(300, Math.max(30, parsed))
+}
 
 export default function RoomsPage() {
   const { toast } = useToast()
@@ -110,7 +131,17 @@ export default function RoomsPage() {
   })
 
   const updateMutation = useMutation({
-    mutationFn: (input: { roomId: string; payload: { name: string; building: string | null; capacity: number | null } }) =>
+    mutationFn: (input: {
+      roomId: string
+      payload: {
+        name: string
+        building: string | null
+        capacity: number | null
+        latitude?: number | null
+        longitude?: number | null
+        geoRadius?: number | null
+      }
+    }) =>
       updateRoom(input.roomId, input.payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: QUERY_KEY })
@@ -191,6 +222,9 @@ export default function RoomsPage() {
       name: room.name,
       building: room.building ?? "",
       capacity: room.capacity === null ? "" : String(room.capacity),
+      latitude: room.latitude === null ? "" : String(room.latitude),
+      longitude: room.longitude === null ? "" : String(room.longitude),
+      geoRadius: String(room.geoRadius),
     })
     setEditDialogOpen(true)
   }
@@ -223,6 +257,8 @@ export default function RoomsPage() {
     }
     const name = form.name.trim()
     const capacity = toNullableCapacity(form.capacity)
+    const latitude = toNullableCoordinate(form.latitude)
+    const longitude = toNullableCoordinate(form.longitude)
     if (!name) {
       toast({
         title: "Champ requis",
@@ -245,6 +281,9 @@ export default function RoomsPage() {
       name,
       building: form.building.trim() || null,
       capacity,
+      latitude,
+      longitude,
+      geoRadius: toGeoRadius(form.geoRadius),
     })
   }
 
@@ -258,6 +297,8 @@ export default function RoomsPage() {
 
     const name = form.name.trim()
     const capacity = toNullableCapacity(form.capacity)
+    const latitude = toNullableCoordinate(form.latitude)
+    const longitude = toNullableCoordinate(form.longitude)
 
     if (!name) {
       toast({
@@ -278,6 +319,36 @@ export default function RoomsPage() {
     }
 
     setConfirmEditOpen(true)
+  }
+
+  const capturePosition = () => {
+    if (!("geolocation" in navigator)) {
+      toast({
+        title: "GPS indisponible",
+        description: "Ce navigateur ne permet pas de capturer la position.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setForm((prev) => ({
+          ...prev,
+          latitude: String(position.coords.latitude),
+          longitude: String(position.coords.longitude),
+        }))
+        toast({ title: "Position capturée" })
+      },
+      () => {
+        toast({
+          title: "Position non capturée",
+          description: "Autorisez la géolocalisation puis réessayez.",
+          variant: "destructive",
+        })
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    )
   }
 
   return (
@@ -321,6 +392,7 @@ export default function RoomsPage() {
                     <TableHead>Salle</TableHead>
                     <TableHead>Bâtiment</TableHead>
                     <TableHead>Capacité</TableHead>
+                    <TableHead>GPS</TableHead>
                     <TableHead>EDT / semaine</TableHead>
                     <TableHead>Scans</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -332,6 +404,7 @@ export default function RoomsPage() {
                       <TableCell className="font-medium">{room.name}</TableCell>
                       <TableCell>{room.building || "-"}</TableCell>
                       <TableCell>{formatCapacity(room.capacity)}</TableCell>
+                      <TableCell>{formatGps(room)}</TableCell>
                       <TableCell>{room.stats.weeklySchedulesCount}</TableCell>
                       <TableCell>{room.stats.scansCount}</TableCell>
                       <TableCell className="text-right">
@@ -417,6 +490,29 @@ export default function RoomsPage() {
               value={form.capacity}
               onChange={(event) => setForm((prev) => ({ ...prev, capacity: event.target.value }))}
             />
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Input
+                placeholder="Latitude GPS"
+                inputMode="decimal"
+                value={form.latitude}
+                onChange={(event) => setForm((prev) => ({ ...prev, latitude: event.target.value }))}
+              />
+              <Input
+                placeholder="Longitude GPS"
+                inputMode="decimal"
+                value={form.longitude}
+                onChange={(event) => setForm((prev) => ({ ...prev, longitude: event.target.value }))}
+              />
+              <Input
+                placeholder="Rayon GPS"
+                inputMode="numeric"
+                value={form.geoRadius}
+                onChange={(event) => setForm((prev) => ({ ...prev, geoRadius: event.target.value }))}
+              />
+            </div>
+            <Button type="button" variant="outline" onClick={capturePosition}>
+              Capturer ma position
+            </Button>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
@@ -451,6 +547,9 @@ export default function RoomsPage() {
                     name,
                     building: form.building.trim() || null,
                     capacity,
+                    latitude: toNullableCoordinate(form.latitude),
+                    longitude: toNullableCoordinate(form.longitude),
+                    geoRadius: toGeoRadius(form.geoRadius),
                   },
                 })
               }}
@@ -542,6 +641,29 @@ export default function RoomsPage() {
               value={form.capacity}
               onChange={(event) => setForm((prev) => ({ ...prev, capacity: event.target.value }))}
             />
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Input
+                placeholder="Latitude GPS"
+                inputMode="decimal"
+                value={form.latitude}
+                onChange={(event) => setForm((prev) => ({ ...prev, latitude: event.target.value }))}
+              />
+              <Input
+                placeholder="Longitude GPS"
+                inputMode="decimal"
+                value={form.longitude}
+                onChange={(event) => setForm((prev) => ({ ...prev, longitude: event.target.value }))}
+              />
+              <Input
+                placeholder="Rayon GPS"
+                inputMode="numeric"
+                value={form.geoRadius}
+                onChange={(event) => setForm((prev) => ({ ...prev, geoRadius: event.target.value }))}
+              />
+            </div>
+            <Button type="button" variant="outline" onClick={capturePosition}>
+              Capturer ma position
+            </Button>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>

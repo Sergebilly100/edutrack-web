@@ -1,7 +1,8 @@
 import { apiClient as api } from "@/shared/api/client"
 
-export type CheckInPayload = { schedule_id: string; date?: string }
-export type CheckInResponse = { late_minutes?: number | null }
+export type GeoPayload = { latitude?: number; longitude?: number; accuracy?: number }
+export type CheckInPayload = { schedule_id: string; date?: string } & GeoPayload
+export type CheckInResponse = { late_minutes?: number | null; geo_status?: string | null }
 
 export type QrScanPayload = {
   qr_token: string
@@ -26,6 +27,8 @@ export type StudentItem = { id: string; full_name: string }
 export type RoomItem = { id: string; name: string; qr_token: string }
 export type TeacherAttendancePolicy = {
   allow_teacher_qr_skip: boolean
+  geo_check_enabled: boolean
+  use_real_hours: boolean
 }
 
 export type ScheduleSlot = {
@@ -49,6 +52,9 @@ export type TeacherAttendance = {
   date?: string
   room_scan_start_at?: string | null
   room_scan_end_at?: string | null
+  checked_out_at?: string | null
+  actual_minutes?: number | null
+  geo_status?: "verified" | "suspicious" | "unavailable" | "not_checked" | null
 }
 
 const toRecord = (value: unknown): Record<string, unknown> =>
@@ -129,6 +135,25 @@ const toTeacherAttendance = (row: unknown): TeacherAttendance => {
         : typeof item.roomScanEndAt === "string"
           ? item.roomScanEndAt
           : null,
+    checked_out_at:
+      typeof item.checked_out_at === "string"
+        ? item.checked_out_at
+        : typeof item.checkedOutAt === "string"
+          ? item.checkedOutAt
+          : null,
+    actual_minutes:
+      typeof item.actual_minutes === "number"
+        ? item.actual_minutes
+        : typeof item.actualMinutes === "number"
+          ? item.actualMinutes
+          : null,
+    geo_status:
+      item.geo_status === "verified" ||
+      item.geo_status === "suspicious" ||
+      item.geo_status === "unavailable" ||
+      item.geo_status === "not_checked"
+        ? item.geo_status
+        : null,
   }
 }
 
@@ -182,14 +207,26 @@ export const teacherScheduleApi = {
     return extractList(response.data).map(toTeacherAttendance)
   },
 
-  checkIn: async (body: { schedule_id: string; date: string }) => {
+  checkIn: async (body: { schedule_id: string; date: string } & GeoPayload) => {
     const response = await api.post<{
-      data?: { lateMinutes?: number | null }
+      data?: { lateMinutes?: number | null; geoStatus?: string }
       late_minutes?: number | null
     }>("/attendance/check-in", body)
 
     return {
       late_minutes: response.data?.data?.lateMinutes ?? response.data?.late_minutes ?? null,
+      geo_status: response.data?.data?.geoStatus ?? null,
+    }
+  },
+
+  checkOut: async (body: { schedule_id: string; date?: string } & GeoPayload) => {
+    const response = await api.post<{
+      data?: { actualMinutes?: number; geoStatus?: string }
+    }>("/attendance/check-out", body)
+
+    return {
+      actual_minutes: response.data?.data?.actualMinutes ?? 0,
+      geo_status: response.data?.data?.geoStatus ?? "not_checked",
     }
   },
 
@@ -227,6 +264,8 @@ export const teacherScheduleApi = {
         payload.allow_teacher_qr_skip ?? payload.allowTeacherQrSkip,
         false
       ),
+      geo_check_enabled: toBoolean(payload.geo_check_enabled ?? payload.geoCheckEnabled, false),
+      use_real_hours: toBoolean(payload.use_real_hours ?? payload.useRealHours, false),
     }
   },
 
@@ -267,12 +306,21 @@ export const teacherScheduleApi = {
 
 export const checkIn = (payload: CheckInPayload) =>
   api
-    .post<{ data?: { lateMinutes?: number | null }; late_minutes?: number | null }>(
+    .post<{ data?: { lateMinutes?: number | null; geoStatus?: string }; late_minutes?: number | null }>(
       "/attendance/check-in",
       payload
     )
     .then((r) => ({
       late_minutes: r.data?.data?.lateMinutes ?? r.data?.late_minutes ?? null,
+      geo_status: r.data?.data?.geoStatus ?? null,
+    }))
+
+export const checkOut = (payload: { schedule_id: string; date?: string } & GeoPayload) =>
+  api
+    .post<{ data?: { actualMinutes?: number; geoStatus?: string } }>("/attendance/check-out", payload)
+    .then((r) => ({
+      actual_minutes: r.data?.data?.actualMinutes ?? 0,
+      geo_status: r.data?.data?.geoStatus ?? "not_checked",
     }))
 
 export const qrScan = (payload: QrScanPayload) =>

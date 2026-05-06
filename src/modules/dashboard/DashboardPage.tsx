@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { fetchSchoolInfo } from "@/modules/onboarding/onboarding.api"
 import { getStudentAbsenceStats, getTodayAbsences, type StudentAbsenceStat } from "@/modules/students/students.api"
 import { getSalaryUnpaidAlerts } from "@/modules/salaries/salaries.api"
@@ -20,6 +20,8 @@ import {
   getNextWeekCoverageState,
   getPreviousMonthKey,
   getSalarySummary,
+  getSuspiciousAttendances,
+  getTeacherCompliance,
   getTeacherTrendFromSummaries,
   getTodayAttendance,
   getTopRiskTeachers,
@@ -446,6 +448,22 @@ export default function DashboardPage() {
     enabled: canViewSalary,
   })
 
+  const teacherComplianceQuery = useQuery({
+    queryKey: ["dashboard", "teacher-compliance", currentMonth],
+    queryFn: () => getTeacherCompliance(currentMonth),
+    staleTime: QUERY_STALE_TIME,
+    retry: false,
+    enabled: isDirector,
+  })
+
+  const suspiciousAttendancesQuery = useQuery({
+    queryKey: ["dashboard", "suspicious-attendances", currentMonth],
+    queryFn: () => getSuspiciousAttendances(currentMonth),
+    staleTime: QUERY_STALE_TIME,
+    retry: false,
+    enabled: isDirector,
+  })
+
   const schoolQuery = useQuery({
     queryKey: ["dashboard", "school-v3"],
     queryFn: fetchSchoolInfo,
@@ -537,6 +555,17 @@ export default function DashboardPage() {
 
     return items.map((item) => toDashboardSalaryRow(item)).slice(0, 5)
   }, [salarySummaryQuery.data])
+  const salaryRealHoursTotals = useMemo(() => {
+    return salaryRows.reduce(
+      (acc, row) => {
+        acc.planned += row.hoursPlanned
+        acc.done += row.hoursDone
+        acc.impact += Math.round((row.hoursDone - row.hoursPlanned) * (row.hourlyRate ?? 0))
+        return acc
+      },
+      { planned: 0, done: 0, impact: 0 }
+    )
+  }, [salaryRows])
 
   const schoolName = schoolQuery.data?.name?.trim() || "École"
   const riskMonthStart = `${currentMonth}-01`
@@ -922,6 +951,97 @@ export default function DashboardPage() {
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg font-semibold">Meilleurs profs ce mois</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {teacherComplianceQuery.isLoading ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <Skeleton key={index} className="h-12 w-full rounded-lg" />
+                  ))}
+                </div>
+              ) : (teacherComplianceQuery.data ?? []).length === 0 ? (
+                <EmptyState
+                  icon={emptyStateIcons.noTeachers}
+                  title="Aucun scan de fin"
+                  message="Les taux apparaîtront dès que les cours seront terminés."
+                />
+              ) : (
+                <div className="space-y-2">
+                  {(teacherComplianceQuery.data ?? []).slice(0, 8).map((teacher) => (
+                    <div
+                      key={teacher.teacherId}
+                      className="flex min-h-[48px] items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
+                          {teacher.rank}. {teacher.teacherName}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {teacher.totalCheckouts}/{teacher.totalCheckins} cours
+                        </p>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={
+                          teacher.complianceRate >= 80
+                            ? "border-green-200 bg-green-50 text-green-700"
+                            : teacher.complianceRate < 30
+                              ? "border-amber-200 bg-amber-50 text-amber-700"
+                              : "border-slate-200 bg-slate-50 text-slate-700"
+                        }
+                      >
+                        {Math.round(teacher.complianceRate)}%
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg font-semibold">Check-ins suspects</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(suspiciousAttendancesQuery.data ?? []).length === 0 ? (
+                <EmptyState
+                  icon={emptyStateIcons.allGood}
+                  title="Aucun check-in suspect"
+                  message="Les alertes GPS hors rayon apparaîtront ici."
+                />
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Prof</TableHead>
+                        <TableHead>Cours</TableHead>
+                        <TableHead>Distance</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(suspiciousAttendancesQuery.data ?? []).slice(0, 5).map((item) => (
+                        <TableRow key={item.attendanceId}>
+                          <TableCell className="font-medium">{item.teacherName}</TableCell>
+                          <TableCell>{item.courseName}</TableCell>
+                          <TableCell>
+                            {item.checkinDistance === null ? "-" : `${Math.round(item.checkinDistance)} m`}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg font-semibold">Absences élèves aujourd'hui</CardTitle>
               {canToggleTodayStudentAbsences ? (
@@ -1007,6 +1127,12 @@ export default function DashboardPage() {
               </Button>
             </CardHeader>
             <CardContent>
+              {schoolQuery.data?.use_real_hours === true ? (
+                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  Ce mois : {salaryRealHoursTotals.planned.toFixed(1)}h planifiées, {salaryRealHoursTotals.done.toFixed(1)}h réellement effectuées.
+                  Écart : {(salaryRealHoursTotals.done - salaryRealHoursTotals.planned).toFixed(1)}h, impact estimé : {formatFcfa(salaryRealHoursTotals.impact)}.
+                </div>
+              ) : null}
               {salaryRows.length === 0 ? (
                 <EmptyState
                   icon={emptyStateIcons.noTeachers}
