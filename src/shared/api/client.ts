@@ -96,7 +96,9 @@ apiClient.interceptors.response.use(
     const requestUrl = originalRequest.url ?? ""
     const isAuthEndpoint = requestUrl.includes("/auth/")
     const isPublicUnauthEndpoint =
-      requestUrl.includes("/school/info") || requestUrl.includes("/settings/public")
+      requestUrl.includes("/school/info") ||
+      requestUrl.includes("/school/public-info") ||
+      requestUrl.includes("/settings/public")
 
     if (isMaintenance) {
       const payload = error.response?.data as { error?: string; message?: string } | undefined

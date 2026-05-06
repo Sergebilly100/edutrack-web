@@ -26,6 +26,7 @@ export default function ParentPortalLayout() {
   const schoolInfoQuery = useQuery({
     queryKey: ["parent", "school-info"],
     queryFn: fetchParentSchoolInfo,
+    enabled: Boolean(user),
   })
 
   useEffect(() => {
