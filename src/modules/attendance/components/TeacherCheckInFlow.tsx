@@ -381,7 +381,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
         schedule_id: slot.id,
       })
 
-      rollCallStore.markDone(slot.id, attendanceDate)
+      rollCallStore.markDone(slot.id, attendanceDate) // Marquer comme done
       toast({ title: "Cours terminé", description: "Heure de fin enregistrée." })
       void queryClient.invalidateQueries({ queryKey: ["teacher-attendance", attendanceDate] })
       onClose()
@@ -405,7 +405,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
         schedule_id: slot.id,
         date: attendanceDate,
       })
-      rollCallStore.markDone(slot.id, attendanceDate)
+      rollCallStore.markDone(slot.id, attendanceDate) // Marquer comme done même si QR non validé
       toast({ title: "Cours terminé", description: "Fin du cours validée sans scan QR." })
       void queryClient.invalidateQueries({ queryKey: ["teacher-attendance", attendanceDate] })
       onClose()
@@ -483,7 +483,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
           {/* ── Step 1 — Déclaration de présence (local) ────────────────── */}
           {step === 1 ? (
             <section
-              className="space-y-4 rounded-xl border p-4"
+              className="space-y-4 rounded-xl border p-2"
               data-testid="teacher-checkin-step-1"
             >
               <div className="space-y-1 text-sm">
@@ -516,7 +516,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
           {/* ── Step 2 — Scan QR + confirmation présence ────────────────── */}
           {step === 2 ? (
             <section
-              className="space-y-4 rounded-xl border p-4"
+              className="space-y-4 rounded-xl border p-2"
               data-testid="teacher-checkin-step-2"
             >
               {/* Rappel : le check-in sera envoyé ICI */}
@@ -532,7 +532,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                 onTokenDetected={(token) => { void handleQrSubmit(token) }}
               />
 
-              <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
+              <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-2">
                 <p className="text-sm font-medium text-amber-800">Entrer le code manuellement</p>
                 <div className="flex gap-2">
                   <Input
@@ -544,7 +544,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                   <Button
                     type="button"
                     variant="secondary"
-                    className="min-h-[48px]"
+                    className="min-h-[35px] p-1"
                     data-testid="teacher-checkin-manual-qr-submit"
                     disabled={checkInMutation.isPending || qrMutation.isPending}
                     onClick={() => { void handleQrSubmit(manualQrCode) }}
@@ -572,7 +572,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full"
+                  className="w-full bg-primary"
                   data-testid="teacher-checkin-skip-qr"
                   disabled={checkInMutation.isPending || qrSkipMutation.isPending}
                   onClick={() => { void handleSkipQr() }}
@@ -586,7 +586,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
           {/* ── Step 3 — Appel élèves ────────────────────────────────────── */}
           {step === 3 ? (
             <section
-              className="space-y-4 rounded-xl border p-4"
+              className="space-y-4 rounded-xl border p-2"
               data-testid="teacher-checkin-step-3"
             >
               {/* Compteurs */}
@@ -665,9 +665,9 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                             variant="ghost"
                             data-testid={`teacher-student-present-${student.id}`}
                             className={cn(
-                              "min-h-[40px] min-w-[72px] rounded-lg border text-xs font-semibold transition-all duration-150 active:scale-95",
+                              "min-h-[40px] min-w-[72px] rounded-lg border text-xs font-semibold transition-all duration-150 active:scale-95 dark:text-black",
                               isPresent
-                                ? "border-green-300 bg-green-100 text-green-700 hover:bg-green-200"
+                                ? "border-green-300 bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-700 dark:text-green-300 dark:hover:bg-green-600"
                                 : "border-border text-muted-foreground hover:border-green-300 hover:bg-green-50 hover:text-green-700"
                             )}
                             onClick={() => markStudent(student.id, "present")}
@@ -681,9 +681,9 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                             variant="ghost"
                             data-testid={`teacher-student-absent-${student.id}`}
                             className={cn(
-                              "min-h-[40px] min-w-[68px] rounded-lg border text-xs font-semibold transition-all duration-150 active:scale-95",
+                              "min-h-[40px] min-w-[68px] rounded-lg border text-xs font-semibold transition-all duration-150 active:scale-95 dark:text-black",
                               isAbsent
-                                ? "border-red-300 bg-red-100 text-red-700 hover:bg-red-200"
+                                ? "border-red-300 bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-700 dark:text-red-300 dark:hover:bg-red-600"
                                 : "border-border text-muted-foreground hover:border-red-300 hover:bg-red-50 hover:text-red-700"
                             )}
                             onClick={() => markStudent(student.id, "absent")}
@@ -716,8 +716,9 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
             </section>
           ) : null}
 
+          {/* // ── Step 4 — Fin du cours + scan QR ───────────────────────────────── */}
           {step === 4 ? (
-            <section className="space-y-4 rounded-xl border p-4" data-testid="teacher-checkin-step-4">
+            <section className="space-y-4 rounded-xl border p-2" data-testid="teacher-checkin-step-4">
               <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2">
                 <p className="text-xs font-medium text-green-800">
                   Scannez le QR de la salle pour terminer le cours.
@@ -742,7 +743,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                   <Button
                     type="button"
                     variant="secondary"
-                    className="min-h-[48px]"
+                    className="min-h-[35px] p-1"
                     data-testid="teacher-finish-manual-qr-submit"
                     disabled={qrMutation.isPending}
                     onClick={() => { void handleFinishCourse(manualQrCode) }}
@@ -756,7 +757,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full"
+                  className="w-full bg-primary"
                   data-testid="teacher-finish-skip-qr"
                   disabled={qrSkipMutation.isPending}
                   onClick={() => { void handleFinishCourseWithoutQr() }}

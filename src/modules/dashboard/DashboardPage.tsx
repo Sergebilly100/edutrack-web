@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Bell, CheckCircle2, ChevronRight, GraduationCap, RefreshCw, Users, Wallet } from "lucide-react"
+import { Bell, CheckCircle2, ChevronRight, CircleX, ClipboardCheck, Flag, GraduationCap, MapPin, RefreshCw, Users, Wallet } from "lucide-react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -73,6 +73,28 @@ const formatHours = (value: string): string => {
 }
 
 const formatFcfa = (amount: number): string => `${new Intl.NumberFormat("fr-FR").format(amount)} FCFA`
+
+const buildCourseDateTime = (date: string, time: string): Date | null => {
+  if (!date || !time) {
+    return null
+  }
+
+  const normalizedTime = /^\d{2}:\d{2}/.test(time) ? time.slice(0, 8) : time
+  const parsed = new Date(`${date}T${normalizedTime}`)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+const isPresentLikeCourse = (course: DashboardCourseItem): boolean =>
+  course.status === "present" || course.status === "late" || course.status === "excused"
+
+const hasCourseStartedFor15Minutes = (date: string, startTime: string, now: Date): boolean => {
+  const startsAt = buildCourseDateTime(date, startTime)
+  if (!startsAt) {
+    return false
+  }
+
+  return now.getTime() - startsAt.getTime() >= 15 * 60 * 1000
+}
 
 const courseStatusMeta: Record<string, { label: string; className: string }> = {
   present: {
@@ -174,17 +196,20 @@ function DashboardSkeleton() {
 function TodayPresenceList({
   courses,
   expanded,
+  date,
 }: {
   courses: DashboardCourseItem[]
   expanded: boolean
+  date: string
 }) {
+  const now = new Date()
   const sortedCourses = useMemo(() => {
     return [...courses].sort((a, b) => {
-      const aTime = a.checkedInAt ? new Date(a.checkedInAt).getTime() : new Date(`1970-01-01T${a.startTime}`).getTime()
-      const bTime = b.checkedInAt ? new Date(b.checkedInAt).getTime() : new Date(`1970-01-01T${b.startTime}`).getTime()
+      const aTime = buildCourseDateTime(date, a.startTime)?.getTime() ?? 0
+      const bTime = buildCourseDateTime(date, b.startTime)?.getTime() ?? 0
       return bTime - aTime
     })
-  }, [courses])
+  }, [courses, date])
   const visibleCourses = expanded ? sortedCourses : sortedCourses.slice(0, 5)
 
   if (sortedCourses.length === 0) {
@@ -201,6 +226,17 @@ function TodayPresenceList({
     <div className="space-y-2" data-testid="dashboard-today-presence-list">
       {visibleCourses.map((course) => {
         const status = courseStatusMeta[course.status ?? "default"] ?? courseStatusMeta.default
+        const presentLike = isPresentLikeCourse(course)
+        const showPointageBadge = presentLike && hasCourseStartedFor15Minutes(date, course.startTime, now)
+        const roomStatusClassName = course.roomMismatch
+          ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200"
+          : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200"
+        const pointageStatusClassName = course.studentRollcallDone
+          ? "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/40 dark:text-sky-200"
+          : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200"
+        const endTimeStatusClassName = course.roomScanEndAt
+          ? "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/50 dark:bg-violet-950/40 dark:text-violet-200"
+          : "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
         return (
           <div
             key={course.id}
@@ -219,6 +255,24 @@ function TodayPresenceList({
             <p className="mt-2 text-xs text-muted-foreground">
               {formatHours(course.startTime)} - {formatHours(course.endTime)} • {course.roomName}
             </p>
+            {presentLike ? (
+              <div className="mt-3 flex flex-wrap gap-1.5 sm:gap-2" data-testid="dashboard-presence-badges">
+                <Badge variant="outline" className={`max-w-full gap-1 px-2 py-1 text-[11px] leading-none ${roomStatusClassName}`}>
+                  {course.roomMismatch ? <CircleX className="h-3 w-3 shrink-0" /> : <MapPin className="h-3 w-3 shrink-0" />}
+                  <span className="truncate">{course.roomMismatch ? "Salle incorrecte" : "Salle correcte"}</span>
+                </Badge>
+                {showPointageBadge ? (
+                  <Badge variant="outline" className={`max-w-full gap-1 px-2 py-1 text-[11px] leading-none ${pointageStatusClassName}`}>
+                    {course.studentRollcallDone ? <ClipboardCheck className="h-3 w-3 shrink-0" /> : <CircleX className="h-3 w-3 shrink-0" />}
+                    <span className="truncate">{course.studentRollcallDone ? "Pointage effectué" : "Pointage non effectué"}</span>
+                  </Badge>
+                ) : null}
+                <Badge variant="outline" className={`max-w-full gap-1 px-2 py-1 text-[11px] leading-none ${endTimeStatusClassName}`}>
+                  {course.roomScanEndAt ? <Flag className="h-3 w-3 shrink-0" /> : <CircleX className="h-3 w-3 shrink-0" />}
+                  <span className="truncate">{course.roomScanEndAt ? "Heure de fin spécifiée" : "Heure de fin non spécifiée"}</span>
+                </Badge>
+              </div>
+            ) : null}
           </div>
         )
       })}
@@ -808,7 +862,11 @@ export default function DashboardPage() {
               ) : null}
             </CardHeader>
             <CardContent>
-              <TodayPresenceList courses={todayQuery.data?.courses ?? []} expanded={showAllTodayPresence} />
+              <TodayPresenceList
+                courses={todayQuery.data?.courses ?? []}
+                expanded={showAllTodayPresence}
+                date={todayQuery.data?.date ?? new Date().toISOString().slice(0, 10)}
+              />
             </CardContent>
           </Card>
 

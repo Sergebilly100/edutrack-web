@@ -118,7 +118,13 @@ describe("DashboardPage", () => {
           lateMinutes: 0,
           roomMismatch: false,
           roomScannedName: "Salle A1",
+          roomScannedAt: "2026-04-14T08:01:00.000Z",
+          roomScanEndAt: null,
           checkedInAt: "2026-04-14T08:00:00.000Z",
+          studentRollcallDone: false,
+          studentPresentCount: 0,
+          studentAbsentCount: 0,
+          studentTotalCount: 0,
         },
       ],
     })
@@ -180,8 +186,11 @@ describe("DashboardPage", () => {
     expect(screen.getByText("École Sainte Marie")).toBeInTheDocument()
     expect(screen.getByText("Profs actifs")).toBeInTheDocument()
     expect(screen.getByText("Élèves actifs")).toBeInTheDocument()
-    expect(screen.getByText("Présences profs - Aujourd'hui")).toBeInTheDocument()
+    expect(screen.getByText("Présences professeurs aujourd'hui")).toBeInTheDocument()
     expect(screen.getAllByText("M. Diallo").length).toBeGreaterThan(0)
+    expect(screen.getByText("Salle correcte")).toBeInTheDocument()
+    expect(screen.getByText("Pointage non effectué")).toBeInTheDocument()
+    expect(screen.getByText("Heure de fin non spécifiée")).toBeInTheDocument()
     expect(screen.getByText("Résumé salaires du mois")).toBeInTheDocument()
     expect(screen.getByText("Semaine prochaine non configurée")).toBeInTheDocument()
   })

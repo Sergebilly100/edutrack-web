@@ -106,7 +106,13 @@ export type DashboardCourseItem = {
   lateMinutes: number | null
   roomMismatch: boolean
   roomScannedName: string | null
+  roomScannedAt: string | null
+  roomScanEndAt: string | null
   checkedInAt: string | null
+  studentRollcallDone: boolean
+  studentPresentCount: number
+  studentAbsentCount: number
+  studentTotalCount: number
 }
 
 export type DashboardTodayData = {
@@ -374,7 +380,13 @@ const normalizeCourse = (item: unknown, index: number): DashboardCourseItem => {
         : asNumber(attendance.lateMinutes ?? attendance.late_minutes ?? attendance.attendance_late_minutes, 0),
     roomMismatch: asBoolean(attendance.roomMismatch ?? attendance.room_mismatch),
     roomScannedName: asNullableString(attendance.roomScannedName ?? attendance.room_scanned_name),
+    roomScannedAt: asNullableString(attendance.roomScannedAt ?? attendance.room_scanned_at),
+    roomScanEndAt: asNullableString(attendance.roomScanEndAt ?? attendance.room_scan_end_at),
     checkedInAt: asNullableString(attendance.checkedInAt ?? attendance.checked_in_at ?? attendance.attendance_checked_in_at),
+    studentRollcallDone: asBoolean(attendance.studentRollcallDone ?? attendance.student_rollcall_done),
+    studentPresentCount: asNumber(attendance.studentPresentCount ?? attendance.student_present_count, 0),
+    studentAbsentCount: asNumber(attendance.studentAbsentCount ?? attendance.student_absent_count, 0),
+    studentTotalCount: asNumber(attendance.studentTotalCount ?? attendance.student_total_count, 0),
   }
 }
 

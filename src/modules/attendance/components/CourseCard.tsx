@@ -69,9 +69,9 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
     attendance?.status === "excused"
 
   const flowState = useRollCallStore((s) => s.getFlowState(slot.id, courseDateKey))
-  const rollCallPending = flowState === "rollcall_pending"
-  const checkinQrDone = flowState === "checkin_qr_done"
-  const readyToFinish = flowState === "ready_to_finish"
+  const rollCallPending = flowState === "rollcall_pending" // Le prof a choisi "Non, plus tard" dans la modale d'appel
+  const checkinQrDone = flowState === "checkin_qr_done" // Le prof a scanné le QR de la salle mais n'a pas fini le flow
+  const readyToFinish = flowState === "ready_to_finish" // Le prof a scanné le QR de fin ou a choisi de finir sans scan, prêt à terminer le cours
 
   // ── Règles d'affichage des boutons ────────────────────────────────────────
 
@@ -136,7 +136,8 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
           </p>
 
           {/* En cours normal */}
-          {(status === "now" || status === "starting_soon") && !rollCallPending && !checkinQrDone ? (
+          
+          {(status === "now" || status === "starting_soon" ) && !rollCallPending && !checkinQrDone && readyToFinish ? (
             <p className="flex items-center gap-2 text-xs font-medium text-green-600">
               <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
               {status === "starting_soon" ? "Démarrage imminent" : "En cours"}

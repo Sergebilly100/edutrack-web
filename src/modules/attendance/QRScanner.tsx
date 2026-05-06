@@ -79,7 +79,7 @@ export default function QRScanner({ onTokenDetected, scheduleId, scanType }: QRS
             Annuler
           </Button>
         ) : (
-          <Button className="min-h-[48px]" data-testid="teacher-qr-open-camera" onClick={() => void startScan()}>
+          <Button className="min-h-[40px] p-2" data-testid="teacher-qr-open-camera" onClick={() => void startScan()}>
             Ouvrir la caméra
           </Button>
         )}
@@ -126,7 +126,7 @@ export default function QRScanner({ onTokenDetected, scheduleId, scanType }: QRS
             <Button
               type="button"
               variant="secondary"
-              className="min-h-[48px]"
+              className="min-h-[40px] p-0"
               data-testid="teacher-qr-manual-submit"
               onClick={handleManualSubmit}
             >
