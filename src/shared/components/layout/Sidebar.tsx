@@ -2,34 +2,16 @@ import { useEffect } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
-  Building2,
-  CalendarDays,
-  GraduationCap,
-  LayoutDashboard,
   LogOut,
   Menu,
   Monitor,
   Moon,
-  MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
   Pin,
   PinOff,
-  ReceiptText,
-  QrCode,
-  Settings2,
-  TrendingUp,
-  Upload,
-  User,
   UserCircle,
-  Users,
-  Wallet,
-  WalletCards,
   Sun,
-  type LucideIcon,
-  MessageSquareCode,
-  HandCoins,
-  Landmark,
 } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -46,135 +28,14 @@ import { cn } from "@/lib/utils"
 import { logout as logoutApi } from "@/modules/auth/auth.api"
 import { getSmsFeatureSettings } from "@/modules/subscriptions/subscriptions.api"
 import { NotificationButton } from "@/shared/components/layout/NotificationButton"
+import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
 import { useTheme } from "@/shared/hooks/useTheme"
 import { getUserRoleLabel } from "@/shared/lib/user-role-label"
-import { isStaffRole, type AuthRole, type PermissionKey } from "@/shared/store/auth.store"
+import { isStaffRole } from "@/shared/store/auth.store"
 import { useAuthStore } from "@/shared/store/auth.store"
 import { useSidebarStore } from "@/shared/store/sidebar.store"
 
-type UserRole = Exclude<AuthRole, "teacher">
-
-type NavItem = {
-  label: string
-  icon: LucideIcon
-  href: string
-  roles: UserRole[]
-  requiredPermissions?: PermissionKey[]
-  requiredAnyPermissions?: PermissionKey[]
-  matchExact?: boolean
-}
-
-const navItems: NavItem[] = [
-  { label: "Tableau de bord", icon: LayoutDashboard, href: "/dashboard", roles: ["director", "staff"] },
-  {
-    label: "Emploi du temps",
-    icon: CalendarDays,
-    href: "/schedule",
-    roles: ["director", "staff"],
-    requiredPermissions: ["schedule.view"],
-  },
-  {
-    label: "Professeurs",
-    icon: Users,
-    href: "/teachers",
-    roles: ["director", "staff"],
-    requiredPermissions: ["teachers.view"],
-  },
-  {
-    label: "Élèves",
-    icon: GraduationCap,
-    href: "/students",
-    roles: ["director", "staff"],
-    requiredPermissions: ["students.view"],
-  },
-  {
-    label: "Salaires",
-    icon: Wallet,
-    href: "/salaries",
-    roles: ["director", "staff"],
-    requiredPermissions: ["salary.view"],
-  },
-  {
-    label: "Import",
-    icon: Upload,
-    href: "/import",
-    roles: ["director", "staff"],
-    requiredAnyPermissions: ["import.students", "import.teachers", "import.schedule"],
-  },
-  {
-    label: "Salles & QR Codes",
-    icon: QrCode,
-    href: "/rooms",
-    roles: ["director", "staff"],
-    requiredPermissions: ["rooms.view"],
-  },
-  {
-    label: "Abonnements",
-    icon: WalletCards,
-    href: "/subscriptions",
-    roles: ["director", "staff"],
-    requiredPermissions: ["subscriptions.view"],
-    matchExact: true,
-  },
-  {
-    label: "Revenus abonnements",
-    icon: TrendingUp,
-    href: "/subscriptions/revenue",
-    roles: ["director", "staff"],
-    requiredPermissions: ["subscriptions.revenue"],
-  },
-  {
-    label: "Paramètres",
-    icon: Settings2,
-    href: "/settings",
-    roles: ["director", "staff"],
-    requiredAnyPermissions: ["settings.positions", "settings.school", "settings.sms_templates"],
-  },
-  {
-    label: "Dashboard",
-    icon: LayoutDashboard,
-    href: "/admin",
-    roles: ["super_admin"],
-    matchExact: true,
-  },
-  { label: "Écoles", icon: Building2, href: "/admin/schools", roles: ["super_admin"] },
-  { label: "Plan & Tarifs", icon: ReceiptText, href: "/admin/plans", roles: ["super_admin"] },
-  { label: "Pilotage SMS", icon: MessageSquareCode, href: "/admin/sms", roles: ["super_admin"] },
-  { label: "Revenus Écoles", icon: Landmark, href: "/admin/revenue", roles: ["super_admin"] },
-  { label: "Revenus SMS", icon: HandCoins, href: "/admin/revenuSms", roles: ["super_admin"] },
-  { label: "Maintenance", icon: Settings2, href: "/admin/maintenance", roles: ["super_admin"] },
-  { label: "Mon compte", icon: User, href: "/admin/account", roles: ["super_admin"] },
-]
-
-function canAccessItem(item: NavItem, role: UserRole, permissions: PermissionKey[]): boolean {
-  if (!item.roles.includes(role)) {
-    return false
-  }
-
-  if (!isStaffRole(role)) {
-    return true
-  }
-
-  const permissionSet = new Set<PermissionKey>(permissions)
-  if (item.requiredPermissions && item.requiredPermissions.length > 0) {
-    const hasAll = item.requiredPermissions.every((permission) => permissionSet.has(permission))
-    if (!hasAll) {
-      return false
-    }
-  }
-
-  if (item.requiredAnyPermissions && item.requiredAnyPermissions.length > 0) {
-    return item.requiredAnyPermissions.some((permission) => permissionSet.has(permission))
-  }
-
-  return true
-}
-
-function isSidebarRole(role: AuthRole | undefined): role is UserRole {
-  return role === "director" || isStaffRole(role) || role === "super_admin"
-}
-
-function NavItemComponent({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
+function NavItemComponent({ item, collapsed }: { item: ReturnType<typeof getNavItemsByRole>[number]; collapsed: boolean }) {
   const location = useLocation()
   const isActive = item.matchExact ? location.pathname === item.href : location.pathname.startsWith(item.href)
 
@@ -232,16 +93,12 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
     enabled: role === "director" || isStaffRole(role),
   })
   const smsFeatureEnabled = smsFeatureQuery.data?.is_enabled === true
-  const visibleItems = isSidebarRole(role)
-    ? navItems
-        .filter((item) => canAccessItem(item, role, permissions))
-        .filter((item) => {
-          if (item.href === "/subscriptions" || item.href === "/subscriptions/revenue") {
-            return smsFeatureEnabled
-          }
-          return true
-        })
-    : []
+  const visibleItems = getNavItemsByRole(role, permissions).filter((item) => {
+    if (item.href === "/subscriptions" || item.href === "/subscriptions/revenue") {
+      return smsFeatureEnabled
+    }
+    return true
+  })
 
   const handleTogglePinned = () => {
     if (!pinned && collapsed) {

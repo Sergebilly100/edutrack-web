@@ -282,7 +282,6 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
   const currentPage = Math.min(page, totalPages)
   const start = (currentPage - 1) * pageSize
   const pagedRows = rowsSorted.slice(start, start + pageSize)
-console.log(data);
 
   return (
     <div className="space-y-4">
@@ -556,14 +555,25 @@ function InfosPanel({ teacherId }: { teacherId: string }) {
   )
 }
 
-function SyntheseInfos({ teacherId }: { teacherId: string }) {
+function SyntheseInfos({ teacherId, canViewSalary }: { teacherId: string; canViewSalary: boolean }) {
 
   const month= getCurrentMonth()
 
   const monthlyQuery = useQuery({
-    queryKey: [],
+    queryKey: ["teacher", teacherId, "salary-details", month],
     queryFn: () => getTeacherSalaryDetails(teacherId, month),
+    enabled: canViewSalary,
   })
+
+  if (!canViewSalary) {
+    return (
+      <div className="bg-background px-4 py-3">
+        <p className="text-sm text-muted-foreground">
+          Votre poste ne donne pas accès aux données de salaire de ce professeur.
+        </p>
+      </div>
+    )
+  }
 
   if (monthlyQuery.isError || !monthlyQuery.data) {
     return <p className="text-sm text-red-600">Impossible de charger les infos de présences du mois.</p>
@@ -637,6 +647,7 @@ export default function TeacherDetailPage() {
   const [blockReason, setBlockReason] = useState("")
   const [detailTab, setDetailTab] = useState<"presences" | "documents" | "infos">("presences")
   const canManageTeacherDocuments = hasPermission("teachers.documents")
+  const canViewSalary = hasPermission("salary.view")
 
   const teacherQuery = useQuery({
     queryKey: ["teacher", teacherId],
@@ -787,7 +798,7 @@ export default function TeacherDetailPage() {
             <p className="truncate text-sm font-semibold">Synthèse du mois en cours</p>
           </div>
         </div>
-        <SyntheseInfos teacherId={teacher.id} />
+        <SyntheseInfos teacherId={teacher.id} canViewSalary={canViewSalary} />
       </div>
 
       {teacher.isBlocked ? (

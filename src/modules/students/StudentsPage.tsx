@@ -81,7 +81,8 @@ export default function StudentsPage() {
   const user = useAuthStore((state) => state.user)
   const { hasPermission } = usePermissions()
   const studentLabel = useStudentLabel()
-  const activeTab = searchParams.get("tab") === "absences" ? "absences" : "liste"
+  const canViewAttendance = hasPermission("attendance.view")
+  const activeTab = canViewAttendance && searchParams.get("tab") === "absences" ? "absences" : "liste"
   const classFilter = searchParams.get("list_class") ?? "all"
   const rawStatus = searchParams.get("list_status")
   const statusFilter: "all" | "active" | "inactive" =
@@ -190,6 +191,7 @@ export default function StudentsPage() {
           dateFrom: monthRange.dateFrom,
           dateTo: monthRange.dateTo,
         }),
+      enabled: canViewAttendance,
       staleTime: 1000 * 60,
     })),
   })
@@ -221,7 +223,7 @@ export default function StudentsPage() {
     [students]
   )
   const inactiveStudentsCount = Math.max(students.length - activeStudentsCount, 0)
-  const absenceWatchCount = tableData.filter((student) => student.monthlyAbsences > 3).length
+  const absenceWatchCount = canViewAttendance ? tableData.filter((student) => student.monthlyAbsences > 3).length : 0
   const visibleClassesCount = new Set(students.map((student) => student.classId)).size
 
   const isCreateStudentValid =
@@ -265,7 +267,7 @@ export default function StudentsPage() {
           </div>
         ),
       },
-      {
+      ...(canViewAttendance ? [{
         accessorKey: "monthlyAbsences",
         header: ({ column }) => <SortableHeader column={column} label="Absences mois" />,
         cell: ({ row }) => (
@@ -273,7 +275,7 @@ export default function StudentsPage() {
             {row.original.monthlyAbsences}
           </Badge>
         ),
-      },
+      } satisfies ColumnDef<StudentTableRow>] : []),
       {
         accessorKey: "isActive",
         header: "Statut",
@@ -284,7 +286,7 @@ export default function StudentsPage() {
         ),
       },
     ],
-    []
+    [canViewAttendance]
   )
 
   if (!user) {
@@ -323,9 +325,11 @@ export default function StudentsPage() {
         }}
         className="space-y-4"
       >
-        <TabsList className="grid h-auto w-full grid-cols-2 rounded-xl border border-border bg-muted/50 p-1 sm:w-full md:w-[420px]">
+        <TabsList className={cn("grid h-auto w-full rounded-xl border border-border bg-muted/50 p-1 sm:w-full", canViewAttendance ? "grid-cols-2 md:w-[420px]" : "grid-cols-1 md:w-[220px]")}>
           <TabsTrigger value="liste" className="min-h-12 rounded-lg text-sm font-medium">Liste</TabsTrigger>
-          <TabsTrigger value="absences" className="min-h-12 rounded-lg text-sm font-medium">Absences</TabsTrigger>
+          {canViewAttendance ? (
+            <TabsTrigger value="absences" className="min-h-12 rounded-lg text-sm font-medium">Absences</TabsTrigger>
+          ) : null}
         </TabsList>
 
         <TabsContent value="liste" className="space-y-4">
@@ -344,9 +348,11 @@ export default function StudentsPage() {
                 <Badge variant={inactiveStudentsCount > 0 ? "outline" : "secondary"} className="rounded-md px-2.5 py-1">
                   {studentsQuery.isLoading ? "..." : `${inactiveStudentsCount} inactifs`}
                 </Badge>
-                <Badge variant={absenceWatchCount > 0 ? "destructive" : "secondary"} className="rounded-md px-2.5 py-1">
-                  {studentsQuery.isLoading ? "..." : `${absenceWatchCount} à surveiller`}
-                </Badge>
+                {canViewAttendance ? (
+                  <Badge variant={absenceWatchCount > 0 ? "destructive" : "secondary"} className="rounded-md px-2.5 py-1">
+                    {studentsQuery.isLoading ? "..." : `${absenceWatchCount} à surveiller`}
+                  </Badge>
+                ) : null}
               </div>
             </div>
             <div className="grid gap-px bg-border sm:grid-cols-3">
@@ -463,9 +469,11 @@ export default function StudentsPage() {
                     <p className="truncate text-xs text-muted-foreground">{student.className}</p>
                   </div>
                   <div className="min-w-0 flex flex-col items-end gap-1">
-                    <Badge variant={student.monthlyAbsences > 3 ? "destructive" : "secondary"} className="text-xs">
-                      {student.monthlyAbsences} abs.
-                    </Badge>
+                    {canViewAttendance ? (
+                      <Badge variant={student.monthlyAbsences > 3 ? "destructive" : "secondary"} className="text-xs">
+                        {student.monthlyAbsences} abs.
+                      </Badge>
+                    ) : null}
                     <span className="max-w-28 truncate text-xs text-muted-foreground">{student.parentPhoneDisplay}</span>
                   </div>
                   <ChevronRightIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
@@ -475,9 +483,11 @@ export default function StudentsPage() {
           ) : null}
         </TabsContent>
 
-        <TabsContent value="absences">
-          <StudentAbsencePanel />
-        </TabsContent>
+        {canViewAttendance ? (
+          <TabsContent value="absences">
+            <StudentAbsencePanel />
+          </TabsContent>
+        ) : null}
       </Tabs>
 
       <Dialog

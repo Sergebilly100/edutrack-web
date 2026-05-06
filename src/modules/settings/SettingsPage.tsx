@@ -25,9 +25,13 @@ export default function SettingsPage() {
   const user = useAuthStore((state) => state.user)
   const { hasPermission } = usePermissions()
   const [smsPriceDraft, setSmsPriceDraft] = useState("")
+  const canManagePositions = user?.role === "director" || hasPermission("settings.positions")
+  const canManageSchoolSettings = user?.role === "director" || hasPermission("settings.school")
+  const canAccessSmsTemplate = user?.role === "director" || hasPermission("settings.sms_templates")
   const schoolConfigQuery = useQuery({
     queryKey: ["settings", "school-config", "access-gate"],
     queryFn: fetchSchoolConfig,
+    enabled: canManagePositions,
   })
   const smsFeatureQuery = useQuery({
     queryKey: ["settings", "sms-feature"],
@@ -61,13 +65,6 @@ export default function SettingsPage() {
     },
   })
 
-  const canAccessSchoolConfig =
-    user?.role === "director" ||
-    hasPermission("settings.school") ||
-    hasPermission("settings.positions")
-  const canEditSmsTemplateByAdmin = schoolConfigQuery.data?.school.canEditSmsTemplate ?? false
-  const canAccessSmsTemplate =
-    canEditSmsTemplateByAdmin && (user?.role === "director" || hasPermission("settings.sms_templates"))
   const smsPriceValue = Number(smsPriceDraft)
   const currentSmsPrice = smsFeatureQuery.data?.sms_unit_price_fcfa
   const normalizedCurrentSmsPrice = currentSmsPrice && currentSmsPrice > 0 ? String(currentSmsPrice) : ""
@@ -81,7 +78,7 @@ export default function SettingsPage() {
     ? "Chargement"
     : schoolConfigQuery.isError
       ? "Erreur"
-      : canAccessSchoolConfig
+      : canManagePositions
         ? "Accessible"
         : "Restreint"
   const smsFeatureState = smsFeatureQuery.isLoading
@@ -143,7 +140,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {canAccessSchoolConfig && schoolConfigQuery.isError ? (
+      {canManagePositions && schoolConfigQuery.isError ? (
         <Alert variant="destructive">
           <AlertDescription>
             Impossible de charger la configuration école. Vérifiez la connexion puis réessayez.
@@ -151,7 +148,7 @@ export default function SettingsPage() {
         </Alert>
       ) : null}
 
-      {canAccessSchoolConfig && smsFeatureQuery.isError ? (
+      {canManageSchoolSettings && smsFeatureQuery.isError ? (
         <Alert variant="destructive">
           <AlertDescription>
             Impossible de charger les paramètres SMS Parents. Le tarif ne peut pas être modifié pour le moment.
@@ -159,9 +156,9 @@ export default function SettingsPage() {
         </Alert>
       ) : null}
 
-      {canAccessSchoolConfig ? <SchoolConfigPanel /> : null}
+      {canManagePositions ? <SchoolConfigPanel /> : null}
       {canAccessSmsTemplate ? <SmsTemplatePanel /> : null}
-      {canAccessSchoolConfig ? (
+      {canManageSchoolSettings ? (
         <section
           className={
             smsFeatureQuery.data?.is_enabled
@@ -223,7 +220,7 @@ export default function SettingsPage() {
         </section>
       ) : null}
 
-      {!canAccessSchoolConfig && !canAccessSmsTemplate ? (
+      {!canManagePositions && !canManageSchoolSettings && !canAccessSmsTemplate ? (
         <ContextualHelp title="Paramètres non disponibles" tone="warning">
           Votre poste ne donne pas accès à la configuration école. Demandez au directeur les droits paramètres école, postes ou templates SMS selon la tâche à réaliser.
         </ContextualHelp>
