@@ -139,6 +139,8 @@ export default function AdminSchoolDetailPage() {
     commissionPct: "0",
     smsCapPerStudent: "60",
     monetizeParentAlerts: false,
+    useRealHours: false,
+    geoCheckEnabled: false,
   })
   const [smsFeatureToggleOpen, setSmsFeatureToggleOpen] = useState(false)
   const [smsFeatureToggleNextValue, setSmsFeatureToggleNextValue] = useState<boolean | null>(null)
@@ -176,6 +178,8 @@ export default function AdminSchoolDetailPage() {
       commissionPct: String(smsFeatureStatsQuery.data.config.commission_pct),
       smsCapPerStudent: String(smsFeatureStatsQuery.data.config.sms_cap_per_student),
       monetizeParentAlerts: smsFeatureStatsQuery.data.config.monetize_parent_alerts,
+      useRealHours: smsFeatureStatsQuery.data.config.use_real_hours,
+      geoCheckEnabled: smsFeatureStatsQuery.data.config.geo_check_enabled,
     })
   }, [smsFeatureStatsQuery.data])
 
@@ -294,7 +298,13 @@ export default function AdminSchoolDetailPage() {
     },
   })
   const updateSmsFeatureConfigMutation = useMutation({
-    mutationFn: (payload: { commission_pct?: number; sms_cap_per_student?: number; monetizeParentAlerts?: boolean }) =>
+    mutationFn: (payload: {
+      commission_pct?: number
+      sms_cap_per_student?: number
+      monetizeParentAlerts?: boolean
+      useRealHours?: boolean
+      geoCheckEnabled?: boolean
+    }) =>
       updateSchoolSmsFeatureConfig(tenantId as string, payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["admin", "school-sms-feature-stats", tenantId] })
@@ -643,6 +653,54 @@ export default function AdminSchoolDetailPage() {
                   }
                 >
                   Sauvegarder mode alertes parents
+                </Button>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Heures réelles</p>
+                      <p className="text-xs text-muted-foreground">
+                        Calculer les salaires sur les minutes réellement effectuées avec fallback planning.
+                      </p>
+                    </div>
+                    <Checkbox
+                      id="use-real-hours"
+                      checked={smsConfigDraft.useRealHours}
+                      onCheckedChange={(checked) =>
+                        setSmsConfigDraft((prev) => ({ ...prev, useRealHours: Boolean(checked) }))
+                      }
+                    />
+                  </div>
+
+                  <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Contrôle GPS</p>
+                      <p className="text-xs text-muted-foreground">
+                        Vérifier les pointages par rapport aux coordonnées configurées des salles.
+                      </p>
+                    </div>
+                    <Checkbox
+                      id="geo-check-enabled"
+                      checked={smsConfigDraft.geoCheckEnabled}
+                      onCheckedChange={(checked) =>
+                        setSmsConfigDraft((prev) => ({ ...prev, geoCheckEnabled: Boolean(checked) }))
+                      }
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={updateSmsFeatureConfigMutation.isPending}
+                  onClick={() =>
+                    updateSmsFeatureConfigMutation.mutate({
+                      useRealHours: smsConfigDraft.useRealHours,
+                      geoCheckEnabled: smsConfigDraft.geoCheckEnabled,
+                    })
+                  }
+                >
+                  Sauvegarder heures réelles et GPS
                 </Button>
 
                 {smsConfigDraft.monetizeParentAlerts ? (

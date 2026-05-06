@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Bell, CheckCircle2, ChevronRight, CircleX, ClipboardCheck, Flag, GraduationCap, MapPin, RefreshCw, Users, Wallet } from "lucide-react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 
@@ -26,6 +26,7 @@ import {
   getTodayAttendance,
   getTopRiskTeachers,
   getTotalPendingSalaries,
+  reviewSuspiciousAttendance,
   type DashboardCourseItem,
   type DashboardSalarySummaryItem,
 } from "@/modules/dashboard/dashboard.api"
@@ -36,6 +37,7 @@ import { SalaryRow } from "@/shared/components/SalaryRow"
 import type { SalaryStatus } from "@/shared/components/SalaryRow"
 import { StatCard } from "@/shared/components/StatCard"
 import { WeekCoverageAlert } from "@/shared/components/WeekCoverageAlert"
+import { useToast } from "@/components/ui/use-toast"
 import { NotificationsPanel, type NotificationPanelItem } from "@/shared/components/layout/NotificationsPanel"
 import {
   buildDirectorDashboardNotifications,
@@ -362,6 +364,7 @@ export default function DashboardPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
+  const { toast } = useToast()
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [refreshSuccess, setRefreshSuccess] = useState(false)
   const [showAllTodayPresence, setShowAllTodayPresence] = useState(false)
@@ -448,6 +451,13 @@ export default function DashboardPage() {
     enabled: canViewSalary,
   })
 
+  const schoolQuery = useQuery({
+    queryKey: ["dashboard", "school-v3"],
+    queryFn: fetchSchoolInfo,
+    staleTime: QUERY_STALE_TIME,
+    retry: false,
+  })
+
   const teacherComplianceQuery = useQuery({
     queryKey: ["dashboard", "teacher-compliance", currentMonth],
     queryFn: () => getTeacherCompliance(currentMonth),
@@ -461,14 +471,33 @@ export default function DashboardPage() {
     queryFn: () => getSuspiciousAttendances(currentMonth),
     staleTime: QUERY_STALE_TIME,
     retry: false,
-    enabled: isDirector,
+    enabled: isDirector && schoolQuery.data?.geo_check_enabled === true,
   })
 
-  const schoolQuery = useQuery({
-    queryKey: ["dashboard", "school-v3"],
-    queryFn: fetchSchoolInfo,
-    staleTime: QUERY_STALE_TIME,
-    retry: false,
+  const geoReviewMutation = useMutation({
+    mutationFn: (payload: { attendanceId: string; decision: "validated" | "rejected" }) =>
+      reviewSuspiciousAttendance(payload.attendanceId, payload.decision),
+    onSuccess: async (_, payload) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["dashboard", "suspicious-attendances", currentMonth] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard", "teacher-compliance", currentMonth] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard", "salary-summary-v3", currentMonth] }),
+      ])
+      toast({
+        title: payload.decision === "validated" ? "Pointage validé" : "Pointage rejeté",
+        description:
+          payload.decision === "validated"
+            ? "L'alerte GPS a été levée."
+            : "Le cours est marqué absent avec 0 minute réelle.",
+      })
+    },
+    onError: () => {
+      toast({
+        title: "Revue impossible",
+        description: "Réessayez après vérification de la connexion.",
+        variant: "destructive",
+      })
+    },
   })
 
   const todayStudentAbsencesQuery = useQuery({
@@ -666,6 +695,8 @@ export default function DashboardPage() {
         salarySummaryQuery.refetch(),
         previousSalarySummaryQuery.refetch(),
         riskTeachersQuery.refetch(),
+        teacherComplianceQuery.refetch(),
+        suspiciousAttendancesQuery.refetch(),
         schoolQuery.refetch(),
         todayStudentAbsencesQuery.refetch(),
         riskStudentsQuery.refetch(),
@@ -684,6 +715,8 @@ export default function DashboardPage() {
     riskTeachersQuery,
     salarySummaryQuery,
     schoolQuery,
+    suspiciousAttendancesQuery,
+    teacherComplianceQuery,
     todayQuery,
     todayStudentAbsencesQuery,
   ])
@@ -1001,43 +1034,94 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg font-semibold">Check-ins suspects</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {(suspiciousAttendancesQuery.data ?? []).length === 0 ? (
-                <EmptyState
-                  icon={emptyStateIcons.allGood}
-                  title="Aucun check-in suspect"
-                  message="Les alertes GPS hors rayon apparaîtront ici."
-                />
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Prof</TableHead>
-                        <TableHead>Cours</TableHead>
-                        <TableHead>Distance</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {(suspiciousAttendancesQuery.data ?? []).slice(0, 5).map((item) => (
-                        <TableRow key={item.attendanceId}>
-                          <TableCell className="font-medium">{item.teacherName}</TableCell>
-                          <TableCell>{item.courseName}</TableCell>
-                          <TableCell>
-                            {item.checkinDistance === null ? "-" : `${Math.round(item.checkinDistance)} m`}
-                          </TableCell>
+          {schoolQuery.data?.geo_check_enabled === true ? (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg font-semibold">Check-ins suspects</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {suspiciousAttendancesQuery.isLoading ? (
+                  <div className="space-y-2">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <Skeleton key={index} className="h-12 w-full rounded-lg" />
+                    ))}
+                  </div>
+                ) : (suspiciousAttendancesQuery.data ?? []).length === 0 ? (
+                  <EmptyState
+                    icon={emptyStateIcons.allGood}
+                    title="Aucun check-in suspect"
+                    message="Les alertes GPS hors rayon apparaîtront ici."
+                  />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Prof</TableHead>
+                          <TableHead>Cours</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Heure</TableHead>
+                          <TableHead>Distance</TableHead>
+                          <TableHead>Précision</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                      </TableHeader>
+                      <TableBody>
+                        {(suspiciousAttendancesQuery.data ?? []).slice(0, 5).map((item) => (
+                          <TableRow key={item.attendanceId}>
+                            <TableCell className="font-medium">{item.teacherName}</TableCell>
+                            <TableCell>{item.courseName}</TableCell>
+                            <TableCell>{item.date}</TableCell>
+                            <TableCell>{formatHours(item.checkedInAt ?? "")}</TableCell>
+                            <TableCell>
+                              {item.checkinDistance === null ? "-" : `${Math.round(item.checkinDistance)} m`}
+                            </TableCell>
+                            <TableCell>
+                              {item.checkinAccuracy === null ? "-" : `${Math.round(item.checkinAccuracy)} m`}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="min-h-[48px]"
+                                  disabled={geoReviewMutation.isPending}
+                                  onClick={() =>
+                                    geoReviewMutation.mutate({
+                                      attendanceId: item.attendanceId,
+                                      decision: "validated",
+                                    })
+                                  }
+                                >
+                                  Valider
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="sm"
+                                  className="min-h-[48px]"
+                                  disabled={geoReviewMutation.isPending}
+                                  onClick={() =>
+                                    geoReviewMutation.mutate({
+                                      attendanceId: item.attendanceId,
+                                      decision: "rejected",
+                                    })
+                                  }
+                                >
+                                  Absent
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
         </section>
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">

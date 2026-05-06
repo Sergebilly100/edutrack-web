@@ -316,6 +316,8 @@ export type SchoolSmsFeatureConfig = {
   commission_pct: number
   sms_cap_per_student: number
   monetize_parent_alerts: boolean
+  use_real_hours: boolean
+  geo_check_enabled: boolean
 }
 
 export type SchoolSmsFeatureStats = {
@@ -626,9 +628,15 @@ export const deactivateSchoolSmsFeature = (tenantId: string) =>
 
 export const updateSchoolSmsFeatureConfig = (
   tenantId: string,
-  payload: { commission_pct?: number; sms_cap_per_student?: number; monetizeParentAlerts?: boolean }
+  payload: {
+    commission_pct?: number
+    sms_cap_per_student?: number
+    monetizeParentAlerts?: boolean
+    useRealHours?: boolean
+    geoCheckEnabled?: boolean
+  }
 ) =>
-  api.patch<SchoolSmsFeatureConfig>(`/admin/schools/${tenantId}/sms-feature/config`, payload).then((response) => response.data)
+  api.patch<SchoolSmsFeatureConfig>(`/admin/schools/${tenantId}/features`, payload).then((response) => response.data)
 
 export const syncSchoolSmsCommission = (tenantId: string, month?: string) =>
   api.post<{

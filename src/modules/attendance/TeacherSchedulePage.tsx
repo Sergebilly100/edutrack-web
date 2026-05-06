@@ -7,6 +7,8 @@ import CourseCard from "@/modules/attendance/components/CourseCard"
 import DayPicker, { startOfWeekMonday, toDateKey } from "@/modules/attendance/components/DayPicker"
 import TeacherCheckInFlow from "@/modules/attendance/components/TeacherCheckInFlow"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/shared/components/EmptyState"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
@@ -45,6 +47,12 @@ const getDefaultTeachingDate = () => {
   return date
 }
 
+const getCurrentMonthKey = (date = new Date()) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  return `${year}-${month}`
+}
+
 export default function TeacherSchedulePage() {
   const user = useAuthStore((state) => state.user)
   const { isOnline } = useNetworkStatus()
@@ -53,6 +61,7 @@ export default function TeacherSchedulePage() {
   const [activeSlot, setActiveSlot] = useState<ScheduleSlot | null>(null)
 
   const selectedDateKey = toDateKey(selectedDate)
+  const currentMonth = useMemo(() => getCurrentMonthKey(), [])
 
   /**
    * ── FIX créneaux infinis ────────────────────────────────────────────────
@@ -83,6 +92,13 @@ export default function TeacherSchedulePage() {
     queryKey: ["teacher-attendance", selectedDateKey],
     queryFn: () => teacherScheduleApi.getMyAttendanceForDate(selectedDateKey),
     staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 30,
+  })
+
+  const complianceQuery = useQuery({
+    queryKey: ["teacher-compliance", currentMonth],
+    queryFn: () => teacherScheduleApi.getMyCompliance(currentMonth),
+    staleTime: 1000 * 60,
     gcTime: 1000 * 60 * 30,
   })
 
@@ -172,6 +188,38 @@ export default function TeacherSchedulePage() {
       </header>
 
       {!isOnline ? <OfflineIndicator forceState="offline" /> : <OfflineIndicator />}
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg font-semibold">Votre mois en cours</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {complianceQuery.isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-3 w-full rounded-full" />
+              <Skeleton className="h-4 w-32" />
+            </div>
+          ) : complianceQuery.isError ? (
+            <Alert variant="destructive">
+              <AlertDescription>Impossible de charger votre taux de conformité.</AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium">Taux de conformité</p>
+                <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
+                  {Math.round(complianceQuery.data?.complianceRate ?? 0)}%
+                </Badge>
+              </div>
+              <Progress value={complianceQuery.data?.complianceRate ?? 0} />
+              <p className="text-xs text-muted-foreground">
+                {complianceQuery.data?.totalCheckins ?? 0} cours, {complianceQuery.data?.totalCheckouts ?? 0} scans fin
+              </p>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <DayPicker
         selectedDate={selectedDate}

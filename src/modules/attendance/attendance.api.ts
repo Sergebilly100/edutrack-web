@@ -31,6 +31,15 @@ export type TeacherAttendancePolicy = {
   use_real_hours: boolean
 }
 
+export type TeacherComplianceItem = {
+  teacherId: string
+  teacherName: string
+  totalCheckins: number
+  totalCheckouts: number
+  complianceRate: number
+  rank: number
+}
+
 export type ScheduleSlot = {
   id: string
   class_id: string
@@ -63,11 +72,34 @@ const toRecord = (value: unknown): Record<string, unknown> =>
 const toString = (value: unknown, fallback = ""): string =>
   typeof value === "string" ? value : fallback
 
-const toNumber = (value: unknown, fallback = 0): number =>
-  typeof value === "number" ? value : fallback
+const toNumber = (value: unknown, fallback = 0): number => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : fallback
+  }
+
+  return fallback
+}
 
 const toBoolean = (value: unknown, fallback = false): boolean =>
   typeof value === "boolean" ? value : fallback
+
+const toComplianceItem = (row: unknown): TeacherComplianceItem => {
+  const item = toRecord(row)
+
+  return {
+    teacherId: toString(item.teacherId ?? item.teacher_id),
+    teacherName: toString(item.teacherName ?? item.teacher_name),
+    totalCheckins: toNumber(item.totalCheckins ?? item.total_checkins),
+    totalCheckouts: toNumber(item.totalCheckouts ?? item.total_checkouts),
+    complianceRate: toNumber(item.complianceRate ?? item.compliance_rate),
+    rank: toNumber(item.rank),
+  }
+}
 
 const toAttendanceStatus = (
   value: unknown
@@ -267,6 +299,14 @@ export const teacherScheduleApi = {
       geo_check_enabled: toBoolean(payload.geo_check_enabled ?? payload.geoCheckEnabled, false),
       use_real_hours: toBoolean(payload.use_real_hours ?? payload.useRealHours, false),
     }
+  },
+
+  getMyCompliance: async (month: string): Promise<TeacherComplianceItem | null> => {
+    const response = await api.get<unknown>("/attendance/teacher-compliance", {
+      params: { month },
+    })
+    const rows = extractList(response.data).map(toComplianceItem)
+    return rows[0] ?? null
   },
 
   submitStudentAttendance: async (body: {

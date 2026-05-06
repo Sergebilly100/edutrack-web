@@ -656,6 +656,13 @@ export const getSuspiciousAttendances = async (month: string): Promise<Dashboard
   })
 }
 
+export const reviewSuspiciousAttendance = async (
+  attendanceId: string,
+  decision: "validated" | "rejected"
+): Promise<void> => {
+  await api.patch(`/attendance/${attendanceId}/geo-review`, { decision })
+}
+
 const getTeacherSalaryDetails = async (
   teacherId: string,
   month: string
