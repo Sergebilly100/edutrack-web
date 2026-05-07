@@ -70,6 +70,7 @@ function InfoBox({ children }: { children: string }) {
 export default function ValidationsPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
+  const [approveTarget, setApproveTarget] = useState<PendingValidationItem | null>(null)
   const [rejectTarget, setRejectTarget] = useState<PendingValidationItem | null>(null)
   const [rejectReason, setRejectReason] = useState("")
 
@@ -93,6 +94,7 @@ export default function ValidationsPage() {
   const approveMutation = useMutation({
     mutationFn: approveValidation,
     onSuccess: async () => {
+      setApproveTarget(null)
       await invalidate()
       toast({ title: "Validation enregistrée", description: "Les heures ont été mises à jour." })
     },
@@ -151,7 +153,7 @@ export default function ValidationsPage() {
                       size="sm"
                       className="min-h-[48px]"
                       disabled={approveMutation.isPending || rejectMutation.isPending}
-                      onClick={() => approveMutation.mutate({ attendanceId: item.attendanceId })}
+                      onClick={() => setApproveTarget(item)}
                     >
                       <CheckCircle2 className="mr-2 h-4 w-4" />
                       Valider
@@ -272,6 +274,40 @@ export default function ValidationsPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={approveTarget !== null} onOpenChange={(open) => !open && setApproveTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Valider la présence de {approveTarget?.teacherName}</DialogTitle>
+            <DialogDescription>
+              Les heures planifiées seront comptabilisées dans le salaire après confirmation.
+            </DialogDescription>
+          </DialogHeader>
+          {approveTarget ? (
+            <div className="rounded-lg border border-border p-3 text-sm">
+              <p className="font-medium">{approveTarget.courseName} • {approveTarget.className}</p>
+              <p className="mt-1 text-muted-foreground">
+                {formatDate(approveTarget.date)} à {formatTime(approveTarget.checkedInAt)}
+              </p>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setApproveTarget(null)}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              disabled={approveMutation.isPending || !approveTarget}
+              onClick={() => {
+                if (!approveTarget) return
+                approveMutation.mutate({ attendanceId: approveTarget.attendanceId })
+              }}
+            >
+              {approveMutation.isPending ? "Validation..." : "Confirmer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={rejectTarget !== null} onOpenChange={(open) => !open && setRejectTarget(null)}>
         <DialogContent>
