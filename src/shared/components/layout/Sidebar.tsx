@@ -27,6 +27,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils"
 import { logout as logoutApi } from "@/modules/auth/auth.api"
 import { getSmsFeatureSettings } from "@/modules/subscriptions/subscriptions.api"
+import { getPendingValidationCount } from "@/modules/validations/validations.api"
 import { NotificationButton } from "@/shared/components/layout/NotificationButton"
 import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
 import { useTheme } from "@/shared/hooks/useTheme"
@@ -35,7 +36,15 @@ import { isStaffRole } from "@/shared/store/auth.store"
 import { useAuthStore } from "@/shared/store/auth.store"
 import { useSidebarStore } from "@/shared/store/sidebar.store"
 
-function NavItemComponent({ item, collapsed }: { item: ReturnType<typeof getNavItemsByRole>[number]; collapsed: boolean }) {
+function NavItemComponent({
+  item,
+  collapsed,
+  badgeCount,
+}: {
+  item: ReturnType<typeof getNavItemsByRole>[number]
+  collapsed: boolean
+  badgeCount?: number
+}) {
   const location = useLocation()
   const isActive = item.matchExact ? location.pathname === item.href : location.pathname.startsWith(item.href)
 
@@ -58,6 +67,11 @@ function NavItemComponent({ item, collapsed }: { item: ReturnType<typeof getNavI
       >
         {item.label}
       </span>
+      {!collapsed && badgeCount && badgeCount > 0 ? (
+        <span className="ml-auto inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-semibold text-white">
+          {badgeCount}
+        </span>
+      ) : null}
     </Link>
   )
 
@@ -93,6 +107,13 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
     enabled: role === "director" || isStaffRole(role),
   })
   const smsFeatureEnabled = smsFeatureQuery.data?.is_enabled === true
+  const validationCountQuery = useQuery({
+    queryKey: ["validations", "pending", "count", "sidebar"],
+    queryFn: getPendingValidationCount,
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
+    enabled: role === "director" || isStaffRole(role),
+  })
   const visibleItems = getNavItemsByRole(role, permissions).filter((item) => {
     if (item.href === "/subscriptions" || item.href === "/subscriptions/revenue") {
       return smsFeatureEnabled
@@ -156,7 +177,12 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
 
       <nav className="flex flex-col gap-0.5 flex-1 min-w-0">
         {visibleItems.map((item) => (
-          <NavItemComponent key={item.href} item={item} collapsed={collapsed} />
+          <NavItemComponent
+            key={item.href}
+            item={item}
+            collapsed={collapsed}
+            badgeCount={item.href === "/validations" ? validationCountQuery.data?.total : undefined}
+          />
         ))}
       </nav>
 

@@ -43,6 +43,7 @@ const StudentDetailPage = lazy(() => import("@/modules/students/StudentDetailPag
 const StudentsPage = lazy(() => import("@/modules/students/StudentsPage"))
 const TeacherDetailPage = lazy(() => import("@/modules/teachers/TeacherDetailPage"))
 const TeachersPage = lazy(() => import("@/modules/teachers/TeachersPage"))
+const ValidationsPage = lazy(() => import("@/modules/validations/ValidationsPage"))
 const LoginPage = lazy(() => import("./modules/auth/LoginPage"))
 const MaintenancePage = lazy(() => import("./modules/auth/MaintenancePage"))
 const ComponentsDemoPage = lazy(() => import("./modules/dev/ComponentsDemoPage"))
@@ -321,6 +322,7 @@ export default function App() {
           <Route path="/imports" element={<PermissionRoute href="/import" element={<ImportPage />} />} />
           <Route path="/rooms" element={<PermissionRoute href="/rooms" element={<RoomsPage />} />} />
           <Route path="/salaries" element={<PermissionRoute href="/salaries" element={<SalariesPage />} />} />
+          <Route path="/validations" element={<PermissionRoute href="/validations" element={<ValidationsPage />} />} />
           <Route path="/subscriptions" element={<PermissionRoute href="/subscriptions" element={<SubscriptionsPage />} />} />
           <Route path="/subscriptions/revenue" element={<PermissionRoute href="/subscriptions/revenue" element={<SubscriptionRevenuePage />} />} />
           <Route path="/settings" element={<PermissionRoute href="/settings" element={<SettingsPage />} />} />

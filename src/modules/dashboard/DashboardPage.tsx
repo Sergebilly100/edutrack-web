@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Bell, CheckCircle2, ChevronRight, CircleX, ClipboardCheck, Flag, GraduationCap, MapPin, RefreshCw, Users, Wallet } from "lucide-react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 
@@ -20,16 +20,15 @@ import {
   getNextWeekCoverageState,
   getPreviousMonthKey,
   getSalarySummary,
-  getSuspiciousAttendances,
   getTeacherCompliance,
   getTeacherTrendFromSummaries,
   getTodayAttendance,
   getTopRiskTeachers,
   getTotalPendingSalaries,
-  reviewSuspiciousAttendance,
   type DashboardCourseItem,
   type DashboardSalarySummaryItem,
 } from "@/modules/dashboard/dashboard.api"
+import { getPendingValidationCount } from "@/modules/validations/validations.api"
 import { AlertBanner } from "@/shared/components/AlertBanner"
 import { EmptyState, emptyStateIcons } from "@/shared/components/EmptyState"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
@@ -37,7 +36,6 @@ import { SalaryRow } from "@/shared/components/SalaryRow"
 import type { SalaryStatus } from "@/shared/components/SalaryRow"
 import { StatCard } from "@/shared/components/StatCard"
 import { WeekCoverageAlert } from "@/shared/components/WeekCoverageAlert"
-import { useToast } from "@/components/ui/use-toast"
 import { NotificationsPanel, type NotificationPanelItem } from "@/shared/components/layout/NotificationsPanel"
 import {
   buildDirectorDashboardNotifications,
@@ -364,7 +362,6 @@ export default function DashboardPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
-  const { toast } = useToast()
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [refreshSuccess, setRefreshSuccess] = useState(false)
   const [showAllTodayPresence, setShowAllTodayPresence] = useState(false)
@@ -466,38 +463,13 @@ export default function DashboardPage() {
     enabled: isDirector,
   })
 
-  const suspiciousAttendancesQuery = useQuery({
-    queryKey: ["dashboard", "suspicious-attendances", currentMonth],
-    queryFn: () => getSuspiciousAttendances(currentMonth),
+  const validationCountQuery = useQuery({
+    queryKey: ["validations", "pending", "count", "dashboard"],
+    queryFn: getPendingValidationCount,
     staleTime: QUERY_STALE_TIME,
+    refetchInterval: 5 * 60_000,
     retry: false,
-    enabled: isDirector && schoolQuery.data?.geo_check_enabled === true,
-  })
-
-  const geoReviewMutation = useMutation({
-    mutationFn: (payload: { attendanceId: string; decision: "validated" | "rejected" }) =>
-      reviewSuspiciousAttendance(payload.attendanceId, payload.decision),
-    onSuccess: async (_, payload) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["dashboard", "suspicious-attendances", currentMonth] }),
-        queryClient.invalidateQueries({ queryKey: ["dashboard", "teacher-compliance", currentMonth] }),
-        queryClient.invalidateQueries({ queryKey: ["dashboard", "salary-summary-v3", currentMonth] }),
-      ])
-      toast({
-        title: payload.decision === "validated" ? "Pointage validé" : "Pointage rejeté",
-        description:
-          payload.decision === "validated"
-            ? "L'alerte GPS a été levée."
-            : "Le cours est marqué absent avec 0 minute réelle.",
-      })
-    },
-    onError: () => {
-      toast({
-        title: "Revue impossible",
-        description: "Réessayez après vérification de la connexion.",
-        variant: "destructive",
-      })
-    },
+    enabled: isDirector,
   })
 
   const todayStudentAbsencesQuery = useQuery({
@@ -696,7 +668,7 @@ export default function DashboardPage() {
         previousSalarySummaryQuery.refetch(),
         riskTeachersQuery.refetch(),
         teacherComplianceQuery.refetch(),
-        suspiciousAttendancesQuery.refetch(),
+        validationCountQuery.refetch(),
         schoolQuery.refetch(),
         todayStudentAbsencesQuery.refetch(),
         riskStudentsQuery.refetch(),
@@ -715,10 +687,10 @@ export default function DashboardPage() {
     riskTeachersQuery,
     salarySummaryQuery,
     schoolQuery,
-    suspiciousAttendancesQuery,
     teacherComplianceQuery,
     todayQuery,
     todayStudentAbsencesQuery,
+    validationCountQuery,
   ])
 
   const dispatchMobileHeaderState = useCallback(() => {
@@ -1034,94 +1006,44 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {schoolQuery.data?.geo_check_enabled === true ? (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg font-semibold">Check-ins suspects</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {suspiciousAttendancesQuery.isLoading ? (
-                  <div className="space-y-2">
-                    {Array.from({ length: 3 }).map((_, index) => (
-                      <Skeleton key={index} className="h-12 w-full rounded-lg" />
-                    ))}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-lg font-semibold">Validations en attente</CardTitle>
+              <Button asChild variant="outline" size="sm" className="h-8">
+                <Link to="/validations">Aller aux validations</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {validationCountQuery.isLoading ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <Skeleton key={index} className="h-12 w-full rounded-lg" />
+                  ))}
+                </div>
+              ) : (validationCountQuery.data?.total ?? 0) === 0 ? (
+                <EmptyState
+                  icon={emptyStateIcons.allGood}
+                  title="Aucune validation en attente"
+                  message="Les présences GPS suspectes et les heures courtes apparaîtront ici."
+                />
+              ) : (
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-lg border border-border p-3">
+                    <p className="text-xs text-muted-foreground">GPS suspects</p>
+                    <p className="mt-1 text-3xl font-bold">{validationCountQuery.data?.gps_suspicious ?? 0}</p>
                   </div>
-                ) : (suspiciousAttendancesQuery.data ?? []).length === 0 ? (
-                  <EmptyState
-                    icon={emptyStateIcons.allGood}
-                    title="Aucun check-in suspect"
-                    message="Les alertes GPS hors rayon apparaîtront ici."
-                  />
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Prof</TableHead>
-                          <TableHead>Cours</TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Heure</TableHead>
-                          <TableHead>Distance</TableHead>
-                          <TableHead>Précision</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {(suspiciousAttendancesQuery.data ?? []).slice(0, 5).map((item) => (
-                          <TableRow key={item.attendanceId}>
-                            <TableCell className="font-medium">{item.teacherName}</TableCell>
-                            <TableCell>{item.courseName}</TableCell>
-                            <TableCell>{item.date}</TableCell>
-                            <TableCell>{formatHours(item.checkedInAt ?? "")}</TableCell>
-                            <TableCell>
-                              {item.checkinDistance === null ? "-" : `${Math.round(item.checkinDistance)} m`}
-                            </TableCell>
-                            <TableCell>
-                              {item.checkinAccuracy === null ? "-" : `${Math.round(item.checkinAccuracy)} m`}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="min-h-[48px]"
-                                  disabled={geoReviewMutation.isPending}
-                                  onClick={() =>
-                                    geoReviewMutation.mutate({
-                                      attendanceId: item.attendanceId,
-                                      decision: "validated",
-                                    })
-                                  }
-                                >
-                                  Valider
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="destructive"
-                                  size="sm"
-                                  className="min-h-[48px]"
-                                  disabled={geoReviewMutation.isPending}
-                                  onClick={() =>
-                                    geoReviewMutation.mutate({
-                                      attendanceId: item.attendanceId,
-                                      decision: "rejected",
-                                    })
-                                  }
-                                >
-                                  Absent
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                  <div className="rounded-lg border border-border p-3">
+                    <p className="text-xs text-muted-foreground">Heures courtes</p>
+                    <p className="mt-1 text-3xl font-bold">{validationCountQuery.data?.short_hours ?? 0}</p>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          ) : null}
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
+                    <p className="text-xs">Total</p>
+                    <p className="mt-1 text-3xl font-bold">{validationCountQuery.data?.total ?? 0}</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </section>
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">

@@ -5,7 +5,15 @@ import { useQuery } from "@tanstack/react-query"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { apiClient as api } from "@/shared/api/client"
 import { fetchTeacherSchedule } from "@/modules/schedule/schedule.api"
+
+type TeacherNotification = {
+  id: string
+  type: string
+  message: string
+  created_at: string
+}
 
 const formatTime = (dateValue: string) =>
   new Date(dateValue).toLocaleTimeString("fr-FR", {
@@ -33,6 +41,12 @@ export default function TeacherDashboardPage() {
     queryFn: fetchTeacherSchedule,
   })
 
+  const notificationsQuery = useQuery({
+    queryKey: ["notifications", "me", "attendance-rejected"],
+    queryFn: () => api.get<TeacherNotification[]>("/notifications/me").then((response) => response.data),
+    staleTime: 60_000,
+  })
+
   const schedules = scheduleQuery.data ?? []
 
   const activeSchedule = useMemo(() => getActiveSchedule(schedules, new Date()), [schedules])
@@ -54,6 +68,15 @@ export default function TeacherDashboardPage() {
           <AlertDescription>Impossible de charger vos créneaux pour le moment.</AlertDescription>
         </Alert>
       ) : null}
+
+      {(notificationsQuery.data ?? []).slice(0, 1).map((notification) => (
+        <Alert key={notification.id}>
+          <AlertDescription>
+            <span className="font-medium">Information sur votre présence. </span>
+            {notification.message} Contactez votre direction pour plus d'informations.
+          </AlertDescription>
+        </Alert>
+      ))}
 
       {activeSchedule ? (
         <div className="rounded-lg border border-green-200 bg-green-50 p-4">

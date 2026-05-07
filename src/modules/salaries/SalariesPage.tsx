@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Link } from "react-router-dom"
 import { CalendarDays, ChevronLeft, ChevronRight, Download, TriangleAlert, Wallet } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -37,6 +38,7 @@ import {
   type SalaryTeacherDetails,
   type SalarySummaryItem,
 } from "@/modules/salaries/salaries.api"
+import { getPendingValidationCount } from "@/modules/validations/validations.api"
 import { ContextualHelp, EmptyState, OfflineIndicator, SalaryRow, StatCard, emptyStateIcons } from "@/shared/components"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 
@@ -239,6 +241,13 @@ export default function SalariesPage() {
     queryKey: ["salaries", "unpaid-alerts", getCurrentMonth()],
     queryFn: () => getSalaryUnpaidAlerts(getCurrentMonth()),
     staleTime: STALE_TIME,
+  })
+
+  const validationCountQuery = useQuery({
+    queryKey: ["validations", "pending", "count", "salaries"],
+    queryFn: getPendingValidationCount,
+    staleTime: STALE_TIME,
+    refetchInterval: 5 * 60_000,
   })
 
   const exportJobQuery = useQuery({
@@ -828,6 +837,25 @@ export default function SalariesPage() {
             loading={salarySummaryQuery.isLoading}
           />
         </section>
+
+        {(validationCountQuery.data?.total ?? 0) > 0 ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm font-semibold">
+                    {validationCountQuery.data?.total ?? 0} présence(s) en attente de validation
+                  </p>
+                  <p className="text-sm">Les heures concernées ne sont pas encore comptabilisées.</p>
+                </div>
+              </div>
+              <Button asChild variant="outline" className="min-h-[48px] border-amber-300 bg-white">
+                <Link to="/validations">Valider maintenant</Link>
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
         {unpaidAlert && unpaidAlert.count > 0 ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
