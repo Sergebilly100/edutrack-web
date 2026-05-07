@@ -955,9 +955,12 @@ export default function DashboardPage() {
         </section>
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg font-semibold">Meilleurs profs ce mois</CardTitle>
+          <Card className="order-2">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-lg font-semibold">Conformité scan ce mois</CardTitle>
+              <Button asChild variant="outline" size="sm" className="h-8">
+                <Link to="/teachers?tab=analyse">Voir le classement complet</Link>
+              </Button>
             </CardHeader>
             <CardContent>
               {teacherComplianceQuery.isLoading ? (
@@ -974,7 +977,7 @@ export default function DashboardPage() {
                 />
               ) : (
                 <div className="space-y-2">
-                  {(teacherComplianceQuery.data ?? []).slice(0, 8).map((teacher) => (
+                  {(teacherComplianceQuery.data ?? []).slice(0, 3).map((teacher) => (
                     <div
                       key={teacher.teacherId}
                       className="flex min-h-[48px] items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
@@ -1006,7 +1009,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="order-1">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg font-semibold">Validations en attente</CardTitle>
               <Button asChild variant="outline" size="sm" className="h-8">

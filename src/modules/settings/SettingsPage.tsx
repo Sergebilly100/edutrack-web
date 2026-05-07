@@ -12,6 +12,7 @@ import SmsTemplatePanel from "@/modules/settings/components/SmsTemplatePanel"
 import {
   fetchSchoolConfig,
   getSchoolSmsFeatureSettings,
+  updateRealHoursConfig,
   updateSchoolSmsUnitPrice,
 } from "@/modules/settings/settings.api"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
@@ -25,6 +26,7 @@ export default function SettingsPage() {
   const user = useAuthStore((state) => state.user)
   const { hasPermission } = usePermissions()
   const [smsPriceDraft, setSmsPriceDraft] = useState("")
+  const [checkoutToleranceDraft, setCheckoutToleranceDraft] = useState("5")
   const canManagePositions = user?.role === "director" || hasPermission("settings.positions")
   const canManageSchoolSettings = user?.role === "director" || hasPermission("settings.school")
   const canAccessSmsTemplate = user?.role === "director" || hasPermission("settings.sms_templates")
@@ -42,6 +44,11 @@ export default function SettingsPage() {
     const value = smsFeatureQuery.data?.sms_unit_price_fcfa
     setSmsPriceDraft(value && value > 0 ? String(value) : "")
   }, [smsFeatureQuery.data?.sms_unit_price_fcfa])
+
+  useEffect(() => {
+    const value = smsFeatureQuery.data?.checkout_tolerance_minutes
+    setCheckoutToleranceDraft(Number.isInteger(value) ? String(value) : "5")
+  }, [smsFeatureQuery.data?.checkout_tolerance_minutes])
 
   const saveSmsPriceMutation = useMutation({
     mutationFn: () => {
@@ -65,6 +72,27 @@ export default function SettingsPage() {
     },
   })
 
+  const saveRealHoursConfigMutation = useMutation({
+    mutationFn: () => {
+      const parsed = Number(checkoutToleranceDraft)
+      if (!Number.isInteger(parsed) || parsed < 0 || parsed > 30) {
+        throw new Error("La tolérance doit être un entier entre 0 et 30 minutes.")
+      }
+      return updateRealHoursConfig(parsed)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["settings", "sms-feature"] })
+      toast({ title: "Tolérance heures réelles sauvegardée" })
+    },
+    onError: (error) => {
+      toast({
+        title: "Erreur",
+        description: error instanceof Error ? error.message : "Impossible de sauvegarder la tolérance.",
+        variant: "destructive",
+      })
+    },
+  })
+
   const smsPriceValue = Number(smsPriceDraft)
   const currentSmsPrice = smsFeatureQuery.data?.sms_unit_price_fcfa
   const normalizedCurrentSmsPrice = currentSmsPrice && currentSmsPrice > 0 ? String(currentSmsPrice) : ""
@@ -74,6 +102,14 @@ export default function SettingsPage() {
     Number.isInteger(smsPriceValue) &&
     smsPriceValue > 0 &&
     smsPriceValue <= 50000
+  const checkoutToleranceValue = Number(checkoutToleranceDraft)
+  const normalizedCheckoutTolerance = String(smsFeatureQuery.data?.checkout_tolerance_minutes ?? 5)
+  const isCheckoutToleranceDirty = checkoutToleranceDraft !== normalizedCheckoutTolerance
+  const isCheckoutToleranceValid =
+    checkoutToleranceDraft.length > 0 &&
+    Number.isInteger(checkoutToleranceValue) &&
+    checkoutToleranceValue >= 0 &&
+    checkoutToleranceValue <= 30
   const schoolConfigState = schoolConfigQuery.isLoading
     ? "Chargement"
     : schoolConfigQuery.isError
@@ -139,6 +175,66 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {canManageSchoolSettings ? (
+        <section
+          className={
+            smsFeatureQuery.data?.use_real_hours
+              ? "space-y-4 rounded-lg border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900/70 dark:bg-blue-950/20"
+              : "space-y-3 rounded-lg border border-dashed border-border bg-muted/40 p-4 opacity-90"
+          }
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold">Heures réelles</h2>
+              <p className="text-xs text-muted-foreground">
+                Tolérance appliquée au check-out avant qu&apos;une présence courte passe en validation.
+              </p>
+            </div>
+            <Badge variant={smsFeatureQuery.data?.use_real_hours ? "default" : "outline"}>
+              {smsFeatureQuery.data?.use_real_hours ? "Activé" : "Ignoré"}
+            </Badge>
+          </div>
+
+          {smsFeatureQuery.data?.use_real_hours ? (
+            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+              <div className="space-y-2">
+                <Label htmlFor="checkout-tolerance-minutes">Tolérance check-out (minutes)</Label>
+                <Input
+                  id="checkout-tolerance-minutes"
+                  value={checkoutToleranceDraft}
+                  onChange={(event) => setCheckoutToleranceDraft(event.target.value.replace(/\D/g, ""))}
+                  inputMode="numeric"
+                  maxLength={2}
+                  placeholder="5"
+                />
+                <p className={isCheckoutToleranceValid ? "text-xs text-muted-foreground" : "text-xs text-destructive"}>
+                  Entier entre 0 et 30. Une présence plus courte part en validation.
+                </p>
+              </div>
+              <Button
+                type="button"
+                onClick={() => saveRealHoursConfigMutation.mutate()}
+                disabled={
+                  saveRealHoursConfigMutation.isPending ||
+                  !isCheckoutToleranceDirty ||
+                  !isCheckoutToleranceValid
+                }
+              >
+                {saveRealHoursConfigMutation.isPending
+                  ? "Sauvegarde..."
+                  : isCheckoutToleranceDirty
+                    ? "Sauvegarder"
+                    : "Tolérance à jour"}
+              </Button>
+            </div>
+          ) : (
+            <ContextualHelp title="Heures réelles désactivées" tone="warning">
+              La valeur de tolérance existe en base mais elle est ignorée tant que les heures réelles ne sont pas activées par EduTrack.
+            </ContextualHelp>
+          )}
+        </section>
+      ) : null}
 
       {canManagePositions && schoolConfigQuery.isError ? (
         <Alert variant="destructive">

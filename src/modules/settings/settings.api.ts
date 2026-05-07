@@ -241,6 +241,9 @@ export type SchoolSmsFeatureSettings = {
   is_enabled: boolean
   commission_pct: number
   sms_unit_price_fcfa: number | null
+  use_real_hours: boolean
+  geo_check_enabled: boolean
+  checkout_tolerance_minutes: number
 }
 
 export const fetchSchoolConfig = async (): Promise<SchoolConfigData> => {
@@ -289,6 +292,16 @@ export const updateSchoolSmsUnitPrice = async (
   const response = await apiClient.patch<SchoolSmsFeatureSettings>("/settings/sms-price", {
     sms_unit_price_fcfa: smsUnitPriceFcfa,
   })
+  return response.data
+}
+
+export const updateRealHoursConfig = async (
+  checkoutToleranceMinutes: number
+): Promise<{ success: true; checkoutToleranceMinutes: number }> => {
+  const response = await apiClient.patch<{ success: true; checkoutToleranceMinutes: number }>(
+    "/school/settings/real-hours-config",
+    { checkoutToleranceMinutes }
+  )
   return response.data
 }
 

@@ -73,6 +73,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/validations",
     icon: ClipboardCheck,
     roles: ["director", "staff"],
+    requiredPermissions: ["validations.view"],
     mobileVisible: true,
   },
   {

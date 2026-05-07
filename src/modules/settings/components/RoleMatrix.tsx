@@ -36,6 +36,11 @@ const BASE_PERMISSION_COLUMNS = [
     permissions: ["salary.view", "salary.compute", "salary.mark_paid", "salary.export"],
   },
   {
+    key: "validations",
+    label: "Validations horaires",
+    permissions: ["validations.view", "validations.approve", "validations.reject"],
+  },
+  {
     key: "rooms",
     label: "Salles & QR",
     permissions: ["rooms.view", "rooms.create", "rooms.edit", "rooms.delete"],
@@ -57,6 +62,8 @@ const BASE_PERMISSION_ROWS = [
   { key: "compute", label: "Calculer" },
   { key: "mark_paid", label: "Marquer payé" },
   { key: "export", label: "Exporter" },
+  { key: "approve", label: "Valider une présence" },
+  { key: "reject", label: "Refuser une présence" },
   { key: "students", label: "Importer élèves" },
   { key: "teachers", label: "Importer profs" },
   { key: "schedule", label: "Importer EDT" },
@@ -114,6 +121,7 @@ const CATEGORY_VIEW_PERMISSION: Readonly<Record<string, string>> = {
   teachers: "teachers.view",
   students: "students.view",
   salary: "salary.view",
+  validations: "validations.view",
   rooms: "rooms.view",
   schedule: "schedule.view",
 }
@@ -127,6 +135,8 @@ const ACTION_KEYS_REQUIRING_VIEW = new Set([
   "compute",
   "mark_paid",
   "export",
+  "approve",
+  "reject",
   "renew",
   "cancel",
   "revenue",
