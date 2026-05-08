@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Progress } from "@/components/ui/progress"
 import {
   Select,
   SelectContent,
@@ -36,6 +37,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import TeacherAnalysisPanel from "@/modules/teachers/components/TeacherAnalysisPanel"
 import TeacherForm from "@/modules/teachers/components/TeacherForm"
+import { getCurrentMonthKey, getTeacherCompliance, type DashboardTeacherComplianceItem } from "@/modules/dashboard/dashboard.api"
 import {
   blockTeacher,
   createTeacher,
@@ -101,6 +103,10 @@ type TeacherStatsMap = Record<
 type TeacherTableRow = TeacherListItem & {
   name: string
   attendanceRate: number
+}
+
+type RankingTeacherRow = DashboardTeacherComplianceItem & {
+  subjects: string[]
 }
 
 const initials = (value: string) =>
@@ -183,6 +189,163 @@ function TeacherRowActions({
   )
 }
 
+function TeacherRankingPanel({
+  teachers,
+}: {
+  teachers: TeacherListItem[]
+}) {
+  const [month, setMonth] = useState(() => getCurrentMonthKey(new Date()))
+  const [subject, setSubject] = useState("all")
+  const rankingTeachersQuery = useQuery({
+    queryKey: ["teachers", "ranking", "subject-options"],
+    queryFn: () => getTeachers({ page: 1, limit: 200 }),
+    staleTime: 60_000,
+  })
+  const complianceQuery = useQuery({
+    queryKey: ["teachers", "ranking", month],
+    queryFn: () => getTeacherCompliance(month),
+    staleTime: 60_000,
+    retry: false,
+  })
+  const rankingTeachers = rankingTeachersQuery.data?.data ?? teachers
+  const teachersById = useMemo(() => {
+    return new Map(rankingTeachers.map((teacher) => [teacher.id, teacher]))
+  }, [rankingTeachers])
+  const subjectOptions = useMemo(() => {
+    const values = new Set<string>()
+    for (const teacher of rankingTeachers) {
+      for (const item of teacher.subjects) {
+        const clean = item.trim()
+        if (clean) values.add(clean)
+      }
+    }
+    return Array.from(values).sort((a, b) => a.localeCompare(b, "fr"))
+  }, [rankingTeachers])
+  const rankedRows = useMemo<RankingTeacherRow[]>(() => {
+    return (complianceQuery.data ?? [])
+      .map((row) => ({
+        ...row,
+        subjects: teachersById.get(row.teacherId)?.subjects ?? [],
+      }))
+      .filter((row) => subject === "all" || row.subjects.includes(subject))
+      .map((row, index) => ({ ...row, rank: index + 1 }))
+  }, [complianceQuery.data, subject, teachersById])
+
+  const topRate = rankedRows[0]?.complianceRate ?? 0
+  const averageRate =
+    rankedRows.length === 0
+      ? 0
+      : rankedRows.reduce((sum, row) => sum + row.complianceRate, 0) / rankedRows.length
+
+  return (
+    <div className="space-y-4">
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="flex flex-col gap-4 bg-muted/30 px-4 py-4 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold">Classement conformité scan</p>
+            <p className="text-xs text-muted-foreground">
+              Classement mensuel basé sur les scans de fin de cours.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="ranking-month" className="text-[11px] uppercase text-muted-foreground">
+                Mois
+              </Label>
+              <Input
+                id="ranking-month"
+                type="month"
+                value={month}
+                onChange={(event) => setMonth(event.target.value || getCurrentMonthKey(new Date()))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] uppercase text-muted-foreground">Matière</Label>
+              <Select value={subject} onValueChange={setSubject}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Matière" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes les matières</SelectItem>
+                  {subjectOptions.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {item}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+        <div className="grid gap-px bg-border sm:grid-cols-3">
+          <div className="bg-background px-4 py-3">
+            <p className="text-[11px] font-medium uppercase text-muted-foreground">Professeurs classés</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums">{rankedRows.length}</p>
+          </div>
+          <div className="bg-background px-4 py-3">
+            <p className="text-[11px] font-medium uppercase text-muted-foreground">Meilleur taux</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums">{Math.round(topRate)}%</p>
+          </div>
+          <div className="bg-background px-4 py-3">
+            <p className="text-[11px] font-medium uppercase text-muted-foreground">Moyenne</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums">{Math.round(averageRate)}%</p>
+          </div>
+        </div>
+      </div>
+
+      {complianceQuery.isError ? (
+        <Alert variant="destructive">
+          <AlertDescription>Impossible de charger le classement des professeurs.</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <div className="space-y-2">
+        {complianceQuery.isLoading ? (
+          Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="h-20 animate-pulse rounded-lg border bg-muted" />
+          ))
+        ) : rankedRows.length === 0 ? (
+          <EmptyState
+            icon={<AppIcon icon={TeachersIcon} size="md" className="text-muted-foreground" />}
+            title="Aucun classement"
+            message="Aucun scan de fin ne correspond aux filtres sélectionnés."
+          />
+        ) : (
+          rankedRows.map((teacher) => (
+            <div
+              key={teacher.teacherId}
+              className="w-full rounded-lg border border-border bg-card p-4"
+            >
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-muted text-sm font-semibold">
+                    {teacher.rank}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{teacher.teacherName}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {teacher.subjects.length > 0 ? teacher.subjects.join(", ") : "Matière non renseignée"}
+                    </p>
+                  </div>
+                </div>
+                <div className="min-w-0 md:w-80">
+                  <div className="mb-1 flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">
+                      {teacher.totalCheckouts}/{teacher.totalCheckins} scans de fin
+                    </span>
+                    <span className="font-semibold">{Math.round(teacher.complianceRate)}%</span>
+                  </div>
+                  <Progress value={Math.max(0, Math.min(100, teacher.complianceRate))} />
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function TeachersPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -202,7 +365,8 @@ export default function TeachersPage() {
   const [teacherForExport, setTeacherForExport] = useState<TeacherListItem | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [exportPeriod, setExportPeriod] = useState(getDefaultExportPeriod)
-  const activeTab = searchParams.get("tab") === "analyse" ? "analyse" : "liste"
+  const rawTab = searchParams.get("tab")
+  const activeTab = rawTab === "analyse" || rawTab === "classement" ? rawTab : "liste"
   const isExportPeriodValid =
     exportPeriod.dateFrom.length > 0 &&
     exportPeriod.dateTo.length > 0 &&
@@ -437,9 +601,10 @@ export default function TeachersPage() {
         }}
         className="space-y-4"
       >
-        <TabsList className="grid h-auto w-full grid-cols-2 rounded-xl border border-border bg-muted/50 p-1 sm:w-full md:w-[420px]">
+        <TabsList className="grid h-auto w-full grid-cols-3 rounded-xl border border-border bg-muted/50 p-1 sm:w-full md:w-[620px]">
           <TabsTrigger value="liste" className="min-h-12 rounded-lg text-sm font-medium">Liste</TabsTrigger>
           <TabsTrigger value="analyse" className="min-h-12 rounded-lg text-sm font-medium">Analyse présence</TabsTrigger>
+          <TabsTrigger value="classement" className="min-h-12 rounded-lg text-sm font-medium">Classement</TabsTrigger>
         </TabsList>
 
         <TabsContent value="liste" className="space-y-6">
@@ -592,6 +757,10 @@ export default function TeachersPage() {
 
         <TabsContent value="analyse">
           <TeacherAnalysisPanel />
+        </TabsContent>
+
+        <TabsContent value="classement">
+          <TeacherRankingPanel teachers={teachers} />
         </TabsContent>
       </Tabs>
 

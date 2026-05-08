@@ -9,6 +9,8 @@ export type NotificationPanelItem = {
   message: string
   meta: string
   tone: "warning" | "info" | "success" | "danger"
+  targetHref?: string
+  actionLabel?: string
 }
 
 const notificationToneClass: Record<NotificationPanelItem["tone"], string> = {
@@ -25,6 +27,7 @@ export function NotificationsPanel({
   onClose,
   isLoading = false,
   isError = false,
+  onNavigate,
 }: {
   notifications: NotificationPanelItem[]
   onDismiss: (id: string) => void
@@ -32,6 +35,7 @@ export function NotificationsPanel({
   onClose: () => void
   isLoading?: boolean
   isError?: boolean
+  onNavigate?: (href: string) => void
 }) {
   if (typeof document === "undefined") {
     return null
@@ -94,6 +98,17 @@ export function NotificationsPanel({
                     <p className="text-sm font-semibold">{notification.title}</p>
                     <p className="mt-1 text-sm leading-5 text-muted-foreground">{notification.message}</p>
                     <p className="mt-2 text-xs font-medium text-muted-foreground">{notification.meta}</p>
+                    {notification.targetHref && onNavigate ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mt-3 h-8"
+                        onClick={() => onNavigate(notification.targetHref!)}
+                      >
+                        {notification.actionLabel ?? "Ouvrir"}
+                      </Button>
+                    ) : null}
                   </div>
                   <Button
                     type="button"

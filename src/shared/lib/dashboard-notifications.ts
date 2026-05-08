@@ -64,12 +64,14 @@ export const buildDirectorDashboardNotifications = ({
   weeklyAbsenceCount,
   salaryUnpaidCount,
   salaryUnpaidTotalFcfa,
+  pendingValidationCount,
   smsLog,
 }: {
   nextWeekHasCoverage: boolean | undefined
   weeklyAbsenceCount: number
   salaryUnpaidCount: number
   salaryUnpaidTotalFcfa: number
+  pendingValidationCount: number
   smsLog: DashboardSmsItem[]
 }): NotificationPanelItem[] => {
   const items: NotificationPanelItem[] = []
@@ -81,6 +83,8 @@ export const buildDirectorDashboardNotifications = ({
       message: "Certains créneaux de la semaine prochaine ne sont pas encore couverts.",
       meta: "Action conseillée: ouvrir l'emploi du temps",
       tone: "warning",
+      targetHref: "/schedule",
+      actionLabel: "Ouvrir l'emploi du temps",
     })
   }
 
@@ -91,6 +95,20 @@ export const buildDirectorDashboardNotifications = ({
       message: `${weeklyAbsenceCount} absences non justifiées ont été relevées sur les 7 derniers jours.`,
       meta: "Action conseillée: consulter les professeurs",
       tone: "warning",
+      targetHref: "/teachers",
+      actionLabel: "Consulter les professeurs",
+    })
+  }
+
+  if (pendingValidationCount > 0) {
+    items.push({
+      id: "validations-pending-hours",
+      title: "Validations horaires en attente",
+      message: `${pendingValidationCount} présence(s) nécessitent une décision avant le calcul final des salaires.`,
+      meta: "Action requise: valider les horaires",
+      tone: "warning",
+      targetHref: "/validations",
+      actionLabel: "Ouvrir les validations",
     })
   }
 
@@ -101,6 +119,8 @@ export const buildDirectorDashboardNotifications = ({
       message: `${salaryUnpaidCount} fiche(s) restent à solder, pour ${new Intl.NumberFormat("fr-FR").format(salaryUnpaidTotalFcfa)} FCFA.`,
       meta: "Action conseillée: ouvrir les salaires",
       tone: "warning",
+      targetHref: "/salaries",
+      actionLabel: "Ouvrir les salaires",
     })
   }
 

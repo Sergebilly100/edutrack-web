@@ -608,6 +608,7 @@ export default function DashboardPage() {
       weeklyAbsenceCount,
       salaryUnpaidCount: salaryUnpaidAlertsQuery.data?.count ?? 0,
       salaryUnpaidTotalFcfa: salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0,
+      pendingValidationCount: validationCountQuery.data?.total ?? 0,
       smsLog: smsLogQuery.data ?? [],
     })
   }, [
@@ -615,6 +616,7 @@ export default function DashboardPage() {
     salaryUnpaidAlertsQuery.data?.count,
     salaryUnpaidAlertsQuery.data?.totalRemainingFcfa,
     smsLogQuery.data,
+    validationCountQuery.data?.total,
     weeklyAbsenceCount,
   ])
   const visibleNotifications = useMemo(
@@ -808,6 +810,10 @@ export default function DashboardPage() {
             onDismiss={dismissNotification}
             onDismissAll={() => setDismissedNotificationIds(new Set(notificationItems.map((item) => item.id)))}
             onClose={() => setNotificationsOpen(false)}
+            onNavigate={(href) => {
+              setNotificationsOpen(false)
+              navigate(href)
+            }}
           />
         ) : null}
 
@@ -959,7 +965,7 @@ export default function DashboardPage() {
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg font-semibold">Conformité scan ce mois</CardTitle>
               <Button asChild variant="outline" size="sm" className="h-8">
-                <Link to="/teachers?tab=analyse">Voir le classement complet</Link>
+                <Link to="/teachers?tab=classement">Voir le classement complet</Link>
               </Button>
             </CardHeader>
             <CardContent>

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Bell } from "lucide-react"
-import { useLocation } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { getSalaryUnpaidAlerts } from "@/modules/salaries/salaries.api"
+import { getPendingValidationCount } from "@/modules/validations/validations.api"
 import {
   getAttendanceHistory,
   getCurrentMonthKey,
@@ -26,6 +27,7 @@ type NotificationButtonProps = {
 }
 
 export function NotificationButton({ count = 0, className }: NotificationButtonProps) {
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(readDashboardDismissedNotificationIds)
   const location = useLocation()
@@ -54,6 +56,14 @@ export function NotificationButton({ count = 0, className }: NotificationButtonP
     retry: false,
     enabled: queryEnabled,
   })
+  const validationCountQuery = useQuery({
+    queryKey: ["validations", "pending", "count", "notifications"],
+    queryFn: getPendingValidationCount,
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+    retry: false,
+    enabled: queryEnabled,
+  })
   const smsLogQuery = useQuery({
     queryKey: ["dashboard", "sms-log", "notifications"],
     queryFn: () => getSMSLog(8),
@@ -68,11 +78,13 @@ export function NotificationButton({ count = 0, className }: NotificationButtonP
     historyQuery.isLoading ||
     coverageQuery.isLoading ||
     salaryUnpaidAlertsQuery.isLoading ||
+    validationCountQuery.isLoading ||
     smsLogQuery.isLoading
   const isError =
     historyQuery.isError ||
     coverageQuery.isError ||
     salaryUnpaidAlertsQuery.isError ||
+    validationCountQuery.isError ||
     smsLogQuery.isError
   const notificationItems = useMemo<NotificationPanelItem[]>(() => {
     return buildDirectorDashboardNotifications({
@@ -80,6 +92,7 @@ export function NotificationButton({ count = 0, className }: NotificationButtonP
       weeklyAbsenceCount,
       salaryUnpaidCount: salaryUnpaidAlertsQuery.data?.count ?? 0,
       salaryUnpaidTotalFcfa: salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0,
+      pendingValidationCount: validationCountQuery.data?.total ?? 0,
       smsLog: smsLogQuery.data ?? [],
     })
   }, [
@@ -87,6 +100,7 @@ export function NotificationButton({ count = 0, className }: NotificationButtonP
     salaryUnpaidAlertsQuery.data?.count,
     salaryUnpaidAlertsQuery.data?.totalRemainingFcfa,
     smsLogQuery.data,
+    validationCountQuery.data?.total,
     weeklyAbsenceCount,
   ])
   const visibleNotifications = useMemo(
@@ -155,6 +169,10 @@ export function NotificationButton({ count = 0, className }: NotificationButtonP
             onDismiss={dismissNotification}
             onDismissAll={dismissAllNotifications}
             onClose={() => setOpen(false)}
+            onNavigate={(href) => {
+              setOpen(false)
+              navigate(href)
+            }}
           />
         ) : null
       ) : null}
