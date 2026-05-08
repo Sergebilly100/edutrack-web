@@ -61,6 +61,9 @@ const motivationalMessages = [
   "Votre taux de conformité est visible par la direction. Gardez le cap",
 ]
 
+const randomMotivationalMessage =
+  motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)]
+
 const getGeoPosition = async (enabled: boolean) => {
   if (!enabled || !("geolocation" in navigator)) {
     return {}
@@ -179,10 +182,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
   })
   const canSkipQrStep = attendancePolicyQuery.data?.allow_teacher_qr_skip ?? false
   const geoCheckEnabled = attendancePolicyQuery.data?.geo_check_enabled ?? false
-  const motivationalMessage = useMemo(
-    () => motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)],
-    []
-  )
+  const motivationalMessage = randomMotivationalMessage
 
   const { absentCount, presentCount, unmarkedCount } = useMemo(() => {
     let absent = 0; let present = 0; let unmarked = 0

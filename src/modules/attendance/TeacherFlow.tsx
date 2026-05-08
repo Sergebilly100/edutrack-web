@@ -136,8 +136,16 @@ export default function TeacherFlow({ schedule, demoMode = false }: TeacherFlowP
   }
 
   const resolveScannedRoom = async (token: string) => {
-    const cachedRooms = roomsQuery.data ?? (await roomsQuery.refetch()).data ?? []
-    return cachedRooms.find((room) => room.qr_token === token) ?? null
+    let rooms = roomsQuery.data
+    if (!rooms) {
+      try {
+        const result = await roomsQuery.refetch()
+        rooms = result.data
+      } catch {
+        rooms = []
+      }
+    }
+    return (rooms ?? []).find((room) => room.qr_token === token) ?? null
   }
 
   const handleQrDetected = async (token: string) => {
