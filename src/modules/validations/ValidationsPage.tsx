@@ -22,12 +22,15 @@ import { useToast } from "@/components/ui/use-toast"
 import { EmptyState, OfflineIndicator, emptyStateIcons } from "@/shared/components"
 import { getCurrentMonth, getRecentMonthOptions, formatMonthLabel } from "@/shared/utils/month"
 import {
+  applyEndScanAction,
   approveValidation,
+  cancelEndScanSanction,
   fetchMissingEndScans,
   getPendingValidations,
-  invalidateSession,
   rejectValidation,
   sendEndScanWarning,
+  type EndScanAction,
+  type MissingEndScanSession,
   type MissingEndScanTeacher,
   type PendingValidationItem,
 } from "./validations.api"
@@ -74,18 +77,63 @@ function InfoBox({ children }: { children: string }) {
   )
 }
 
+type ApproveShortHoursTarget = {
+  item: PendingValidationItem
+  validatedHours?: number
+  label: string
+}
+
+type EndScanActionTarget = {
+  session: MissingEndScanSession
+  teacher: MissingEndScanTeacher
+  action: EndScanAction
+}
+
+type CancelSanctionTarget = {
+  session: MissingEndScanSession
+  teacher: MissingEndScanTeacher
+}
+
+function EndScanStatusBadge({ session }: { session: MissingEndScanSession }) {
+  if (!session.endScanAction) return null
+
+  if (session.endScanActionCancelledAt) {
+    return (
+      <Badge variant="outline" className="border-gray-200 bg-gray-50 text-gray-600">
+        Sanction annulée
+      </Badge>
+    )
+  }
+
+  if (session.endScanAction === "warned") {
+    return (
+      <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+        Averti
+      </Badge>
+    )
+  }
+
+  return (
+    <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+      Sanctionné
+    </Badge>
+  )
+}
+
 export default function ValidationsPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const [approveTarget, setApproveTarget] = useState<PendingValidationItem | null>(null)
+  const [approveShortHoursTarget, setApproveShortHoursTarget] = useState<ApproveShortHoursTarget | null>(null)
   const [rejectTarget, setRejectTarget] = useState<PendingValidationItem | null>(null)
   const [rejectReason, setRejectReason] = useState("")
 
   // End-scan tab state
   const [endScanMonth, setEndScanMonth] = useState(() => getCurrentMonth())
   const [expandedTeacher, setExpandedTeacher] = useState<string | null>(null)
-  const [invalidateTarget, setInvalidateTarget] = useState<{ attendanceId: string; teacherName: string; subject: string; date: string } | null>(null)
-  const [invalidateReason, setInvalidateReason] = useState("")
+  const [endScanActionTarget, setEndScanActionTarget] = useState<EndScanActionTarget | null>(null)
+  const [cancelSanctionTarget, setCancelSanctionTarget] = useState<CancelSanctionTarget | null>(null)
+  const [cancelSanctionReason, setCancelSanctionReason] = useState("")
   const endScanMonthOptions = useMemo(() => getRecentMonthOptions(getCurrentMonth(), 12), [])
 
   const pendingQuery = useQuery({
@@ -97,7 +145,7 @@ export default function ValidationsPage() {
   const groups = pendingQuery.data ?? { gps_suspicious: [], short_hours: [] }
   const total = groups.gps_suspicious.length + groups.short_hours.length
 
-  const invalidate = async () => {
+  const invalidateQueries = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["validations"] }),
       queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
@@ -109,7 +157,7 @@ export default function ValidationsPage() {
     mutationFn: approveValidation,
     onSuccess: async () => {
       setApproveTarget(null)
-      await invalidate()
+      await invalidateQueries()
       toast({ title: "Validation enregistrée", description: "Les heures ont été mises à jour." })
     },
   })
@@ -119,7 +167,7 @@ export default function ValidationsPage() {
     onSuccess: async () => {
       setRejectTarget(null)
       setRejectReason("")
-      await invalidate()
+      await invalidateQueries()
       toast({ title: "Présence refusée", description: "L'enseignant sera notifié." })
     },
   })
@@ -139,16 +187,34 @@ export default function ValidationsPage() {
     },
   })
 
-  const invalidateMutation = useMutation({
-    mutationFn: (params: { attendanceId: string; reason: string }) => invalidateSession(params.attendanceId, params.reason),
-    onSuccess: async () => {
-      setInvalidateTarget(null)
-      setInvalidateReason("")
+  const endScanActionMutation = useMutation({
+    mutationFn: (input: { attendanceId: string; action: EndScanAction; reason: string }) =>
+      applyEndScanAction(input),
+    onSuccess: async (_, variables) => {
+      setEndScanActionTarget(null)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["validations", "missing-end-scans"] }),
         queryClient.invalidateQueries({ queryKey: ["salaries"] }),
       ])
-      toast({ title: "Cours invalidé", description: "Le cours ne sera pas comptabilisé." })
+      const label = variables.action === "warned" ? "Avertissement enregistré" : "Sanction enregistrée"
+      const desc =
+        variables.action === "warned"
+          ? "L'enseignant a été averti. Son salaire reste intact."
+          : "Le cours ne sera pas comptabilisé. L'enseignant doit se rendre à l'administration."
+      toast({ title: label, description: desc })
+    },
+  })
+
+  const cancelSanctionMutation = useMutation({
+    mutationFn: (input: { attendanceId: string; reason: string }) => cancelEndScanSanction(input),
+    onSuccess: async () => {
+      setCancelSanctionTarget(null)
+      setCancelSanctionReason("")
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["validations", "missing-end-scans"] }),
+        queryClient.invalidateQueries({ queryKey: ["salaries"] }),
+      ])
+      toast({ title: "Sanction annulée", description: "L'enseignant a été informé de l'annulation." })
     },
   })
 
@@ -174,6 +240,8 @@ export default function ValidationsPage() {
               <TableHead>Enseignant</TableHead>
               <TableHead>Cours</TableHead>
               <TableHead>Date</TableHead>
+              <TableHead>Créneau</TableHead>
+              <TableHead>Salle</TableHead>
               <TableHead>Heure</TableHead>
               <TableHead>Écart GPS</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -185,6 +253,8 @@ export default function ValidationsPage() {
                 <TableCell className="font-medium">{item.teacherName}</TableCell>
                 <TableCell>{item.courseName} • {item.className}</TableCell>
                 <TableCell>{formatDate(item.date)}</TableCell>
+                <TableCell>{item.slotLabel ?? "-"}</TableCell>
+                <TableCell>{item.roomName ?? "-"}</TableCell>
                 <TableCell>{formatTime(item.checkedInAt)}</TableCell>
                 <TableCell>
                   <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
@@ -238,6 +308,8 @@ export default function ValidationsPage() {
               <TableHead>Enseignant</TableHead>
               <TableHead>Cours</TableHead>
               <TableHead>Date</TableHead>
+              <TableHead>Créneau</TableHead>
+              <TableHead>Salle</TableHead>
               <TableHead>Prévu</TableHead>
               <TableHead>Effectué</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -254,6 +326,8 @@ export default function ValidationsPage() {
                   <TableCell className="font-medium">{item.teacherName}</TableCell>
                   <TableCell>{item.courseName} • {item.className}</TableCell>
                   <TableCell>{formatDate(item.date)}</TableCell>
+                  <TableCell>{item.slotLabel ?? "-"}</TableCell>
+                  <TableCell>{item.roomName ?? "-"}</TableCell>
                   <TableCell>{formatMinutes(item.scheduleDurationMinutes)}</TableCell>
                   <TableCell>{formatMinutes(item.actualMinutes)}</TableCell>
                   <TableCell>
@@ -263,7 +337,13 @@ export default function ValidationsPage() {
                         size="sm"
                         className="min-h-[48px]"
                         disabled={approveMutation.isPending}
-                        onClick={() => approveMutation.mutate({ attendanceId: item.attendanceId })}
+                        onClick={() =>
+                          setApproveShortHoursTarget({
+                            item,
+                            validatedHours: undefined,
+                            label: `${formatMinutes(item.scheduleDurationMinutes)}${plannedAmount !== null ? ` — ${formatFcfa(plannedAmount)}` : ""}`,
+                          })
+                        }
                       >
                         Accorder {formatMinutes(item.scheduleDurationMinutes)}
                         {plannedAmount !== null ? ` - ${formatFcfa(plannedAmount)}` : ""}
@@ -275,9 +355,10 @@ export default function ValidationsPage() {
                         className="min-h-[48px]"
                         disabled={approveMutation.isPending || item.actualMinutes === null}
                         onClick={() =>
-                          approveMutation.mutate({
-                            attendanceId: item.attendanceId,
+                          setApproveShortHoursTarget({
+                            item,
                             validatedHours: Math.round(actualHours * 100) / 100,
+                            label: `${formatMinutes(item.actualMinutes)}${actualAmount !== null ? ` — ${formatFcfa(actualAmount)}` : ""}`,
                           })
                         }
                       >
@@ -335,9 +416,19 @@ export default function ValidationsPage() {
                   <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
                     {teacher.missingEndScanCount} cours
                   </Badge>
+                  {teacher.warningCount > 0 ? (
+                    <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
+                      {teacher.warningCount} avertissement{teacher.warningCount > 1 ? "s" : ""}
+                    </Badge>
+                  ) : null}
+                  {teacher.sanctionCount > 0 ? (
+                    <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+                      {teacher.sanctionCount} sanction{teacher.sanctionCount > 1 ? "s" : ""}
+                    </Badge>
+                  ) : null}
                   {teacher.warningSent ? (
                     <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
-                      Averti
+                      Notifié
                     </Badge>
                   ) : null}
                 </CollapsibleTrigger>
@@ -361,35 +452,72 @@ export default function ValidationsPage() {
                         <TableHead>Date</TableHead>
                         <TableHead>Matière</TableHead>
                         <TableHead>Créneau</TableHead>
-                        <TableHead className="text-right">Action</TableHead>
+                        <TableHead>Salle</TableHead>
+                        <TableHead>Statut</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {teacher.sessions.map((session) => (
-                        <TableRow key={session.attendanceId}>
-                          <TableCell>{formatDate(session.date)}</TableCell>
-                          <TableCell>{session.subject}</TableCell>
-                          <TableCell>{session.timeSlot}</TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="destructive"
-                              className="min-h-[36px]"
-                              onClick={() =>
-                                setInvalidateTarget({
-                                  attendanceId: session.attendanceId,
-                                  teacherName: teacher.teacherName,
-                                  subject: session.subject,
-                                  date: session.date,
-                                })
-                              }
-                            >
-                              Ne pas comptabiliser
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {teacher.sessions.map((session) => {
+                        const hasActiveAction =
+                          session.endScanAction !== null && session.endScanActionCancelledAt === null
+                        const isSanctioned =
+                          session.endScanAction === "sanctioned" && session.endScanActionCancelledAt === null
+
+                        return (
+                          <TableRow key={session.attendanceId}>
+                            <TableCell>{formatDate(session.date)}</TableCell>
+                            <TableCell>{session.subject}</TableCell>
+                            <TableCell>{session.timeSlot}</TableCell>
+                            <TableCell>{session.roomName ?? "-"}</TableCell>
+                            <TableCell>
+                              <EndScanStatusBadge session={session} />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {hasActiveAction ? (
+                                isSanctioned ? (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="min-h-[36px] text-red-600 border-red-200 hover:bg-red-50"
+                                    onClick={() => setCancelSanctionTarget({ session, teacher })}
+                                  >
+                                    Annuler la sanction
+                                  </Button>
+                                ) : null
+                              ) : (
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="min-h-[36px] text-amber-700 border-amber-200 hover:bg-amber-50"
+                                    disabled={endScanActionMutation.isPending}
+                                    onClick={() =>
+                                      setEndScanActionTarget({ session, teacher, action: "warned" })
+                                    }
+                                  >
+                                    Tolérer avec avertissement
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="destructive"
+                                    className="min-h-[36px]"
+                                    disabled={endScanActionMutation.isPending}
+                                    onClick={() =>
+                                      setEndScanActionTarget({ session, teacher, action: "sanctioned" })
+                                    }
+                                  >
+                                    Sanctionner
+                                  </Button>
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -448,6 +576,53 @@ export default function ValidationsPage() {
         </Tabs>
       </div>
 
+      {/* ── Modale confirmation accordé heures courtes ──────────────────────── */}
+      <Dialog open={approveShortHoursTarget !== null} onOpenChange={(open) => !open && setApproveShortHoursTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmer l'accord d'heures</DialogTitle>
+            <DialogDescription>
+              Cette action sera enregistrée dans le calcul de salaire de {approveShortHoursTarget?.item.teacherName}.
+            </DialogDescription>
+          </DialogHeader>
+          {approveShortHoursTarget ? (
+            <div className="space-y-2">
+              <div className="rounded-lg border border-border p-3 text-sm">
+                <p className="font-medium">{approveShortHoursTarget.item.courseName} • {approveShortHoursTarget.item.className}</p>
+                <p className="mt-1 text-muted-foreground">{formatDate(approveShortHoursTarget.item.date)}</p>
+                {approveShortHoursTarget.item.slotLabel ? (
+                  <p className="mt-0.5 text-muted-foreground">Créneau : {approveShortHoursTarget.item.slotLabel}</p>
+                ) : null}
+                {approveShortHoursTarget.item.roomName ? (
+                  <p className="mt-0.5 text-muted-foreground">Salle : {approveShortHoursTarget.item.roomName}</p>
+                ) : null}
+              </div>
+              <p className="text-sm font-medium">Heures accordées : {approveShortHoursTarget.label}</p>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setApproveShortHoursTarget(null)}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              disabled={approveMutation.isPending || !approveShortHoursTarget}
+              onClick={() => {
+                if (!approveShortHoursTarget) return
+                approveMutation.mutate({
+                  attendanceId: approveShortHoursTarget.item.attendanceId,
+                  validatedHours: approveShortHoursTarget.validatedHours,
+                })
+                setApproveShortHoursTarget(null)
+              }}
+            >
+              {approveMutation.isPending ? "Validation..." : "Confirmer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Modale valider présence suspecte ────────────────────────────────── */}
       <Dialog open={approveTarget !== null} onOpenChange={(open) => !open && setApproveTarget(null)}>
         <DialogContent>
           <DialogHeader>
@@ -482,6 +657,7 @@ export default function ValidationsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Modale refuser présence suspecte ────────────────────────────────── */}
       <Dialog open={rejectTarget !== null} onOpenChange={(open) => !open && setRejectTarget(null)}>
         <DialogContent>
           <DialogHeader>
@@ -518,39 +694,126 @@ export default function ValidationsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={invalidateTarget !== null} onOpenChange={(open) => !open && setInvalidateTarget(null)}>
+      {/* ── Modale action scan de fin (Avertir / Sanctionner) ───────────────── */}
+      <Dialog
+        open={endScanActionTarget !== null}
+        onOpenChange={(open) => !open && setEndScanActionTarget(null)}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Ne pas comptabiliser ce cours</DialogTitle>
+            <DialogTitle>
+              {endScanActionTarget?.action === "warned"
+                ? "Tolérer avec avertissement"
+                : "Sanctionner l'enseignant"}
+            </DialogTitle>
             <DialogDescription>
-              {invalidateTarget?.teacherName} — {invalidateTarget?.subject} du {invalidateTarget ? formatDate(invalidateTarget.date) : ""}
+              {endScanActionTarget?.teacher.teacherName} — {endScanActionTarget?.session.subject} du{" "}
+              {endScanActionTarget ? formatDate(endScanActionTarget.session.date) : ""}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Input
-              value={invalidateReason}
-              onChange={(event) => setInvalidateReason(event.target.value)}
-              placeholder="Motif (ex: enseignant absent, scan oublié...)"
-            />
-            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>Ce cours sera marqué comme &quot;non comptabilisé&quot; et l&apos;enseignant sera notifié.</span>
+          {endScanActionTarget ? (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-border p-3 text-sm space-y-1">
+                <p className="text-muted-foreground">Créneau : {endScanActionTarget.session.timeSlot}</p>
+                {endScanActionTarget.session.roomName ? (
+                  <p className="text-muted-foreground">Salle : {endScanActionTarget.session.roomName}</p>
+                ) : null}
+              </div>
+              {endScanActionTarget.action === "warned" ? (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>Le salaire de l'enseignant reste intact. Un message d'avertissement lui sera envoyé.</span>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                  <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>Ce cours ne sera pas comptabilisé. L'enseignant devra se rendre à l'administration pour se justifier.</span>
+                </div>
+              )}
             </div>
-          </div>
+          ) : null}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setInvalidateTarget(null)}>
+            <Button type="button" variant="outline" onClick={() => setEndScanActionTarget(null)}>
               Annuler
             </Button>
             <Button
               type="button"
-              variant="destructive"
-              disabled={invalidateMutation.isPending || invalidateReason.trim().length < 3 || !invalidateTarget}
+              variant={endScanActionTarget?.action === "sanctioned" ? "destructive" : "default"}
+              disabled={endScanActionMutation.isPending || !endScanActionTarget}
               onClick={() => {
-                if (!invalidateTarget) return
-                invalidateMutation.mutate({ attendanceId: invalidateTarget.attendanceId, reason: invalidateReason.trim() })
+                if (!endScanActionTarget) return
+                endScanActionMutation.mutate({
+                  attendanceId: endScanActionTarget.session.attendanceId,
+                  action: endScanActionTarget.action,
+                  reason:
+                    endScanActionTarget.action === "warned"
+                      ? "Scan de fin manquant — toléré avec avertissement"
+                      : "Scan de fin manquant — sanctionné",
+                })
               }}
             >
-              {invalidateMutation.isPending ? "En cours..." : "Confirmer"}
+              {endScanActionMutation.isPending
+                ? "En cours..."
+                : endScanActionTarget?.action === "warned"
+                  ? "Confirmer l'avertissement"
+                  : "Confirmer la sanction"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Modale annulation de sanction ───────────────────────────────────── */}
+      <Dialog
+        open={cancelSanctionTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCancelSanctionTarget(null)
+            setCancelSanctionReason("")
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Annuler la sanction</DialogTitle>
+            <DialogDescription>
+              {cancelSanctionTarget?.teacher.teacherName} — {cancelSanctionTarget?.session.subject} du{" "}
+              {cancelSanctionTarget ? formatDate(cancelSanctionTarget.session.date) : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Input
+              value={cancelSanctionReason}
+              onChange={(event) => setCancelSanctionReason(event.target.value)}
+              placeholder="Motif de l'annulation (ex: erreur de saisie, situation résolue...)"
+            />
+            <div className="flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">
+              <Info className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>Le cours sera à nouveau comptabilisé et l'enseignant recevra une notification d'information.</span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setCancelSanctionTarget(null)
+                setCancelSanctionReason("")
+              }}
+            >
+              Fermer
+            </Button>
+            <Button
+              type="button"
+              disabled={cancelSanctionMutation.isPending || cancelSanctionReason.trim().length < 3 || !cancelSanctionTarget}
+              onClick={() => {
+                if (!cancelSanctionTarget) return
+                cancelSanctionMutation.mutate({
+                  attendanceId: cancelSanctionTarget.session.attendanceId,
+                  reason: cancelSanctionReason.trim(),
+                })
+              }}
+            >
+              {cancelSanctionMutation.isPending ? "Annulation..." : "Confirmer l'annulation"}
             </Button>
           </DialogFooter>
         </DialogContent>

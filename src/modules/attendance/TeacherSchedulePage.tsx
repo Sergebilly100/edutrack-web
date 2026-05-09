@@ -6,6 +6,7 @@ import { teacherScheduleApi, type ScheduleSlot } from "@/modules/attendance/atte
 import CourseCard from "@/modules/attendance/components/CourseCard"
 import DayPicker, { startOfWeekMonday, toDateKey } from "@/modules/attendance/components/DayPicker"
 import TeacherCheckInFlow from "@/modules/attendance/components/TeacherCheckInFlow"
+import TeacherNotificationsPanel from "@/modules/attendance/components/TeacherNotificationsPanel"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -176,24 +177,26 @@ export default function TeacherSchedulePage() {
 
   return (
     <div className="space-y-4 pb-4" data-testid="teacher-schedule-page">
-      <header className="rounded-lg border bg-card p-4 shadow-sm">
-        <p className="text-xs font-semibold uppercase text-muted-foreground">Aujourd'hui et semaine</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Mon planning</h1>
+      
+      {!isOnline ? <OfflineIndicator forceState="offline" /> : <OfflineIndicator />}
+
+      <header className="rounded-lg border bg-card p-4 shadow-sm !mt-0">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="text-xs font-semibold uppercase text-muted-foreground">Aujourd'hui et semaine</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight">Mon planning</h1>
+          </div>
+          <TeacherNotificationsPanel />
+        </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <span className="font-medium">Semaine du {formatDateRange(weekStart, weekEnd)}</span>
           <span aria-hidden="true">
-            <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">{formatSelectedDate(selectedDate)}</Badge>
+            <Badge variant="outline" className="border-muted-200 bg-muted-3 00 text-muted-700">{formatSelectedDate(selectedDate)}</Badge>
           </span>
         </div>
       </header>
 
-      {!isOnline ? <OfflineIndicator forceState="offline" /> : <OfflineIndicator />}
-
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg font-semibold">Votre mois en cours</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <header className="rounded-lg border bg-card p-4 shadow-sm">
           {complianceQuery.isLoading ? (
             <div className="space-y-2">
               <Skeleton className="h-5 w-40" />
@@ -207,7 +210,7 @@ export default function TeacherSchedulePage() {
           ) : (
             <>
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-medium">Taux de conformité</p>
+                <p className="text-sm font-medium mb-2">Taux de conformité du mois</p>
                 <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
                   {Math.round(complianceQuery.data?.complianceRate ?? 0)}%
                 </Badge>
@@ -218,8 +221,7 @@ export default function TeacherSchedulePage() {
               </p>
             </>
           )}
-        </CardContent>
-      </Card>
+      </header>
 
       <DayPicker
         selectedDate={selectedDate}

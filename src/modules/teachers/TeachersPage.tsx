@@ -242,11 +242,11 @@ function TeacherRankingPanel({
   return (
     <div className="space-y-4">
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-        <div className="flex flex-col gap-4 bg-muted/30 px-4 py-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-4 bg-[var(--surface-chrome)] px-4 py-4 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1">
-            <p className="text-sm font-semibold">Classement conformité scan</p>
+            <p className="text-sm font-semibold">Classement de conformité</p>
             <p className="text-xs text-muted-foreground">
-              Classement mensuel basé sur les scans de fin de cours.
+              Classement mensuel basé sur les taux de présence, salle correcte,pointage des élèves et les scans de fin de cours.
             </p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -337,7 +337,7 @@ function TeacherRankingPanel({
                 <div className="min-w-0 md:w-80">
                   <div className="mb-1 flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">
-                      {teacher.totalCheckouts}/{teacher.totalCheckins} scans de fin
+                      Taux de conformité
                     </span>
                     <span className="font-semibold">{Math.round(teacher.complianceRate)}%</span>
                   </div>
@@ -631,7 +631,7 @@ export default function TeachersPage() {
 
         <TabsContent value="liste" className="space-y-6">
           <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-            <div className="flex flex-col gap-4 bg-muted/30 px-4 py-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-4 bg-[var(--surface-chrome)] px-4 py-4 md:flex-row md:items-center md:justify-between">
               <div className="space-y-1">
                 <p className="text-sm font-semibold">Pilotage professeurs</p>
                 <p className="text-xs text-muted-foreground">

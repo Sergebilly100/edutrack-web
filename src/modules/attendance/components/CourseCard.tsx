@@ -116,7 +116,7 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
           !checkinQrDone &&
           "border-primary",
         status === "missed" && "border-red-300",
-        status === "done" && "bg-muted/30",
+        status === "done" && "bg-green-100/30",
         rollCallPending && rollCallStillOpen && "border-amber-300 bg-amber-50/40 dark:bg-amber-950/20",
         checkinQrDone && rollCallStillOpen && "border-blue-200 bg-blue-50/30 dark:bg-blue-950/20"
       )}
@@ -166,8 +166,8 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
           {/* Cours terminé avec pointage */}
           {status === "done" ? (
             <Badge
-              variant="outline"
-              className="text-xs"
+              variant="success"
+              className="text-xs border-green-200 bg-green-50 text-green-700"
               data-testid={`teacher-course-status-${slot.id}`}
             >
               {attendance?.status === "late" ? (
@@ -264,8 +264,8 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
             <Button
               type="button"
               size="sm"
-              variant="outline"
-              className="w-full border-green-300 bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-950/30 dark:text-green-200 sm:w-auto"
+              variant="default"
+              className="w-full sm:w-auto"
               data-testid={`teacher-finish-course-${slot.id}`}
               onClick={() => onStartCourse(slot)}
             >

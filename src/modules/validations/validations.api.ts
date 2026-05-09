@@ -25,6 +25,8 @@ export type PendingValidationItem = {
   validationReason: string | null
   hourlyRate: number | null
   kind: ValidationKind
+  slotLabel: string | null
+  roomName: string | null
 }
 
 export type PendingValidationGroups = {
@@ -63,6 +65,8 @@ const normalizeItem = (value: unknown): PendingValidationItem => {
     validationReason: asNullableString(row.validationReason ?? row.validation_reason),
     hourlyRate: asNullableNumber(row.hourlyRate ?? row.hourly_rate),
     kind,
+    slotLabel: asNullableString(row.slotLabel ?? row.slot_label),
+    roomName: asNullableString(row.roomName ?? row.room_name),
   }
 }
 
@@ -108,20 +112,34 @@ export const rejectValidation = async (input: {
 
 // ── Missing end-scan types & API ────────────────────────────────────────────
 
+export type EndScanAction = "warned" | "sanctioned"
+
 export type MissingEndScanSession = {
   date: string
   scheduleId: string
   attendanceId: string
   subject: string
   timeSlot: string
+  roomName: string | null
+  endScanAction: EndScanAction | null
+  endScanActionReason: string | null
+  endScanActionAt: string | null
+  endScanActionCancelledAt: string | null
 }
 
 export type MissingEndScanTeacher = {
   teacherId: string
   teacherName: string
   missingEndScanCount: number
+  warningCount: number
+  sanctionCount: number
   sessions: MissingEndScanSession[]
   warningSent: boolean
+}
+
+const normalizeEndScanAction = (value: unknown): EndScanAction | null => {
+  if (value === "warned" || value === "sanctioned") return value
+  return null
 }
 
 const normalizeMissingEndScanTeacher = (value: unknown): MissingEndScanTeacher => {
@@ -135,6 +153,11 @@ const normalizeMissingEndScanTeacher = (value: unknown): MissingEndScanTeacher =
           attendanceId: asString(session.attendanceId ?? session.attendance_id),
           subject: asString(session.subject, "--"),
           timeSlot: asString(session.timeSlot ?? session.time_slot, "--"),
+          roomName: asNullableString(session.roomName ?? session.room_name),
+          endScanAction: normalizeEndScanAction(session.endScanAction ?? session.end_scan_action),
+          endScanActionReason: asNullableString(session.endScanActionReason ?? session.end_scan_action_reason),
+          endScanActionAt: asNullableString(session.endScanActionAt ?? session.end_scan_action_at),
+          endScanActionCancelledAt: asNullableString(session.endScanActionCancelledAt ?? session.end_scan_action_cancelled_at),
         }
       })
     : []
@@ -142,6 +165,8 @@ const normalizeMissingEndScanTeacher = (value: unknown): MissingEndScanTeacher =
     teacherId: asString(row.teacherId ?? row.teacher_id),
     teacherName: asString(row.teacherName ?? row.teacher_name, "Enseignant"),
     missingEndScanCount: asNumber(row.missingEndScanCount ?? row.missing_end_scan_count),
+    warningCount: asNumber(row.warningCount ?? row.warning_count),
+    sanctionCount: asNumber(row.sanctionCount ?? row.sanction_count),
     sessions,
     warningSent: row.warningSent === true || row.warning_sent === true,
   }
@@ -167,4 +192,64 @@ export const invalidateSession = async (attendanceId: string, reason: string): P
     attendance_id: attendanceId,
     reason,
   })
+}
+
+export const applyEndScanAction = async (input: {
+  attendanceId: string
+  action: EndScanAction
+  reason: string
+}): Promise<void> => {
+  await api.post("/validations/end-scan-action", {
+    attendance_id: input.attendanceId,
+    action: input.action,
+    reason: input.reason,
+  })
+}
+
+export const cancelEndScanSanction = async (input: {
+  attendanceId: string
+  reason: string
+}): Promise<void> => {
+  await api.post("/validations/cancel-end-scan-sanction", {
+    attendance_id: input.attendanceId,
+    reason: input.reason,
+  })
+}
+
+// ── Teacher in-app notifications ────────────────────────────────────────────
+
+export type TeacherNotificationItem = {
+  id: string
+  type: string
+  message: string
+  createdAt: string
+  readAt: string | null
+  metadata: Record<string, unknown> | null
+}
+
+const normalizeTeacherNotification = (value: unknown): TeacherNotificationItem => {
+  const row = isRecord(value) ? value : {}
+  const metadata = isRecord(row.metadata) ? (row.metadata as Record<string, unknown>) : null
+  return {
+    id: asString(row.id),
+    type: asString(row.type),
+    message: asString(row.message),
+    createdAt: asString(row.createdAt ?? row.created_at),
+    readAt: asNullableString(row.readAt ?? row.read_at ?? metadata?.read_at),
+    metadata,
+  }
+}
+
+export const fetchTeacherNotifications = async (): Promise<TeacherNotificationItem[]> => {
+  const response = await api.get<unknown>("/teacher/notifications")
+  const payload = response.data
+  return Array.isArray(payload) ? payload.map(normalizeTeacherNotification) : []
+}
+
+export const markTeacherNotificationRead = async (notificationId: string): Promise<void> => {
+  await api.patch(`/teacher/notifications/${notificationId}/read`)
+}
+
+export const markAllTeacherNotificationsRead = async (): Promise<void> => {
+  await api.patch("/teacher/notifications/read-all")
 }

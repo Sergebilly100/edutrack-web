@@ -334,7 +334,7 @@ export default function StudentsPage() {
 
         <TabsContent value="liste" className="space-y-4">
           <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-            <div className="flex flex-col gap-4 bg-muted/30 px-4 py-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-4 bg-[var(--surface-chrome)] px-4 py-4 md:flex-row md:items-center md:justify-between">
               <div className="space-y-1">
                 <p className="text-sm font-semibold">Vue opérationnelle élèves</p>
                 <p className="text-xs text-muted-foreground">

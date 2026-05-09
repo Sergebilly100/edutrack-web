@@ -61,8 +61,12 @@ const motivationalMessages = [
   "Votre taux de conformité est visible par la direction. Gardez le cap",
 ]
 
-const randomMotivationalMessage =
-  motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)]
+const motivationalByStep: Record<1 | 2 | 3 | 4, string> = {
+  1: "Votre ponctualité est notée par la direction. Bonne séance !",
+  2: "La vérification de salle protège votre dossier. Encore une étape.",
+  3: "L'appel des élèves complète votre dossier. Vous êtes presque au bout !",
+  4: motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)],
+}
 
 const getGeoPosition = async (enabled: boolean) => {
   if (!enabled || !("geolocation" in navigator)) {
@@ -182,7 +186,6 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
   })
   const canSkipQrStep = attendancePolicyQuery.data?.allow_teacher_qr_skip ?? false
   const geoCheckEnabled = attendancePolicyQuery.data?.geo_check_enabled ?? false
-  const motivationalMessage = randomMotivationalMessage
 
   const { absentCount, presentCount, unmarkedCount } = useMemo(() => {
     let absent = 0; let present = 0; let unmarked = 0
@@ -513,6 +516,10 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                 Votre présence sera confirmée après la vérification de la salle.
               </p>
 
+              <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
+                {motivationalByStep[1]}
+              </p>
+
               <Button
                 type="button"
                 size="lg"
@@ -538,6 +545,10 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                   Scannez le QR code de la salle pour confirmer votre présence.
                 </p>
               </div>
+
+              <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
+                {motivationalByStep[2]}
+              </p>
 
               <QRScanner
                 scheduleId={slot.id}
@@ -711,6 +722,10 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                 </div>
               ) : null}
 
+              <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
+                {motivationalByStep[3]}
+              </p>
+
               {/* Point 3 — Bouton désactivé tant que tous les élèves ne sont pas marqués */}
               <Button
                 type="button"
@@ -739,7 +754,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                 <p className="text-xs text-green-700">
                   Début : {formatTime(slot.start_time)} - Salle {slot.room_name}
                 </p>
-                <p className="text-xs text-green-700">{motivationalMessage}</p>
+                <p className="text-xs text-green-700">{motivationalByStep[4]}</p>
               </div>
 
               <Button

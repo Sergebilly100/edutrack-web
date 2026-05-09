@@ -68,7 +68,7 @@ export default function DayPicker({ selectedDate, onChange, highlightDates = [] 
           {days.map((day, index) => {
             const selected = isSameDay(day, selectedDate)
             // ✅ FIX bug 3 : compare la date complète (année/mois/jour), pas juste le jour de semaine
-            // isSameDay("2025-04-21") === isSameDay("2025-04-28") → false ✓
+            // isSameDay("2025-04-21") === isSameDay("2025-04-28") -> false
             const isToday = isSameDay(day, today)
             const highlighted = highlights.has(toDateKey(day))
 
@@ -99,16 +99,17 @@ export default function DayPicker({ selectedDate, onChange, highlightDates = [] 
                 <span className="mt-0.5 text-sm font-semibold tabular-nums leading-none">
                   {day.getDate()}
                 </span>
-                {highlighted ? (
-                  <span
-                    className={cn(
-                      "mt-1 h-1 w-1 rounded-full",
-                      selected ? "bg-primary-foreground" : "bg-primary"
-                    )}
-                  />
-                ) : (
-                  <span className="mt-1 h-1 w-1" />
-                )}
+                {isToday ? (
+                    <span
+                      className={cn(
+                        "mt-1 h-1 w-1 rounded-full",
+                        selected ? "bg-primary-foreground" : "bg-primary"
+                      )}
+                    />
+                  ) : (
+                    <span className="mt-1 h-1 w-1" />
+                  )
+                }
               </button>
             )
           })}
