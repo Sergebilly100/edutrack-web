@@ -36,6 +36,7 @@ export type SalaryUnpaidAlertResponse = {
 export type SalarySummaryResponse = {
   month: string
   items: SalarySummaryItem[]
+  lastComputedAt: string | null
 }
 
 export type SalaryDetailAttendanceStatus = "present" | "absent" | "late" | "excused" | "not_marked"
@@ -253,6 +254,7 @@ export const getSalarySummary = async (month: string): Promise<SalarySummaryResp
   return {
     month: asString(payload.month, month),
     items,
+    lastComputedAt: asNullableString(payload.lastComputedAt),
   }
 }
 

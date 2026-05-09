@@ -293,9 +293,13 @@ function TeacherRankingPanel({
         </div>
       </div>
 
-      {complianceQuery.isError ? (
+      {complianceQuery.isError && complianceQuery.error ? (
         <Alert variant="destructive">
-          <AlertDescription>Impossible de charger le classement des professeurs.</AlertDescription>
+          <AlertDescription>
+            {axios.isAxiosError(complianceQuery.error) && complianceQuery.error.response?.status === 404
+              ? "Aucune donnée de classement disponible pour ce mois. Les professeurs doivent d'abord pointer pour apparaître ici."
+              : "Impossible de charger le classement des professeurs. Vérifiez votre connexion."}
+          </AlertDescription>
         </Alert>
       ) : null}
 

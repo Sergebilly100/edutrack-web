@@ -240,7 +240,10 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
   }
 
   if (monthlyQuery.isError || !monthlyQuery.data) {
-    return <p className="text-sm text-red-600">Impossible de charger les présences du mois.</p>
+    const errorMessage = monthlyQuery.error && isAxiosError(monthlyQuery.error) && monthlyQuery.error.response?.status === 404
+      ? "Aucune donnée de présence disponible pour ce mois."
+      : "Impossible de charger les présences du mois. Vérifiez votre connexion."
+    return <p className="text-sm text-red-600">{errorMessage}</p>
   }
 
   const data = monthlyQuery.data
@@ -576,7 +579,10 @@ function SyntheseInfos({ teacherId, canViewSalary }: { teacherId: string; canVie
   }
 
   if (monthlyQuery.isError || !monthlyQuery.data) {
-    return <p className="text-sm text-red-600">Impossible de charger les infos de présences du mois.</p>
+    const errorMessage = monthlyQuery.error && isAxiosError(monthlyQuery.error) && monthlyQuery.error.response?.status === 404
+      ? "Aucune donnée de présence disponible pour ce mois."
+      : "Impossible de charger les infos de présences du mois. Vérifiez votre connexion."
+    return <p className="text-sm text-red-600">{errorMessage}</p>
   }
 
   const data = monthlyQuery.data

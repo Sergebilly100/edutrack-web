@@ -730,14 +730,27 @@ export default function SalariesPage() {
               </div>
 
               {canComputeSalaries ? (
-                <Button
-                  type="button"
-                  onClick={() => setComputeDialogOpen(true)}
-                  disabled={isSelectedMonthFuture || computeMutation.isPending}
-                  data-testid="salaries-compute-button"
-                >
-                  Calculer les salaires
-                </Button>
+                <div className="flex flex-col gap-1">
+                  <Button
+                    type="button"
+                    onClick={() => setComputeDialogOpen(true)}
+                    disabled={isSelectedMonthFuture || computeMutation.isPending}
+                    data-testid="salaries-compute-button"
+                  >
+                    Calculer les salaires
+                  </Button>
+                  {salarySummaryQuery.data?.lastComputedAt ? (
+                    <p className="text-xs text-muted-foreground">
+                      Dernier calcul : {new Date(salarySummaryQuery.data.lastComputedAt).toLocaleString("fr-FR", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit"
+                      })}
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
 
               <Button
