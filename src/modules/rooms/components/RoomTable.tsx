@@ -20,7 +20,7 @@ const formatCapacity = (value: number | null): string => (value === null ? "Non 
 
 const formatGps = (room: RoomListItem): string => {
   if (room.latitude !== null && room.longitude !== null) {
-    const radius = room.geoRadius !== null ? `${room.geoRadius}m` : "sans rayon"
+    const radius = room.geoRadius !== null ? `${room.geoRadius}m` : "rayon désactivé"
     return `GPS configuré (${radius})`
   }
   return "GPS non configuré"

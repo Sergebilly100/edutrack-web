@@ -1,5 +1,5 @@
 import { apiClient as api } from "@/shared/api/client"
-import { asBoolean, asNullableString, asNumber, asString, isRecord } from "@/shared/utils/parsers"
+import { asBoolean, asNullableNumber, asNullableString, asNumber, asString, isRecord } from "@/shared/utils/parsers"
 
 export type RoomListItem = {
   id: string
@@ -8,7 +8,7 @@ export type RoomListItem = {
   capacity: number | null
   latitude: number | null
   longitude: number | null
-  geoRadius: number
+  geoRadius: number | null
   isActive: boolean
   createdAt: string
   stats: {
@@ -23,15 +23,6 @@ export type RoomQrPayload = {
   qrUrl: string
 }
 
-const asNullableNumber = (value: unknown): number | null => {
-  if (typeof value === "number" && Number.isFinite(value)) return value
-  if (typeof value === "string") {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : null
-  }
-  return null
-}
-
 const parseRoom = (value: unknown): RoomListItem => {
   const row = isRecord(value) ? value : {}
   const stats = isRecord(row.stats) ? row.stats : {}
@@ -43,7 +34,7 @@ const parseRoom = (value: unknown): RoomListItem => {
     capacity: asNullableNumber(row.capacity),
     latitude: asNullableNumber(row.latitude),
     longitude: asNullableNumber(row.longitude),
-    geoRadius: asNumber(row.geoRadius ?? row.geo_radius, 100),
+    geoRadius: asNullableNumber(row.geoRadius ?? row.geo_radius),
     isActive: asBoolean(row.isActive, true),
     createdAt: asString(row.createdAt),
     stats: {

@@ -18,5 +18,15 @@ export const asNumber = (value: unknown, fallback = 0): number => {
   return fallback
 }
 
+export const asNullableNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined) return null
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string") {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return null
+}
+
 export const asBoolean = (value: unknown, fallback = false): boolean =>
   typeof value === "boolean" ? value : fallback
