@@ -1,37 +1,9 @@
 import { apiClient as api } from "@/shared/api/client"
+import { getCurrentMonth, getPreviousMonth } from "@/shared/utils/month"
+import { asBoolean, asNullableString, asNumber, asString, isRecord } from "@/shared/utils/parsers"
 import axios from "axios"
 
 type AttendanceStatus = "present" | "absent" | "late" | "excused" | null
-
-type UnknownRecord = Record<string, unknown>
-
-const isRecord = (value: unknown): value is UnknownRecord =>
-  typeof value === "object" && value !== null
-
-const asNumber = (value: unknown, fallback = 0): number => {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value
-  }
-
-  if (typeof value === "string") {
-    const parsed = Number(value)
-    if (Number.isFinite(parsed)) {
-      return parsed
-    }
-  }
-
-  return fallback
-}
-
-const asString = (value: unknown, fallback = ""): string => {
-  return typeof value === "string" ? value : fallback
-}
-
-const asNullableString = (value: unknown): string | null => {
-  return typeof value === "string" && value.length > 0 ? value : null
-}
-
-const asBoolean = (value: unknown): boolean => value === true
 
 const resolvePayload = (payload: unknown): unknown => {
   if (!isRecord(payload)) {
@@ -65,16 +37,9 @@ const toStatus = (value: unknown): AttendanceStatus => {
 
 const toMonthStart = (month: string): string => `${month}-01`
 
-export const getCurrentMonthKey = (date = new Date()): string => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  return `${year}-${month}`
-}
+export const getCurrentMonthKey = (_date?: Date): string => getCurrentMonth()
 
-export const getPreviousMonthKey = (date = new Date()): string => {
-  const previous = new Date(Date.UTC(date.getFullYear(), date.getMonth() - 1, 1))
-  return getCurrentMonthKey(previous)
-}
+export const getPreviousMonthKey = (_date?: Date): string => getPreviousMonth(getCurrentMonth())
 
 const startOfWeekMonday = (date: Date): Date => {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
@@ -162,6 +127,10 @@ export type DashboardTeacherComplianceItem = {
   totalCheckins: number
   totalCheckouts: number
   complianceRate: number
+  scanEndRate: number
+  roomCorrectRate: number
+  rollcallRate: number
+  attendanceRate: number
   rank: number
 }
 
@@ -633,6 +602,10 @@ export const getTeacherCompliance = async (month: string): Promise<DashboardTeac
       totalCheckins: asNumber(row.totalCheckins ?? row.total_checkins),
       totalCheckouts: asNumber(row.totalCheckouts ?? row.total_checkouts),
       complianceRate: asNumber(row.complianceRate ?? row.compliance_rate),
+      scanEndRate: asNumber(row.scanEndRate ?? row.scan_end_rate),
+      roomCorrectRate: asNumber(row.roomCorrectRate ?? row.room_correct_rate),
+      rollcallRate: asNumber(row.rollcallRate ?? row.rollcall_rate),
+      attendanceRate: asNumber(row.attendanceRate ?? row.attendance_rate),
       rank: asNumber(row.rank),
     }
   })

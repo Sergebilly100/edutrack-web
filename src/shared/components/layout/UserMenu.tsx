@@ -13,6 +13,7 @@ import {
 import { logout } from "@/modules/auth/auth.api"
 import { cn } from "@/lib/utils"
 import { LogoutIcon, UserIcon } from "@/shared/components/icons"
+import { getAvatarColor, getInitials } from "@/shared/utils/avatar"
 import { getUserRoleLabel } from "@/shared/lib/user-role-label"
 import { useAuthStore } from "@/shared/store/auth.store"
 
@@ -20,16 +21,6 @@ interface UserMenuProps {
   collapsed?: boolean
 }
 
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).slice(0, 2)
-  return parts.map((part) => part[0]?.toUpperCase() ?? "").join("") || "ET"
-}
-
-function getAvatarColor(name: string): string {
-  const hash = name.split("").reduce((total, char) => total + char.charCodeAt(0), 0)
-  const hue = hash % 360
-  return `hsl(${hue} 60% 92%)`
-}
 
 export function UserMenu({ collapsed = false }: UserMenuProps) {
   const navigate = useNavigate()

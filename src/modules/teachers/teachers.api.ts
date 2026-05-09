@@ -1,4 +1,5 @@
 import { apiClient as api } from "@/shared/api/client"
+import { asBoolean, asNullableString, asNumber, asString, isRecord } from "@/shared/utils/parsers"
 
 export type TeacherType = "vacataire" | "permanent"
 
@@ -131,28 +132,8 @@ export type ExportTeacherHoursInput = {
   dateTo: string
 }
 
-type UnknownRecord = Record<string, unknown>
-
-const toRecord = (value: unknown): UnknownRecord =>
-  typeof value === "object" && value !== null ? (value as UnknownRecord) : {}
-
-const toString = (value: unknown, fallback = ""): string =>
-  typeof value === "string" ? value : fallback
-
-const toNullableString = (value: unknown): string | null =>
-  typeof value === "string" && value.length > 0 ? value : null
-
-const toNumber = (value: unknown, fallback = 0): number => {
-  if (typeof value === "number" && Number.isFinite(value)) return value
-  if (typeof value === "string") {
-    const parsed = Number(value)
-    if (Number.isFinite(parsed)) return parsed
-  }
-  return fallback
-}
-
-const toBoolean = (value: unknown, fallback = true): boolean =>
-  typeof value === "boolean" ? value : fallback
+const toRecord = (value: unknown): Record<string, unknown> =>
+  typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {}
 
 const splitName = (name: string): { firstName: string; lastName: string } => {
   const trimmed = name.trim()
@@ -177,19 +158,19 @@ const normalizeSubjects = (value: unknown): string[] => {
 
 const mapTeacher = (value: unknown): TeacherListItem => {
   const item = toRecord(value)
-  const rawName = toString(item.name)
-  const firstNameFromPayload = toString(item.first_name) || toString(item.firstName)
-  const lastNameFromPayload = toString(item.last_name) || toString(item.lastName)
+  const rawName = asString(item.name)
+  const firstNameFromPayload = asString(item.first_name) || asString(item.firstName)
+  const lastNameFromPayload = asString(item.last_name) || asString(item.lastName)
 
-  const isActive = toBoolean(item.is_active ?? item.isActive, true)
+  const isActive = asBoolean(item.is_active ?? item.isActive, true)
 
   // is_blocked est maintenant un champ dédié sur teachers, renvoyé directement
   // par l'API. On ne le déduit plus de !isActive pour éviter les faux positifs.
-  const isBlocked = toBoolean(item.is_blocked ?? item.isBlocked, false)
+  const isBlocked = asBoolean(item.is_blocked ?? item.isBlocked, false)
 
   // blocked_reason et blocked_at sont eux aussi des champs dédiés sur teachers.
-  const blockReason = toNullableString(item.blocked_reason ?? item.blockReason)
-  const blockedAt = toNullableString(item.blocked_at ?? item.blockedAt)
+  const blockReason = asNullableString(item.blocked_reason ?? item.blockReason)
+  const blockedAt = asNullableString(item.blocked_at ?? item.blockedAt)
 
   const fromName = splitName(rawName)
   const firstName = firstNameFromPayload || fromName.firstName || "Prof"
@@ -197,39 +178,39 @@ const mapTeacher = (value: unknown): TeacherListItem => {
   const fullName = `${firstName} ${lastName}`.trim()
 
   return {
-    id: toString(item.id),
+    id: asString(item.id),
     firstName,
     lastName,
     fullName,
-    phone: toNullableString(item.phone),
-    type: (toString(item.type) === "permanent" ? "permanent" : "vacataire") as TeacherType,
+    phone: asNullableString(item.phone),
+    type: (asString(item.type) === "permanent" ? "permanent" : "vacataire") as TeacherType,
     subjects: normalizeSubjects(item.subjects ?? item.subject),
     hourlyRate:
       item.hourly_rate === null
         ? null
         : item.hourlyRate === null
           ? null
-          : toNumber(item.hourly_rate ?? item.hourlyRate, 0),
+          : asNumber(item.hourly_rate ?? item.hourlyRate, 0),
     monthlySalary:
       item.monthly_salary === null || item.monthlySalary === null
         ? null
         : item.monthly_salary === undefined && item.monthlySalary === undefined
           ? null
-          : toNumber(item.monthly_salary ?? item.monthlySalary, 0),
+          : asNumber(item.monthly_salary ?? item.monthlySalary, 0),
     isActive,
     isBlocked,
     blockReason,
     blockedAt,
-    username: toString(item.username),
+    username: asString(item.username),
   }
 }
 
 const mapPagination = (value: unknown, defaults?: GetTeachersParams): TeachersPagination => {
   const pagination = toRecord(value)
-  const page = toNumber(pagination.page, defaults?.page ?? 1)
-  const limit = toNumber(pagination.limit, defaults?.limit ?? 10)
-  const total = toNumber(pagination.total, 0)
-  const totalPages = toNumber(
+  const page = asNumber(pagination.page, defaults?.page ?? 1)
+  const limit = asNumber(pagination.limit, defaults?.limit ?? 10)
+  const total = asNumber(pagination.total, 0)
+  const totalPages = asNumber(
     pagination.totalPages ?? pagination.total_pages,
     total === 0 ? 0 : Math.ceil(total / Math.max(1, limit))
   )
@@ -381,9 +362,9 @@ export async function getTeacherStats(
   const data = toRecord(payload.data ?? payload)
 
   return {
-    attendanceRate: toNumber(data.attendanceRate ?? data.attendance_rate, 0),
-    hoursWorked: toNumber(data.hoursWorked ?? data.hours_worked, 0),
-    amountDue: toNumber(data.amountDue ?? data.amount_due, 0),
+    attendanceRate: asNumber(data.attendanceRate ?? data.attendance_rate, 0),
+    hoursWorked: asNumber(data.hoursWorked ?? data.hours_worked, 0),
+    amountDue: asNumber(data.amountDue ?? data.amount_due, 0),
   }
 }
 
@@ -415,33 +396,33 @@ export async function getTeacherMonthlyAttendance(
   const rows = rowsRaw.map((item): TeacherMonthlyAttendanceRow => {
     const row = toRecord(item)
     return {
-      date: toString(row.date),
-      scheduleId: toNullableString(row.scheduleId),
-      className: toString(row.className, "--"),
-      subject: toString(row.subject, "--"),
-      dayOfWeek: toNumber(row.dayOfWeek, 0),
-      slotLabel: toString(row.slotLabel, "--"),
-      startTime: toString(row.startTime, "--"),
-      endTime: toString(row.endTime, "--"),
+      date: asString(row.date),
+      scheduleId: asNullableString(row.scheduleId),
+      className: asString(row.className, "--"),
+      subject: asString(row.subject, "--"),
+      dayOfWeek: asNumber(row.dayOfWeek, 0),
+      slotLabel: asString(row.slotLabel, "--"),
+      startTime: asString(row.startTime, "--"),
+      endTime: asString(row.endTime, "--"),
       attendanceStatus: toAttendanceStatus(row.attendanceStatus),
-      checkedInAt: toNullableString(row.checkedInAt),
-      checkedOutAt: toNullableString(row.checkedOutAt),
-      lateMinutes: row.lateMinutes === null ? null : toNumber(row.lateMinutes, 0),
-      roomMismatch: toBoolean(row.roomMismatch, false),
-      rollcallDone: toBoolean(row.rollcallDone, false),
-      rollcallMissing: toBoolean(row.rollcallMissing, false),
-      hoursPlanned: toNumber(row.hoursPlanned, 0),
-      hoursDone: toNumber(row.hoursDone, 0),
+      checkedInAt: asNullableString(row.checkedInAt),
+      checkedOutAt: asNullableString(row.checkedOutAt),
+      lateMinutes: row.lateMinutes === null ? null : asNumber(row.lateMinutes, 0),
+      roomMismatch: asBoolean(row.roomMismatch, false),
+      rollcallDone: asBoolean(row.rollcallDone, false),
+      rollcallMissing: asBoolean(row.rollcallMissing, false),
+      hoursPlanned: asNumber(row.hoursPlanned, 0),
+      hoursDone: asNumber(row.hoursDone, 0),
     }
   })
 
   return {
-    month: toString(payload.month, month),
+    month: asString(payload.month, month),
     summary: {
-      hoursPlanned: toNumber(summary.hoursPlanned, 0),
-      hoursDone: toNumber(summary.hoursDone, 0),
-      totalFcfa: summary.totalFcfa === null ? null : toNumber(summary.totalFcfa, 0),
-      status: toString(summary.status, "pending"),
+      hoursPlanned: asNumber(summary.hoursPlanned, 0),
+      hoursDone: asNumber(summary.hoursDone, 0),
+      totalFcfa: summary.totalFcfa === null ? null : asNumber(summary.totalFcfa, 0),
+      status: asString(summary.status, "pending"),
     },
     rows,
   }
@@ -494,8 +475,8 @@ export const fetchClasses = async (): Promise<ClassOption[]> => {
   return data.map((item) => {
     const row = toRecord(item)
     return {
-      id: toString(row.id),
-      name: toString(row.name),
+      id: asString(row.id),
+      name: asString(row.name),
     }
   })
 }
@@ -508,3 +489,8 @@ export const fetchTeacherOptions = async (): Promise<TeacherOption[]> => {
     subjects: teacher.subjects,
   }))
 }
+
+// Re-exports to avoid cross-module imports in TeachersPage / TeacherDetailPage
+export { getTeacherCompliance, type DashboardTeacherComplianceItem } from "@/modules/dashboard/dashboard.api"
+export { getTeacherSalaryDetails, type SalaryTeacherDetails } from "@/modules/salaries/salaries.api"
+export { fetchWeeklySchedule } from "@/modules/schedule/schedule.api"

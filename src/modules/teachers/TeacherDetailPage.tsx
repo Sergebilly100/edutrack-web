@@ -36,11 +36,9 @@ import {
   unblockTeacher,
   type TeacherUpsertPayload,
   updateTeacher,
-} from "@/modules/teachers/teachers.api"
-import { fetchWeeklySchedule } from "@/modules/schedule/schedule.api"
-import {
+  fetchWeeklySchedule,
   getTeacherSalaryDetails,
-} from "@/modules/salaries/salaries.api"
+} from "@/modules/teachers/teachers.api"
 import {
   DocumentList,
   DocumentUpload,
@@ -50,6 +48,8 @@ import {
 } from "@/shared/components"
 import { BackIcon, WarningIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { getCurrentMonth, formatMonthLabel } from "@/shared/utils/month"
+import { computeAbsenceHours, computeRemainingHours, toDisplayedStatus, toSortableTime } from "@/shared/utils/salary-helpers"
 
 const updateTeacherErrorMessages: Record<string, string> = {
   TEACHER_TYPE_CHANGE_BLOCKED:
@@ -78,18 +78,12 @@ const resolveUpdateTeacherErrorMessage = (error: unknown): string => {
   return fallback
 }
 
-const getCurrentMonth = () => {
-  const now = new Date()
-  const month = String(now.getMonth() + 1).padStart(2, "0")
-  return `${now.getFullYear()}-${month}`
-}
-
-const getRecentMonthOptions = (count = 12): Array<{ value: string; label: string }> => {
+const getRecentMonthOptionsWithLabels = (count = 12): Array<{ value: string; label: string }> => {
   const now = new Date()
   return Array.from({ length: count }).map((_, index) => {
     const date = new Date(now.getFullYear(), now.getMonth() - index, 1)
     const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
-    const label = date.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+    const label = formatMonthLabel(value)
     return { value, label }
   })
 }
@@ -120,24 +114,6 @@ const dayMeta: Record<number, { label: string; className: string }> = {
   7: { label: "Dimanche", className: "border-slate-200 bg-slate-50 text-slate-700" },
 }
 
-const toDisplayedStatus = (status: string, isPartiallyPaid: boolean | null): string => {
-  if (status === "Salaire fixe") {
-    return "Salaire fixe"
-  }
-  if (status === "disputed") {
-    return "Litige"
-  }
-  if (status === "nothing_to_pay") {
-    return "Rien à payer"
-  }
-  if (isPartiallyPaid) {
-    return "Payé partiellement"
-  }
-  if (status === "paid") {
-    return "Payé"
-  }
-  return "En attente"
-}
 
 function WeeklyScheduleCard({ teacherId }: { teacherId: string }) {
   const [showFullWeek, setShowFullWeek] = useState(false)
@@ -218,7 +194,7 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
   const [month, setMonth] = useState(getCurrentMonth())
   const [page, setPage] = useState(1)
   const pageSize = 12
-  const monthOptions = useMemo(() => getRecentMonthOptions(18), [])
+  const monthOptions = useMemo(() => getRecentMonthOptionsWithLabels(18), [])
 
   const monthlyQuery = useQuery({
     queryKey: ["teacher", teacherId, "monthly-attendance", month],
@@ -248,12 +224,6 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
 
   const data = monthlyQuery.data
   const todayIso = new Date().toISOString().slice(0, 10)
-  const toSortableTime = (value: string) => {
-    const trimmed = value.trim()
-    if (/^\d{2}:\d{2}:\d{2}$/.test(trimmed)) return trimmed.slice(0, 5)
-    if (/^\d{2}:\d{2}$/.test(trimmed)) return trimmed
-    return "00:00"
-  }
   const rowsSorted = [...data.rows]
     .filter((row) => row.date <= todayIso)
     .sort((a, b) => {
@@ -263,23 +233,8 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
 
   const now = new Date()
   const allRows = [...data.rows]
-  const absenceHours = allRows.reduce((acc, row) => {
-    const rowDateTime = new Date(`${row.date}T${toSortableTime(row.endTime)}:00`)
-    if (
-      rowDateTime.getTime() <= now.getTime() &&
-      (row.attendanceStatus === "absent" || row.attendanceStatus === "not_marked")
-    ) {
-      return acc + row.hoursPlanned
-    }
-    return acc
-  }, 0)
-  const remainingHours = allRows.reduce((acc, row) => {
-    const rowDateTime = new Date(`${row.date}T${toSortableTime(row.startTime)}:00`)
-    if (rowDateTime.getTime() > now.getTime()) {
-      return acc + row.hoursPlanned
-    }
-    return acc
-  }, 0)
+  const absenceHours = computeAbsenceHours(allRows, now)
+  const remainingHours = computeRemainingHours(allRows, now)
 
   const totalPages = Math.max(1, Math.ceil(rowsSorted.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -578,6 +533,18 @@ function SyntheseInfos({ teacherId, canViewSalary }: { teacherId: string; canVie
     )
   }
 
+  if (monthlyQuery.isLoading) {
+    return (
+      <div className="grid gap-px bg-border sm:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="bg-background px-4 py-3">
+            <Skeleton className="h-10 w-full" />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   if (monthlyQuery.isError || !monthlyQuery.data) {
     const errorMessage = monthlyQuery.error && isAxiosError(monthlyQuery.error) && monthlyQuery.error.response?.status === 404
       ? "Aucune donnée de présence disponible pour ce mois."
@@ -587,33 +554,10 @@ function SyntheseInfos({ teacherId, canViewSalary }: { teacherId: string; canVie
 
   const data = monthlyQuery.data
 
-  const toSortableTime = (value: string) => {
-    const trimmed = value.trim()
-    if (/^\d{2}:\d{2}:\d{2}$/.test(trimmed)) return trimmed.slice(0, 5)
-    if (/^\d{2}:\d{2}$/.test(trimmed)) return trimmed
-    return "00:00"
-  }
-
   const now = new Date()
   const allRows = [...data.rows]
-  const absenceHours = allRows.reduce((acc, row) => {
-    const rowDateTime = new Date(`${row.date}T${toSortableTime(row.endTime)}:00`)
-    if (
-      rowDateTime.getTime() <= now.getTime() &&
-      (row.attendanceStatus === "absent" || row.attendanceStatus === "not_marked")
-    ) {
-      return acc + row.hoursPlanned
-    }
-    return acc
-  }, 0)
-
-  const remainingHours = allRows.reduce((acc, row) => {
-    const rowDateTime = new Date(`${row.date}T${toSortableTime(row.startTime)}:00`)
-    if (rowDateTime.getTime() > now.getTime()) {
-      return acc + row.hoursPlanned
-    }
-    return acc
-  }, 0)
+  const absenceHours = computeAbsenceHours(allRows, now)
+  const remainingHours = computeRemainingHours(allRows, now)
 
   return (
     <div className="grid gap-px bg-border sm:grid-cols-5">

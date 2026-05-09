@@ -43,6 +43,8 @@ import {
   writeDashboardDismissedNotificationIds,
 } from "@/shared/lib/dashboard-notifications"
 import { useAuthStore } from "@/shared/store/auth.store"
+import { getInitials } from "@/shared/utils/avatar"
+import { formatFcfa } from "@/shared/utils/formatting"
 
 const QUERY_STALE_TIME = 60_000
 const TODAY_REFETCH_INTERVAL = 120_000
@@ -74,7 +76,6 @@ const formatHours = (value: string): string => {
   })
 }
 
-const formatFcfa = (amount: number): string => `${new Intl.NumberFormat("fr-FR").format(amount)} FCFA`
 
 const buildCourseDateTime = (date: string, time: string): Date | null => {
   if (!date || !time) {
@@ -117,22 +118,6 @@ const courseStatusMeta: Record<string, { label: string; className: string }> = {
   },
 }
 
-const getInitials = (name: string): string => {
-  const parts = name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-
-  if (parts.length === 0) {
-    return "?"
-  }
-
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase()
-  }
-
-  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase()
-}
 
 type DashboardSalaryRow = DashboardSalarySummaryItem & {
   salaryRowStatus: SalaryStatus

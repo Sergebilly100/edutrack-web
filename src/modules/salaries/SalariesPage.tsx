@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
-import { CalendarDays, ChevronLeft, ChevronRight, Download, TriangleAlert, Wallet } from "lucide-react"
+import { ChevronLeft, ChevronRight, Download, TriangleAlert } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -38,13 +38,15 @@ import {
   type SalaryTeacherDetails,
   type SalarySummaryItem,
 } from "@/modules/salaries/salaries.api"
-import { getPendingValidationCount } from "@/modules/validations/validations.api"
-import { ContextualHelp, EmptyState, OfflineIndicator, SalaryRow, StatCard, emptyStateIcons } from "@/shared/components"
+import { usePendingValidationCount } from "@/shared/hooks/usePendingValidationCount"
+import { SalarySummaryCards } from "@/modules/salaries/components/SalarySummaryCards"
+import { SalaryExportSection } from "@/modules/salaries/components/SalaryExportSection"
+import { ContextualHelp, EmptyState, OfflineIndicator, SalaryRow, emptyStateIcons } from "@/shared/components"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { formatFcfa } from "@/shared/utils/formatting"
 
 const STALE_TIME = 60_000
 
-const formatFcfa = (value: number): string => `${new Intl.NumberFormat("fr-FR").format(value)} FCFA`
 
 const resolveDownloadFileName = (downloadUrl: string | null): string | null => {
   if (!downloadUrl) {
@@ -243,12 +245,7 @@ export default function SalariesPage() {
     staleTime: STALE_TIME,
   })
 
-  const validationCountQuery = useQuery({
-    queryKey: ["validations", "pending", "count", "salaries"],
-    queryFn: getPendingValidationCount,
-    staleTime: STALE_TIME,
-    refetchInterval: 5 * 60_000,
-  })
+  const validationCountQuery = usePendingValidationCount()
 
   const exportJobQuery = useQuery({
     queryKey: ["salaries", "export-job", exportJobId],
@@ -774,82 +771,23 @@ export default function SalariesPage() {
             <p className="text-sm text-amber-700">Le calcul est désactivé pour un mois futur.</p>
           ) : null}
 
-          {exportJobId ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-3 text-sm" data-testid="salaries-export-job-panel">
-              <Badge variant="outline">
-                {exportFileName ? `Fichier: ${exportFileName}` : "Fichier d'export en préparation"}
-              </Badge>
-              <Badge
-                variant="outline"
-                className={cn(
-                  exportJobQuery.data?.state === "failed" ? "border-red-200 bg-red-50 text-red-700" : "",
-                  exportJobQuery.data?.state === "done" ? "border-green-200 bg-green-50 text-green-700" : ""
-                )}
-              >
-                {exportJobQuery.data?.state === "done"
-                  ? "Terminé"
-                  : exportJobQuery.data?.state === "failed"
-                    ? "Échec"
-                    : "Génération en cours"}
-              </Badge>
-
-              {exportJobQuery.data?.downloadUrl ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={handleDownloadExport}
-                  disabled={isDownloadingExport}
-                >
-                    <Download className="mr-2 h-4 w-4" />
-                    <span data-testid="salaries-export-download-link">
-                      {isDownloadingExport ? "Téléchargement..." : "Télécharger"}
-                    </span>
-                </Button>
-              ) : null}
-
-              {exportJobQuery.data?.state === "running" || exportJobQuery.data?.state === "queued" ? (
-                <span className="text-xs text-muted-foreground">
-                  Merci de patienter, le fichier sera téléchargeable automatiquement dès qu&apos;il est prêt.
-                </span>
-              ) : null}
-
-              {!exportJobQuery.data?.downloadUrl && exportJobQuery.data?.state === "done" ? (
-                <span className="text-xs text-muted-foreground">PDF généré, URL non fournie par l'API.</span>
-              ) : null}
-
-              {exportJobQuery.data?.state === "failed" ? (
-                <span className="text-xs text-red-700">{exportJobQuery.data.failedReason ?? "Erreur inconnue"}</span>
-              ) : null}
-            </div>
-          ) : null}
+          <SalaryExportSection
+            exportJobId={exportJobId}
+            exportFileName={exportFileName}
+            exportJobState={exportJobQuery.data?.state}
+            downloadUrl={exportJobQuery.data?.downloadUrl}
+            failedReason={exportJobQuery.data?.failedReason}
+            isDownloading={isDownloadingExport}
+            onDownload={handleDownloadExport}
+          />
         </header>
 
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <StatCard
-            title="Total à payer"
-            value={formatFcfa(totalPending)}
-            subtitle="Somme des salaires à régler"
-            icon={<Wallet className="h-4 w-4" />}
-            variant="warning"
-            loading={salarySummaryQuery.isLoading}
-          />
-          <StatCard
-            title="Total payé"
-            value={formatFcfa(totalPaid)}
-            subtitle="Somme des salaires payé"
-            icon={<Download className="h-4 w-4" />}
-            variant="success"
-            loading={salarySummaryQuery.isLoading}
-          />
-          <StatCard
-            title="Profs vacataires"
-            value={vacataireRows.length}
-            subtitle="En exercice ce mois"
-            icon={<CalendarDays className="h-4 w-4" />}
-            variant="default"
-            loading={salarySummaryQuery.isLoading}
-          />
-        </section>
+        <SalarySummaryCards
+          totalPending={totalPending}
+          totalPaid={totalPaid}
+          vacataireCount={vacataireRows.length}
+          loading={salarySummaryQuery.isLoading}
+        />
 
         {(validationCountQuery.data?.total ?? 0) > 0 ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
@@ -1440,7 +1378,7 @@ export default function SalariesPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={computeDialogOpen} onOpenChange={setComputeDialogOpen}>
+      <Dialog open={computeDialogOpen} onOpenChange={setComputeDialogOpen} key={`compute-${selectedMonth}`}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirmer le calcul</DialogTitle>

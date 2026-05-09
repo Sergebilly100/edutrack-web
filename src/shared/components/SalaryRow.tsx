@@ -5,8 +5,11 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { TableCell, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import { getAvatarColor, getInitials } from "@/shared/utils/avatar"
+import { formatFcfa } from "@/shared/utils/formatting"
 
-export type SalaryStatus = "pending" | "paid" | "disputed" | "nothing_to_pay"
+import type { SalaryStatus } from "@/shared/utils/salary-helpers"
+export type { SalaryStatus } from "@/shared/utils/salary-helpers"
 
 export interface SalaryRowTeacher {
   id: string
@@ -70,33 +73,6 @@ const statusMeta: Record<SalaryStatus, { label: string; className: string; icon:
   },
 }
 
-const getInitials = (name: string) => {
-  const parts = name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-  if (parts.length === 0) {
-    return "?"
-  }
-
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase()
-  }
-
-  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase()
-}
-
-const getAvatarColor = (name: string) => {
-  let hash = 0
-  for (let index = 0; index < name.length; index += 1) {
-    hash = (hash * 31 + name.charCodeAt(index)) | 0
-  }
-
-  const hue = Math.abs(hash) % 360
-  return `hsl(${hue} 85% 92%)`
-}
-
-const formatFcfa = (amount: number) => `${new Intl.NumberFormat("fr-FR").format(amount)} FCFA`
 
 const getProgressColor = (ratio: number) => {
   if (ratio >= 90) {

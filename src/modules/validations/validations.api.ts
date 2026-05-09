@@ -1,24 +1,5 @@
 import { apiClient as api } from "@/shared/api/client"
-
-type UnknownRecord = Record<string, unknown>
-
-const isRecord = (value: unknown): value is UnknownRecord =>
-  typeof value === "object" && value !== null
-
-const asString = (value: unknown, fallback = ""): string =>
-  typeof value === "string" ? value : fallback
-
-const asNullableString = (value: unknown): string | null =>
-  typeof value === "string" && value.length > 0 ? value : null
-
-const asNumber = (value: unknown, fallback = 0): number => {
-  if (typeof value === "number" && Number.isFinite(value)) return value
-  if (typeof value === "string") {
-    const parsed = Number(value)
-    if (Number.isFinite(parsed)) return parsed
-  }
-  return fallback
-}
+import { asNullableString, asNumber, asString, isRecord } from "@/shared/utils/parsers"
 
 const asNullableNumber = (value: unknown): number | null => {
   if (value === null || value === undefined) return null
@@ -123,4 +104,67 @@ export const rejectValidation = async (input: {
   reason: string
 }): Promise<void> => {
   await api.patch(`/validations/${input.attendanceId}/reject`, { reason: input.reason })
+}
+
+// ── Missing end-scan types & API ────────────────────────────────────────────
+
+export type MissingEndScanSession = {
+  date: string
+  scheduleId: string
+  attendanceId: string
+  subject: string
+  timeSlot: string
+}
+
+export type MissingEndScanTeacher = {
+  teacherId: string
+  teacherName: string
+  missingEndScanCount: number
+  sessions: MissingEndScanSession[]
+  warningSent: boolean
+}
+
+const normalizeMissingEndScanTeacher = (value: unknown): MissingEndScanTeacher => {
+  const row = isRecord(value) ? value : {}
+  const sessions = Array.isArray(row.sessions)
+    ? row.sessions.map((s: unknown) => {
+        const session = isRecord(s) ? s : {}
+        return {
+          date: asString(session.date),
+          scheduleId: asString(session.scheduleId ?? session.schedule_id),
+          attendanceId: asString(session.attendanceId ?? session.attendance_id),
+          subject: asString(session.subject, "--"),
+          timeSlot: asString(session.timeSlot ?? session.time_slot, "--"),
+        }
+      })
+    : []
+  return {
+    teacherId: asString(row.teacherId ?? row.teacher_id),
+    teacherName: asString(row.teacherName ?? row.teacher_name, "Enseignant"),
+    missingEndScanCount: asNumber(row.missingEndScanCount ?? row.missing_end_scan_count),
+    sessions,
+    warningSent: row.warningSent === true || row.warning_sent === true,
+  }
+}
+
+export const fetchMissingEndScans = async (month: string): Promise<MissingEndScanTeacher[]> => {
+  const response = await api.get<unknown>("/validations/missing-end-scans", { params: { month } })
+  const payload = response.data
+  return Array.isArray(payload) ? payload.map(normalizeMissingEndScanTeacher) : []
+}
+
+export const sendEndScanWarning = async (teacherIds: string[], month: string): Promise<{ sentCount: number }> => {
+  const response = await api.post<unknown>("/validations/send-end-scan-warning", {
+    teacher_ids: teacherIds,
+    month,
+  })
+  const data = isRecord(response.data) ? response.data : {}
+  return { sentCount: asNumber(data.sentCount ?? data.sent_count) }
+}
+
+export const invalidateSession = async (attendanceId: string, reason: string): Promise<void> => {
+  await api.patch("/validations/invalidate-session", {
+    attendance_id: attendanceId,
+    reason,
+  })
 }

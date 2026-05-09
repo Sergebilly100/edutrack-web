@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import type { ColumnDef, Column } from "@tanstack/react-table"
-import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import axios from "axios"
 
@@ -37,16 +37,18 @@ import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import TeacherAnalysisPanel from "@/modules/teachers/components/TeacherAnalysisPanel"
 import TeacherForm from "@/modules/teachers/components/TeacherForm"
-import { getCurrentMonthKey, getTeacherCompliance, type DashboardTeacherComplianceItem } from "@/modules/dashboard/dashboard.api"
 import {
   blockTeacher,
   createTeacher,
   exportTeacherHours,
-  getTeacherStats,
+  fetchTeacherAttendanceStats,
+  getTeacherCompliance,
   getTeachers,
   unblockTeacher,
+  type DashboardTeacherComplianceItem,
   type TeacherListItem,
 } from "@/modules/teachers/teachers.api"
+import { getCurrentMonth } from "@/shared/utils/month"
 import {
   AddIcon,
   AppIcon,
@@ -194,7 +196,7 @@ function TeacherRankingPanel({
 }: {
   teachers: TeacherListItem[]
 }) {
-  const [month, setMonth] = useState(() => getCurrentMonthKey(new Date()))
+  const [month, setMonth] = useState(() => getCurrentMonth())
   const [subject, setSubject] = useState("all")
   const rankingTeachersQuery = useQuery({
     queryKey: ["teachers", "ranking", "subject-options"],
@@ -256,7 +258,7 @@ function TeacherRankingPanel({
                 id="ranking-month"
                 type="month"
                 value={month}
-                onChange={(event) => setMonth(event.target.value || getCurrentMonthKey(new Date()))}
+                onChange={(event) => setMonth(event.target.value || getCurrentMonth())}
               />
             </div>
             <div className="space-y-1">
@@ -342,6 +344,20 @@ function TeacherRankingPanel({
                   <Progress value={Math.max(0, Math.min(100, teacher.complianceRate))} />
                 </div>
               </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <Badge variant="outline" className={teacher.attendanceRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.attendanceRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
+                  Présence {Math.round(teacher.attendanceRate)}%
+                </Badge>
+                <Badge variant="outline" className={teacher.scanEndRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.scanEndRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
+                  Scan fin {Math.round(teacher.scanEndRate)}%
+                </Badge>
+                <Badge variant="outline" className={teacher.roomCorrectRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.roomCorrectRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
+                  Salle {Math.round(teacher.roomCorrectRate)}%
+                </Badge>
+                <Badge variant="outline" className={teacher.rollcallRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.rollcallRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
+                  Pointage {Math.round(teacher.rollcallRate)}%
+                </Badge>
+              </div>
             </div>
           ))
         )}
@@ -402,21 +418,23 @@ export default function TeachersPage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b, "fr"))
   }, [teachers])
 
-  const statsQueries = useQueries({
-    queries: teachers.map((teacher) => ({
-      queryKey: ["teacher-stats", teacher.id, last30Days.dateFrom, last30Days.dateTo],
-      queryFn: () => getTeacherStats(teacher.id, last30Days.dateFrom, last30Days.dateTo),
-      staleTime: 1000 * 60 * 2,
-    })),
+  const bulkStatsQuery = useQuery({
+    queryKey: ["teacher-stats-bulk", last30Days.dateFrom, last30Days.dateTo],
+    queryFn: () => fetchTeacherAttendanceStats({ from: last30Days.dateFrom, to: last30Days.dateTo }),
+    staleTime: 1000 * 60 * 2,
   })
 
   const statsMap = useMemo<TeacherStatsMap>(() => {
-    return teachers.reduce<TeacherStatsMap>((acc, teacher, index) => {
-      const result = statsQueries[index]?.data
-      if (result) acc[teacher.id] = result
-      return acc
-    }, {})
-  }, [statsQueries, teachers])
+    const acc: TeacherStatsMap = {}
+    for (const row of bulkStatsQuery.data ?? []) {
+      acc[row.teacher_id] = {
+        attendanceRate: row.attendance_rate ?? 0,
+        hoursWorked: row.hours_done ?? 0,
+        amountDue: 0,
+      }
+    }
+    return acc
+  }, [bulkStatsQuery.data])
 
   const createMutation = useMutation({
     mutationFn: createTeacher,

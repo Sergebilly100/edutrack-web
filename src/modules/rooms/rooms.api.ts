@@ -1,6 +1,5 @@
 import { apiClient as api } from "@/shared/api/client"
-
-type UnknownRecord = Record<string, unknown>
+import { asBoolean, asNullableString, asNumber, asString, isRecord } from "@/shared/utils/parsers"
 
 export type RoomListItem = {
   id: string
@@ -24,33 +23,14 @@ export type RoomQrPayload = {
   qrUrl: string
 }
 
-const isRecord = (value: unknown): value is UnknownRecord =>
-  typeof value === "object" && value !== null
-
-const asString = (value: unknown, fallback = ""): string =>
-  typeof value === "string" ? value : fallback
-
-const asNullableString = (value: unknown): string | null =>
-  typeof value === "string" && value.length > 0 ? value : null
-
 const asNullableNumber = (value: unknown): number | null => {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value
-  }
+  if (typeof value === "number" && Number.isFinite(value)) return value
   if (typeof value === "string") {
     const parsed = Number(value)
     return Number.isFinite(parsed) ? parsed : null
   }
   return null
 }
-
-const asNumber = (value: unknown, fallback = 0): number => {
-  const parsed = asNullableNumber(value)
-  return parsed ?? fallback
-}
-
-const asBoolean = (value: unknown, fallback = false): boolean =>
-  typeof value === "boolean" ? value : fallback
 
 const parseRoom = (value: unknown): RoomListItem => {
   const row = isRecord(value) ? value : {}

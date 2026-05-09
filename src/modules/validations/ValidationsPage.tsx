@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CheckCircle2, CircleX, Info, TriangleAlert } from "lucide-react"
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, CircleX, Info, Send, TriangleAlert } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,16 +12,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { EmptyState, OfflineIndicator, emptyStateIcons } from "@/shared/components"
+import { getCurrentMonth, getRecentMonthOptions, formatMonthLabel } from "@/shared/utils/month"
 import {
   approveValidation,
+  fetchMissingEndScans,
   getPendingValidations,
+  invalidateSession,
   rejectValidation,
+  sendEndScanWarning,
+  type MissingEndScanTeacher,
   type PendingValidationItem,
 } from "./validations.api"
 
@@ -74,6 +81,13 @@ export default function ValidationsPage() {
   const [rejectTarget, setRejectTarget] = useState<PendingValidationItem | null>(null)
   const [rejectReason, setRejectReason] = useState("")
 
+  // End-scan tab state
+  const [endScanMonth, setEndScanMonth] = useState(() => getCurrentMonth())
+  const [expandedTeacher, setExpandedTeacher] = useState<string | null>(null)
+  const [invalidateTarget, setInvalidateTarget] = useState<{ attendanceId: string; teacherName: string; subject: string; date: string } | null>(null)
+  const [invalidateReason, setInvalidateReason] = useState("")
+  const endScanMonthOptions = useMemo(() => getRecentMonthOptions(getCurrentMonth(), 12), [])
+
   const pendingQuery = useQuery({
     queryKey: ["validations", "pending"],
     queryFn: getPendingValidations,
@@ -109,6 +123,37 @@ export default function ValidationsPage() {
       toast({ title: "Présence refusée", description: "L'enseignant sera notifié." })
     },
   })
+
+  // End-scan queries/mutations
+  const endScanQuery = useQuery({
+    queryKey: ["validations", "missing-end-scans", endScanMonth],
+    queryFn: () => fetchMissingEndScans(endScanMonth),
+    staleTime: 60_000,
+  })
+
+  const warnMutation = useMutation({
+    mutationFn: (teacherIds: string[]) => sendEndScanWarning(teacherIds, endScanMonth),
+    onSuccess: async (data) => {
+      await queryClient.invalidateQueries({ queryKey: ["validations", "missing-end-scans"] })
+      toast({ title: "Avertissement envoyé", description: `${data.sentCount} enseignant(s) notifié(s).` })
+    },
+  })
+
+  const invalidateMutation = useMutation({
+    mutationFn: (params: { attendanceId: string; reason: string }) => invalidateSession(params.attendanceId, params.reason),
+    onSuccess: async () => {
+      setInvalidateTarget(null)
+      setInvalidateReason("")
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["validations", "missing-end-scans"] }),
+        queryClient.invalidateQueries({ queryKey: ["salaries"] }),
+      ])
+      toast({ title: "Cours invalidé", description: "Le cours ne sera pas comptabilisé." })
+    },
+  })
+
+  const endScanTeachers = endScanQuery.data ?? []
+  const endScanTotal = endScanTeachers.reduce((sum, t) => sum + t.missingEndScanCount, 0)
 
   const selectedAmount = useMemo(() => {
     if (!rejectTarget?.hourlyRate) return null
@@ -250,6 +295,112 @@ export default function ValidationsPage() {
     )
   }
 
+  const renderEndScanTab = () => {
+    if (endScanQuery.isLoading) return <LoadingRows />
+    if (endScanTeachers.length === 0) {
+      return <EmptyState icon={emptyStateIcons.allGood} title="Aucun scan de fin manquant" message="Tous les enseignants ont effectué leur scan de fin pour ce mois." />
+    }
+
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">{endScanTeachers.length} enseignant(s), {endScanTotal} cours sans scan de fin</p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={warnMutation.isPending}
+            onClick={() => warnMutation.mutate(endScanTeachers.map((t) => t.teacherId))}
+          >
+            <Send className="mr-2 h-4 w-4" />
+            {warnMutation.isPending ? "Envoi..." : "Avertir tous"}
+          </Button>
+        </div>
+
+        <div className="space-y-2">
+          {endScanTeachers.map((teacher) => (
+            <Collapsible
+              key={teacher.teacherId}
+              open={expandedTeacher === teacher.teacherId}
+              onOpenChange={(open) => setExpandedTeacher(open ? teacher.teacherId : null)}
+            >
+              <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                <CollapsibleTrigger className="flex items-center gap-2 text-left">
+                  {expandedTeacher === teacher.teacherId ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <span className="font-medium">{teacher.teacherName}</span>
+                  <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                    {teacher.missingEndScanCount} cours
+                  </Badge>
+                  {teacher.warningSent ? (
+                    <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+                      Averti
+                    </Badge>
+                  ) : null}
+                </CollapsibleTrigger>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={warnMutation.isPending}
+                  onClick={() => warnMutation.mutate([teacher.teacherId])}
+                >
+                  <Send className="mr-2 h-3 w-3" />
+                  Avertir
+                </Button>
+              </div>
+
+              <CollapsibleContent>
+                <div className="ml-6 mt-1 overflow-x-auto rounded-lg border border-border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Matière</TableHead>
+                        <TableHead>Créneau</TableHead>
+                        <TableHead className="text-right">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {teacher.sessions.map((session) => (
+                        <TableRow key={session.attendanceId}>
+                          <TableCell>{formatDate(session.date)}</TableCell>
+                          <TableCell>{session.subject}</TableCell>
+                          <TableCell>{session.timeSlot}</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="destructive"
+                              className="min-h-[36px]"
+                              onClick={() =>
+                                setInvalidateTarget({
+                                  attendanceId: session.attendanceId,
+                                  teacherName: teacher.teacherName,
+                                  subject: session.subject,
+                                  date: session.date,
+                                })
+                              }
+                            >
+                              Ne pas comptabiliser
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <>
       <OfflineIndicator />
@@ -263,6 +414,10 @@ export default function ValidationsPage() {
           <TabsList>
             <TabsTrigger value="gps">Présences suspectes ({groups.gps_suspicious.length})</TabsTrigger>
             <TabsTrigger value="hours">Heures à valider ({groups.short_hours.length})</TabsTrigger>
+            <TabsTrigger value="end-scan">
+              <AlertTriangle className="mr-1 h-3.5 w-3.5" />
+              Scan de fin ({endScanTotal})
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="gps" className="space-y-4">
             <InfoBox>Ces enseignants ont été détectés hors du périmètre de la salle au moment du scan. Vérifiez avec eux avant de valider.</InfoBox>
@@ -271,6 +426,24 @@ export default function ValidationsPage() {
           <TabsContent value="hours" className="space-y-4">
             <InfoBox>Ces enseignants ont terminé leur cours avant l'heure prévue. Choisissez les heures à accorder.</InfoBox>
             {renderShortHoursTable(groups.short_hours)}
+          </TabsContent>
+          <TabsContent value="end-scan" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <InfoBox>Ces enseignants ont pointé leur arrivée mais n'ont pas effectué le scan de fin de cours.</InfoBox>
+              <Select value={endScanMonth} onValueChange={setEndScanMonth}>
+                <SelectTrigger className="ml-4 w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {endScanMonthOptions.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {formatMonthLabel(m)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {renderEndScanTab()}
           </TabsContent>
         </Tabs>
       </div>
@@ -340,6 +513,44 @@ export default function ValidationsPage() {
               }}
             >
               {rejectMutation.isPending ? "Refus..." : "Confirmer refus"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={invalidateTarget !== null} onOpenChange={(open) => !open && setInvalidateTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ne pas comptabiliser ce cours</DialogTitle>
+            <DialogDescription>
+              {invalidateTarget?.teacherName} — {invalidateTarget?.subject} du {invalidateTarget ? formatDate(invalidateTarget.date) : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Input
+              value={invalidateReason}
+              onChange={(event) => setInvalidateReason(event.target.value)}
+              placeholder="Motif (ex: enseignant absent, scan oublié...)"
+            />
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>Ce cours sera marqué comme &quot;non comptabilisé&quot; et l&apos;enseignant sera notifié.</span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setInvalidateTarget(null)}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={invalidateMutation.isPending || invalidateReason.trim().length < 3 || !invalidateTarget}
+              onClick={() => {
+                if (!invalidateTarget) return
+                invalidateMutation.mutate({ attendanceId: invalidateTarget.attendanceId, reason: invalidateReason.trim() })
+              }}
+            >
+              {invalidateMutation.isPending ? "En cours..." : "Confirmer"}
             </Button>
           </DialogFooter>
         </DialogContent>

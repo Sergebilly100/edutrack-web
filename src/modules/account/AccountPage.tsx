@@ -8,6 +8,7 @@ import { z } from "zod"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { getInitials } from "@/shared/utils/avatar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Form,
@@ -46,10 +47,6 @@ const passwordSchema = z
 type ProfileValues = z.infer<typeof profileSchema>
 type PasswordValues = z.infer<typeof passwordSchema>
 
-const getInitials = (name: string): string => {
-  const parts = name.trim().split(/\s+/).slice(0, 2)
-  return parts.map((part) => part[0]?.toUpperCase() ?? "").join("") || "ET"
-}
 
 export default function AccountPage() {
   const { toast } = useToast()

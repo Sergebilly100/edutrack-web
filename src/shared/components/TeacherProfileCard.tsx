@@ -3,6 +3,7 @@ import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { getAvatarColor, getInitials } from "@/shared/utils/avatar"
 
 type TeacherProfile = {
   id: string
@@ -29,28 +30,6 @@ type TeacherProfileCardProps = {
   onViewDocuments: (teacherId: string) => void
 }
 
-const getInitials = (value: string) => {
-  const parts = value
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-  if (parts.length === 0) {
-    return "?"
-  }
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase()
-  }
-
-  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase()
-}
-
-const getAvatarBackground = (value: string) => {
-  let hash = 0
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) | 0
-  }
-  return `hsl(${Math.abs(hash) % 360} 85% 92%)`
-}
 
 const formatHours = (value: number) => `${value}h`
 
@@ -70,7 +49,7 @@ export function TeacherProfileCard({
         <div className="flex flex-col items-center text-center">
           <div
             className="flex h-20 w-20 items-center justify-center rounded-full border border-border/60 text-xl font-semibold text-slate-700 dark:text-slate-700"
-            style={{ backgroundColor: getAvatarBackground(teacher.name) }}
+            style={{ backgroundColor: getAvatarColor(teacher.name) }}
           >
             {getInitials(teacher.name)}
           </div>

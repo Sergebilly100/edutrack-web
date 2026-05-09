@@ -1,4 +1,14 @@
 import { apiClient as api } from "@/shared/api/client"
+import {
+  addMonths,
+  formatMonthLabel,
+  getCurrentMonth,
+  getNextMonth,
+  getPreviousMonth,
+  getRecentMonthOptions,
+  isFutureMonth,
+} from "@/shared/utils/month"
+import { asNullableString, asNumber, asString, isRecord } from "@/shared/utils/parsers"
 
 export type SalaryStatus = "pending" | "paid" | "disputed" | "nothing_to_pay"
 
@@ -137,46 +147,7 @@ export type ExportJobStatus = {
   failedReason: string | null
 }
 
-type UnknownRecord = Record<string, unknown>
 
-const isRecord = (value: unknown): value is UnknownRecord =>
-  typeof value === "object" && value !== null
-
-const asString = (value: unknown, fallback = ""): string =>
-  typeof value === "string" ? value : fallback
-
-const asNullableString = (value: unknown): string | null =>
-  typeof value === "string" && value.length > 0 ? value : null
-
-const asNumber = (value: unknown, fallback = 0): number => {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value
-  }
-
-  if (typeof value === "string") {
-    const parsed = Number(value)
-    if (Number.isFinite(parsed)) {
-      return parsed
-    }
-  }
-
-  return fallback
-}
-
-const getMonthKey = (date: Date): string => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  return `${year}-${month}`
-}
-
-const addMonths = (month: string, amount: number): string => {
-  const [yearRaw, monthRaw] = month.split("-")
-  const year = Number(yearRaw)
-  const monthIndex = Number(monthRaw) - 1
-
-  const moved = new Date(Date.UTC(year, monthIndex + amount, 1))
-  return getMonthKey(moved)
-}
 
 const parseSalaryStatus = (value: unknown): SalaryStatus => {
   if (
@@ -212,36 +183,7 @@ const parseSalaryItem = (value: unknown): SalarySummaryItem => {
   }
 }
 
-export const formatMonthLabel = (month: string): string => {
-  const [yearRaw, monthRaw] = month.split("-")
-  const year = Number(yearRaw)
-  const monthIndex = Number(monthRaw) - 1
-
-  if (!Number.isInteger(year) || !Number.isInteger(monthIndex) || monthIndex < 0 || monthIndex > 11) {
-    return month
-  }
-
-  return new Intl.DateTimeFormat("fr-FR", {
-    month: "long",
-    year: "numeric",
-  }).format(new Date(Date.UTC(year, monthIndex, 1)))
-}
-
-export const getCurrentMonth = (): string => getMonthKey(new Date())
-
-export const getPreviousMonth = (month: string): string => addMonths(month, -1)
-
-export const getNextMonth = (month: string): string => addMonths(month, 1)
-
-export const getRecentMonthOptions = (aroundMonth: string, count = 18): string[] => {
-  const safeCount = Math.max(1, count)
-
-  return Array.from({ length: safeCount }, (_, index) => getPreviousMonth(addMonths(aroundMonth, 1 - index)))
-}
-
-export const isFutureMonth = (month: string): boolean => {
-  return month > getCurrentMonth()
-}
+export { addMonths, formatMonthLabel, getCurrentMonth, getNextMonth, getPreviousMonth, getRecentMonthOptions, isFutureMonth }
 
 export const getSalarySummary = async (month: string): Promise<SalarySummaryResponse> => {
   const response = await api.get("/billing/salary/summary", {

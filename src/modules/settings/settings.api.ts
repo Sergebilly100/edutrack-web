@@ -1,4 +1,5 @@
 import { apiClient } from "@/shared/api/client"
+import { asNullableString, asNumber, asString, isRecord } from "@/shared/utils/parsers"
 
 export type TeachingType = "general" | "technical" | "mixed" | "primaire" | "secondaire" | "superieur" | "mixte"
 export type SchoolPlan = "essential" | "pro" | "establishment"
@@ -68,17 +69,6 @@ export type UpdateAdministrativeUserInput = {
   phone?: string | null
 }
 
-type UnknownRecord = Record<string, unknown>
-
-const isRecord = (value: unknown): value is UnknownRecord =>
-  typeof value === "object" && value !== null
-
-const asString = (value: unknown, fallback = ""): string =>
-  typeof value === "string" ? value : fallback
-
-const asNullableString = (value: unknown): string | null =>
-  typeof value === "string" && value.length > 0 ? value : null
-
 const asStringArray = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
 
@@ -102,20 +92,7 @@ const asAssignedPositions = (value: unknown): Array<{ id: string; name: string }
     .filter((item): item is { id: string; name: string } => item !== null)
 }
 
-const asNumber = (value: unknown, fallback = 0): number => {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value
-  }
 
-  if (typeof value === "string") {
-    const parsed = Number(value)
-    if (Number.isFinite(parsed)) {
-      return parsed
-    }
-  }
-
-  return fallback
-}
 
 const parseTeachingType = (value: unknown): TeachingType => {
   if (
