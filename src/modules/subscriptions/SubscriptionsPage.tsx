@@ -191,16 +191,6 @@ export default function SubscriptionsPage() {
     refetchInterval: 0,
     enabled: featureQuery.data?.is_enabled === true,
   })
-  const activeParentsQuery = useQuery({
-    queryKey: ["subscriptions", "parents", "active-count", month],
-    queryFn: () =>
-      listSubscriptionParents({
-        status: "active",
-        month,
-        limit: 1,
-      }),
-    enabled: featureQuery.data?.is_enabled === true,
-  })
   const detailsQuery = useQuery({
     queryKey: ["subscriptions", "details", detailsTarget?.parent_id],
     queryFn: () => getParentSubscriptionDetails(detailsTarget!.parent_id),
@@ -253,8 +243,7 @@ export default function SubscriptionsPage() {
 
   const items = parentsQuery.data?.data ?? []
 
-  const activeCount = activeParentsQuery.data?.pagination.total ?? 0
-  // const monthSubscriptionsCount = parentsQuery.data?.pagination.total ?? items.length
+  const activeCount = parentsQuery.data?.data.filter((item) => item.latest_subscription?.status === "active").length ?? 0
   const monthSubscriptionsCount = useMemo(
     () => items.filter((item) => item.latest_subscription?.created_at?.startsWith(month)).length,
     [items, month]

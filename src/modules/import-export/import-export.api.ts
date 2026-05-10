@@ -1,6 +1,65 @@
 import { z } from "zod"
 import { apiClient as api } from "@/shared/api/client"
 
+// ─── Import history ───────────────────────────────────────────────────────────
+
+export type ImportHistoryItem = {
+  id: string
+  importedAt: string
+  type: "students" | "teachers" | "schedule"
+  importedCount: number
+  updatedCount: number
+}
+
+const ImportHistoryItemSchema = z.object({
+  id: z.string(),
+  imported_at: z.string(),
+  type: z.enum(["students", "teachers", "schedule"]),
+  imported_count: z.number(),
+  updated_count: z.number(),
+})
+
+const ImportHistoryResponseSchema = z.object({
+  items: z.array(ImportHistoryItemSchema).default([]),
+  total: z.number().default(0),
+  page: z.number().default(1),
+  totalPages: z.number().default(1),
+})
+
+export type ImportHistoryFilter = {
+  limit?: number
+  page?: number
+  month?: string   // "YYYY-MM"
+  type?: ImportType
+}
+
+export type ImportHistoryResult = {
+  items: ImportHistoryItem[]
+  total: number
+  page: number
+  totalPages: number
+}
+
+export const fetchImportHistory = async (filter: ImportHistoryFilter = {}): Promise<ImportHistoryResult> => {
+  const { limit = 20, page = 1, month, type } = filter
+  const response = await api.get("/import/history", {
+    params: { limit, page, ...(month ? { month } : {}), ...(type ? { type } : {}) },
+  })
+  const parsed = ImportHistoryResponseSchema.parse(response.data)
+  return {
+    items: parsed.items.map((item) => ({
+      id: item.id,
+      importedAt: item.imported_at,
+      type: item.type,
+      importedCount: item.imported_count,
+      updatedCount: item.updated_count,
+    })),
+    total: parsed.total,
+    page: parsed.page,
+    totalPages: parsed.totalPages,
+  }
+}
+
 export type ImportType = "students" | "teachers" | "schedule"
 
 export type ImportIssue = {

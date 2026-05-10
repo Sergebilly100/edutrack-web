@@ -109,14 +109,6 @@ export type ScheduleCreatePayload = {
 
 export type ScheduleUpdatePayload = ScheduleCreatePayload
 
-export type ImportHistoryItem = {
-  id: string
-  importedAt: string
-  type: "students" | "teachers" | "schedule"
-  importedCount: number
-  updatedCount: number
-}
-
 // ─── Normalisation des heures ─────────────────────────────────────────────────
 //
 // PostgreSQL retourne les colonnes `time` castées en `::text` sous la forme
@@ -209,18 +201,6 @@ const SchedulePeriodsResponseSchema = z.object({
   periods: z
     .array(z.object({ valid_from: z.string(), valid_to: z.string(), is_active: z.boolean() }))
     .default([]),
-})
-
-const ImportHistoryItemSchema = z.object({
-  id: z.string(),
-  imported_at: z.string(),
-  type: z.enum(["students", "teachers", "schedule"]),
-  imported_count: z.number(),
-  updated_count: z.number(),
-})
-
-const ImportHistoryResponseSchema = z.object({
-  items: z.array(ImportHistoryItemSchema).default([]),
 })
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -429,14 +409,3 @@ export const deleteScheduleSlotFromDate = async (
   })
 }
 
-export const fetchImportHistory = async (limit = 20): Promise<ImportHistoryItem[]> => {
-  const response = await api.get("/import/history", { params: { limit } })
-  const parsed = ImportHistoryResponseSchema.parse(response.data)
-  return parsed.items.map((item) => ({
-    id: item.id,
-    importedAt: item.imported_at,
-    type: item.type,
-    importedCount: item.imported_count,
-    updatedCount: item.updated_count,
-  }))
-}

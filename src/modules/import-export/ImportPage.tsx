@@ -1,17 +1,21 @@
 import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import type { ImportType } from "@/modules/import-export/import-export.api"
-import { fetchImportHistory } from "@/modules/schedule/schedule.api"
+import { fetchImportHistory, type ImportType } from "@/modules/import-export/import-export.api"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { ContextualHelp } from "@/shared/components/ContextualHelp"
 import { CalendarClockIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useAuthStore } from "@/shared/store/auth.store"
 import ImportWizard from "./ImportWizard"
+
+const HISTORY_PAGE_SIZE = 10
 
 const formatDateTime = (value: string) =>
   new Date(value).toLocaleString("fr-FR", {
@@ -28,6 +32,21 @@ const labelByType: Record<ImportType, string> = {
   schedule: "Emploi du temps",
 }
 
+// Build a list of the last 12 months as "YYYY-MM" for the month filter
+const buildMonthOptions = (): Array<{ value: string; label: string }> => {
+  const options: Array<{ value: string; label: string }> = []
+  const now = new Date()
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(Date.UTC(now.getFullYear(), now.getMonth() - i, 1))
+    const value = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`
+    const label = d.toLocaleDateString("fr-FR", { month: "long", year: "numeric", timeZone: "UTC" })
+    options.push({ value, label })
+  }
+  return options
+}
+
+const MONTH_OPTIONS = buildMonthOptions()
+
 export default function ImportPage() {
   const { hasPermission } = usePermissions()
   const user = useAuthStore((state) => state.user)
@@ -43,23 +62,45 @@ export default function ImportPage() {
   const canViewHistory = canImportStudents
   const [activeImportType, setActiveImportType] = useState<ImportType>(allowedImportTypes[0] ?? "students")
 
+  // History filter state
+  const [historyPage, setHistoryPage] = useState(1)
+  const [historyMonth, setHistoryMonth] = useState<string | undefined>(undefined)
+  const [historyType, setHistoryType] = useState<ImportType | undefined>(undefined)
+
   const historyQuery = useQuery({
-    queryKey: ["import-history", 20],
-    queryFn: () => fetchImportHistory(20),
+    queryKey: ["import-history", { page: historyPage, month: historyMonth, type: historyType }],
+    queryFn: () =>
+      fetchImportHistory({
+        limit: HISTORY_PAGE_SIZE,
+        page: historyPage,
+        month: historyMonth,
+        type: historyType,
+      }),
     enabled: canViewHistory,
   })
 
   useEffect(() => {
-    if (!allowedImportTypes.length) {
-      return
-    }
-
+    if (!allowedImportTypes.length) return
     if (!allowedImportTypes.includes(activeImportType)) {
       setActiveImportType(allowedImportTypes[0])
     }
   }, [activeImportType, allowedImportTypes])
 
-  const history = historyQuery.data ?? []
+  // Reset to page 1 when filters change
+  const handleMonthChange = (value: string) => {
+    setHistoryMonth(value === "all" ? undefined : value)
+    setHistoryPage(1)
+  }
+
+  const handleTypeChange = (value: string) => {
+    setHistoryType(value === "all" ? undefined : (value as ImportType))
+    setHistoryPage(1)
+  }
+
+  const historyResult = historyQuery.data
+  const historyItems = historyResult?.items ?? []
+  const totalPages = historyResult?.totalPages ?? 1
+  const totalItems = historyResult?.total ?? 0
 
   return (
     <div className="space-y-6 px-4 md:px-1">
@@ -86,52 +127,122 @@ export default function ImportPage() {
       {canViewHistory ? (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CalendarClockIcon className="h-5 w-5" />
-              Historique des imports
-            </CardTitle>
-            <CardDescription>Dernières opérations d’import confirmées.</CardDescription>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <CalendarClockIcon className="h-5 w-5" />
+                  Historique des imports
+                </CardTitle>
+                <CardDescription className="mt-1">Opérations d’import confirmées.</CardDescription>
+              </div>
+
+              {/* Filters */}
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={historyMonth ?? "all"} onValueChange={handleMonthChange}>
+                  <SelectTrigger className="h-8 w-[160px] text-xs">
+                    <SelectValue placeholder="Tous les mois" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous les mois</SelectItem>
+                    {MONTH_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={historyType ?? "all"} onValueChange={handleTypeChange}>
+                  <SelectTrigger className="h-8 w-[150px] text-xs">
+                    <SelectValue placeholder="Tous les types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous les types</SelectItem>
+                    <SelectItem value="students">Élèves</SelectItem>
+                    <SelectItem value="teachers">Professeurs</SelectItem>
+                    <SelectItem value="schedule">Emploi du temps</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
+
+          <CardContent className="space-y-4">
             {historyQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">Chargement de l'historique...</p>
+              <p className="text-sm text-muted-foreground">Chargement de l’historique...</p>
             ) : null}
 
             {historyQuery.isError ? (
               <Alert variant="destructive">
-                <AlertDescription>Impossible de charger l'historique des imports.</AlertDescription>
+                <AlertDescription>Impossible de charger l’historique des imports.</AlertDescription>
               </Alert>
             ) : null}
 
-            {!historyQuery.isLoading && !historyQuery.isError && history.length === 0 ? (
-              <ContextualHelp title="Aucun import confirmé">
-                Les imports validés apparaîtront ici avec la date, le type et les lignes traitées. Lancez d&apos;abord un import depuis le formulaire ci-dessus.
+            {!historyQuery.isLoading && !historyQuery.isError && historyItems.length === 0 ? (
+              <ContextualHelp title="Aucun import trouvé">
+                {historyMonth ?? historyType
+                  ? "Aucun import ne correspond aux filtres sélectionnés."
+                  : "Les imports validés apparaîtront ici. Lancez d’abord un import depuis le formulaire ci-dessus."}
               </ContextualHelp>
             ) : null}
 
-            {!historyQuery.isLoading && !historyQuery.isError && history.length > 0 ? (
-              <div className="overflow-x-auto rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead className="text-right">Importés</TableHead>
-                      <TableHead className="text-right">Mis à jour</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {history.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{formatDateTime(item.importedAt)}</TableCell>
-                        <TableCell>{labelByType[item.type]}</TableCell>
-                        <TableCell className="text-right">{item.importedCount}</TableCell>
-                        <TableCell className="text-right">{item.updatedCount}</TableCell>
+            {!historyQuery.isLoading && !historyQuery.isError && historyItems.length > 0 ? (
+              <>
+                <div className="overflow-x-auto rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead className="text-right">Importés</TableHead>
+                        <TableHead className="text-right">Mis à jour</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {historyItems.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell>{formatDateTime(item.importedAt)}</TableCell>
+                          <TableCell>{labelByType[item.type]}</TableCell>
+                          <TableCell className="text-right">{item.importedCount}</TableCell>
+                          <TableCell className="text-right">{item.updatedCount}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Pagination */}
+                <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+                  <span>
+                    {totalItems} résultat{totalItems !== 1 ? "s" : ""}
+                    {totalPages > 1 ? ` · page ${historyPage}/${totalPages}` : ""}
+                  </span>
+                  {totalPages > 1 ? (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7"
+                        disabled={historyPage <= 1 || historyQuery.isFetching}
+                        onClick={() => setHistoryPage((p) => p - 1)}
+                        aria-label="Page précédente"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7"
+                        disabled={historyPage >= totalPages || historyQuery.isFetching}
+                        onClick={() => setHistoryPage((p) => p + 1)}
+                        aria-label="Page suivante"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              </>
             ) : null}
           </CardContent>
         </Card>

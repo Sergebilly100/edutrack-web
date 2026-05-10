@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { addDaysIso, addMonthsIso } from "@/shared/lib/business-date"
+import { addDaysIso, addMonthsIso, todayInBusinessTimezone } from "@/shared/lib/business-date"
 
 type PaymentMethod = "cash" | "momo_mtn" | "momo_orange"
 type DurationMonths = number
@@ -53,8 +53,10 @@ const formatDateFr = (isoDate: string) =>
     year: "numeric",
   }).format(new Date(`${isoDate}T00:00:00.000Z`))
 
-const addMonths = (isoDate: string, months: number) => {
-  const startsAt = addDaysIso(isoDate, 1)
+const computeNextEndsAt = (currentEndsAt: string, months: number) => {
+  const today = todayInBusinessTimezone()
+  const dayAfterLastEnds = addDaysIso(currentEndsAt, 1)
+  const startsAt = dayAfterLastEnds > today ? dayAfterLastEnds : today
   return addMonthsIso(startsAt, months)
 }
 
@@ -73,7 +75,7 @@ export default function RenewSubscriptionModal({
   const [paidNow, setPaidNow] = useState(true)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
-  const nextEndsAt = useMemo(() => addMonths(currentEndsAt, durationMonths), [currentEndsAt, durationMonths])
+  const nextEndsAt = useMemo(() => computeNextEndsAt(currentEndsAt, durationMonths), [currentEndsAt, durationMonths])
   const amount = unitPriceFcfa * studentsCount * durationMonths
 
   const resetLocalState = () => {
