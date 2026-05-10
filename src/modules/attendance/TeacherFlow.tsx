@@ -24,6 +24,7 @@ import {
 } from "@/modules/attendance/attendance.api"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
 import { useOfflineMutation } from "@/shared/hooks/useOfflineMutation"
+import { cacheRooms, getRoomByToken } from "@/shared/utils/indexedDB"
 
 export type TeacherSchedule = {
   id: string
@@ -70,6 +71,22 @@ export default function TeacherFlow({ schedule, demoMode = false }: TeacherFlowP
     staleTime: 1000 * 60 * 10,
     enabled: !demoMode,
   })
+
+  // CRITIQUE FIX : Cache rooms dans IndexedDB pour QR scan offline
+  useEffect(() => {
+    if (roomsQuery.data && roomsQuery.data.length > 0) {
+      cacheRooms(
+        roomsQuery.data.map((room) => ({
+          id: room.id,
+          name: room.name,
+          qr_token: room.qr_token,
+          cached_at: Date.now(),
+        }))
+      ).catch((error) => {
+        console.error("[TeacherFlow] failed to cache rooms in IndexedDB", error)
+      })
+    }
+  }, [roomsQuery.data])
 
   const studentsQuery = useQuery({
     queryKey: ["students", schedule.class_id],
@@ -135,16 +152,38 @@ export default function TeacherFlow({ schedule, demoMode = false }: TeacherFlowP
     })
   }
 
-  const resolveScannedRoom = async (token: string) => {
+  const resolveScannedRoom = async (token: string): Promise<RoomItem | null> => {
+    // CRITIQUE FIX : Fallback sur IndexedDB si hors ligne ou cache React Query vide
     let rooms = roomsQuery.data
-    if (!rooms) {
-      try {
-        const result = await roomsQuery.refetch()
-        rooms = result.data
-      } catch {
-        rooms = []
+
+    if (!rooms || rooms.length === 0) {
+      // Tentative de refetch si en ligne
+      if (isOnline) {
+        try {
+          const result = await roomsQuery.refetch()
+          rooms = result.data
+        } catch {
+          rooms = []
+        }
+      }
+
+      // Si toujours vide, fallback sur IndexedDB (offline)
+      if (!rooms || rooms.length === 0) {
+        try {
+          const cachedRoom = await getRoomByToken(token)
+          if (cachedRoom) {
+            return {
+              id: cachedRoom.id,
+              name: cachedRoom.name,
+              qr_token: cachedRoom.qr_token,
+            }
+          }
+        } catch (error) {
+          console.error("[TeacherFlow] failed to read from IndexedDB", error)
+        }
       }
     }
+
     return (rooms ?? []).find((room) => room.qr_token === token) ?? null
   }
 

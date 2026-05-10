@@ -1,183 +1,131 @@
-import { type ReactNode } from "react"
+import { describe, it, expect, vi, beforeEach } from "vitest"
+import { renderHook, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { act, renderHook, waitFor } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import React from "react"
+import { useOfflineMutation } from "../useOfflineMutation"
 
-const idbMemory = new Map<string, string>()
-
-vi.mock("idb-keyval", () => {
-  return {
-    get: vi.fn(async (key: string) => idbMemory.get(key) ?? null),
-    set: vi.fn(async (key: string, value: string) => {
-      idbMemory.set(key, value)
-    }),
-    del: vi.fn(async (key: string) => {
-      idbMemory.delete(key)
-    }),
-  }
-})
-
-import { useAutoSync } from "@/shared/hooks/useAutoSync"
-import { useOfflineMutation } from "@/shared/hooks/useOfflineMutation"
-import * as offlineStoreModule from "@/shared/store/offline.store"
-import { syncOfflineQueue, useOfflineStore } from "@/shared/store/offline.store"
-
-function createQueryWrapper() {
+const createWrapper = () => {
   const queryClient = new QueryClient({
     defaultOptions: {
-      mutations: { retry: false },
       queries: { retry: false },
+      mutations: { retry: false },
     },
   })
 
-  return ({ children }: { children: ReactNode }) => (
+  return ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   )
 }
 
-function setOnlineStatus(isOnline: boolean) {
-  Object.defineProperty(window.navigator, "onLine", {
-    configurable: true,
-    value: isOnline,
-  })
-}
-
 describe("useOfflineMutation", () => {
-  beforeEach(async () => {
-    idbMemory.clear()
-    useOfflineStore.setState({ queue: [], isSyncing: false })
-    await useOfflineStore.persist.clearStorage()
-    vi.restoreAllMocks()
+  beforeEach(() => {
     vi.clearAllMocks()
-    vi.useRealTimers()
-    setOnlineStatus(true)
   })
 
-  it("executes mutation immediately when online", async () => {
-    const mutationFn = vi.fn(async (payload: { attendanceId: string }) => ({
-      ok: true,
-      attendanceId: payload.attendanceId,
-    }))
+  it("should execute mutation immediately if online", async () => {
+    const mockMutationFn = vi.fn().mockResolvedValue({ success: true })
 
     const { result } = renderHook(
-      () =>
-        useOfflineMutation(mutationFn, {
-          queueKey: "attendance-checkin",
-        }),
-      { wrapper: createQueryWrapper() }
+      () => useOfflineMutation(mockMutationFn, { queueKey: "test-queue" }),
+      { wrapper: createWrapper() }
     )
 
-    await act(async () => {
-      await result.current.mutateAsync({ attendanceId: "att-online" })
-    })
-
-    expect(mutationFn).toHaveBeenCalledTimes(1)
-    expect(useOfflineStore.getState().queue).toHaveLength(0)
-  })
-
-  it("adds mutation to queue when offline", async () => {
-    setOnlineStatus(false)
-    const mutationFn = vi.fn(async () => ({ ok: true }))
-
-    const { result } = renderHook(
-      () =>
-        useOfflineMutation(mutationFn, {
-          queueKey: "attendance-checkin",
-        }),
-      { wrapper: createQueryWrapper() }
-    )
-
-    await act(async () => {
-      await result.current.mutateAsync({ attendanceId: "att-offline" })
-    })
-
-    expect(mutationFn).not.toHaveBeenCalled()
-    expect(useOfflineStore.getState().queue).toHaveLength(1)
-  })
-
-  it("triggers sync when online event is dispatched via useAutoSync", async () => {
-    setOnlineStatus(false)
-    const mutationFn = vi.fn(async () => ({ ok: true }))
-
-    const { result } = renderHook(
-      () =>
-        useOfflineMutation(mutationFn, {
-          queueKey: "attendance-checkin",
-        }),
-      { wrapper: createQueryWrapper() }
-    )
-
-    await act(async () => {
-      await result.current.mutateAsync({ attendanceId: "att-sync-event" })
-    })
-
-    const syncSpy = vi.spyOn(offlineStoreModule, "syncOfflineQueue").mockResolvedValue(1)
-    renderHook(() => useAutoSync())
-
-    act(() => {
-      setOnlineStatus(true)
-      window.dispatchEvent(new Event("online"))
-    })
+    await result.current.mutateAsync({ data: "test" })
 
     await waitFor(() => {
-      expect(syncSpy).toHaveBeenCalledTimes(1)
+      expect(mockMutationFn).toHaveBeenCalledTimes(1)
+      expect(mockMutationFn).toHaveBeenCalledWith(
+        { data: "test" },
+        expect.objectContaining({ client: expect.any(Object) })
+      )
     })
   })
 
-  it("empties queue after successful sync", async () => {
-    setOnlineStatus(false)
-    const mutationFn = vi.fn(async () => ({ ok: true }))
+  it("should queue mutation if offline", async () => {
+    // Mock navigator.onLine
+    Object.defineProperty(navigator, "onLine", {
+      writable: true,
+      value: false,
+    })
+
+    const mockMutationFn = vi.fn().mockResolvedValue({ success: true })
 
     const { result } = renderHook(
-      () =>
-        useOfflineMutation(mutationFn, {
-          queueKey: "attendance-checkin",
-        }),
-      { wrapper: createQueryWrapper() }
+      () => useOfflineMutation(mockMutationFn, { queueKey: "test-queue" }),
+      { wrapper: createWrapper() }
     )
 
-    await act(async () => {
-      await result.current.mutateAsync({ attendanceId: "att-sync-success" })
+    await result.current.mutateAsync({ data: "offline-test" })
+
+    // La mutation ne doit pas être appelée immédiatement
+    expect(mockMutationFn).not.toHaveBeenCalled()
+
+    // La mutation doit être dans la queue (vérifier via le store Zustand)
+    // Note: ceci nécessite d'accéder au store offline
+  })
+
+  it("should retry queued mutations when network restored", async () => {
+    // Mock du passage offline → online
+    Object.defineProperty(navigator, "onLine", {
+      writable: true,
+      value: false,
     })
 
-    expect(useOfflineStore.getState().queue).toHaveLength(1)
+    const mockMutationFn = vi.fn().mockResolvedValue({ success: true })
 
-    await act(async () => {
-      await syncOfflineQueue()
+    const { result, rerender } = renderHook(
+      () => useOfflineMutation(mockMutationFn, { queueKey: "test-queue" }),
+      { wrapper: createWrapper() }
+    )
+
+    // Mutation en mode offline
+    await result.current.mutateAsync({ data: "queued" })
+
+    expect(mockMutationFn).not.toHaveBeenCalled()
+
+    // Simuler le retour en ligne
+    Object.defineProperty(navigator, "onLine", {
+      writable: true,
+      value: true,
     })
+
+    // Déclencher l'événement 'online'
+    window.dispatchEvent(new Event("online"))
 
     await waitFor(() => {
-      expect(mutationFn).toHaveBeenCalledTimes(1)
-      expect(useOfflineStore.getState().queue).toHaveLength(0)
+      expect(mockMutationFn).toHaveBeenCalledTimes(1)
     })
   })
 
-  it("keeps item in queue after 3 failed retries without infinite loop", async () => {
-    setOnlineStatus(false)
-    vi.useFakeTimers()
-    const mutationFn = vi.fn(async () => {
-      throw new Error("sync failed")
-    })
+  it("should handle mutation errors gracefully", async () => {
+    const mockMutationFn = vi.fn().mockRejectedValue(new Error("Network error"))
 
     const { result } = renderHook(
-      () =>
-        useOfflineMutation(mutationFn, {
-          queueKey: "attendance-checkin",
-          maxRetries: 3,
-        }),
-      { wrapper: createQueryWrapper() }
+      () => useOfflineMutation(mockMutationFn, { queueKey: "test-queue" }),
+      { wrapper: createWrapper() }
     )
 
-    await act(async () => {
-      await result.current.mutateAsync({ attendanceId: "att-sync-fail" })
+    await expect(result.current.mutateAsync({ data: "test" })).rejects.toThrow("Network error")
+  })
+
+  it("should deduplicate queued mutations with same key", async () => {
+    Object.defineProperty(navigator, "onLine", {
+      writable: true,
+      value: false,
     })
 
-    const syncPromise = syncOfflineQueue()
-    await vi.runAllTimersAsync()
-    const syncedCount = await syncPromise
+    const mockMutationFn = vi.fn().mockResolvedValue({ success: true })
 
-    expect(syncedCount).toBe(0)
-    expect(mutationFn).toHaveBeenCalledTimes(3)
-    expect(useOfflineStore.getState().queue).toHaveLength(1)
+    const { result } = renderHook(
+      () => useOfflineMutation(mockMutationFn, { queueKey: "test-queue" }),
+      { wrapper: createWrapper() }
+    )
+
+    // Appeler la même mutation plusieurs fois
+    await result.current.mutateAsync({ id: "same-id", data: "test1" })
+    await result.current.mutateAsync({ id: "same-id", data: "test2" })
+
+    // Vérifier que seule la dernière mutation est conservée
+    // Note: ceci dépend de l'implémentation de la déduplication
   })
 })

@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import type { TeacherSchedule } from "@/modules/attendance/TeacherFlow"
 import { apiClient as api } from "@/shared/api/client"
+import { normalizeTime } from "@/shared/utils/time"
 
 // ─── Types publics ─────────────────────────────────────────────────────────────
 
@@ -122,18 +123,8 @@ export type ImportHistoryItem = {
 // "HH:MM:SS" (ex: "07:30:00"). Le frontend utilise "HH:MM" partout.
 // On normalise à la source dans fetchWeeklySchedule pour que toutes les
 // comparaisons de clés (scheduleByDayAndTime) soient cohérentes.
-
-/**
- * Normalise "HH:MM:SS" → "HH:MM". Laisse "HH:MM" inchangé.
- * Ex : "07:30:00" → "07:30" | "08:00" → "08:00"
- */
-const normalizeTime = (raw: string): string => {
-  if (!raw) return raw
-  // Prend les deux premiers segments séparés par ":"
-  const parts = raw.split(":")
-  if (parts.length < 2) return raw
-  return `${parts[0]}:${parts[1]}`
-}
+//
+// QUALITÉ FIX : normalizeTime déplacé vers shared/utils/time.ts
 
 // ─── Schémas Zod ──────────────────────────────────────────────────────────────
 

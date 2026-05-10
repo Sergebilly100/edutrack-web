@@ -79,95 +79,97 @@ export default function TeacherNotificationsPanel() {
       ) : null}
 
       {open ? (
-        <aside
-          role="dialog"
-          aria-modal="false"
-          aria-label="Mes notifications"
-          className="absolute right-0 top-11 z-50 w-80 max-h-[70vh] overflow-hidden rounded-lg border bg-popover shadow-xl flex flex-col"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-center justify-between gap-3 border-b px-3 py-3">
-            <div>
-              <p className="text-sm font-semibold">Mes notifications</p>
-              {unreadCount > 0 ? (
-                <p className="text-xs text-muted-foreground">{unreadCount} non lue(s)</p>
-              ) : (
-                <p className="text-xs text-muted-foreground">Tout est lu</p>
-              )}
-            </div>
-            <div className="flex items-center gap-1">
-              {unreadCount > 0 ? (
+        <div className="!m-0 fixed inset-0 z-[1000] bg-black/30 backdrop-blur-sm transition-all" onClick={() => setOpen(false)}>
+          <aside
+            role="dialog"
+            aria-modal="false"
+            aria-label="Mes notifications"
+            className="fixed inset-x-3 bottom-auto top-[7.5rem] z-[1001] max-h-[82vh] overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-xl md:inset-x-auto md:bottom-auto md:right-8 md:top-14 md:w-[calc(100vw-1.5rem)] md:max-w-md bg-[var(--stat-default-bg)] text-[var(--stat-default-fg)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b px-3 py-3">
+              <div>
+                <p className="text-sm font-semibold">Notifications</p>
+                {unreadCount > 0 ? (
+                  <p className="text-xs text-muted-foreground">{unreadCount} non lue(s)</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Tout est lu</p>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                {unreadCount > 0 ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => readAllMutation.mutate()}
+                    disabled={readAllMutation.isPending}
+                  >
+                    <CheckCheck className="mr-1 h-3.5 w-3.5" />
+                    Tout lire
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => readAllMutation.mutate()}
-                  disabled={readAllMutation.isPending}
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => setOpen(false)}
+                  aria-label="Fermer"
                 >
-                  <CheckCheck className="mr-1 h-3.5 w-3.5" />
-                  Tout lire
+                  <X className="h-3.5 w-3.5" />
                 </Button>
-              ) : null}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => setOpen(false)}
-                aria-label="Fermer"
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-2 space-y-2">
-            {isLoading ? (
-              Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="h-16 animate-pulse rounded-lg border bg-muted" />
-              ))
-            ) : notifications.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-4 text-center">
-                <BellOff className="h-8 w-8 text-muted-foreground/50" />
-                <p className="text-xs text-muted-foreground">Aucune notification pour le moment.</p>
               </div>
-            ) : (
-              notifications.map((notification) => (
-                <button
-                  key={notification.id}
-                  type="button"
-                  className={`w-full rounded-lg border p-3 text-left shadow-sm transition-colors hover:bg-muted/50 ${
-                    notification.readAt === null ? "border-amber-200 bg-amber-50" : "border-border bg-background"
-                  }`}
-                  onClick={() => handleReadOne(notification)}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant="outline"
-                          className={
-                            notification.type === "attendance_rejected"
-                              ? "border-red-200 bg-red-50 text-red-700 text-[10px]"
-                              : "border-amber-200 bg-amber-50 text-amber-700 text-[10px]"
-                          }
-                        >
-                          {notifTypeLabel[notification.type] ?? notification.type}
-                        </Badge>
-                        {notification.readAt === null ? (
-                          <span className="inline-block h-2 w-2 rounded-full bg-amber-500" aria-label="Non lu" />
-                        ) : null}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+              {isLoading ? (
+                Array.from({ length: 3 }).map((_, index) => (
+                  <div key={index} className="h-16 animate-pulse rounded-lg border bg-muted" />
+                ))
+              ) : notifications.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-4 text-center">
+                  <BellOff className="h-8 w-8 text-muted-foreground/50" />
+                  <p className="text-xs text-muted-foreground">Aucune notification pour le moment.</p>
+                </div>
+              ) : (
+                notifications.map((notification) => (
+                  <button
+                    key={notification.id}
+                    type="button"
+                    className={`w-full rounded-lg border p-3 text-left shadow-sm transition-colors hover:bg-muted/50 ${
+                      notification.readAt === null ? "border-amber-200 bg-amber-50" : "border-border bg-background"
+                    }`}
+                    onClick={() => handleReadOne(notification)}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className={
+                              notification.type === "attendance_rejected"
+                                ? "border-red-200 bg-red-50 text-red-700 text-[10px]"
+                                : "border-amber-200 bg-amber-50 text-amber-700 text-[10px]"
+                            }
+                          >
+                            {notifTypeLabel[notification.type] ?? notification.type}
+                          </Badge>
+                          {notification.readAt === null ? (
+                            <span className="inline-block h-2 w-2 rounded-full bg-amber-500" aria-label="Non lu" />
+                          ) : null}
+                        </div>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground line-clamp-3">{notification.message}</p>
+                        <p className="mt-1 text-[10px] text-muted-foreground">{formatDate(notification.createdAt)}</p>
                       </div>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground line-clamp-3">{notification.message}</p>
-                      <p className="mt-1 text-[10px] text-muted-foreground">{formatDate(notification.createdAt)}</p>
                     </div>
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-        </aside>
+                  </button>
+                ))
+              )}
+            </div>
+          </aside>
+        </div>
       ) : null}
     </div>
   )

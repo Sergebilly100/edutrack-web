@@ -116,7 +116,7 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
           !checkinQrDone &&
           "border-primary",
         status === "missed" && "border-red-300",
-        status === "done" && "bg-green-100/30",
+        status === "done" && "border-green-300",
         rollCallPending && rollCallStillOpen && "border-amber-300 bg-amber-50/40 dark:bg-amber-950/20",
         checkinQrDone && rollCallStillOpen && "border-blue-200 bg-blue-50/30 dark:bg-blue-950/20"
       )}
