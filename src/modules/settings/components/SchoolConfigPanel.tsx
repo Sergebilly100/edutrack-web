@@ -614,6 +614,11 @@ export default function SchoolConfigPanel() {
                         if (!file) {
                           return
                         }
+                        if (file.size > 200 * 1024) {
+                          toast({ title: "Image trop lourde", description: "Maximum 200 KB.", variant: "destructive" })
+                          event.target.value = ""
+                          return
+                        }
                         const reader = new FileReader()
                         reader.onload = () => {
                           const result = typeof reader.result === "string" ? reader.result : ""
@@ -622,6 +627,9 @@ export default function SchoolConfigPanel() {
                         reader.readAsDataURL(file)
                       }}
                     />
+                    <p className="text-xs text-amber-600">
+                      Import direct temporaire. La gestion via CDN (R2) sera disponible prochainement.
+                    </p>
                   </div>
                   <Button
                     variant="outline"

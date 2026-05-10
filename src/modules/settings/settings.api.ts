@@ -1,3 +1,5 @@
+import axios from "axios"
+
 import { apiClient } from "@/shared/api/client"
 import { asNullableString, asNumber, asString, isRecord } from "@/shared/utils/parsers"
 
@@ -227,18 +229,26 @@ export const fetchSchoolConfig = async (): Promise<SchoolConfigData> => {
   try {
     const response = await apiClient.get("/permissions/config")
     return parseConfigEnvelope(response.data)
-  } catch {
-    const schoolInfoResponse = await apiClient.get("/school/info")
-    const positionsResponse = await apiClient
-      .get("/permissions/positions")
-      .catch(() => ({ data: { positions: [] } }))
+  } catch (error) {
+    // Fallback uniquement si l'utilisateur n'a pas la permission settings.positions (403/404)
+    // Pour toute autre erreur (401, 500, réseau), on laisse remonter
+    if (
+      axios.isAxiosError(error) &&
+      (error.response?.status === 403 || error.response?.status === 404)
+    ) {
+      const schoolInfoResponse = await apiClient.get("/school/info")
+      const positionsResponse = await apiClient
+        .get("/permissions/positions")
+        .catch(() => ({ data: { positions: [] } }))
 
-    return {
-      school: parseSchoolInfo(schoolInfoResponse.data),
-      limits: { maxAdminPositions: 0 },
-      positions: parsePositionsEnvelope(positionsResponse.data),
-      users: [],
+      return {
+        school: parseSchoolInfo(schoolInfoResponse.data),
+        limits: { maxAdminPositions: 0 },
+        positions: parsePositionsEnvelope(positionsResponse.data),
+        users: [],
+      }
     }
+    throw error
   }
 }
 
@@ -372,4 +382,26 @@ export const changePassword = async (payload: ChangePasswordInput): Promise<void
     current_password: payload.currentPassword,
     new_password: payload.newPassword,
   })
+}
+
+export const createPosition = async (payload: {
+  name: string
+  permissions: string[]
+}): Promise<PositionItem> => {
+  const response = await apiClient.post("/permissions/positions", payload)
+  const envelope = isRecord(response.data) ? response.data : {}
+  return parsePosition(envelope["position"])
+}
+
+export const updatePosition = async (payload: {
+  id: string
+  name: string
+  permissions: string[]
+}): Promise<PositionItem> => {
+  const response = await apiClient.put(`/permissions/positions/${payload.id}`, {
+    name: payload.name,
+    permissions: payload.permissions,
+  })
+  const envelope = isRecord(response.data) ? response.data : {}
+  return parsePosition(envelope["position"])
 }

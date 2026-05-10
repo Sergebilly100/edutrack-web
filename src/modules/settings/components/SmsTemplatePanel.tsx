@@ -5,6 +5,7 @@ import { MessageSquareText } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import {
   getSchoolStudentAbsenceSmsTemplate,
@@ -114,11 +115,10 @@ export default function SmsTemplatePanel() {
               </Alert>
             ) : null}
 
-            <textarea
+            <Textarea
               value={messageTemplate}
               onChange={(event) => setMessageTemplate(event.target.value)}
               rows={5}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               disabled={!isEnabled}
             />
             <div className="flex items-center justify-between">

@@ -279,11 +279,33 @@ export default function RoleMatrix({
   const toggleColumn = (column: PermissionColumn, checked: boolean) => {
     const next = new Set(position.permissions)
 
-    for (const permission of column.permissions) {
-      if (checked) {
+    if (checked) {
+      for (const permission of column.permissions) {
         next.add(permission)
-      } else {
-        next.delete(permission)
+        const requiredView = resolveViewDependency(permission)
+        if (requiredView) {
+          next.add(requiredView)
+        }
+      }
+    } else {
+      // Calculer les permissions à retirer SAUF celles locked par des permissions hors colonne
+      const columnPermSet = new Set<string>(column.permissions as readonly string[])
+      const permissionsOutsideColumn = Array.from(next).filter(p => !columnPermSet.has(p))
+
+      for (const permission of column.permissions) {
+        const segments = splitPermission(permission)
+        if (segments?.action === "view") {
+          // Vérifier si une permission hors de cette colonne requiert ce .view
+          const lockedByOutside = permissionsOutsideColumn.some(p => {
+            const c = splitPermission(p)
+            return c !== null && c.category === segments.category && ACTION_KEYS_REQUIRING_VIEW.has(c.action)
+          })
+          if (!lockedByOutside) {
+            next.delete(permission)
+          }
+        } else {
+          next.delete(permission)
+        }
       }
     }
 

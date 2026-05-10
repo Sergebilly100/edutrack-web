@@ -25,7 +25,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/ui/use-toast"
 import RoleMatrix from "@/modules/settings/components/RoleMatrix"
-import { apiClient } from "@/shared/api/client"
+import { createPosition, updatePosition } from "@/modules/settings/settings.api"
 
 const positionSchema = z.object({
   name: z.string().trim().min(2, "Le nom du poste doit contenir au moins 2 caractères"),
@@ -60,17 +60,6 @@ const sanitizePermissions = (permissions: string[], canManageSmsTemplates: boole
 
   return withoutAttendance.filter((permission) => permission !== SMS_TEMPLATE_PERMISSION)
 }
-
-const createPosition = (payload: PositionFormValues) =>
-  apiClient.post("/permissions/positions", payload).then((response) => response.data)
-
-const updatePosition = (payload: PositionPayload) =>
-  apiClient
-    .put(`/permissions/positions/${payload.id}`, {
-      name: payload.name,
-      permissions: payload.permissions,
-    })
-    .then((response) => response.data)
 
 export default function PositionFormModal({
   open,
@@ -124,7 +113,7 @@ export default function PositionFormModal({
       }
 
       return createPosition({
-        ...values,
+        name: values.name,
         permissions: sanitizePermissions(values.permissions, canManageSmsTemplates),
       })
     },

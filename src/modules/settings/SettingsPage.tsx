@@ -1,9 +1,14 @@
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { CheckCircle } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
@@ -20,13 +25,17 @@ import { ContextualHelp } from "@/shared/components/ContextualHelp"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useAuthStore } from "@/shared/store/auth.store"
 
+const smsPriceSchema = z.object({
+  smsUnitPriceFcfa: z.number().int().min(1).max(50000),
+  checkoutToleranceMinutes: z.number().int().min(0).max(30),
+})
+type SmsPriceFormValues = z.infer<typeof smsPriceSchema>
+
 export default function SettingsPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const user = useAuthStore((state) => state.user)
   const { hasPermission } = usePermissions()
-  const [smsPriceDraft, setSmsPriceDraft] = useState("")
-  const [checkoutToleranceDraft, setCheckoutToleranceDraft] = useState("5")
   const canManagePositions = user?.role === "director" || hasPermission("settings.positions")
   const canManageSchoolSettings = user?.role === "director" || hasPermission("settings.school")
   const canAccessSmsTemplate = user?.role === "director" || hasPermission("settings.sms_templates")
@@ -40,24 +49,24 @@ export default function SettingsPage() {
     queryFn: getSchoolSmsFeatureSettings,
   })
 
-  useEffect(() => {
-    const value = smsFeatureQuery.data?.sms_unit_price_fcfa
-    setSmsPriceDraft(value && value > 0 ? String(value) : "")
-  }, [smsFeatureQuery.data?.sms_unit_price_fcfa])
+  const smsPriceForm = useForm<SmsPriceFormValues>({
+    resolver: zodResolver(smsPriceSchema),
+    defaultValues: {
+      smsUnitPriceFcfa: smsFeatureQuery.data?.sms_unit_price_fcfa ?? 0,
+      checkoutToleranceMinutes: smsFeatureQuery.data?.checkout_tolerance_minutes ?? 5,
+    },
+  })
 
   useEffect(() => {
-    const value = smsFeatureQuery.data?.checkout_tolerance_minutes
-    setCheckoutToleranceDraft(Number.isInteger(value) ? String(value) : "5")
-  }, [smsFeatureQuery.data?.checkout_tolerance_minutes])
+    if (!smsFeatureQuery.data) return
+    smsPriceForm.reset({
+      smsUnitPriceFcfa: smsFeatureQuery.data.sms_unit_price_fcfa ?? 0,
+      checkoutToleranceMinutes: smsFeatureQuery.data.checkout_tolerance_minutes ?? 5,
+    }, { keepDirty: false })
+  }, [smsFeatureQuery.data, smsPriceForm])
 
   const saveSmsPriceMutation = useMutation({
-    mutationFn: () => {
-      const parsed = Number(smsPriceDraft)
-      if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 50000) {
-        throw new Error("Le tarif doit être un entier entre 1 et 50000.")
-      }
-      return updateSchoolSmsUnitPrice(parsed)
-    },
+    mutationFn: (values: SmsPriceFormValues) => updateSchoolSmsUnitPrice(values.smsUnitPriceFcfa),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["settings", "sms-feature"] })
       await queryClient.invalidateQueries({ queryKey: ["subscriptions", "feature-settings"] })
@@ -73,13 +82,7 @@ export default function SettingsPage() {
   })
 
   const saveRealHoursConfigMutation = useMutation({
-    mutationFn: () => {
-      const parsed = Number(checkoutToleranceDraft)
-      if (!Number.isInteger(parsed) || parsed < 0 || parsed > 30) {
-        throw new Error("La tolérance doit être un entier entre 0 et 30 minutes.")
-      }
-      return updateRealHoursConfig(parsed)
-    },
+    mutationFn: (values: SmsPriceFormValues) => updateRealHoursConfig(values.checkoutToleranceMinutes),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["settings", "sms-feature"] })
       toast({ title: "Tolérance heures réelles sauvegardée" })
@@ -92,24 +95,6 @@ export default function SettingsPage() {
       })
     },
   })
-
-  const smsPriceValue = Number(smsPriceDraft)
-  const currentSmsPrice = smsFeatureQuery.data?.sms_unit_price_fcfa
-  const normalizedCurrentSmsPrice = currentSmsPrice && currentSmsPrice > 0 ? String(currentSmsPrice) : ""
-  const isSmsPriceDirty = smsPriceDraft !== normalizedCurrentSmsPrice
-  const isSmsPriceValid =
-    smsPriceDraft.length > 0 &&
-    Number.isInteger(smsPriceValue) &&
-    smsPriceValue > 0 &&
-    smsPriceValue <= 50000
-  const checkoutToleranceValue = Number(checkoutToleranceDraft)
-  const normalizedCheckoutTolerance = String(smsFeatureQuery.data?.checkout_tolerance_minutes ?? 5)
-  const isCheckoutToleranceDirty = checkoutToleranceDraft !== normalizedCheckoutTolerance
-  const isCheckoutToleranceValid =
-    checkoutToleranceDraft.length > 0 &&
-    Number.isInteger(checkoutToleranceValue) &&
-    checkoutToleranceValue >= 0 &&
-    checkoutToleranceValue <= 30
   const schoolConfigState = schoolConfigQuery.isLoading
     ? "Chargement"
     : schoolConfigQuery.isError
@@ -197,37 +182,58 @@ export default function SettingsPage() {
           </div>
 
           {smsFeatureQuery.data?.use_real_hours ? (
-            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-              <div className="space-y-2">
-                <Label htmlFor="checkout-tolerance-minutes">Tolérance check-out (minutes)</Label>
-                <Input
-                  id="checkout-tolerance-minutes"
-                  value={checkoutToleranceDraft}
-                  onChange={(event) => setCheckoutToleranceDraft(event.target.value.replace(/\D/g, ""))}
-                  inputMode="numeric"
-                  maxLength={2}
-                  placeholder="5"
-                />
-                <p className={isCheckoutToleranceValid ? "text-xs text-muted-foreground" : "text-xs text-destructive"}>
-                  Entier entre 0 et 30. Une présence plus courte part en validation.
-                </p>
-              </div>
-              <Button
-                type="button"
-                onClick={() => saveRealHoursConfigMutation.mutate()}
-                disabled={
-                  saveRealHoursConfigMutation.isPending ||
-                  !isCheckoutToleranceDirty ||
-                  !isCheckoutToleranceValid
-                }
+            <Form {...smsPriceForm}>
+              <form
+                onSubmit={smsPriceForm.handleSubmit((values) => saveRealHoursConfigMutation.mutate(values))}
+                className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
               >
-                {saveRealHoursConfigMutation.isPending
-                  ? "Sauvegarde..."
-                  : isCheckoutToleranceDirty
-                    ? "Sauvegarder"
-                    : "Tolérance à jour"}
-              </Button>
-            </div>
+                <FormField
+                  control={smsPriceForm.control}
+                  name="checkoutToleranceMinutes"
+                  render={({ field }) => (
+                    <FormItem className="space-y-2">
+                      <Label htmlFor="checkout-tolerance-minutes">Tolérance check-out (minutes)</Label>
+                      <FormControl>
+                        <Input
+                          id="checkout-tolerance-minutes"
+                          inputMode="numeric"
+                          maxLength={2}
+                          placeholder="5"
+                          {...field}
+                          onChange={(event) => field.onChange(Number(event.target.value.replace(/\D/g, "")))}
+                          value={field.value === 0 ? "" : String(field.value)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                      <p className="text-xs text-muted-foreground">
+                        Entier entre 0 et 30. Une présence plus courte part en validation.
+                      </p>
+                    </FormItem>
+                  )}
+                />
+                {saveRealHoursConfigMutation.isSuccess && !smsPriceForm.formState.isDirty ? (
+                  <div className="flex items-center gap-2 text-green-600 animate-in fade-in duration-300">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="text-sm font-medium">Tolérance sauvegardée</span>
+                  </div>
+                ) : (
+                  <Button
+                    type="submit"
+                    disabled={
+                      saveRealHoursConfigMutation.isPending ||
+                      !smsPriceForm.formState.dirtyFields.checkoutToleranceMinutes ||
+                      !smsPriceForm.formState.isValid
+                    }
+                  >
+                    {saveRealHoursConfigMutation.isPending
+                      ? "Sauvegarde..."
+                      : smsPriceForm.formState.dirtyFields.checkoutToleranceMinutes
+                        ? "Sauvegarder"
+                        : "Tolérance à jour"}
+                  </Button>
+                )}
+              </form>
+            </Form>
           ) : (
             <ContextualHelp title="Heures réelles désactivées" tone="warning">
               La valeur de tolérance existe en base mais elle est ignorée tant que les heures réelles ne sont pas activées par EduTrack.
@@ -275,39 +281,58 @@ export default function SettingsPage() {
           </div>
 
           {smsFeatureQuery.data?.is_enabled ? (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="sms-unit-price">Tarif par élève/mois (FCFA)</Label>
-                <Input
-                  id="sms-unit-price"
-                  value={smsPriceDraft}
-                  onChange={(event) => setSmsPriceDraft(event.target.value.replace(/\D/g, ""))}
-                  inputMode="numeric"
-                  maxLength={5}
-                  placeholder="Ex: 2000"
+            <Form {...smsPriceForm}>
+              <form
+                onSubmit={smsPriceForm.handleSubmit((values) => saveSmsPriceMutation.mutate(values))}
+                className="space-y-4"
+              >
+                <FormField
+                  control={smsPriceForm.control}
+                  name="smsUnitPriceFcfa"
+                  render={({ field }) => (
+                    <FormItem className="space-y-2">
+                      <Label htmlFor="sms-unit-price">Tarif par élève/mois (FCFA)</Label>
+                      <FormControl>
+                        <Input
+                          id="sms-unit-price"
+                          inputMode="numeric"
+                          maxLength={5}
+                          placeholder="Ex: 2000"
+                          {...field}
+                          onChange={(event) => field.onChange(Number(event.target.value.replace(/\D/g, "")))}
+                          value={field.value === 0 ? "" : String(field.value)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                      <p className="text-xs text-muted-foreground">Entier entre 1 et 50000.</p>
+                    </FormItem>
+                  )}
                 />
-                <p className={isSmsPriceValid || smsPriceDraft.length === 0 ? "text-xs text-muted-foreground" : "text-xs text-destructive"}>
-                  Entier entre 1 et 50000.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <Button
-                  type="button"
-                  onClick={() => saveSmsPriceMutation.mutate()}
-                  disabled={saveSmsPriceMutation.isPending || !isSmsPriceDirty || !isSmsPriceValid}
-                >
-                  {saveSmsPriceMutation.isPending
-                    ? "Sauvegarde..."
-                    : isSmsPriceDirty
-                      ? "Sauvegarder le tarif"
-                      : "Tarif à jour"}
-                </Button>
-                <p className="text-sm text-muted-foreground">
-                  Commission EduTrack : <strong>{smsFeatureQuery.data.commission_pct}%</strong> (défini par
-                  EduTrack)
-                </p>
-              </div>
-            </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  {saveSmsPriceMutation.isSuccess && !smsPriceForm.formState.isDirty ? (
+                    <div className="flex items-center gap-2 text-green-600 animate-in fade-in duration-300">
+                      <CheckCircle className="h-4 w-4" />
+                      <span className="text-sm font-medium">Tarif sauvegardé</span>
+                    </div>
+                  ) : (
+                    <Button
+                      type="submit"
+                      disabled={
+                        saveSmsPriceMutation.isPending ||
+                        !smsPriceForm.formState.isDirty ||
+                        !smsPriceForm.formState.isValid
+                      }
+                    >
+                      {saveSmsPriceMutation.isPending ? "Sauvegarde..." : "Sauvegarder le tarif"}
+                    </Button>
+                  )}
+                  <p className="text-sm text-muted-foreground">
+                    Commission EduTrack : <strong>{smsFeatureQuery.data.commission_pct}%</strong> (défini par
+                    EduTrack)
+                  </p>
+                </div>
+              </form>
+            </Form>
           ) : (
             <ContextualHelp title="Activation requise" tone="warning">
               Le portail d&apos;abonnement parent et les notifications SMS restent masqués tant que le service SMS Parents n&apos;est pas activé par EduTrack.
