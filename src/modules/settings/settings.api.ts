@@ -324,6 +324,17 @@ export const updateSchoolInfo = async (payload: {
   }
 }
 
+export const uploadSchoolLogo = async (file: File): Promise<string> => {
+  const formData = new FormData()
+  formData.append("file", file)
+  const response = await apiClient.post<{ logoUrl: string }>(
+    "/permissions/config/school/logo",
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } }
+  )
+  return response.data.logoUrl
+}
+
 export const updateSchoolLimit = async (maxAdminPositions: number): Promise<void> => {
   await apiClient.patch("/permissions/config/limits", {
     max_admin_positions: maxAdminPositions,

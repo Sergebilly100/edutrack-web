@@ -42,6 +42,7 @@ import {
   fetchSchoolConfig,
   resetAdministrativeUserPassword,
   unassignUserFromPosition,
+  uploadSchoolLogo,
   type AssignableUser,
   type CreateAdministrativeUserInput,
   type PositionItem,
@@ -128,6 +129,22 @@ export default function SchoolConfigPanel() {
         description: "Impossible de mettre à jour le logo.",
         variant: "destructive",
       })
+    },
+  })
+
+  const uploadLogoMutation = useMutation({
+    mutationFn: (file: File) => uploadSchoolLogo(file),
+    onSuccess: async (logoUrl) => {
+      setLogoUrlDraft(logoUrl)
+      await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY })
+      toast({ title: "Logo uploadé et enregistré" })
+    },
+    onError: (error) => {
+      const description =
+        axios.isAxiosError(error) && typeof error.response?.data?.error === "string"
+          ? error.response.data.error
+          : "Impossible d'uploader le logo."
+      toast({ title: "Erreur", description, variant: "destructive" })
     },
   })
   const saveQrSkipPolicyMutation = useMutation({
@@ -599,49 +616,49 @@ export default function SchoolConfigPanel() {
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      URL du logo
+                      Importer un fichier
                     </Label>
                     <Input
-                      value={logoUrlDraft}
-                      onChange={(event) => setLogoUrlDraft(event.target.value)}
-                      placeholder="URL du logo ou image importée"
-                    />
-                    <Input
                       type="file"
-                      accept="image/*"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      disabled={uploadLogoMutation.isPending}
                       onChange={(event) => {
                         const file = event.target.files?.[0]
                         if (!file) {
                           return
                         }
-                        if (file.size > 200 * 1024) {
-                          toast({ title: "Image trop lourde", description: "Maximum 200 KB.", variant: "destructive" })
+                        if (file.size > 500 * 1024) {
+                          toast({ title: "Image trop lourde", description: "Maximum 500 KB.", variant: "destructive" })
                           event.target.value = ""
                           return
                         }
-                        const reader = new FileReader()
-                        reader.onload = () => {
-                          const result = typeof reader.result === "string" ? reader.result : ""
-                          setLogoUrlDraft(result)
-                        }
-                        reader.readAsDataURL(file)
+                        uploadLogoMutation.mutate(file)
+                        event.target.value = ""
                       }}
                     />
-                    <p className="text-xs text-amber-600">
-                      Import direct temporaire. La gestion via CDN (R2) sera disponible prochainement.
+                    <p className="text-xs text-muted-foreground">
+                      PNG, JPEG, WEBP ou SVG — max 500 KB. Stocké sur CDN.
                     </p>
+                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Ou saisir une URL
+                    </Label>
+                    <Input
+                      value={logoUrlDraft}
+                      onChange={(event) => setLogoUrlDraft(event.target.value)}
+                      placeholder="https://..."
+                    />
                   </div>
                   <Button
                     variant="outline"
                     className="w-full"
-                    disabled={saveSchoolInfoMutation.isPending || !school}
+                    disabled={saveSchoolInfoMutation.isPending || uploadLogoMutation.isPending || !school}
                     onClick={() =>
                       saveSchoolInfoMutation.mutate({
                         logoUrl: logoUrlDraft || null,
                       })
                     }
                   >
-                    {saveSchoolInfoMutation.isPending ? "Sauvegarde..." : "Enregistrer"}
+                    {saveSchoolInfoMutation.isPending ? "Sauvegarde..." : uploadLogoMutation.isPending ? "Upload en cours..." : "Enregistrer l'URL"}
                   </Button>
                 </div>
               </div>
