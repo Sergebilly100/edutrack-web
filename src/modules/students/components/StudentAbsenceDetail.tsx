@@ -1,6 +1,16 @@
-import { useQuery } from "@tanstack/react-query"
+import { useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Sheet,
   SheetContent,
@@ -9,12 +19,15 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Textarea } from "@/components/ui/textarea"
 import {
+  excuseAbsence,
   getStudentAbsenceRecords,
   type StudentAbsenceRecord,
   type StudentAbsenceStat,
 } from "@/modules/students/students.api"
 import { EmptyState } from "@/shared/components"
+import { usePermissions } from "@/shared/hooks/usePermissions"
 
 type StudentAbsenceDetailProps = {
   open: boolean
@@ -40,6 +53,20 @@ const smsConfig: Record<
   not_sent: {
     label: "Non notifié",
     className: "border-red-200 bg-red-100 text-red-700",
+  },
+}
+
+const absenceStatusConfig: Record<
+  "absent" | "excused",
+  { label: string; className: string }
+> = {
+  absent: {
+    label: "Absent",
+    className: "border-red-200 bg-red-100 text-red-700",
+  },
+  excused: {
+    label: "Excusé",
+    className: "border-emerald-200 bg-emerald-100 text-emerald-700",
   },
 }
 
@@ -70,95 +97,185 @@ export default function StudentAbsenceDetail({
   to,
   subject,
 }: StudentAbsenceDetailProps) {
+  const queryClient = useQueryClient()
+  const { hasPermission } = usePermissions()
+  const canExcuse = hasPermission("students.excuse")
+
+  const [excuseDialogId, setExcuseDialogId] = useState<string | null>(null)
+  const [excuseReason, setExcuseReason] = useState("")
+
+  const absenceQueryKey = ["students", "absence", "detail", student?.studentId, from, to, subject]
+
   const detailQuery = useQuery({
-    queryKey: ["students", "absence", "detail", student?.studentId, from, to, subject],
+    queryKey: absenceQueryKey,
     queryFn: () =>
-      getStudentAbsenceRecords(student!.studentId, {
-        from,
-        to,
-        subject,
-      }),
+      getStudentAbsenceRecords(student!.studentId, { from, to, subject }),
     enabled: open && Boolean(student),
+  })
+
+  const excuseMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      excuseAbsence(id, reason),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: absenceQueryKey })
+      void queryClient.invalidateQueries({
+        queryKey: ["students", "detail", student?.studentId],
+      })
+      setExcuseDialogId(null)
+      setExcuseReason("")
+    },
   })
 
   const absences = detailQuery.data ?? []
 
+  const handleConfirmExcuse = () => {
+    if (!excuseDialogId || !excuseReason.trim()) return
+    excuseMutation.mutate({ id: excuseDialogId, reason: excuseReason.trim() })
+  }
+
+  const handleDialogOpenChange = (dialogOpen: boolean) => {
+    if (!dialogOpen) {
+      setExcuseDialogId(null)
+      setExcuseReason("")
+    }
+  }
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[85vh] overflow-y-auto p-4 sm:p-6">
-        <SheetHeader>
-          <SheetTitle>Absences de {student?.studentName ?? "—"}</SheetTitle>
-          <SheetDescription>
-            Classe {student?.className ?? "—"} • {student?.absenceCount ?? 0} absences sur la période
-          </SheetDescription>
-        </SheetHeader>
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent side="bottom" className="h-[85vh] overflow-y-auto p-4 sm:p-6">
+          <SheetHeader>
+            <SheetTitle>Absences de {student?.studentName ?? "—"}</SheetTitle>
+            <SheetDescription>
+              Classe {student?.className ?? "—"} • {student?.absenceCount ?? 0} absences sur la période
+            </SheetDescription>
+          </SheetHeader>
 
-        <div className="mt-4 space-y-3 pb-6">
-          {detailQuery.isLoading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <Skeleton key={`absence-detail-skeleton-${index}`} className="h-24 w-full" />
-              ))}
-            </div>
-          ) : null}
+          <div className="mt-4 space-y-3 pb-6">
+            {detailQuery.isLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <Skeleton key={`absence-detail-skeleton-${index}`} className="h-24 w-full" />
+                ))}
+              </div>
+            ) : null}
 
-          {!detailQuery.isLoading && absences.length === 0 ? (
-            <EmptyState
-              title="Aucune absence"
-              message="Aucune absence trouvée pour cet élève sur la période sélectionnée."
-            />
-          ) : null}
+            {!detailQuery.isLoading && absences.length === 0 ? (
+              <EmptyState
+                title="Aucune absence"
+                message="Aucune absence trouvée pour cet élève sur la période sélectionnée."
+              />
+            ) : null}
 
-          {!detailQuery.isLoading
-            ? absences.map((record, index) => (
-                <div key={recordKey(record, index)} className="space-y-2 rounded-xl border p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium">
-                      {formatDate(record.date)} — {record.subject}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatTime(record.startTime)}–{formatTime(record.endTime)}
-                    </span>
+            {!detailQuery.isLoading
+              ? absences.map((record, index) => (
+                  <div key={recordKey(record, index)} className="space-y-2 rounded-xl border p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">
+                          {formatDate(record.date)} — {record.subject}
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className={absenceStatusConfig[record.status].className}
+                        >
+                          {absenceStatusConfig[record.status].label}
+                        </Badge>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {formatTime(record.startTime)}–{formatTime(record.endTime)}
+                      </span>
+                    </div>
+
+                    {record.excuseReason ? (
+                      <p className="text-xs text-muted-foreground italic">
+                        Motif : {record.excuseReason}
+                      </p>
+                    ) : null}
+
+                    {record.smsPhone1.phone ? (
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-muted-foreground">{record.smsPhone1.phone}</span>
+                        <Badge
+                          variant="outline"
+                          className={smsConfig[record.smsPhone1.status].className}
+                        >
+                          {smsConfig[record.smsPhone1.status].label}
+                        </Badge>
+                        {record.smsPhone1.sentAt ? (
+                          <span className="text-muted-foreground">
+                            {formatDateTime(record.smsPhone1.sentAt)}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {record.smsPhone2.phone ? (
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-muted-foreground">{record.smsPhone2.phone} (2)</span>
+                        <Badge
+                          variant="outline"
+                          className={smsConfig[record.smsPhone2.status].className}
+                        >
+                          {smsConfig[record.smsPhone2.status].label}
+                        </Badge>
+                        {record.smsPhone2.sentAt ? (
+                          <span className="text-muted-foreground">
+                            {formatDateTime(record.smsPhone2.sentAt)}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {canExcuse && record.status === "absent" ? (
+                      <div className="pt-1">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => setExcuseDialogId(record.id)}
+                        >
+                          Excuser
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
+                ))
+              : null}
+          </div>
+        </SheetContent>
+      </Sheet>
 
-                  {record.smsPhone1.phone ? (
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-muted-foreground">{record.smsPhone1.phone}</span>
-                      <Badge
-                        variant="outline"
-                        className={smsConfig[record.smsPhone1.status].className}
-                      >
-                        {smsConfig[record.smsPhone1.status].label}
-                      </Badge>
-                      {record.smsPhone1.sentAt ? (
-                        <span className="text-muted-foreground">
-                          {formatDateTime(record.smsPhone1.sentAt)}
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  {record.smsPhone2.phone ? (
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-muted-foreground">{record.smsPhone2.phone} (2)</span>
-                      <Badge
-                        variant="outline"
-                        className={smsConfig[record.smsPhone2.status].className}
-                      >
-                        {smsConfig[record.smsPhone2.status].label}
-                      </Badge>
-                      {record.smsPhone2.sentAt ? (
-                        <span className="text-muted-foreground">
-                          {formatDateTime(record.smsPhone2.sentAt)}
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              ))
-            : null}
-        </div>
-      </SheetContent>
-    </Sheet>
+      <Dialog open={excuseDialogId !== null} onOpenChange={handleDialogOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excuser l&apos;absence</DialogTitle>
+            <DialogDescription>
+              Saisissez le motif d&apos;excuse. Ce motif sera enregistré sur le dossier de l&apos;élève.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            placeholder="Motif de l'excuse…"
+            value={excuseReason}
+            onChange={(e) => setExcuseReason(e.target.value)}
+            rows={4}
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => handleDialogOpenChange(false)}
+              disabled={excuseMutation.isPending}
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={handleConfirmExcuse}
+              disabled={!excuseReason.trim() || excuseMutation.isPending}
+            >
+              {excuseMutation.isPending ? "Enregistrement…" : "Confirmer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

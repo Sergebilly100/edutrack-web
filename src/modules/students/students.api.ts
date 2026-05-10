@@ -306,3 +306,16 @@ export const getStudentAbsenceRecords = (
       },
     })
     .then((response) => response.data as StudentAbsenceRecord[])
+
+export const excuseAbsence = (attendanceId: string, reason: string) =>
+  api
+    .patch<{ data: { id: string; status: string; excuseReason: string } }>(
+      `/students/absences/${attendanceId}/excuse`,
+      { reason }
+    )
+    .then((response) => response.data.data)
+
+export const retrySmsNotification = (notificationId: string) =>
+  api
+    .post<{ success: boolean; queueRef: string }>(`/notifications/${notificationId}/retry`)
+    .then((response) => response.data)

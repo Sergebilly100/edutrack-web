@@ -2,19 +2,31 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { BookOpen, Clock3, MessageSquare, Phone, UserCheck } from "lucide-react"
+import { useDebounce } from "@/shared/hooks/useDebounce"
+import { normalizePhoneInput, isValidOptionalPhone } from "@/shared/utils/phone"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
-import { getStudentById, updateStudent } from "@/modules/students/students.api"
+import { excuseAbsence, getStudentById, retrySmsNotification, updateStudent } from "@/modules/students/students.api"
 import { DocumentList, DocumentUpload, PageLayout, PresenceDonut, StatCard } from "@/shared/components"
 import { BackIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
@@ -51,15 +63,6 @@ const formatSlot = (startTime: string | null, endTime: string | null) => {
   return `${startTime.slice(0, 5)} - ${endTime.slice(0, 5)}`
 }
 
-const PHONE_CI_REGEX = /^225\d{10}$/
-
-const normalizePhoneInput = (value: string) => value.replace(/\D/g, "").slice(0, 13)
-
-const isValidOptionalPhone = (value: string) => {
-  const clean = value.trim()
-  return clean.length === 0 || PHONE_CI_REGEX.test(clean)
-}
-
 export default function StudentDetailPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -78,8 +81,18 @@ export default function StudentDetailPage() {
   const [noteStatus, setNoteStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
   const [recentAbsencesPage, setRecentAbsencesPage] = useState(1)
 
+  // Filtres tableau absences
+  const [absenceFilterMonth, setAbsenceFilterMonth] = useState<string>("all")
+  const [absenceFilterSubject, setAbsenceFilterSubject] = useState<string>("all")
+  const [absenceFilterStatus, setAbsenceFilterStatus] = useState<string>("all")
+
+  // Dialog excuse
+  const [excuseDialogId, setExcuseDialogId] = useState<string | null>(null)
+  const [excuseReason, setExcuseReason] = useState("")
+
   const lastSavedNoteRef = useRef("")
   const hydratedRef = useRef(false)
+  const debouncedNote = useDebounce(note, 1000)
 
   const studentQuery = useQuery({
     queryKey: ["students", "detail", studentId],
@@ -120,6 +133,30 @@ export default function StudentDetailPage() {
     },
   })
 
+  const retrySms = useMutation({
+    mutationFn: (notificationId: string) => retrySmsNotification(notificationId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["students", "detail", studentId] })
+      toast({ title: "SMS remis en file d'envoi" })
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de renvoyer le SMS", variant: "destructive" })
+    },
+  })
+
+  const excuseAbsenceMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => excuseAbsence(id, reason),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["students", "detail", studentId] })
+      setExcuseDialogId(null)
+      setExcuseReason("")
+      toast({ title: "Absence excusée" })
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible d'excuser l'absence", variant: "destructive" })
+    },
+  })
+
   useEffect(() => {
     const student = studentQuery.data
     if (!student) {
@@ -142,7 +179,7 @@ export default function StudentDetailPage() {
       return
     }
 
-    if (note === lastSavedNoteRef.current) {
+    if (debouncedNote === lastSavedNoteRef.current) {
       if (noteStatus !== "idle") {
         setNoteStatus("idle")
       }
@@ -150,20 +187,42 @@ export default function StudentDetailPage() {
     }
 
     setNoteStatus("saving")
-    const timer = window.setTimeout(() => {
-      void saveNoteMutation.mutateAsync(note)
-    }, 1000)
-
-    return () => {
-      window.clearTimeout(timer)
-    }
-  }, [note, noteStatus, saveNoteMutation, studentId])
+    void saveNoteMutation.mutateAsync(debouncedNote)
+  }, [debouncedNote, noteStatus, saveNoteMutation, studentId])
 
   const estimatedPresentDays = useMemo(() => {
     const schoolDaysEstimate = 22
     const absences = studentQuery.data?.absenceSummary.thisMonth ?? 0
     return Math.max(0, schoolDaysEstimate - absences)
   }, [studentQuery.data?.absenceSummary.thisMonth])
+
+  const absenceMonthOptions = useMemo(() => {
+    const months = new Map<string, string>()
+    for (const row of studentQuery.data?.recentAbsences ?? []) {
+      const key = row.date.slice(0, 7)
+      if (!months.has(key)) {
+        const label = new Intl.DateTimeFormat("fr-CI", { month: "long", year: "numeric" })
+          .format(new Date(`${key}-01T00:00:00Z`))
+        months.set(key, label.charAt(0).toUpperCase() + label.slice(1))
+      }
+    }
+    return [...months.entries()].sort((a, b) => b[0].localeCompare(a[0]))
+  }, [studentQuery.data?.recentAbsences])
+
+  const absenceSubjectOptions = useMemo(() => {
+    const subjects = new Set<string>()
+    for (const row of studentQuery.data?.recentAbsences ?? []) subjects.add(row.subject)
+    return [...subjects].sort()
+  }, [studentQuery.data?.recentAbsences])
+
+  const filteredAbsences = useMemo(() => {
+    return (studentQuery.data?.recentAbsences ?? []).filter((row) => {
+      if (absenceFilterMonth !== "all" && !row.date.startsWith(absenceFilterMonth)) return false
+      if (absenceFilterSubject !== "all" && row.subject !== absenceFilterSubject) return false
+      if (absenceFilterStatus !== "all" && row.status !== absenceFilterStatus) return false
+      return true
+    })
+  }, [studentQuery.data?.recentAbsences, absenceFilterMonth, absenceFilterSubject, absenceFilterStatus])
 
   const areContactsValid = isValidOptionalPhone(parentPhone) && isValidOptionalPhone(parentPhone2)
 
@@ -199,15 +258,6 @@ export default function StudentDetailPage() {
   const student = studentQuery.data
   const params = new URLSearchParams(location.search)
   const returnTo = params.get("returnTo") || "/students"
-  const recentAbsencesPageSize = 8
-  const recentAbsencesTotalPages = Math.max(
-    1,
-    Math.ceil(student.recentAbsences.length / recentAbsencesPageSize)
-  )
-  const recentAbsenceRows = student.recentAbsences.slice(
-    (recentAbsencesPage - 1) * recentAbsencesPageSize,
-    recentAbsencesPage * recentAbsencesPageSize
-  )
   const sentSmsCount = student.parentSms.filter((row) => row.status === "sent" || row.status === "delivered").length
   const failedSmsCount = student.parentSms.filter((row) => row.status === "failed").length
   const hasParentContact = Boolean(parentPhone.trim() || parentPhone2.trim())
@@ -217,6 +267,15 @@ export default function StudentDetailPage() {
       : student.absenceSummary.thisMonth > 0
         ? "À surveiller"
         : "RAS ce mois"
+
+  const recentAbsencesPageSize = 8
+  const recentAbsencesTotalPages = Math.max(1, Math.ceil(filteredAbsences.length / recentAbsencesPageSize))
+  const recentAbsenceRows = filteredAbsences.slice(
+    (recentAbsencesPage - 1) * recentAbsencesPageSize,
+    recentAbsencesPage * recentAbsencesPageSize
+  )
+
+  const canExcuse = hasPermission("students.excuse")
 
   return (
     <PageLayout
@@ -300,65 +359,136 @@ export default function StudentDetailPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Absences récentes</CardTitle>
+              <CardTitle className="text-base">Absences</CardTitle>
             </CardHeader>
-            <CardContent>
-              {student.recentAbsences.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Aucune absence récente.</p>
+            <CardContent className="space-y-4">
+              {/* Filtres */}
+              <div className="flex flex-wrap gap-2">
+                <Select
+                  value={absenceFilterMonth}
+                  onValueChange={(v) => { setAbsenceFilterMonth(v); setRecentAbsencesPage(1) }}
+                >
+                  <SelectTrigger className="h-8 w-[160px] text-xs">
+                    <SelectValue placeholder="Tous les mois" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous les mois</SelectItem>
+                    {absenceMonthOptions.map(([key, label]) => (
+                      <SelectItem key={key} value={key}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={absenceFilterSubject}
+                  onValueChange={(v) => { setAbsenceFilterSubject(v); setRecentAbsencesPage(1) }}
+                >
+                  <SelectTrigger className="h-8 w-[150px] text-xs">
+                    <SelectValue placeholder="Toutes matières" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Toutes matières</SelectItem>
+                    {absenceSubjectOptions.map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={absenceFilterStatus}
+                  onValueChange={(v) => { setAbsenceFilterStatus(v); setRecentAbsencesPage(1) }}
+                >
+                  <SelectTrigger className="h-8 w-[130px] text-xs">
+                    <SelectValue placeholder="Tous statuts" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous statuts</SelectItem>
+                    <SelectItem value="absent">Absent</SelectItem>
+                    <SelectItem value="excused">Excusé</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {filteredAbsences.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Aucune absence pour ces filtres.</p>
               ) : (
                 <div className="space-y-3">
                   <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Horaire</TableHead>
-                        <TableHead>Salle</TableHead>
-                        <TableHead>Matière</TableHead>
-                        <TableHead>Professeur</TableHead>
-                        <TableHead>Statut SMS</TableHead>
-                        <TableHead>Précision</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {recentAbsenceRows.map((row, index) => {
-                        const statusKey = row.smsStatus ?? "none"
-                        return (
-                          <TableRow key={`${row.date}-${row.subject}-${(recentAbsencesPage - 1) * recentAbsencesPageSize + index}`}>
-                            <TableCell className="font-medium">{formatDate(row.date)}</TableCell>
-                            <TableCell>{formatSlot(row.startTime, row.endTime)}</TableCell>
-                            <TableCell>{row.roomName ?? "—"}</TableCell>
-                            <TableCell>{row.subject}</TableCell>
-                            <TableCell>{row.teacherName}</TableCell>
-                            <TableCell>
-                              <Badge variant={row.smsStatus === "failed" ? "destructive" : "secondary"}>
-                                {recentSmsLabel[statusKey]}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              {row.smsStatus === "sent" ? "Parent notifié" : row.smsStatus === "failed" ? "Échec envoi SMS" : "Aucune notification confirmée"}
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Horaire</TableHead>
+                          <TableHead>Matière</TableHead>
+                          <TableHead>Professeur</TableHead>
+                          <TableHead>Statut</TableHead>
+                          <TableHead>SMS</TableHead>
+                          {canExcuse ? <TableHead className="w-[110px]">Action</TableHead> : null}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {recentAbsenceRows.map((row) => {
+                          const statusKey = row.smsStatus ?? "none"
+                          return (
+                            <TableRow key={row.id}>
+                              <TableCell className="font-medium">{formatDate(row.date)}</TableCell>
+                              <TableCell>{formatSlot(row.startTime, row.endTime)}</TableCell>
+                              <TableCell>{row.subject}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{row.teacherName}</TableCell>
+                              <TableCell>
+                                {row.status === "excused" ? (
+                                  <Badge variant="outline" className="border-emerald-200 bg-emerald-100 text-emerald-700">
+                                    Excusé
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="border-red-200 bg-red-100 text-red-700">
+                                    Absent
+                                  </Badge>
+                                )}
+                                {row.excuseReason ? (
+                                  <p className="mt-0.5 text-xs text-muted-foreground">{row.excuseReason}</p>
+                                ) : null}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={row.smsStatus === "failed" ? "destructive" : "secondary"} className="text-xs">
+                                  {recentSmsLabel[statusKey]}
+                                </Badge>
+                              </TableCell>
+                              {canExcuse ? (
+                                <TableCell>
+                                  {row.status === "absent" ? (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="default"
+                                      className="h-7 px-2 text-xs"
+                                      onClick={() => setExcuseDialogId(row.id)}
+                                    >
+                                      Excuser
+                                    </Button>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">—</span>
+                                  )}
+                                </TableCell>
+                              ) : null}
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
                   </div>
 
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs text-muted-foreground">
-                      Page {recentAbsencesPage} / {recentAbsencesTotalPages}
+                      {filteredAbsences.length} absence{filteredAbsences.length > 1 ? "s" : ""} — page {recentAbsencesPage} / {recentAbsencesTotalPages}
                     </p>
                     <div className="flex items-center gap-2">
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="min-h-12"
                         disabled={recentAbsencesPage <= 1}
-                        onClick={() =>
-                          setRecentAbsencesPage((current) => Math.max(1, current - 1))
-                        }
+                        onClick={() => setRecentAbsencesPage((p) => Math.max(1, p - 1))}
                       >
                         Précédent
                       </Button>
@@ -366,13 +496,8 @@ export default function StudentDetailPage() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="min-h-12"
                         disabled={recentAbsencesPage >= recentAbsencesTotalPages}
-                        onClick={() =>
-                          setRecentAbsencesPage((current) =>
-                            Math.min(recentAbsencesTotalPages, current + 1)
-                          )
-                        }
+                        onClick={() => setRecentAbsencesPage((p) => Math.min(recentAbsencesTotalPages, p + 1))}
                       >
                         Suivant
                       </Button>
@@ -529,7 +654,13 @@ export default function StudentDetailPage() {
                           <Badge variant={row.status === "failed" ? "destructive" : "secondary"}>{smsLabel[row.status]}</Badge>
                         </TableCell>
                         <TableCell>
-                          <Button type="button" size="sm" variant="outline" disabled={row.status !== "failed"}>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={row.status !== "failed" || retrySms.isPending}
+                            onClick={() => retrySms.mutate(row.id)}
+                          >
                             <MessageSquare className="mr-2 h-4 w-4" />
                             Renvoyer
                           </Button>
@@ -545,6 +676,46 @@ export default function StudentDetailPage() {
           </Card>
         </TabsContent>
       </Tabs>
+      <Dialog
+        open={excuseDialogId !== null}
+        onOpenChange={(open) => {
+          if (!open) { setExcuseDialogId(null); setExcuseReason("") }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excuser l&apos;absence</DialogTitle>
+            <DialogDescription>
+              Saisissez le motif d&apos;excuse. Il sera enregistré sur le dossier de l&apos;élève.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            placeholder="Motif de l'excuse…"
+            value={excuseReason}
+            onChange={(e) => setExcuseReason(e.target.value)}
+            rows={4}
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setExcuseDialogId(null); setExcuseReason("") }}
+              disabled={excuseAbsenceMutation.isPending}
+            >
+              Annuler
+            </Button>
+            <Button
+              disabled={!excuseReason.trim() || excuseAbsenceMutation.isPending}
+              onClick={() => {
+                if (excuseDialogId) {
+                  excuseAbsenceMutation.mutate({ id: excuseDialogId, reason: excuseReason.trim() })
+                }
+              }}
+            >
+              {excuseAbsenceMutation.isPending ? "Enregistrement…" : "Confirmer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   )
 }

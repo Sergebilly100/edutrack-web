@@ -30,6 +30,7 @@ import { AddIcon, AppIcon, ChevronRightIcon, FilterIcon, StudentsIcon } from "@/
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
 import { useStudentLabel } from "@/shared/hooks/useStudentLabel"
+import { normalizePhoneInput, isValidOptionalPhone } from "@/shared/utils/phone"
 
 type StudentTableRow = StudentItem & {
   name: string
@@ -56,14 +57,6 @@ const initials = (value: string) =>
     .map((chunk) => chunk[0]?.toUpperCase() ?? "")
     .join("")
 
-const PHONE_CI_REGEX = /^225\d{10}$/
-
-const normalizePhoneInput = (value: string) => value.replace(/\D/g, "").slice(0, 13)
-
-const isValidOptionalPhone = (value: string) => {
-  const clean = value.trim()
-  return clean.length === 0 || PHONE_CI_REGEX.test(clean)
-}
 
 function SortableHeader<TData>({ column, label }: { column: Column<TData, unknown>; label: string }) {
   return (
