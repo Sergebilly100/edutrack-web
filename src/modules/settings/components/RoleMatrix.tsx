@@ -23,7 +23,7 @@ const BASE_PERMISSION_COLUMNS = [
   {
     key: "students",
     label: "Élèves",
-    permissions: ["students.view", "students.create", "students.edit", "students.documents"],
+    permissions: ["students.view", "students.create", "students.edit", "students.documents", "students.excuse"],
   },
   {
     key: "schedule",
@@ -59,6 +59,7 @@ const BASE_PERMISSION_ROWS = [
   { key: "delete", label: "Supprimer" },
   { key: "block", label: "Bloquer" },
   { key: "documents", label: "Documents" },
+  { key: "excuse", label: "Excuser absence" },
   { key: "compute", label: "Calculer" },
   { key: "mark_paid", label: "Marquer payé" },
   { key: "export", label: "Exporter" },
@@ -132,6 +133,7 @@ const ACTION_KEYS_REQUIRING_VIEW = new Set([
   "delete",
   "block",
   "documents",
+  "excuse",
   "compute",
   "mark_paid",
   "export",
