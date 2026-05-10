@@ -1089,13 +1089,13 @@ export default function DashboardPage() {
                 <div className="space-y-2">
                   {topRiskStudents.map((student) => (
                     <Button
-                      key={student.student_id}
+                      key={student.studentId}
                       type="button"
                       variant="ghost"
                       className="h-auto w-full justify-start rounded-lg border border-border p-3"
                       onClick={() =>
                         navigate(
-                          `/students/${student.student_id}?returnTo=${encodeURIComponent(
+                          `/students/${student.studentId}?returnTo=${encodeURIComponent(
                             `${location.pathname}${location.search}`
                           )}`
                         )
@@ -1103,9 +1103,9 @@ export default function DashboardPage() {
                     >
                       <div className="flex w-full items-center justify-between">
                         <div className="min-w-0 text-left">
-                          <p className="truncate text-sm font-medium">{student.student_name}</p>
+                          <p className="truncate text-sm font-medium">{student.studentName}</p>
                           <p className="text-xs text-muted-foreground">
-                            {student.class_name} • {student.absence_count} absence(s) • {student.absence_rate.toFixed(2)}%
+                            {student.className} • {student.absenceCount} absence(s) • {(student.absenceRate ?? 0).toFixed(2)}%
                           </p>
                         </div>
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />

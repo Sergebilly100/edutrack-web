@@ -46,7 +46,6 @@ const TeachersPage = lazy(() => import("@/modules/teachers/TeachersPage"))
 const ValidationsPage = lazy(() => import("@/modules/validations/ValidationsPage"))
 const LoginPage = lazy(() => import("./modules/auth/LoginPage"))
 const MaintenancePage = lazy(() => import("./modules/auth/MaintenancePage"))
-const ComponentsDemoPage = lazy(() => import("./modules/dev/ComponentsDemoPage"))
 
 function DashboardRoute() {
   const [searchParams] = useSearchParams()
@@ -298,7 +297,6 @@ export default function App() {
         <Route path="/login" element={<LoginRoute />} />
         <Route path="/parent/login" element={<ParentLoginRoute />} />
         <Route path="/maintenance" element={<MaintenancePage />} />
-        <Route path="/dev" element={<ComponentsDemoPage />} />
         <Route path="/attendance" element={<AttendanceRoute />} />
         <Route path="/onboarding" element={<OnboardingRoute />} />
 

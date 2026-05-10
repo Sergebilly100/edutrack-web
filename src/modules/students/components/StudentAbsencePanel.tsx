@@ -55,7 +55,7 @@ const escapeCsvCell = (value: string | number) => {
   return raw
 }
 
-const formatRate = (value: number) => `${value.toFixed(2)}%`
+const formatRate = (value: number | null | undefined) => `${(value ?? 0).toFixed(2)}%`
 
 const formatPhone = (value: string | null) => (value ? `📱 +${value}` : "—")
 
@@ -92,13 +92,13 @@ export default function StudentAbsencePanel() {
 
     const csvRows = rows.map((row) =>
       [
-        row.student_name,
-        row.class_name,
-        row.absence_count,
-        `${row.absence_rate}%`,
-        row.parent_phone ?? "",
-        row.parent_phone_2 ?? "",
-        smsConfig[row.sms_summary].label,
+        row.studentName,
+        row.className,
+        row.absenceCount,
+        `${row.absenceRate ?? 0}%`,
+        row.parentPhone ?? "",
+        row.parentPhone2 ?? "",
+        smsConfig[row.smsSummary].label,
       ]
         .map((cell) => escapeCsvCell(cell))
         .join(",")
@@ -276,7 +276,7 @@ export default function StudentAbsencePanel() {
                   </TableHeader>
                   <TableBody>
                     {statsQuery.data?.map((row) => {
-                      const rate = Math.max(0, Math.min(100, row.absence_rate))
+                      const rate = Math.max(0, Math.min(100, row.absenceRate ?? 0))
                       const rateColorClass =
                         rate > 20
                           ? "[&>div]:bg-red-500"
@@ -285,37 +285,37 @@ export default function StudentAbsencePanel() {
                             : "[&>div]:bg-green-500"
 
                       return (
-                        <TableRow key={row.student_id}>
+                        <TableRow key={row.studentId}>
                           <TableCell>
                             <div className="space-y-1">
-                              <p className="font-medium">{row.student_name}</p>
-                              <p className="text-xs text-muted-foreground">{row.class_name}</p>
+                              <p className="font-medium">{row.studentName}</p>
+                              <p className="text-xs text-muted-foreground">{row.className}</p>
                             </div>
                           </TableCell>
                           <TableCell>
                             <Badge className="border-red-200 bg-red-100 text-red-700">
-                              {row.absence_count}
+                              {row.absenceCount}
                             </Badge>
                           </TableCell>
                           <TableCell>
                             <div className="space-y-1">
                               <Progress value={rate} className={cn("w-28", rateColorClass)} />
                               <p className="text-xs text-muted-foreground">
-                                {formatRate(row.absence_rate)} ({row.absence_count}/{row.total_scheduled})
+                                {formatRate(row.absenceRate)} ({row.absenceCount}/{row.totalScheduled})
                               </p>
                             </div>
                           </TableCell>
                           <TableCell>
                             <div className="space-y-1 text-xs">
-                              <p>{formatPhone(row.parent_phone)}</p>
-                              {row.parent_phone_2 ? (
-                                <p className="text-muted-foreground">{formatPhone(row.parent_phone_2)}</p>
+                              <p>{formatPhone(row.parentPhone)}</p>
+                              {row.parentPhone2 ? (
+                                <p className="text-muted-foreground">{formatPhone(row.parentPhone2)}</p>
                               ) : null}
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className={smsConfig[row.sms_summary].className}>
-                              {smsConfig[row.sms_summary].label}
+                            <Badge variant="outline" className={smsConfig[row.smsSummary].className}>
+                              {smsConfig[row.smsSummary].label}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -333,7 +333,7 @@ export default function StudentAbsencePanel() {
                                 className="min-h-12"
                                 onClick={() =>
                                   navigate(
-                                    `/students/${row.student_id}?returnTo=${encodeURIComponent(
+                                    `/students/${row.studentId}?returnTo=${encodeURIComponent(
                                       `${location.pathname}${location.search}`
                                     )}`
                                   )

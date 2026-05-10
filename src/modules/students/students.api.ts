@@ -72,10 +72,12 @@ export type StudentDetail = {
   createdAt: string
   absenceSummary: {
     total: number
+    excused: number
     thisMonth: number
     thisWeek: number
   }
   recentAbsences: Array<{
+    id: string
     date: string
     subject: string
     teacherName: string
@@ -83,6 +85,8 @@ export type StudentDetail = {
     endTime: string | null
     roomName: string | null
     smsStatus: "sent" | "failed" | "not_sent" | null
+    status: "absent" | "excused"
+    excuseReason: string | null
   }>
   documents: Array<{
     id: string
@@ -147,30 +151,35 @@ export type TodayAbsenceGroup = {
     createdAt: string
     smsStatus: "queued" | "sent" | "failed" | "delivered" | null
     smsNotified: boolean
+    status: "absent" | "excused"
   }>
 }
 
 export type StudentAbsenceStat = {
-  student_id: string
-  student_name: string
-  class_name: string
-  class_id: string
-  parent_phone: string | null
-  parent_phone_2: string | null
-  absence_count: number
-  total_scheduled: number
-  absence_rate: number
-  sms_summary: "all_sent" | "partial" | "none"
+  studentId: string
+  studentName: string
+  className: string
+  classId: string
+  parentPhone: string | null
+  parentPhone2: string | null
+  absenceCount: number
+  excusedCount: number
+  totalScheduled: number
+  absenceRate: number
+  smsSummary: "all_sent" | "partial" | "none"
 }
 
 export type StudentAbsenceRecord = {
+  id: string
   date: string
   subject: string
-  class_name: string
-  start_time: string
-  end_time: string
-  sms_phone_1: { phone: string | null; status: "sent" | "failed" | "not_sent"; sent_at: string | null }
-  sms_phone_2: { phone: string | null; status: "sent" | "failed" | "not_sent"; sent_at: string | null }
+  className: string
+  startTime: string
+  endTime: string
+  status: "absent" | "excused"
+  excuseReason: string | null
+  smsPhone1: { phone: string | null; status: "sent" | "failed" | "not_sent"; sentAt: string | null }
+  smsPhone2: { phone: string | null; status: "sent" | "failed" | "not_sent"; sentAt: string | null }
 }
 
 export type StudentAbsenceStatsQuery = {
@@ -282,7 +291,7 @@ export const getStudentAbsenceStats = (query: StudentAbsenceStatsQuery) =>
         min_absences: query.minAbsences ?? 1,
       },
     })
-    .then((response) => response.data)
+    .then((response) => response.data as StudentAbsenceStat[])
 
 export const getStudentAbsenceRecords = (
   studentId: string,
@@ -296,4 +305,4 @@ export const getStudentAbsenceRecords = (
         subject: query.subject,
       },
     })
-    .then((response) => response.data)
+    .then((response) => response.data as StudentAbsenceRecord[])

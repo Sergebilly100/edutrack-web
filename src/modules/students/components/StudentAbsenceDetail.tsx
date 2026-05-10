@@ -60,7 +60,7 @@ const formatDateTime = (value: string) =>
 const formatTime = (value: string) => value.slice(0, 5)
 
 const recordKey = (record: StudentAbsenceRecord, index: number) =>
-  `${record.date}-${record.subject}-${record.start_time}-${record.end_time}-${index}`
+  `${record.date}-${record.subject}-${record.startTime}-${record.endTime}-${index}`
 
 export default function StudentAbsenceDetail({
   open,
@@ -71,9 +71,9 @@ export default function StudentAbsenceDetail({
   subject,
 }: StudentAbsenceDetailProps) {
   const detailQuery = useQuery({
-    queryKey: ["students", "absence", "detail", student?.student_id, from, to, subject],
+    queryKey: ["students", "absence", "detail", student?.studentId, from, to, subject],
     queryFn: () =>
-      getStudentAbsenceRecords(student!.student_id, {
+      getStudentAbsenceRecords(student!.studentId, {
         from,
         to,
         subject,
@@ -87,9 +87,9 @@ export default function StudentAbsenceDetail({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="h-[85vh] overflow-y-auto p-4 sm:p-6">
         <SheetHeader>
-          <SheetTitle>Absences de {student?.student_name ?? "—"}</SheetTitle>
+          <SheetTitle>Absences de {student?.studentName ?? "—"}</SheetTitle>
           <SheetDescription>
-            Classe {student?.class_name ?? "—"} • {student?.absence_count ?? 0} absences sur la période
+            Classe {student?.className ?? "—"} • {student?.absenceCount ?? 0} absences sur la période
           </SheetDescription>
         </SheetHeader>
 
@@ -117,39 +117,39 @@ export default function StudentAbsenceDetail({
                       {formatDate(record.date)} — {record.subject}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {formatTime(record.start_time)}–{formatTime(record.end_time)}
+                      {formatTime(record.startTime)}–{formatTime(record.endTime)}
                     </span>
                   </div>
 
-                  {record.sms_phone_1.phone ? (
+                  {record.smsPhone1.phone ? (
                     <div className="flex items-center gap-2 text-xs">
-                      <span className="text-muted-foreground">{record.sms_phone_1.phone}</span>
+                      <span className="text-muted-foreground">{record.smsPhone1.phone}</span>
                       <Badge
                         variant="outline"
-                        className={smsConfig[record.sms_phone_1.status].className}
+                        className={smsConfig[record.smsPhone1.status].className}
                       >
-                        {smsConfig[record.sms_phone_1.status].label}
+                        {smsConfig[record.smsPhone1.status].label}
                       </Badge>
-                      {record.sms_phone_1.sent_at ? (
+                      {record.smsPhone1.sentAt ? (
                         <span className="text-muted-foreground">
-                          {formatDateTime(record.sms_phone_1.sent_at)}
+                          {formatDateTime(record.smsPhone1.sentAt)}
                         </span>
                       ) : null}
                     </div>
                   ) : null}
 
-                  {record.sms_phone_2.phone ? (
+                  {record.smsPhone2.phone ? (
                     <div className="flex items-center gap-2 text-xs">
-                      <span className="text-muted-foreground">{record.sms_phone_2.phone} (2)</span>
+                      <span className="text-muted-foreground">{record.smsPhone2.phone} (2)</span>
                       <Badge
                         variant="outline"
-                        className={smsConfig[record.sms_phone_2.status].className}
+                        className={smsConfig[record.smsPhone2.status].className}
                       >
-                        {smsConfig[record.sms_phone_2.status].label}
+                        {smsConfig[record.smsPhone2.status].label}
                       </Badge>
-                      {record.sms_phone_2.sent_at ? (
+                      {record.smsPhone2.sentAt ? (
                         <span className="text-muted-foreground">
-                          {formatDateTime(record.sms_phone_2.sent_at)}
+                          {formatDateTime(record.smsPhone2.sentAt)}
                         </span>
                       ) : null}
                     </div>
