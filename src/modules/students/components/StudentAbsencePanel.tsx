@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
+import { AlertTriangle, Eye, MessageCircle, Phone, UserRound } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -57,7 +58,7 @@ const escapeCsvCell = (value: string | number) => {
 
 const formatRate = (value: number | null | undefined) => `${(value ?? 0).toFixed(2)}%`
 
-const formatPhone = (value: string | null) => (value ? `📱 +${value}` : "—")
+const formatPhone = (value: string | null) => (value ? `+${value}` : "—")
 
 export default function StudentAbsencePanel() {
   const {
@@ -262,7 +263,90 @@ export default function StudentAbsencePanel() {
             ) : null}
 
             {!statsQuery.isLoading && hasRows ? (
-              <div className="overflow-x-auto">
+              <>
+              <div className="space-y-3 lg:hidden">
+                {statsQuery.data?.map((row) => {
+                  const rate = Math.max(0, Math.min(100, row.absenceRate ?? 0))
+                  const rateColorClass =
+                    rate > 20
+                      ? "[&>div]:bg-red-500"
+                      : rate > 10
+                        ? "[&>div]:bg-amber-500"
+                        : "[&>div]:bg-green-500"
+                  const rateTone =
+                    rate > 20
+                      ? "border-red-200 bg-red-50 text-red-700"
+                      : rate > 10
+                        ? "border-amber-200 bg-amber-50 text-amber-700"
+                        : "border-green-200 bg-green-50 text-green-700"
+
+                  return (
+                    <article key={row.studentId} className="rounded-xl border bg-card p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                            <UserRound className="h-5 w-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="truncate text-base font-semibold">{row.studentName}</h3>
+                            <p className="text-xs text-muted-foreground">{row.className}</p>
+                          </div>
+                        </div>
+                        <Badge variant="outline" role="status" aria-label={`${row.absenceCount} absences`} className="gap-1 border-red-200 bg-red-50 text-red-700">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          {row.absenceCount} abs.
+                        </Badge>
+                      </div>
+
+                      <div className="mt-4 space-y-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-medium">Taux d'absence</p>
+                          <Badge variant="outline" role="status" aria-label={`Taux d'absence ${formatRate(row.absenceRate)}`} className={cn("gap-1", rateTone)}>
+                            {formatRate(row.absenceRate)}
+                          </Badge>
+                        </div>
+                        <Progress value={rate} className={cn("h-2", rateColorClass)} aria-label={`Taux d'absence ${formatRate(row.absenceRate)}`} />
+                        <p className="text-xs text-muted-foreground">
+                          {row.absenceCount} absence(s) sur {row.totalScheduled} cours planifiés.
+                        </p>
+                      </div>
+
+                      <div className="mt-3 grid gap-2 text-sm">
+                        <div className="flex items-center justify-between rounded-lg border px-3 py-2">
+                          <span className="inline-flex items-center gap-2 text-muted-foreground"><Phone className="h-4 w-4" /> Parent</span>
+                          <span className="font-medium">{formatPhone(row.parentPhone)}</span>
+                        </div>
+                        <div className="flex items-center justify-between rounded-lg border px-3 py-2">
+                          <span className="inline-flex items-center gap-2 text-muted-foreground"><MessageCircle className="h-4 w-4" /> Notification</span>
+                          <Badge variant="outline" role="status" className={smsConfig[row.smsSummary].className}>
+                            {smsConfig[row.smsSummary].label}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                        <Button variant="outline" onClick={() => setSelectedStudent(row)}>
+                          <Eye className="h-4 w-4" />
+                          Détail
+                        </Button>
+                        <Button
+                          onClick={() =>
+                            navigate(
+                              `/students/${row.studentId}?returnTo=${encodeURIComponent(
+                                `${location.pathname}${location.search}`
+                              )}`
+                            )
+                          }
+                        >
+                          Ouvrir la fiche
+                        </Button>
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+
+              <div className="hidden overflow-x-auto rounded-lg border lg:block">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -349,6 +433,7 @@ export default function StudentAbsencePanel() {
                   </TableBody>
                 </Table>
               </div>
+              </>
             ) : null}
           </CardContent>
         </Card>

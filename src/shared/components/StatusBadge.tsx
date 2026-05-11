@@ -30,7 +30,12 @@ export function StatusBadge({ status, lateMinutes }: StatusBadgeProps) {
   const label = status === "late" ? `Retard ${lateMinutes ?? 0}min` : config.label
 
   return (
-    <Badge variant="outline" className={cn("gap-1.5", config.className)}>
+    <Badge
+      variant="outline"
+      role="status"
+      aria-label={`Statut: ${label}`}
+      className={cn("min-h-6 gap-1.5", config.className)}
+    >
       <config.Icon className="h-3 w-3" />
       {label}
     </Badge>

@@ -233,7 +233,58 @@ export default function ValidationsPage() {
     }
 
     return (
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <>
+      <div className="space-y-3 lg:hidden">
+        {items.map((item) => (
+          <article key={item.attendanceId} className="rounded-xl border bg-card p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="truncate text-base font-semibold">{item.teacherName}</h3>
+                <p className="text-sm text-muted-foreground">{item.courseName} • {item.className}</p>
+              </div>
+              <Badge variant="outline" role="status" className="gap-1 border-amber-200 bg-amber-50 text-amber-700">
+                <TriangleAlert className="h-3.5 w-3.5" />
+                GPS
+              </Badge>
+            </div>
+            <dl className="mt-4 grid gap-2 text-sm">
+              <div className="flex justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2">
+                <dt className="text-muted-foreground">Date</dt>
+                <dd className="font-medium">{formatDate(item.date)}</dd>
+              </div>
+              <div className="flex justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2">
+                <dt className="text-muted-foreground">Créneau</dt>
+                <dd className="font-medium">{item.slotLabel ?? "-"}</dd>
+              </div>
+              <div className="flex justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2">
+                <dt className="text-muted-foreground">Écart GPS</dt>
+                <dd className="font-medium">{item.checkinDistance === null ? "Non mesuré" : `+${Math.round(item.checkinDistance)}m`}</dd>
+              </div>
+            </dl>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <Button
+                type="button"
+                disabled={approveMutation.isPending || rejectMutation.isPending}
+                onClick={() => setApproveTarget(item)}
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Valider
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={approveMutation.isPending || rejectMutation.isPending}
+                onClick={() => setRejectTarget(item)}
+              >
+                <CircleX className="h-4 w-4" />
+                Marquer absent
+              </Button>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-lg border border-border lg:block">
         <Table>
           <TableHeader>
             <TableRow>
@@ -291,6 +342,7 @@ export default function ValidationsPage() {
           </TableBody>
         </Table>
       </div>
+      </>
     )
   }
 
@@ -301,7 +353,75 @@ export default function ValidationsPage() {
     }
 
     return (
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <>
+      <div className="space-y-3 lg:hidden">
+        {items.map((item) => {
+          const plannedHours = item.scheduleDurationMinutes / 60
+          const actualHours = (item.actualMinutes ?? 0) / 60
+          const plannedAmount = item.hourlyRate === null ? null : item.hourlyRate * plannedHours
+          const actualAmount = item.hourlyRate === null ? null : item.hourlyRate * actualHours
+
+          return (
+            <article key={item.attendanceId} className="rounded-xl border bg-card p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="truncate text-base font-semibold">{item.teacherName}</h3>
+                  <p className="text-sm text-muted-foreground">{item.courseName} • {item.className}</p>
+                </div>
+                <Badge variant="outline" role="status" className="gap-1 border-amber-200 bg-amber-50 text-amber-700">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Heure courte
+                </Badge>
+              </div>
+              <dl className="mt-4 grid gap-2 text-sm">
+                <div className="flex justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2">
+                  <dt className="text-muted-foreground">Date</dt>
+                  <dd className="font-medium">{formatDate(item.date)}</dd>
+                </div>
+                <div className="flex justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2">
+                  <dt className="text-muted-foreground">Prévu</dt>
+                  <dd className="font-medium">{formatMinutes(item.scheduleDurationMinutes)}</dd>
+                </div>
+                <div className="flex justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2">
+                  <dt className="text-muted-foreground">Effectué</dt>
+                  <dd className="font-medium">{formatMinutes(item.actualMinutes)}</dd>
+                </div>
+              </dl>
+              <div className="mt-4 grid gap-2">
+                <Button
+                  type="button"
+                  disabled={approveMutation.isPending}
+                  onClick={() =>
+                    setApproveShortHoursTarget({
+                      item,
+                      validatedHours: undefined,
+                      label: `${formatMinutes(item.scheduleDurationMinutes)}${plannedAmount !== null ? ` - ${formatFcfa(plannedAmount)}` : ""}`,
+                    })
+                  }
+                >
+                  Accorder le prévu
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={approveMutation.isPending || item.actualMinutes === null}
+                  onClick={() =>
+                    setApproveShortHoursTarget({
+                      item,
+                      validatedHours: Math.round(actualHours * 100) / 100,
+                      label: `${formatMinutes(item.actualMinutes)}${actualAmount !== null ? ` - ${formatFcfa(actualAmount)}` : ""}`,
+                    })
+                  }
+                >
+                  Accorder l'effectué
+                </Button>
+              </div>
+            </article>
+          )
+        })}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-lg border border-border lg:block">
         <Table>
           <TableHeader>
             <TableRow>
@@ -373,6 +493,7 @@ export default function ValidationsPage() {
           </TableBody>
         </Table>
       </div>
+      </>
     )
   }
 
@@ -384,12 +505,13 @@ export default function ValidationsPage() {
 
     return (
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">{endScanTeachers.length} enseignant(s), {endScanTotal} cours sans scan de fin</p>
           <Button
             type="button"
             size="sm"
             variant="outline"
+            className="w-full sm:w-auto"
             disabled={warnMutation.isPending}
             onClick={() => warnMutation.mutate(endScanTeachers.map((t) => t.teacherId))}
           >
@@ -405,8 +527,8 @@ export default function ValidationsPage() {
               open={expandedTeacher === teacher.teacherId}
               onOpenChange={(open) => setExpandedTeacher(open ? teacher.teacherId : null)}
             >
-              <div className="flex items-center justify-between rounded-lg border border-border p-3">
-                <CollapsibleTrigger className="flex items-center gap-2 text-left">
+              <div className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+                <CollapsibleTrigger className="flex min-h-11 min-w-0 flex-wrap items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
                   {expandedTeacher === teacher.teacherId ? (
                     <ChevronDown className="h-4 w-4 text-muted-foreground" />
                   ) : (
@@ -436,6 +558,7 @@ export default function ValidationsPage() {
                   type="button"
                   size="sm"
                   variant="outline"
+                  className="w-full sm:w-auto"
                   disabled={warnMutation.isPending}
                   onClick={() => warnMutation.mutate([teacher.teacherId])}
                 >
@@ -445,7 +568,65 @@ export default function ValidationsPage() {
               </div>
 
               <CollapsibleContent>
-                <div className="ml-6 mt-1 overflow-x-auto rounded-lg border border-border">
+                <div className="mt-2 space-y-2 lg:hidden">
+                  {teacher.sessions.map((session) => {
+                    const hasActiveAction =
+                      session.endScanAction !== null && session.endScanActionCancelledAt === null
+                    const isSanctioned =
+                      session.endScanAction === "sanctioned" && session.endScanActionCancelledAt === null
+
+                    return (
+                      <article key={session.attendanceId} className="rounded-xl border bg-muted/30 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-medium">{session.subject}</p>
+                            <p className="text-sm text-muted-foreground">{formatDate(session.date)} • {session.timeSlot}</p>
+                          </div>
+                          <EndScanStatusBadge session={session} />
+                        </div>
+                        <p className="mt-2 text-sm text-muted-foreground">Salle: {session.roomName ?? "-"}</p>
+                        {hasActiveAction ? (
+                          isSanctioned ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="mt-3 w-full border-red-200 text-red-600 hover:bg-red-50"
+                              onClick={() => setCancelSanctionTarget({ session, teacher })}
+                            >
+                              Annuler la sanction
+                            </Button>
+                          ) : null
+                        ) : (
+                          <div className="mt-3 grid gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="border-amber-200 text-amber-700 hover:bg-amber-50"
+                              disabled={endScanActionMutation.isPending}
+                              onClick={() =>
+                                setEndScanActionTarget({ session, teacher, action: "warned" })
+                              }
+                            >
+                              Tolérer avec avertissement
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              disabled={endScanActionMutation.isPending}
+                              onClick={() =>
+                                setEndScanActionTarget({ session, teacher, action: "sanctioned" })
+                              }
+                            >
+                              Sanctionner
+                            </Button>
+                          </div>
+                        )}
+                      </article>
+                    )
+                  })}
+                </div>
+
+                <div className="ml-6 mt-1 hidden overflow-x-auto rounded-lg border border-border lg:block">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -480,7 +661,7 @@ export default function ValidationsPage() {
                                     type="button"
                                     size="sm"
                                     variant="outline"
-                                    className="min-h-[36px] text-red-600 border-red-200 hover:bg-red-50"
+                                    className="min-h-10 text-red-600 border-red-200 hover:bg-red-50"
                                     onClick={() => setCancelSanctionTarget({ session, teacher })}
                                   >
                                     Annuler la sanction
@@ -492,7 +673,7 @@ export default function ValidationsPage() {
                                     type="button"
                                     size="sm"
                                     variant="outline"
-                                    className="min-h-[36px] text-amber-700 border-amber-200 hover:bg-amber-50"
+                                    className="min-h-10 text-amber-700 border-amber-200 hover:bg-amber-50"
                                     disabled={endScanActionMutation.isPending}
                                     onClick={() =>
                                       setEndScanActionTarget({ session, teacher, action: "warned" })
@@ -504,7 +685,7 @@ export default function ValidationsPage() {
                                     type="button"
                                     size="sm"
                                     variant="destructive"
-                                    className="min-h-[36px]"
+                                    className="min-h-10"
                                     disabled={endScanActionMutation.isPending}
                                     onClick={() =>
                                       setEndScanActionTarget({ session, teacher, action: "sanctioned" })
@@ -532,14 +713,14 @@ export default function ValidationsPage() {
   return (
     <>
       <OfflineIndicator />
-      <div className="space-y-6 animate-in fade-in duration-200">
+      <div className="space-y-6 animate-in fade-in duration-200 mt-3">
         <header className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">Validation des horaires</h1>
           <p className="text-sm text-muted-foreground">{total} présence(s) en attente de décision.</p>
         </header>
 
         <Tabs defaultValue="gps" className="space-y-4">
-          <TabsList>
+          <TabsList className="grid h-auto w-full grid-cols-1 gap-1 rounded-xl border border-border bg-muted/50 p-1 sm:grid-cols-3">
             <TabsTrigger value="gps">Présences suspectes ({groups.gps_suspicious.length})</TabsTrigger>
             <TabsTrigger value="hours">Heures à valider ({groups.short_hours.length})</TabsTrigger>
             <TabsTrigger value="end-scan">
@@ -556,10 +737,10 @@ export default function ValidationsPage() {
             {renderShortHoursTable(groups.short_hours)}
           </TabsContent>
           <TabsContent value="end-scan" className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <InfoBox>Ces enseignants ont pointé leur arrivée mais n'ont pas effectué le scan de fin de cours.</InfoBox>
               <Select value={endScanMonth} onValueChange={setEndScanMonth}>
-                <SelectTrigger className="ml-4 w-[180px]">
+                <SelectTrigger className="w-full md:ml-4 md:w-[180px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

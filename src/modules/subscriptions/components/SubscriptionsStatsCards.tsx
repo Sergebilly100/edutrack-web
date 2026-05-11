@@ -80,11 +80,11 @@ export function SubscriptionsStatsCards({ month }: SubscriptionsStatsCardsProps)
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {/* CARD 1: Montant encaissé ce mois */}
-      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
             <p className="text-sm text-gray-500 mb-1">Montant encaissé ce mois</p>
-            <p className="text-2xl font-bold text-gray-900">{formatFcfa(stats.collectedAmount)}</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatFcfa(stats.collectedAmount)}</p>
           </div>
           <div className="h-10 w-10 rounded-xl bg-green-50 flex items-center justify-center">
             <Banknote className="h-5 w-5 text-green-600" />
@@ -96,11 +96,11 @@ export function SubscriptionsStatsCards({ month }: SubscriptionsStatsCardsProps)
       </Card>
 
       {/* CARD 2: Gain de l'école ce mois */}
-      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
             <p className="text-sm text-gray-500 mb-1">Gain de l'école ce mois</p>
-            <p className="text-2xl font-bold text-gray-900">{formatFcfa(stats.schoolGain)}</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatFcfa(stats.schoolGain)}</p>
           </div>
           <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
             <Building2 className="h-5 w-5 text-blue-600" />
@@ -110,11 +110,11 @@ export function SubscriptionsStatsCards({ month }: SubscriptionsStatsCardsProps)
       </Card>
 
       {/* CARD 3: Commission EduTrack */}
-      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
             <p className="text-sm text-gray-500 mb-1">Commission EduTrack</p>
-            <p className="text-2xl font-bold text-gray-900">{formatFcfa(stats.edutrackCommission)}</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatFcfa(stats.edutrackCommission)}</p>
           </div>
           <div className="h-10 w-10 rounded-xl bg-purple-50 flex items-center justify-center">
             <Percent className="h-5 w-5 text-purple-600" />
@@ -126,7 +126,7 @@ export function SubscriptionsStatsCards({ month }: SubscriptionsStatsCardsProps)
       </Card>
 
       {/* CARD 4: Reste à reverser à EduTrack */}
-      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
             <p className="text-sm text-gray-500 mb-1">Reste à reverser à EduTrack</p>

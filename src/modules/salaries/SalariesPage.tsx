@@ -688,7 +688,7 @@ export default function SalariesPage() {
     <>
       <OfflineIndicator />
 
-      <div className="space-y-6 animate-fade-in" data-testid="salaries-page">
+      <div className="space-y-6 animate-fade-in mt-2" data-testid="salaries-page">
         <header className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-1 md:py-2">

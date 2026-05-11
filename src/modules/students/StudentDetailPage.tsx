@@ -339,23 +339,22 @@ export default function StudentDetailPage() {
         </TabsList>
 
         <TabsContent value="absences" className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-4">
             <StatCard title="Total absences" value={student.absenceSummary.total} icon={<BookOpen className="h-4 w-4" />} variant="danger" />
             <StatCard title="Ce mois" value={student.absenceSummary.thisMonth} icon={<Clock3 className="h-4 w-4" />} variant="warning" />
             <StatCard title="Cette semaine" value={student.absenceSummary.thisWeek} icon={<UserCheck className="h-4 w-4" />} />
+            <Card>
+              <CardHeader className="pb-0">
+                <CardTitle className="text-sm">Présence estimée (mois en cours)</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <PresenceDonut present={estimatedPresentDays} absent={student.absenceSummary.thisMonth} late={0} size="sm" />
+                <p className="text-sm text-muted-foreground">
+                  Estimation sur 22 jours d'école: {estimatedPresentDays} jours présents / {student.absenceSummary.thisMonth} absences.
+                </p>
+              </CardContent>
+            </Card>
           </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Présence estimée (mois en cours)</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <PresenceDonut present={estimatedPresentDays} absent={student.absenceSummary.thisMonth} late={0} size="sm" />
-              <p className="text-sm text-muted-foreground">
-                Estimation sur 22 jours d'école: {estimatedPresentDays} jours présents / {student.absenceSummary.thisMonth} absences.
-              </p>
-            </CardContent>
-          </Card>
 
           <Card>
             <CardHeader>

@@ -20,8 +20,8 @@ const CHART_CONFIG: Record<NonNullable<keyof typeof CHART_COLORS>, string> = {
 }
 
 const sizeMap: Record<NonNullable<PresenceDonutProps["size"]>, { chart: number; inner: number; outer: number }> = {
-  sm: { chart: 160, inner: 48, outer: 68 },
-  md: { chart: 208, inner: 62, outer: 84 },
+  sm: { chart: 120, inner: 40, outer: 58 },
+  md: { chart: 128, inner: 62, outer: 84 },
 }
 
 export function PresenceDonut({ present, absent, late, size = "md" }: PresenceDonutProps) {
@@ -61,7 +61,7 @@ export function PresenceDonut({ present, absent, late, size = "md" }: PresenceDo
       </PieChart>
 
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-semibold tabular-nums">{presenceRate}%</span>
+        <span className="text-xl font-semibold tabular-nums">{presenceRate}%</span>
         <span className="text-xs text-muted-foreground">Présence</span>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router-dom"
+import { AlertTriangle, CheckCircle2, Clock3, DoorOpen, ListChecks } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -250,22 +251,16 @@ export default function TeacherAnalysisPanel() {
             ) : null}
 
             {!statsQuery.isLoading && (statsQuery.data?.length ?? 0) > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Professeur</TableHead>
-                    <TableHead>Taux présence</TableHead>
-                    <TableHead>Présences</TableHead>
-                    <TableHead>Heures</TableHead>
-                    <TableHead>Retards</TableHead>
-                    <TableHead>Salle incorrecte</TableHead>
-                    <TableHead>Pointage élèves</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <>
+                <div className="space-y-3 lg:hidden">
                   {statsQuery.data?.map((row) => {
                     const rate = Math.max(0, Math.min(100, row.attendance_rate))
+                    const rateTone =
+                      rate >= 80
+                        ? "border-green-200 bg-green-50 text-green-700"
+                        : rate >= 50
+                          ? "border-amber-200 bg-amber-50 text-amber-700"
+                          : "border-red-200 bg-red-50 text-red-700"
                     const rateColorClass =
                       rate >= 80
                         ? "[&>div]:bg-green-500"
@@ -275,80 +270,164 @@ export default function TeacherAnalysisPanel() {
                     const doneOrMissing = row.rollcall_missing_count > 0
 
                     return (
-                      <TableRow key={row.teacher_id}>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <p className="font-medium">{row.teacher_name}</p>
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                row.teacher_type === "vacataire"
-                                  ? "border-amber-200 bg-amber-50 text-amber-700"
-                                  : "border-slate-200 bg-slate-50 text-slate-700"
-                              )}
-                            >
-                              {row.teacher_type}
+                      <article key={row.teacher_id} className="rounded-xl border bg-card p-4 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h3 className="truncate text-base font-semibold">{row.teacher_name}</h3>
+                            <p className="text-xs text-muted-foreground">{row.teacher_type}</p>
+                          </div>
+                          <Badge variant="outline" role="status" aria-label={`Taux de présence ${rate.toFixed(0)} pour cent`} className={cn("gap-1", rateTone)}>
+                            {rate >= 80 ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                            {rate.toFixed(0)}%
+                          </Badge>
+                        </div>
+
+                        <div className="mt-4 space-y-2">
+                          <Progress value={rate} className={cn("h-2", rateColorClass)} aria-label={`Taux de présence ${rate.toFixed(2)} pour cent`} />
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div className="rounded-lg bg-muted/50 p-3">
+                              <p className="text-xs text-muted-foreground">Présences</p>
+                              <p className="font-semibold">{row.present_count}/{row.total_scheduled}</p>
+                            </div>
+                            <div className="rounded-lg bg-muted/50 p-3">
+                              <p className="text-xs text-muted-foreground">Heures</p>
+                              <p className="font-semibold">{formatHours(row.hours_done)}</p>
+                              <p className="text-xs text-muted-foreground">sur {formatHours(row.hours_scheduled)}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 grid gap-2 text-sm">
+                          <div className="flex items-center justify-between rounded-lg border px-3 py-2">
+                            <span className="inline-flex items-center gap-2 text-muted-foreground"><Clock3 className="h-4 w-4" /> Retards</span>
+                            <span className="font-medium">{row.late_count}</span>
+                          </div>
+                          <div className="flex items-center justify-between rounded-lg border px-3 py-2">
+                            <span className="inline-flex items-center gap-2 text-muted-foreground"><DoorOpen className="h-4 w-4" /> Salle incorrecte</span>
+                            <Badge variant="outline" role="status" className={row.room_mismatch_count > 0 ? "border-red-200 bg-red-50 text-red-700" : "border-green-200 bg-green-50 text-green-700"}>
+                              {row.room_mismatch_count > 0 ? `${row.room_mismatch_count} anomalie(s)` : "OK"}
                             </Badge>
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <Progress value={rate} className={cn("w-24", rateColorClass)} />
-                            <p className="text-xs text-muted-foreground">{rate.toFixed(2)}%</p>
+                          <div className="flex items-center justify-between rounded-lg border px-3 py-2">
+                            <span className="inline-flex items-center gap-2 text-muted-foreground"><ListChecks className="h-4 w-4" /> Pointage élèves</span>
+                            <Badge variant="outline" role="status" className={doneOrMissing ? "border-amber-200 bg-amber-50 text-amber-700" : "border-green-200 bg-green-50 text-green-700"}>
+                              {doneOrMissing ? `Manquant ${row.rollcall_missing_count}` : `Fait ${row.rollcall_done_count}/${row.total_scheduled}`}
+                            </Badge>
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          {row.present_count} / {row.total_scheduled}
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p>{formatHours(row.hours_done)} effectuées</p>
-                            <p className="text-xs text-muted-foreground">
-                              / {formatHours(row.hours_scheduled)} prévues
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {row.late_count > 0 ? (
-                            <Badge className="border-amber-200 bg-amber-50 text-amber-700">
-                              {row.late_count}
-                            </Badge>
-                          ) : (
-                            "—"
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {row.room_mismatch_count > 0 ? (
-                            <Badge variant="destructive">{row.room_mismatch_count}</Badge>
-                          ) : (
-                            <Badge className="border-green-200 bg-green-50 text-green-700">OK</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {doneOrMissing ? (
-                            <Badge className="border-amber-200 bg-amber-50 text-amber-700">
-                              Manquant {row.rollcall_missing_count}
-                            </Badge>
-                          ) : (
-                            <Badge className="border-green-200 bg-green-50 text-green-700">
-                              Fait {row.rollcall_done_count}/{row.total_scheduled}
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Button asChild size="sm" variant="outline" className="min-h-12">
-                            <Link
-                              to={`/teachers/${row.teacher_id}?returnTo=${encodeURIComponent(`${location.pathname}${location.search}`)}`}
-                            >
-                              Voir
-                            </Link>
-                          </Button>
-                        </TableCell>
-                      </TableRow>
+                        </div>
+
+                        <Button asChild variant="outline" className="mt-4 w-full">
+                          <Link to={`/teachers/${row.teacher_id}?returnTo=${encodeURIComponent(`${location.pathname}${location.search}`)}`}>
+                            Ouvrir la fiche
+                          </Link>
+                        </Button>
+                      </article>
                     )
                   })}
-                </TableBody>
-              </Table>
+                </div>
+
+                <div className="hidden overflow-x-auto rounded-lg border lg:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Professeur</TableHead>
+                        <TableHead>Taux présence</TableHead>
+                        <TableHead>Présences</TableHead>
+                        <TableHead>Heures</TableHead>
+                        <TableHead>Retards</TableHead>
+                        <TableHead>Salle incorrecte</TableHead>
+                        <TableHead>Pointage élèves</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {statsQuery.data?.map((row) => {
+                        const rate = Math.max(0, Math.min(100, row.attendance_rate))
+                        const rateColorClass =
+                          rate >= 80
+                            ? "[&>div]:bg-green-500"
+                            : rate >= 50
+                              ? "[&>div]:bg-amber-500"
+                              : "[&>div]:bg-red-500"
+                        const doneOrMissing = row.rollcall_missing_count > 0
+
+                        return (
+                          <TableRow key={row.teacher_id}>
+                            <TableCell>
+                              <div className="space-y-1">
+                                <p className="font-medium">{row.teacher_name}</p>
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    row.teacher_type === "vacataire"
+                                      ? "border-amber-200 bg-amber-50 text-amber-700"
+                                      : "border-slate-200 bg-slate-50 text-slate-700"
+                                  )}
+                                >
+                                  {row.teacher_type}
+                                </Badge>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="space-y-1">
+                                <Progress value={rate} className={cn("w-24", rateColorClass)} />
+                                <p className="text-xs text-muted-foreground">{rate.toFixed(2)}%</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {row.present_count} / {row.total_scheduled}
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p>{formatHours(row.hours_done)} effectuées</p>
+                                <p className="text-xs text-muted-foreground">
+                                  / {formatHours(row.hours_scheduled)} prévues
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {row.late_count > 0 ? (
+                                <Badge className="border-amber-200 bg-amber-50 text-amber-700">
+                                  {row.late_count}
+                                </Badge>
+                              ) : (
+                                "—"
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {row.room_mismatch_count > 0 ? (
+                                <Badge variant="destructive">{row.room_mismatch_count}</Badge>
+                              ) : (
+                                <Badge className="border-green-200 bg-green-50 text-green-700">OK</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {doneOrMissing ? (
+                                <Badge className="border-amber-200 bg-amber-50 text-amber-700">
+                                  Manquant {row.rollcall_missing_count}
+                                </Badge>
+                              ) : (
+                                <Badge className="border-green-200 bg-green-50 text-green-700">
+                                  Fait {row.rollcall_done_count}/{row.total_scheduled}
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Button asChild size="sm" variant="outline">
+                                <Link
+                                  to={`/teachers/${row.teacher_id}?returnTo=${encodeURIComponent(`${location.pathname}${location.search}`)}`}
+                                >
+                                  Voir
+                                </Link>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             ) : null}
           </CardContent>
         </Card>

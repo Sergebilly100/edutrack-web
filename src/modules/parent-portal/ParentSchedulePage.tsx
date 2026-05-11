@@ -149,6 +149,7 @@ export default function ParentSchedulePage() {
               type="button"
               variant="ghost"
               size="icon"
+              aria-label="Afficher la semaine précédente"
               className="h-10 w-10 bg-muted"
               onClick={() => setWeek((prev) => shiftIsoWeek(prev, -1))}
             >
@@ -159,6 +160,7 @@ export default function ParentSchedulePage() {
               type="button"
               variant="ghost"
               size="icon"
+              aria-label="Afficher la semaine suivante"
               className="h-10 w-10  bg-muted"
               onClick={() => setWeek((prev) => shiftIsoWeek(prev, 1))}
             >
@@ -179,6 +181,8 @@ export default function ParentSchedulePage() {
               <Button
                 key={day.date}
                 type="button"
+                aria-label={`Afficher les cours du ${day.label} ${new Date(`${day.date}T00:00:00.000Z`).getUTCDate()}`}
+                aria-pressed={isSelected}
                 onClick={() => setSelectedDayIndex(index)}
                 className={cn(
                   "flex h-10 w-full flex-col items-center justify-center rounded-xl px-1 py-1 text-center transition-colors",

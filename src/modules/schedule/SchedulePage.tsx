@@ -696,7 +696,7 @@ export default function SchedulePage() {
               type="button"
               variant="outline"
               size="icon"
-              className="h-8 w-8"
+              className="h-10 w-10"
               onClick={() => setWeekFromIso(shiftWeekIso(selectedWeekMonday, -1))}
               aria-label="Semaine précédente"
             >
@@ -707,7 +707,7 @@ export default function SchedulePage() {
               type="button"
               variant="outline"
               size="icon"
-              className="h-8 w-8"
+              className="h-10 w-10"
               onClick={() => setWeekFromIso(shiftWeekIso(selectedWeekMonday, 1))}
               aria-label="Semaine suivante"
             >
@@ -731,7 +731,7 @@ export default function SchedulePage() {
               type="button"
               variant={viewMode === "grid" ? "secondary" : "ghost"}
               size="sm"
-              className="h-7 gap-1.5 px-2.5 text-xs"
+              className="min-h-9 gap-1.5 px-2.5 text-xs"
               onClick={() => setViewMode("grid")}
               aria-pressed={viewMode === "grid"}
             >
@@ -742,7 +742,7 @@ export default function SchedulePage() {
               type="button"
               variant={viewMode === "list" ? "secondary" : "ghost"}
               size="sm"
-              className="h-7 gap-1.5 px-2.5 text-xs"
+              className="min-h-9 gap-1.5 px-2.5 text-xs"
               onClick={() => setViewMode("list")}
               aria-pressed={viewMode === "list"}
             >
@@ -756,7 +756,7 @@ export default function SchedulePage() {
 
           {/* Filtre professeur */}
           <Select value={teacherFilter} onValueChange={setTeacherFilter} disabled={!data}>
-            <SelectTrigger className="h-8 w-auto min-w-[160px] text-xs">
+            <SelectTrigger className="min-h-10 w-auto min-w-[160px] text-xs">
               <SelectValue placeholder="Tous les professeurs" />
             </SelectTrigger>
             <SelectContent>
@@ -769,7 +769,7 @@ export default function SchedulePage() {
 
           {/* Filtre classe */}
           <Select value={classFilter} onValueChange={setClassFilter} disabled={!data}>
-            <SelectTrigger className="h-8 w-auto min-w-[140px] text-xs">
+            <SelectTrigger className="min-h-10 w-auto min-w-[140px] text-xs">
               <SelectValue placeholder="Toutes les classes" />
             </SelectTrigger>
             <SelectContent>

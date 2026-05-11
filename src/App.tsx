@@ -184,7 +184,7 @@ function TeacherShell({ element }: { element: ReactElement }) {
     <div className="flex min-h-screen flex-col bg-background">
       <TeacherTopBar />
       <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-lg px-4 py-4">{element}</div>
+        <div className="mx-auto w-full max-w-lg px-4 py-4 lg:max-w-4xl lg:py-6">{element}</div>
       </main>
     </div>
   )

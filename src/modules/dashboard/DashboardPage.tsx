@@ -29,7 +29,6 @@ import {
   type DashboardSalarySummaryItem,
 } from "@/modules/dashboard/dashboard.api"
 import { getPendingValidationCount } from "@/modules/validations/validations.api"
-import { AlertBanner } from "@/shared/components/AlertBanner"
 import { EmptyState, emptyStateIcons } from "@/shared/components/EmptyState"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { SalaryRow } from "@/shared/components/SalaryRow"
@@ -722,6 +721,45 @@ export default function DashboardPage() {
     }
   }, [dispatchMobileHeaderState, handleDashboardRefresh])
 
+  const priorityActions = [
+    weeklyAbsenceCount > 3 && visibleNotificationIds.has("teacher-absences-week")
+      ? {
+          id: "teacher-absences-week",
+          title: "Absences profs élevées",
+          message: `${weeklyAbsenceCount} absence(s) non justifiée(s) sur 7 jours.`,
+          actionLabel: "Ouvrir les professeurs",
+          onClick: () => navigate("/teachers"),
+          onDismiss: () => dismissNotification("teacher-absences-week"),
+          icon: Users,
+          className: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100",
+        }
+      : null,
+    (salaryUnpaidAlertsQuery.data?.count ?? 0) > 0 && visibleNotificationIds.has("salary-unpaid-alerts")
+      ? {
+          id: "salary-unpaid-alerts",
+          title: "Salaires à terminer",
+          message: `${salaryUnpaidAlertsQuery.data?.count ?? 0} fiche(s), ${new Intl.NumberFormat("fr-FR").format(salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0)} FCFA à solder.`,
+          actionLabel: "Ouvrir les salaires",
+          onClick: () => navigate("/salaries"),
+          onDismiss: () => dismissNotification("salary-unpaid-alerts"),
+          icon: Wallet,
+          className: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100",
+        }
+      : null,
+    (validationCountQuery.data?.total ?? 0) > 0
+      ? {
+          id: "validations",
+          title: "Validations en attente",
+          message: `${validationCountQuery.data?.total ?? 0} décision(s) à prendre sur les pointages.`,
+          actionLabel: "Ouvrir les validations",
+          onClick: () => navigate("/validations"),
+          onDismiss: null,
+          icon: ClipboardCheck,
+          className: "border-sky-200 bg-sky-50 text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-100",
+        }
+      : null,
+  ].filter((item): item is NonNullable<typeof item> => item !== null)
+
   if (isInitialLoading) {
     return (
       <>
@@ -803,40 +841,63 @@ export default function DashboardPage() {
           />
         ) : null}
 
-        <DashboardStatsCards />
-
         <section ref={alertsRef} className="space-y-3 animate-fade-in">
           <WeekCoverageAlert
             nextWeekHasCoverage={coverageQuery.data?.nextWeekHasCoverage ?? true}
             onNavigateToSchedule={() => navigate("/schedule")}
           />
 
-          {weeklyAbsenceCount > 3 && visibleNotificationIds.has("teacher-absences-week") ? (
-            <AlertBanner
-              type="warning"
-              title="Absences profs élevées cette semaine"
-              message={`${weeklyAbsenceCount} absences non justifiées ont été relevées sur les 7 derniers jours.`}
-              onDismiss={() => dismissNotification("teacher-absences-week")}
-              action={{
-                label: "Ouvrir les professeurs",
-                onClick: () => navigate("/teachers"),
-              }}
-            />
-          ) : null}
+          <div className="rounded-xl border bg-card p-4 shadow-sm">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-base font-semibold">Priorités du jour</h2>
+                <p className="text-sm text-muted-foreground">Les décisions qui changent la journée ou la paie.</p>
+              </div>
+              {priorityActions.length === 0 ? (
+                <Badge variant="outline" className="w-fit border-green-200 bg-green-50 text-green-700">
+                  <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                  Aucun blocage
+                </Badge>
+              ) : null}
+            </div>
 
-          {(salaryUnpaidAlertsQuery.data?.count ?? 0) > 0 && visibleNotificationIds.has("salary-unpaid-alerts") ? (
-            <AlertBanner
-              type="warning"
-              title="Salaires à terminer"
-              message={`${salaryUnpaidAlertsQuery.data?.count ?? 0} fiche(s) restent à solder, pour ${new Intl.NumberFormat("fr-FR").format(salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0)} FCFA.`}
-              onDismiss={() => dismissNotification("salary-unpaid-alerts")}
-              action={{
-                label: "Ouvrir les salaires",
-                onClick: () => navigate("/salaries"),
-              }}
-            />
-          ) : null}
+            {priorityActions.length > 0 ? (
+              <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                {priorityActions.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <article key={item.id} className={`rounded-lg border p-3 ${item.className}`}>
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background/70">
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-sm font-semibold">{item.title}</h3>
+                          <p className="mt-1 text-sm opacity-90">{item.message}</p>
+                        </div>
+                        {item.onDismiss ? (
+                          <button
+                            type="button"
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md hover:bg-background/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            aria-label={`Masquer ${item.title}`}
+                            onClick={item.onDismiss}
+                          >
+                            <CircleX className="h-4 w-4" />
+                          </button>
+                        ) : null}
+                      </div>
+                      <Button type="button" variant="outline" className="mt-3 w-full bg-background/80" onClick={item.onClick}>
+                        {item.actionLabel}
+                      </Button>
+                    </article>
+                  )
+                })}
+              </div>
+            ) : null}
+          </div>
         </section>
+
+        <DashboardStatsCards />
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <Card className="xl:col-span-2">
@@ -847,7 +908,7 @@ export default function DashboardPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-8"
+                  className="min-h-10"
                   onClick={() => setShowAllTodayPresence((current) => !current)}
                 >
                   {showAllTodayPresence ? "Afficher moins" : "Afficher tout"}
@@ -866,7 +927,7 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg font-semibold">Profs à risque</CardTitle>
-              <Button asChild variant="outline" size="sm" className="h-8">
+              <Button asChild variant="outline" size="sm" className="min-h-10">
                 <Link to={riskTeachersLink} data-testid="dashboard-risk-see-all">Voir tous</Link>
               </Button>
             </CardHeader>
@@ -917,7 +978,7 @@ export default function DashboardPage() {
           <Card className="order-2">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg font-semibold">Conformité scan ce mois</CardTitle>
-              <Button asChild variant="outline" size="sm" className="h-8">
+              <Button asChild variant="outline" size="sm" className="min-h-10">
                 <Link to="/teachers?tab=classement">Voir le classement complet</Link>
               </Button>
             </CardHeader>
@@ -971,7 +1032,7 @@ export default function DashboardPage() {
           <Card className="order-1">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg font-semibold">Validations en attente</CardTitle>
-              <Button asChild variant="outline" size="sm" className="h-8">
+              <Button asChild variant="outline" size="sm" className="min-h-10">
                 <Link to="/validations">Aller aux validations</Link>
               </Button>
             </CardHeader>
@@ -1017,7 +1078,7 @@ export default function DashboardPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-8"
+                  className="min-h-10"
                   onClick={() => setShowAllTodayStudentAbsences((current) => !current)}
                 >
                   {showAllTodayStudentAbsences ? "Afficher moins" : "Afficher tout"}
@@ -1042,7 +1103,7 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg font-semibold">Élèves à risque</CardTitle>
-              <Button asChild variant="outline" size="sm" className="h-8">
+              <Button asChild variant="outline" size="sm" className="min-h-10">
                 <Link to={riskStudentsLink}>Voir tous</Link>
               </Button>
             </CardHeader>
@@ -1090,13 +1151,13 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg font-semibold">Résumé salaires du mois</CardTitle>
-              <Button asChild variant="outline" size="sm" className="h-8">
+              <Button asChild variant="outline" size="sm" className="min-h-10">
                 <Link to="/salaries">Voir tous les salaires</Link>
               </Button>
             </CardHeader>
             <CardContent>
               {schoolQuery.data?.use_real_hours === true ? (
-                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
                   Ce mois : {salaryRealHoursTotals.planned.toFixed(1)}h planifiées, {salaryRealHoursTotals.done.toFixed(1)}h réellement effectuées.
                   Écart : {(salaryRealHoursTotals.done - salaryRealHoursTotals.planned).toFixed(1)}h, impact estimé : {formatFcfa(salaryRealHoursTotals.impact)}.
                 </div>

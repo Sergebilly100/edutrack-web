@@ -82,11 +82,11 @@ export function SalariesStatsCards({ month }: SalariesStatsCardsProps) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
       {/* CARD 1: Total à payer ce mois */}
-      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
             <p className="text-sm text-gray-500 mb-1">Total à payer ce mois</p>
-            <p className="text-2xl font-bold text-gray-900">{formatFcfa(stats.totalToPay)}</p>
+            <p className="text-2xl font-bold text-gray-900  dark:text-white">{formatFcfa(stats.totalToPay)}</p>
           </div>
           <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
             <Receipt className="h-5 w-5 text-blue-600" />
@@ -98,11 +98,11 @@ export function SalariesStatsCards({ month }: SalariesStatsCardsProps) {
       </Card>
 
       {/* CARD 2: Total déjà payé */}
-      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
             <p className="text-sm text-gray-500 mb-1">Total déjà payé</p>
-            <p className="text-2xl font-bold text-gray-900">{formatFcfa(stats.totalPaid)}</p>
+            <p className="text-2xl font-bold text-gray-900  dark:text-white">{formatFcfa(stats.totalPaid)}</p>
           </div>
           <div className="h-10 w-10 rounded-xl bg-green-50 flex items-center justify-center">
             <CheckCircle className="h-5 w-5 text-green-600" />
@@ -117,11 +117,11 @@ export function SalariesStatsCards({ month }: SalariesStatsCardsProps) {
       </Card>
 
       {/* CARD 3: Économie du mois */}
-      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
             <p className="text-sm text-gray-500 mb-1">Économie du mois</p>
-            <p className="text-2xl font-bold text-amber-600">{formatFcfa(stats.economy.savedAmount)}</p>
+            <p className="text-2xl font-bold text-amber-600  dark:text-white">{formatFcfa(stats.economy.savedAmount)}</p>
           </div>
           <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center">
             <PiggyBank className="h-5 w-5 text-amber-600" />
@@ -131,7 +131,7 @@ export function SalariesStatsCards({ month }: SalariesStatsCardsProps) {
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="space-y-1 text-sm text-gray-500 cursor-help">
-                <div>Heures prévues jusqu'à aujourd'hui : {stats.economy.plannedHours.toFixed(1)} h</div>
+                <div>Heures prévues jusqu'à aujourd'hui: {stats.economy.plannedHours.toFixed(1)} h</div>
                 <div>Heures effectuées : {stats.economy.completedHours.toFixed(1)} h</div>
                 <div>Heures manquées : {(stats.economy.plannedHours - stats.economy.completedHours).toFixed(1)} h</div>
                 <div className="font-semibold text-amber-700">Économie : {formatFcfa(stats.economy.savedAmount)}</div>
@@ -148,11 +148,11 @@ export function SalariesStatsCards({ month }: SalariesStatsCardsProps) {
       </Card>
 
       {/* CARD 4: Taux de présence professeurs (placée en première ligne sur mobile) */}
-      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
             <p className="text-sm text-gray-500 mb-1">Taux de présence profs</p>
-            <p className={cn("text-2xl font-bold", getAttendanceColor(attendanceRate))}>
+            <p className={cn("text-2xl font-bold dark:text-white", getAttendanceColor(attendanceRate))}>
               {formatRate(attendanceRate)}
             </p>
           </div>
