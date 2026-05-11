@@ -216,9 +216,6 @@ export default function TeacherSchedulePage() {
                 </Badge>
               </div>
               <Progress value={complianceQuery.data?.complianceRate ?? 0} />
-              <p className="text-xs text-muted-foreground">
-                {complianceQuery.data?.totalCheckins ?? 0} cours, {complianceQuery.data?.totalCheckouts ?? 0} scans fin
-              </p>
             </>
           )}
       </header>

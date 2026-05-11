@@ -28,7 +28,7 @@ function getAttendanceBgColor(rate: number): string {
 
 function StatCardSkeleton() {
   return (
-    <Card className="border border-gray-100 rounded-2xl shadow-sm">
+    <Card className="border border-gray-100 rounded-2xl shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
       <div className="p-5 space-y-3">
         <div className="flex items-start justify-between">
           <div className="flex-1 space-y-2">
@@ -56,9 +56,8 @@ export function SalariesStatsCards({ month }: SalariesStatsCardsProps) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCardSkeleton />
         <StatCardSkeleton />
-        <div className="col-span-2">
-          <StatCardSkeleton />
-        </div>
+        <StatCardSkeleton />
+        <StatCardSkeleton />
       </div>
     )
   }
@@ -82,7 +81,7 @@ export function SalariesStatsCards({ month }: SalariesStatsCardsProps) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
       {/* CARD 1: Total à payer ce mois */}
-      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
+      <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
             <p className="text-sm text-gray-500 mb-1">Total à payer ce mois</p>
@@ -98,7 +97,7 @@ export function SalariesStatsCards({ month }: SalariesStatsCardsProps) {
       </Card>
 
       {/* CARD 2: Total déjà payé */}
-      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
+      <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
             <p className="text-sm text-gray-500 mb-1">Total déjà payé</p>
@@ -117,7 +116,7 @@ export function SalariesStatsCards({ month }: SalariesStatsCardsProps) {
       </Card>
 
       {/* CARD 3: Économie du mois */}
-      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
+      <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
             <p className="text-sm text-gray-500 mb-1">Économie du mois</p>
@@ -131,7 +130,7 @@ export function SalariesStatsCards({ month }: SalariesStatsCardsProps) {
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="space-y-1 text-sm text-gray-500 cursor-help">
-                <div>Heures prévues jusqu'à aujourd'hui: {stats.economy.plannedHours.toFixed(1)} h</div>
+                <div>Du 1er à aujourd'hui: {stats.economy.plannedHours.toFixed(1)} h</div>
                 <div>Heures effectuées : {stats.economy.completedHours.toFixed(1)} h</div>
                 <div>Heures manquées : {(stats.economy.plannedHours - stats.economy.completedHours).toFixed(1)} h</div>
                 <div className="font-semibold text-amber-700">Économie : {formatFcfa(stats.economy.savedAmount)}</div>
@@ -148,7 +147,7 @@ export function SalariesStatsCards({ month }: SalariesStatsCardsProps) {
       </Card>
 
       {/* CARD 4: Taux de présence professeurs (placée en première ligne sur mobile) */}
-      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
+      <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
             <p className="text-sm text-gray-500 mb-1">Taux de présence profs</p>

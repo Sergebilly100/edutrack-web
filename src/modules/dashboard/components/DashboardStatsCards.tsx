@@ -88,7 +88,7 @@ export function DashboardStatsCards() {
   return (
     <div className={gridClassName}>
       {/* CARD 1: Taux de présence professeurs */}
-      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
+      <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
             <p className="text-sm text-gray-500 mb-1">Présence professeurs</p>
@@ -125,7 +125,7 @@ export function DashboardStatsCards() {
       </Card>
 
       {/* CARD 2: Taux de présence élèves */}
-      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
+      <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
             <p className="text-sm text-gray-500 mb-1">Présence élèves</p>
@@ -149,14 +149,14 @@ export function DashboardStatsCards() {
           </div>
         </div>
         <div className="space-y-1 text-sm text-gray-500">
-          <div>Présents aujourd'hui : {stats.studentAttendance.present} élèves</div>
-          <div>Absents : {stats.studentAttendance.absent} élèves</div>
-          <div>Non pointés : {stats.studentAttendance.notMarked} élèves</div>
+          <div>Présences : {stats.studentAttendance.present}</div>
+          <div>Absences : {stats.studentAttendance.absent}</div>
+          <div>Pointages restants : {stats.studentAttendance.notMarked}</div>
         </div>
       </Card>
 
       {/* CARD 3: Salaire à payer ce mois / Économie actuelle */}
-      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
+      <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
             <p className="text-sm text-gray-500 mb-1">Salaire à payer ce mois</p>
@@ -171,13 +171,17 @@ export function DashboardStatsCards() {
 
         <div className="rounded-lg bg-amber-50 px-3 py-2 mt-3 border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40">
           <p className="text-xs font-medium text-amber-900 mb-1 dark:text-amber-100">
-            Économie du 1er au {new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
+            Du 1er au {new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
           </p>
           <div className="space-y-0.5 text-xs text-amber-800 dark:text-amber-100">
             <div>Déjà payé : {formatFcfa(stats.salaries.totalPaid)}</div>
             <div>
-              {stats.salaries.economy.label} : {stats.salaries.economy.plannedHours.toFixed(1)} h prévues,{" "}
-              {stats.salaries.economy.completedHours.toFixed(1)} h effectuées
+              <p>
+                Heures prévues : {stats.salaries.economy.plannedHours.toFixed(1)} h 
+              </p>
+              <p>
+                Heures effectuées : {stats.salaries.economy.completedHours.toFixed(1)} h 
+              </p>
             </div>
             <div className="font-semibold">
               Économie : {formatFcfa(stats.salaries.economy.savedAmount)}
@@ -187,10 +191,10 @@ export function DashboardStatsCards() {
       </Card>
 
       {showSubscriptionRevenue ? (
-        <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
+        <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
           <div className="flex items-start justify-between mb-3">
             <div className="flex-1">
-              <p className="text-sm text-gray-500 mb-1">Montant d'abonnements encaissé</p>
+              <p className="text-sm text-gray-500 mb-1">abonnements encaissé</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
                 {formatFcfa(stats.subscriptions.collectedAmount)}
               </p>
@@ -202,8 +206,7 @@ export function DashboardStatsCards() {
           <div className="space-y-1 text-sm text-gray-500">
             <div>Abonnés actifs ce mois : {stats.subscriptions.activeSubscribers} parents</div>
             <div>
-              Taux de collecte : {formatRate(collectionRate)} ({formatFcfa(stats.subscriptions.collectedAmount)} /{" "}
-              {formatFcfa(stats.subscriptions.expectedAmount)})
+              Taux de collecte : {formatRate(collectionRate)}
             </div>
           </div>
         </Card>

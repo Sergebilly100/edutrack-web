@@ -726,7 +726,7 @@ export default function DashboardPage() {
       ? {
           id: "teacher-absences-week",
           title: "Absences profs élevées",
-          message: `${weeklyAbsenceCount} absence(s) non justifiée(s) sur 7 jours.`,
+          message: `${weeklyAbsenceCount} absence(s) sur les 7 derniers jours.`,
           actionLabel: "Ouvrir les professeurs",
           onClick: () => navigate("/teachers"),
           onDismiss: () => dismissNotification("teacher-absences-week"),
@@ -738,7 +738,7 @@ export default function DashboardPage() {
       ? {
           id: "salary-unpaid-alerts",
           title: "Salaires à terminer",
-          message: `${salaryUnpaidAlertsQuery.data?.count ?? 0} fiche(s), ${new Intl.NumberFormat("fr-FR").format(salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0)} FCFA à solder.`,
+          message: `${salaryUnpaidAlertsQuery.data?.count ?? 0} fiche(s) en retard, ${new Intl.NumberFormat("fr-FR").format(salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0)} FCFA à solder.`,
           actionLabel: "Ouvrir les salaires",
           onClick: () => navigate("/salaries"),
           onDismiss: () => dismissNotification("salary-unpaid-alerts"),
@@ -847,54 +847,57 @@ export default function DashboardPage() {
             onNavigateToSchedule={() => navigate("/schedule")}
           />
 
-          <div className="rounded-xl border bg-card p-4 shadow-sm">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-base font-semibold">Priorités du jour</h2>
-                <p className="text-sm text-muted-foreground">Les décisions qui changent la journée ou la paie.</p>
+          {priorityActions.length !== 0 ? (
+            <div className="rounded-xl border bg-card p-4 shadow-sm">
+              
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-base font-semibold">Priorités du jour</h2>
+                  <p className="text-sm text-muted-foreground">Les décisions qui changent la journée ou la paie.</p>
+                </div>
+                {priorityActions.length === 0 ? (
+                  <Badge variant="outline" className="w-fit border-green-200 bg-green-50 text-green-700">
+                    <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                    Aucun blocage
+                  </Badge>
+                ) : null}
               </div>
-              {priorityActions.length === 0 ? (
-                <Badge variant="outline" className="w-fit border-green-200 bg-green-50 text-green-700">
-                  <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                  Aucun blocage
-                </Badge>
+
+              {priorityActions.length > 0 ? (
+                <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                  {priorityActions.map((item) => {
+                    const Icon = item.icon
+                    return (
+                      <article key={item.id} className={`rounded-lg border p-3 ${item.className}`}>
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background/70">
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-sm font-semibold">{item.title}</h3>
+                            <p className="mt-1 text-sm opacity-90">{item.message}</p>
+                          </div>
+                          {item.onDismiss ? (
+                            <button
+                              type="button"
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md hover:bg-background/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                              aria-label={`Masquer ${item.title}`}
+                              onClick={item.onDismiss}
+                            >
+                              <CircleX className="h-4 w-4" />
+                            </button>
+                          ) : null}
+                        </div>
+                        <Button type="button" variant="outline" className="mt-3 w-full bg-background/80" onClick={item.onClick}>
+                          {item.actionLabel}
+                        </Button>
+                      </article>
+                    )
+                  })}
+                </div>
               ) : null}
             </div>
-
-            {priorityActions.length > 0 ? (
-              <div className="mt-4 grid gap-3 lg:grid-cols-3">
-                {priorityActions.map((item) => {
-                  const Icon = item.icon
-                  return (
-                    <article key={item.id} className={`rounded-lg border p-3 ${item.className}`}>
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background/70">
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h3 className="text-sm font-semibold">{item.title}</h3>
-                          <p className="mt-1 text-sm opacity-90">{item.message}</p>
-                        </div>
-                        {item.onDismiss ? (
-                          <button
-                            type="button"
-                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md hover:bg-background/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                            aria-label={`Masquer ${item.title}`}
-                            onClick={item.onDismiss}
-                          >
-                            <CircleX className="h-4 w-4" />
-                          </button>
-                        ) : null}
-                      </div>
-                      <Button type="button" variant="outline" className="mt-3 w-full bg-background/80" onClick={item.onClick}>
-                        {item.actionLabel}
-                      </Button>
-                    </article>
-                  )
-                })}
-              </div>
-            ) : null}
-          </div>
+          ) : null }
         </section>
 
         <DashboardStatsCards />
@@ -977,7 +980,7 @@ export default function DashboardPage() {
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Card className="order-2">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-lg font-semibold">Conformité scan ce mois</CardTitle>
+              <CardTitle className="text-lg font-semibold">Conformité profs ce mois</CardTitle>
               <Button asChild variant="outline" size="sm" className="min-h-10">
                 <Link to="/teachers?tab=classement">Voir le classement complet</Link>
               </Button>

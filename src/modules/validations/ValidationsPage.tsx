@@ -719,28 +719,24 @@ export default function ValidationsPage() {
           <p className="text-sm text-muted-foreground">{total} présence(s) en attente de décision.</p>
         </header>
 
-        <Tabs defaultValue="gps" className="space-y-4">
+        <Tabs defaultValue="hours" className="space-y-4">
           <TabsList className="grid h-auto w-full grid-cols-1 gap-1 rounded-xl border border-border bg-muted/50 p-1 sm:grid-cols-3">
-            <TabsTrigger value="gps">Présences suspectes ({groups.gps_suspicious.length})</TabsTrigger>
             <TabsTrigger value="hours">Heures à valider ({groups.short_hours.length})</TabsTrigger>
             <TabsTrigger value="end-scan">
               <AlertTriangle className="mr-1 h-3.5 w-3.5" />
               Scan de fin ({endScanTotal})
             </TabsTrigger>
+            <TabsTrigger value="gps">Présences suspectes ({groups.gps_suspicious.length})</TabsTrigger>
           </TabsList>
-          <TabsContent value="gps" className="space-y-4">
-            <InfoBox>Ces enseignants ont été détectés hors du périmètre de la salle au moment du scan. Vérifiez avec eux avant de valider.</InfoBox>
-            {renderGpsTable(groups.gps_suspicious)}
-          </TabsContent>
           <TabsContent value="hours" className="space-y-4">
             <InfoBox>Ces enseignants ont terminé leur cours avant l'heure prévue. Choisissez les heures à accorder.</InfoBox>
             {renderShortHoursTable(groups.short_hours)}
           </TabsContent>
           <TabsContent value="end-scan" className="space-y-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <InfoBox>Ces enseignants ont pointé leur arrivée mais n'ont pas effectué le scan de fin de cours.</InfoBox>
+            <InfoBox>Ces enseignants ont pointé leur arrivée mais n'ont pas effectué le scan de fin de cours.</InfoBox>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between">
               <Select value={endScanMonth} onValueChange={setEndScanMonth}>
-                <SelectTrigger className="w-full md:ml-4 md:w-[180px]">
+                <SelectTrigger className="w-full md:ml-4 md:w-[180px] md:m-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -753,6 +749,10 @@ export default function ValidationsPage() {
               </Select>
             </div>
             {renderEndScanTab()}
+          </TabsContent>
+          <TabsContent value="gps" className="space-y-4">
+            <InfoBox>Ces enseignants ont été détectés hors du périmètre de la salle au moment du scan. Vérifiez avec eux avant de valider.</InfoBox>
+            {renderGpsTable(groups.gps_suspicious)}
           </TabsContent>
         </Tabs>
       </div>

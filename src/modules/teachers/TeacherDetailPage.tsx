@@ -358,7 +358,7 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
                       </TableCell>
                       <TableCell>
                         {/* C'est seulement si le prof est présent qu'on vérifie si la salle était correcte */}
-                        {row.attendanceStatus === "present" ?  (
+                        {row.attendanceStatus === "present" || row.attendanceStatus === "late" ?  (
                             row.roomMismatch ? (
                               <Badge variant="destructive">Incorrecte</Badge>
                             ) : (
@@ -368,9 +368,9 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
                         }
                       </TableCell>
                       <TableCell>
-                        {row.attendanceStatus === "present" && row.rollcallMissing ? (
+                        {(row.attendanceStatus === "present" || row.attendanceStatus === "late") && row.rollcallMissing ? (
                           <Badge className="border-amber-200 bg-amber-50 text-amber-700">Manquant</Badge>
-                        ) : row.attendanceStatus === "present" && row.rollcallDone ? (
+                        ) : (row.attendanceStatus === "present" || row.attendanceStatus === "late") && row.rollcallDone ? (
                           <Badge className="border-green-200 bg-green-50 text-green-700">Effectué</Badge>
                         ) : (
                           <Badge variant="outline">N/A</Badge>

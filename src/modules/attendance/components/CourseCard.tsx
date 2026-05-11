@@ -175,7 +175,7 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
               ) : (
                 <PresentIcon className="mr-1 h-3.5 w-3.5" />
               )}
-              {attendance?.status === "late" ? "En retard" : "Présent"}
+              {attendance?.status === "late" ? "Présent avec retard" : "Présent"}
             </Badge>
           ) : null}
 

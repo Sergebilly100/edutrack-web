@@ -631,7 +631,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                 ) : (
                   <span className="flex items-center gap-1.5 rounded-md border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
                     <span className="h-2 w-2 rounded-full bg-green-400" />
-                    Tous les élèves sont marqués
+                    Tous marqués
                   </span>
                 )}
               </div>

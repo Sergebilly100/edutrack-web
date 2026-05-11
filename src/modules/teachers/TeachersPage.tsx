@@ -246,7 +246,7 @@ function TeacherRankingPanel({
           <div className="space-y-1">
             <p className="text-sm font-semibold">Classement de conformité</p>
             <p className="text-xs text-muted-foreground">
-              Classement mensuel basé sur les taux de présence, salle correcte,pointage des élèves et les scans de fin de cours.
+              Classement mensuel basé sur les taux de présence, salle correcte, pointage des élèves et les scans de fin de cours.
             </p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -352,10 +352,10 @@ function TeacherRankingPanel({
                   Scan fin {Math.round(teacher.scanEndRate)}%
                 </Badge>
                 <Badge variant="outline" className={teacher.roomCorrectRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.roomCorrectRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
-                  Salle {Math.round(teacher.roomCorrectRate)}%
+                  Salle correcte {Math.round(teacher.roomCorrectRate)}%
                 </Badge>
                 <Badge variant="outline" className={teacher.rollcallRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.rollcallRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
-                  Pointage {Math.round(teacher.rollcallRate)}%
+                  Pointage élève {Math.round(teacher.rollcallRate)}%
                 </Badge>
               </div>
             </div>
