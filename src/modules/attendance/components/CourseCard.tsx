@@ -136,8 +136,7 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
           </p>
 
           {/* En cours normal */}
-          
-          {(status === "now" || status === "starting_soon" ) && !rollCallPending && !checkinQrDone && readyToFinish ? (
+          {(status === "now" || status === "starting_soon") && !rollCallPending && !checkinQrDone && !readyToFinish ? (
             <p className="flex items-center gap-2 text-xs font-medium text-green-600">
               <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
               {status === "starting_soon" ? "Démarrage imminent" : "En cours"}

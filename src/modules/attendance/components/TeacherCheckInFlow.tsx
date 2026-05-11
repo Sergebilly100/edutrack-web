@@ -129,6 +129,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
   const [manualQrCode, setManualQrCode] = useState("")
   const [qrWarning, setQrWarning] = useState<string | null>(null)
   const [qrValidated, setQrValidated] = useState(false)
+  const [endQrScanned, setEndQrScanned] = useState(false)
   const [studentStatuses, setStudentStatuses] = useState<Map<string, StudentRollCallStatus>>(
     new Map()
   )
@@ -148,6 +149,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
       setStudentStatuses(new Map())
       setShowRollCallPrompt(false)
       setCheckInScheduled(false)
+      setEndQrScanned(false)
       const currentFlow = rollCallStore.getFlowState(slot.id, attendanceDate)
       if (currentFlow === "ready_to_finish") {
         setStep(4)
@@ -408,6 +410,54 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
   }
 
   const finishCourseMutation = useMutation({ mutationFn: teacherScheduleApi.checkOut })
+  const endQrMutation = useMutation({ mutationFn: teacherScheduleApi.scanQr })
+  const endQrSkipMutation = useOfflineMutation(teacherScheduleApi.skipQr, {
+    queueKey: "attendance-qr-end-skip",
+  })
+
+  const handleEndQrDetected = async (token: string) => {
+    try {
+      const result = await endQrMutation.mutateAsync({
+        qr_token: token,
+        scan_type: "end",
+        schedule_id: slot.id,
+      })
+
+      if (result.room_mismatch) {
+        toast({
+          title: "QR incorrect",
+          description: "Ce QR ne correspond pas à celui scanné en début de cours. Scannez le même QR code que pour commencer le cours.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      setEndQrScanned(true)
+      toast({
+        title: "QR fin validé",
+        description: "Vous pouvez maintenant terminer le cours.",
+      })
+    } catch {
+      toast({
+        title: "QR non reconnu",
+        description: "Ce QR ne correspond pas à la salle prévue. Réessayez.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleSkipEndQr = async () => {
+    try {
+      await endQrSkipMutation.mutateAsync({
+        scan_type: "end",
+        schedule_id: slot.id,
+        date: attendanceDate,
+      })
+    } catch {
+      // skip silencieux — le checkout reste possible
+    }
+    setEndQrScanned(true)
+  }
 
   const handleFinishCourse = async () => {
     try {
@@ -418,7 +468,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
         ...geo,
       })
 
-      rollCallStore.markDone(slot.id, attendanceDate) // Marquer comme done
+      rollCallStore.markDone(slot.id, attendanceDate)
       toast({
         title: "Cours terminé",
         description: `${result.actual_minutes} min enregistrées.`,
@@ -744,7 +794,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
             </section>
           ) : null}
 
-          {/* // ── Step 4 — Fin du cours + scan QR ───────────────────────────────── */}
+          {/* ── Step 4 — Fin du cours + scan QR de fin ────────────────────────── */}
           {step === 4 ? (
             <section className="space-y-4 rounded-xl border p-2" data-testid="teacher-checkin-step-4">
               <div className="space-y-2 rounded-lg border border-green-200 bg-green-50 px-3 py-3">
@@ -757,16 +807,54 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                 <p className="text-xs text-green-700">{motivationalByStep[4]}</p>
               </div>
 
-              <Button
-                type="button"
-                size="lg"
-                className="w-full min-h-[72px] bg-red-600 text-white hover:bg-red-700"
-                data-testid="teacher-finish-course-submit"
-                disabled={finishCourseMutation.isPending}
-                onClick={() => { void handleFinishCourse() }}
-              >
-                {finishCourseMutation.isPending ? "Clôture en cours..." : "Terminer le cours"}
-              </Button>
+              {!endQrScanned ? (
+                <>
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                    <p className="text-xs font-medium text-blue-800">
+                      Scannez le QR code de la salle {slot.room_name} pour confirmer la fin du cours.
+                      {canSkipQrStep ? null : " Ce scan est obligatoire."}
+                    </p>
+                  </div>
+
+                  <QRScanner
+                    scheduleId={slot.id}
+                    scanType="end"
+                    onTokenDetected={(token) => { void handleEndQrDetected(token) }}
+                  />
+
+                  {endQrMutation.isError ? (
+                    <Alert variant="destructive">
+                      <AlertDescription>
+                        QR non reconnu. Scannez exactement le même QR code qu'au début du cours.
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
+
+                  {canSkipQrStep ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      data-testid="teacher-end-skip-qr"
+                      disabled={endQrSkipMutation.isPending}
+                      onClick={() => { void handleSkipEndQr() }}
+                    >
+                      {endQrSkipMutation.isPending ? "..." : "Terminer sans scanner"}
+                    </Button>
+                  ) : null}
+                </>
+              ) : (
+                <Button
+                  type="button"
+                  size="lg"
+                  className="w-full min-h-[72px] bg-red-600 text-white hover:bg-red-700"
+                  data-testid="teacher-finish-course-submit"
+                  disabled={finishCourseMutation.isPending}
+                  onClick={() => { void handleFinishCourse() }}
+                >
+                  {finishCourseMutation.isPending ? "Clôture en cours..." : "Terminer le cours"}
+                </Button>
+              )}
             </section>
           ) : null}
         </SheetContent>

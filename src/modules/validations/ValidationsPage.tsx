@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, CircleX, Info, Send, TriangleAlert } from "lucide-react"
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, CircleX, Clock, Info, Send, TriangleAlert } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -94,25 +94,38 @@ type CancelSanctionTarget = {
   teacher: MissingEndScanTeacher
 }
 
-function EndScanStatusBadge({ session }: { session: MissingEndScanSession }) {
-  if (!session.endScanAction) return null
+type EndScanStatus = "pending" | "warned" | "sanctioned" | "cancelled"
 
-  if (session.endScanActionCancelledAt) {
+function getEndScanStatus(session: MissingEndScanSession): EndScanStatus {
+  if (!session.endScanAction) return "pending"
+  if (session.endScanActionCancelledAt) return "cancelled"
+  return session.endScanAction === "warned" ? "warned" : "sanctioned"
+}
+
+function EndScanStatusBadge({ session }: { session: MissingEndScanSession }) {
+  const status = getEndScanStatus(session)
+
+  if (status === "pending") {
+    return (
+      <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700">
+        En attente
+      </Badge>
+    )
+  }
+  if (status === "cancelled") {
     return (
       <Badge variant="outline" className="border-gray-200 bg-gray-50 text-gray-600">
         Sanction annulée
       </Badge>
     )
   }
-
-  if (session.endScanAction === "warned") {
+  if (status === "warned") {
     return (
       <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
         Averti
       </Badge>
     )
   }
-
   return (
     <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
       Sanctionné
@@ -134,6 +147,7 @@ export default function ValidationsPage() {
   const [endScanActionTarget, setEndScanActionTarget] = useState<EndScanActionTarget | null>(null)
   const [cancelSanctionTarget, setCancelSanctionTarget] = useState<CancelSanctionTarget | null>(null)
   const [cancelSanctionReason, setCancelSanctionReason] = useState("")
+  const [endScanStatusFilter, setEndScanStatusFilter] = useState<"all" | EndScanStatus>("all")
   const endScanMonthOptions = useMemo(() => getRecentMonthOptions(getCurrentMonth(), 12), [])
 
   const pendingQuery = useQuery({
@@ -503,208 +517,261 @@ export default function ValidationsPage() {
       return <EmptyState icon={emptyStateIcons.allGood} title="Aucun scan de fin manquant" message="Tous les enseignants ont effectué leur scan de fin pour ce mois." />
     }
 
+    // Tri des profs : celui dont la session la plus récente est la première
+    const sortedTeachers = [...endScanTeachers].sort((a, b) => {
+      const latestA = a.sessions.reduce((max, s) => s.date > max ? s.date : max, "")
+      const latestB = b.sessions.reduce((max, s) => s.date > max ? s.date : max, "")
+      return latestB.localeCompare(latestA)
+    })
+
     return (
       <div className="space-y-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">{endScanTeachers.length} enseignant(s), {endScanTotal} cours sans scan de fin</p>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="w-full sm:w-auto"
-            disabled={warnMutation.isPending}
-            onClick={() => warnMutation.mutate(endScanTeachers.map((t) => t.teacherId))}
-          >
-            <Send className="mr-2 h-4 w-4" />
-            {warnMutation.isPending ? "Envoi..." : "Avertir tous"}
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Select value={endScanStatusFilter} onValueChange={(v) => setEndScanStatusFilter(v as typeof endScanStatusFilter)}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filtrer par statut" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les statuts</SelectItem>
+                <SelectItem value="pending">En attente</SelectItem>
+                <SelectItem value="warned">Averti</SelectItem>
+                <SelectItem value="sanctioned">Sanctionné</SelectItem>
+                <SelectItem value="cancelled">Sanction annulée</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="w-full sm:w-auto"
+              disabled={warnMutation.isPending}
+              onClick={() => warnMutation.mutate(endScanTeachers.map((t) => t.teacherId))}
+            >
+              <Send className="mr-2 h-4 w-4" />
+              {warnMutation.isPending ? "Envoi..." : "Tolérer tous avec avertissement"}
+            </Button>
+          </div>
         </div>
 
         <div className="space-y-2">
-          {endScanTeachers.map((teacher) => (
-            <Collapsible
-              key={teacher.teacherId}
-              open={expandedTeacher === teacher.teacherId}
-              onOpenChange={(open) => setExpandedTeacher(open ? teacher.teacherId : null)}
-            >
-              <div className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
-                <CollapsibleTrigger className="flex min-h-11 min-w-0 flex-wrap items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-                  {expandedTeacher === teacher.teacherId ? (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  )}
-                  <span className="font-medium">{teacher.teacherName}</span>
-                  <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
-                    {teacher.missingEndScanCount} cours
-                  </Badge>
-                  {teacher.warningCount > 0 ? (
-                    <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
-                      {teacher.warningCount} avertissement{teacher.warningCount > 1 ? "s" : ""}
-                    </Badge>
-                  ) : null}
-                  {teacher.sanctionCount > 0 ? (
-                    <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
-                      {teacher.sanctionCount} sanction{teacher.sanctionCount > 1 ? "s" : ""}
-                    </Badge>
-                  ) : null}
-                  {teacher.warningSent ? (
-                    <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
-                      Notifié
-                    </Badge>
-                  ) : null}
-                </CollapsibleTrigger>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="w-full sm:w-auto"
-                  disabled={warnMutation.isPending}
-                  onClick={() => warnMutation.mutate([teacher.teacherId])}
-                >
-                  <Send className="mr-2 h-3 w-3" />
-                  Avertir
-                </Button>
-              </div>
+          {sortedTeachers.map((teacher) => {
+            // Trier les sessions du plus récent au plus ancien
+            const sortedSessions = [...teacher.sessions].sort((a, b) => {
+              const dateCmp = b.date.localeCompare(a.date)
+              if (dateCmp !== 0) return dateCmp
+              return b.timeSlot.localeCompare(a.timeSlot)
+            })
 
-              <CollapsibleContent>
-                <div className="mt-2 space-y-2 lg:hidden">
-                  {teacher.sessions.map((session) => {
-                    const hasActiveAction =
-                      session.endScanAction !== null && session.endScanActionCancelledAt === null
-                    const isSanctioned =
-                      session.endScanAction === "sanctioned" && session.endScanActionCancelledAt === null
+            // Filtrer par statut
+            const filteredSessions =
+              endScanStatusFilter === "all"
+                ? sortedSessions
+                : sortedSessions.filter((s) => getEndScanStatus(s) === endScanStatusFilter)
 
-                    return (
-                      <article key={session.attendanceId} className="rounded-xl border bg-muted/30 p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="font-medium">{session.subject}</p>
-                            <p className="text-sm text-muted-foreground">{formatDate(session.date)} • {session.timeSlot}</p>
-                          </div>
-                          <EndScanStatusBadge session={session} />
-                        </div>
-                        <p className="mt-2 text-sm text-muted-foreground">Salle: {session.roomName ?? "-"}</p>
-                        {hasActiveAction ? (
-                          isSanctioned ? (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="mt-3 w-full border-red-200 text-red-600 hover:bg-red-50"
-                              onClick={() => setCancelSanctionTarget({ session, teacher })}
-                            >
-                              Annuler la sanction
-                            </Button>
-                          ) : null
-                        ) : (
-                          <div className="mt-3 grid gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="border-amber-200 text-amber-700 hover:bg-amber-50"
-                              disabled={endScanActionMutation.isPending}
-                              onClick={() =>
-                                setEndScanActionTarget({ session, teacher, action: "warned" })
-                              }
-                            >
-                              Tolérer avec avertissement
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              disabled={endScanActionMutation.isPending}
-                              onClick={() =>
-                                setEndScanActionTarget({ session, teacher, action: "sanctioned" })
-                              }
-                            >
-                              Sanctionner
-                            </Button>
-                          </div>
-                        )}
-                      </article>
-                    )
-                  })}
+            if (filteredSessions.length === 0) return null
+
+            return (
+              <Collapsible
+                key={teacher.teacherId}
+                open={expandedTeacher === teacher.teacherId}
+                onOpenChange={(open) => setExpandedTeacher(open ? teacher.teacherId : null)}
+              >
+                <div className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <CollapsibleTrigger className="flex min-h-11 min-w-0 flex-wrap items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                    {expandedTeacher === teacher.teacherId ? (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <span className="font-medium">{teacher.teacherName}</span>
+                    <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                      {teacher.missingEndScanCount} cours
+                    </Badge>
+                    {teacher.warningCount > 0 ? (
+                      <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
+                        {teacher.warningCount} avertissement{teacher.warningCount > 1 ? "s" : ""}
+                      </Badge>
+                    ) : null}
+                    {teacher.sanctionCount > 0 ? (
+                      <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+                        {teacher.sanctionCount} sanction{teacher.sanctionCount > 1 ? "s" : ""}
+                      </Badge>
+                    ) : null}
+                    {teacher.warningSent ? (
+                      <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+                        Notifié
+                      </Badge>
+                    ) : null}
+                  </CollapsibleTrigger>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="w-full border-amber-200 text-amber-700 hover:bg-amber-50 sm:w-auto"
+                    disabled={warnMutation.isPending}
+                    onClick={() => warnMutation.mutate([teacher.teacherId])}
+                  >
+                    <Send className="mr-2 h-3 w-3" />
+                    Tolérer tous avec avertissement
+                  </Button>
                 </div>
 
-                <div className="ml-6 mt-1 hidden overflow-x-auto rounded-lg border border-border lg:block">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Matière</TableHead>
-                        <TableHead>Créneau</TableHead>
-                        <TableHead>Salle</TableHead>
-                        <TableHead>Statut</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {teacher.sessions.map((session) => {
-                        const hasActiveAction =
-                          session.endScanAction !== null && session.endScanActionCancelledAt === null
-                        const isSanctioned =
-                          session.endScanAction === "sanctioned" && session.endScanActionCancelledAt === null
+                <CollapsibleContent>
+                  <div className="mt-2 space-y-2 lg:hidden">
+                    {filteredSessions.map((session) => {
+                      const hasActiveAction =
+                        session.endScanAction !== null && session.endScanActionCancelledAt === null
+                      const isSanctioned =
+                        session.endScanAction === "sanctioned" && session.endScanActionCancelledAt === null
 
-                        return (
-                          <TableRow key={session.attendanceId}>
-                            <TableCell>{formatDate(session.date)}</TableCell>
-                            <TableCell>{session.subject}</TableCell>
-                            <TableCell>{session.timeSlot}</TableCell>
-                            <TableCell>{session.roomName ?? "-"}</TableCell>
-                            <TableCell>
-                              <EndScanStatusBadge session={session} />
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {hasActiveAction ? (
-                                isSanctioned ? (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    className="min-h-10 text-red-600 border-red-200 hover:bg-red-50"
-                                    onClick={() => setCancelSanctionTarget({ session, teacher })}
-                                  >
-                                    Annuler la sanction
-                                  </Button>
-                                ) : null
-                              ) : (
-                                <div className="flex justify-end gap-2">
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    className="min-h-10 text-amber-700 border-amber-200 hover:bg-amber-50"
-                                    disabled={endScanActionMutation.isPending}
-                                    onClick={() =>
-                                      setEndScanActionTarget({ session, teacher, action: "warned" })
-                                    }
-                                  >
-                                    Tolérer avec avertissement
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="destructive"
-                                    className="min-h-10"
-                                    disabled={endScanActionMutation.isPending}
-                                    onClick={() =>
-                                      setEndScanActionTarget({ session, teacher, action: "sanctioned" })
-                                    }
-                                  >
-                                    Sanctionner
-                                  </Button>
-                                </div>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          ))}
+                      return (
+                        <article key={session.attendanceId} className="rounded-xl border bg-muted/30 p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="font-medium">{session.subject}</p>
+                              <p className="text-sm text-muted-foreground">{formatDate(session.date)} • {session.timeSlot}</p>
+                            </div>
+                            <EndScanStatusBadge session={session} />
+                          </div>
+                          <p className="mt-2 text-sm text-muted-foreground">Salle: {session.roomName ?? "-"}</p>
+                          {session.startScanAt ? (
+                            <p className="flex items-center gap-1 mt-1 text-sm text-muted-foreground">
+                              <Clock className="h-3.5 w-3.5" />
+                              Arrivée : {formatTime(session.startScanAt)}
+                            </p>
+                          ) : null}
+                          {hasActiveAction ? (
+                            isSanctioned ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="mt-3 w-full border-red-200 text-red-600 hover:bg-red-50"
+                                onClick={() => setCancelSanctionTarget({ session, teacher })}
+                              >
+                                Annuler la sanction
+                              </Button>
+                            ) : null
+                          ) : (
+                            <div className="mt-3 grid gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="border-amber-200 text-amber-700 hover:bg-amber-50"
+                                disabled={endScanActionMutation.isPending}
+                                onClick={() =>
+                                  setEndScanActionTarget({ session, teacher, action: "warned" })
+                                }
+                              >
+                                Tolérer avec avertissement
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                disabled={endScanActionMutation.isPending}
+                                onClick={() =>
+                                  setEndScanActionTarget({ session, teacher, action: "sanctioned" })
+                                }
+                              >
+                                Sanctionner
+                              </Button>
+                            </div>
+                          )}
+                        </article>
+                      )
+                    })}
+                  </div>
+
+                  <div className="ml-6 mt-1 hidden overflow-x-auto rounded-lg border border-border lg:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Matière</TableHead>
+                          <TableHead>Créneau</TableHead>
+                          <TableHead>Salle</TableHead>
+                          <TableHead>
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3.5 w-3.5" />
+                              Arrivée
+                            </span>
+                          </TableHead>
+                          <TableHead>Statut</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredSessions.map((session) => {
+                          const hasActiveAction =
+                            session.endScanAction !== null && session.endScanActionCancelledAt === null
+                          const isSanctioned =
+                            session.endScanAction === "sanctioned" && session.endScanActionCancelledAt === null
+
+                          return (
+                            <TableRow key={session.attendanceId}>
+                              <TableCell>{formatDate(session.date)}</TableCell>
+                              <TableCell>{session.subject}</TableCell>
+                              <TableCell>{session.timeSlot}</TableCell>
+                              <TableCell>{session.roomName ?? "-"}</TableCell>
+                              <TableCell className="text-muted-foreground">
+                                {session.startScanAt ? formatTime(session.startScanAt) : "-"}
+                              </TableCell>
+                              <TableCell>
+                                <EndScanStatusBadge session={session} />
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {hasActiveAction ? (
+                                  isSanctioned ? (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="min-h-10 text-red-600 border-red-200 hover:bg-red-50"
+                                      onClick={() => setCancelSanctionTarget({ session, teacher })}
+                                    >
+                                      Annuler la sanction
+                                    </Button>
+                                  ) : null
+                                ) : (
+                                  <div className="flex justify-end gap-2">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="min-h-10 text-amber-700 border-amber-200 hover:bg-amber-50"
+                                      disabled={endScanActionMutation.isPending}
+                                      onClick={() =>
+                                        setEndScanActionTarget({ session, teacher, action: "warned" })
+                                      }
+                                    >
+                                      Tolérer avec avertissement
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="destructive"
+                                      className="min-h-10"
+                                      disabled={endScanActionMutation.isPending}
+                                      onClick={() =>
+                                        setEndScanActionTarget({ session, teacher, action: "sanctioned" })
+                                      }
+                                    >
+                                      Sanctionner
+                                    </Button>
+                                  </div>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            )
+          })}
         </div>
       </div>
     )

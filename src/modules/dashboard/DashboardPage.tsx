@@ -582,7 +582,10 @@ export default function DashboardPage() {
   }, [todayStudentAbsencesQuery.data])
 
   const topRiskStudents = useMemo<StudentAbsenceStat[]>(
-    () => (riskStudentsQuery.data ?? []).slice(0, 5),
+    () =>
+      [...(riskStudentsQuery.data ?? [])]
+        .sort((a, b) => b.absenceCount - a.absenceCount)
+        .slice(0, 5),
     [riskStudentsQuery.data]
   )
   const canToggleTodayPresence = (todayQuery.data?.courses ?? []).length > 5
@@ -646,6 +649,7 @@ export default function DashboardPage() {
       setIsRefreshing(true)
       setRefreshSuccess(false)
       await queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      await queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] })
       await Promise.all([
         todayQuery.refetch(),
         countsQuery.refetch(),
@@ -1050,10 +1054,10 @@ export default function DashboardPage() {
                 <EmptyState
                   icon={emptyStateIcons.allGood}
                   title="Aucune validation en attente"
-                  message="Les présences GPS suspectes et les heures courtes apparaîtront ici."
+                  message="Les présences GPS suspectes, les heures courtes et les scans de fin manquants apparaîtront ici."
                 />
               ) : (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <div className="rounded-lg border border-border p-3">
                     <p className="text-xs text-muted-foreground">GPS suspects</p>
                     <p className="mt-1 text-3xl font-bold">{validationCountQuery.data?.gps_suspicious ?? 0}</p>
@@ -1061,6 +1065,10 @@ export default function DashboardPage() {
                   <div className="rounded-lg border border-border p-3">
                     <p className="text-xs text-muted-foreground">Heures courtes</p>
                     <p className="mt-1 text-3xl font-bold">{validationCountQuery.data?.short_hours ?? 0}</p>
+                  </div>
+                  <div className="rounded-lg border border-border p-3">
+                    <p className="text-xs text-muted-foreground">Scan de fin</p>
+                    <p className="mt-1 text-3xl font-bold">{validationCountQuery.data?.missing_end_scan ?? 0}</p>
                   </div>
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
                     <p className="text-xs">Total</p>

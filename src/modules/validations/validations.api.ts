@@ -37,6 +37,7 @@ export type PendingValidationGroups = {
 export type PendingValidationCount = {
   gps_suspicious: number
   short_hours: number
+  missing_end_scan: number
   total: number
 }
 
@@ -89,6 +90,7 @@ export const getPendingValidationCount = async (): Promise<PendingValidationCoun
   return {
     gps_suspicious: asNumber(payload.gps_suspicious),
     short_hours: asNumber(payload.short_hours),
+    missing_end_scan: asNumber(payload.missing_end_scan),
     total: asNumber(payload.total),
   }
 }
@@ -121,6 +123,7 @@ export type MissingEndScanSession = {
   subject: string
   timeSlot: string
   roomName: string | null
+  startScanAt: string | null
   endScanAction: EndScanAction | null
   endScanActionReason: string | null
   endScanActionAt: string | null
@@ -154,6 +157,7 @@ const normalizeMissingEndScanTeacher = (value: unknown): MissingEndScanTeacher =
           subject: asString(session.subject, "--"),
           timeSlot: asString(session.timeSlot ?? session.time_slot, "--"),
           roomName: asNullableString(session.roomName ?? session.room_name),
+          startScanAt: asNullableString(session.startScanAt ?? session.start_scan_at ?? session.room_scan_start_at),
           endScanAction: normalizeEndScanAction(session.endScanAction ?? session.end_scan_action),
           endScanActionReason: asNullableString(session.endScanActionReason ?? session.end_scan_action_reason),
           endScanActionAt: asNullableString(session.endScanActionAt ?? session.end_scan_action_at),
