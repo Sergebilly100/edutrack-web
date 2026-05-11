@@ -1,13 +1,30 @@
 import { NavLink } from "react-router-dom"
+import { useQuery } from "@tanstack/react-query"
 
 import { cn } from "@/lib/utils"
+import { getSmsFeatureSettings } from "@/modules/subscriptions/subscriptions.api"
 import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
-import { useAuthStore } from "@/shared/store/auth.store"
+import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
 
 export function BottomNav() {
   const userRole = useAuthStore((state) => state.user?.role)
   const permissions = useAuthStore((state) => state.permissions)
-  const items = getNavItemsByRole(userRole, permissions).filter((item) => item.mobileVisible)
+  const smsFeatureQuery = useQuery({
+    queryKey: ["subscriptions", "feature-settings", "bottom-nav"],
+    queryFn: getSmsFeatureSettings,
+    staleTime: 60_000,
+    enabled: userRole === "director" || isStaffRole(userRole),
+  })
+  const subscriptionsEnabled = smsFeatureQuery.data?.monetize_parent_alerts === true
+  const items = getNavItemsByRole(userRole, permissions).filter((item) => {
+    if (!item.mobileVisible) {
+      return false
+    }
+    if (item.href === "/subscriptions" || item.href === "/subscriptions/revenue") {
+      return subscriptionsEnabled
+    }
+    return true
+  })
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 h-16 border-t bg-background/95 backdrop-blur-sm md:hidden">

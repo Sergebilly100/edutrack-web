@@ -527,3 +527,78 @@ export const downloadSalaryExportFile = async (
     fileName: match?.[1] ?? null,
   }
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SALARIES PAGE STATS (KPI CARDS)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+export type SalariesStatsTeacherAttendance = {
+  globalRate: number
+  partTime: {
+    rate: number
+    present: number
+    expected: number
+  }
+  fullTime: {
+    rate: number
+    present: number
+    expected: number
+  }
+}
+
+export type SalariesStatsEconomy = {
+  label: string
+  plannedHours: number
+  completedHours: number
+  savedAmount: number
+}
+
+export type SalariesStatsResponse = {
+  totalToPay: number
+  totalPaid: number
+  totalPayroll: number
+  economy: SalariesStatsEconomy
+  teacherAttendance: SalariesStatsTeacherAttendance
+}
+
+const normalizeSalariesStats = (payload: unknown): SalariesStatsResponse => {
+  const data = isRecord(payload) ? payload : {}
+  const economy = isRecord(data.economy) ? data.economy : {}
+  const teacherAttendance = isRecord(data.teacherAttendance) ? data.teacherAttendance : {}
+  const partTime = isRecord(teacherAttendance.partTime) ? teacherAttendance.partTime : {}
+  const fullTime = isRecord(teacherAttendance.fullTime) ? teacherAttendance.fullTime : {}
+
+  return {
+    totalToPay: asNumber(data.totalToPay, 0),
+    totalPaid: asNumber(data.totalPaid, 0),
+    totalPayroll: asNumber(data.totalPayroll, asNumber(data.totalToPay, 0) + asNumber(data.totalPaid, 0)),
+    economy: {
+      label: asString(economy.label, ""),
+      plannedHours: asNumber(economy.plannedHours, 0),
+      completedHours: asNumber(economy.completedHours, 0),
+      savedAmount: asNumber(economy.savedAmount, 0),
+    },
+    teacherAttendance: {
+      globalRate: asNumber(teacherAttendance.globalRate, 0),
+      partTime: {
+        rate: asNumber(partTime.rate, 0),
+        present: asNumber(partTime.present, 0),
+        expected: asNumber(partTime.expected, 0),
+      },
+      fullTime: {
+        rate: asNumber(fullTime.rate, 0),
+        present: asNumber(fullTime.present, 0),
+        expected: asNumber(fullTime.expected, 0),
+      },
+    },
+  }
+}
+
+export const getSalariesStats = async (month?: string): Promise<SalariesStatsResponse> => {
+  const response = await api.get("/salaries/summary", {
+    params: {
+      month: month || getCurrentMonth(),
+    },
+  })
+  return normalizeSalariesStats(response.data)
+}

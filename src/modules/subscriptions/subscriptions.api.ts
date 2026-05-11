@@ -1,4 +1,5 @@
 import { apiClient } from "@/shared/api/client"
+import { asBoolean, asNullableString, asNumber, isRecord } from "@/shared/utils/parsers"
 
 export type SubscriptionStatus = "active" | "expired" | "cancelled"
 export type PaymentMethod = "cash" | "momo_mtn" | "momo_orange"
@@ -131,6 +132,7 @@ export type SubscriptionClassStudentsResponse = {
 
 export type SmsFeatureSettings = {
   is_enabled: boolean
+  monetize_parent_alerts: boolean
   commission_pct: number
   sms_unit_price_fcfa: number | null
 }
@@ -331,4 +333,73 @@ export const updateSmsUnitPrice = async (sms_unit_price_fcfa: number): Promise<S
     sms_unit_price_fcfa,
   })
   return response.data
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SUBSCRIPTIONS REVENUE STATS (KPI CARDS)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+export type OverdueMonth = {
+  month: string
+  amount: number
+  dueDate: string
+  daysPastDue: number
+}
+
+export type SubscriptionsRevenueStatsResponse = {
+  collectedAmount: number
+  activeSubscribers: number
+  newSubscribers: number
+  collectionRate: number
+  expectedAmount: number
+  schoolGain: number
+  edutrackCommission: number
+  commissionPaid: number
+  commissionRate: number
+  remainingToReverse: number
+  nextReverseDate: string | null
+  isReverseOverdue: boolean
+  overdueMonths: OverdueMonth[]
+}
+
+const normalizeOverdueMonth = (payload: unknown): OverdueMonth => {
+  const data = isRecord(payload) ? payload : {}
+
+  return {
+    month: typeof data.month === "string" ? data.month : "",
+    amount: asNumber(data.amount, 0),
+    dueDate: typeof data.dueDate === "string" ? data.dueDate : "",
+    daysPastDue: asNumber(data.daysPastDue, 0),
+  }
+}
+
+const normalizeSubscriptionsRevenueStats = (payload: unknown): SubscriptionsRevenueStatsResponse => {
+  const data = isRecord(payload) ? payload : {}
+
+  return {
+    collectedAmount: asNumber(data.total_collected_fcfa, asNumber(data.collectedAmount, 0)),
+    activeSubscribers: asNumber(data.subscriptions_active_count, asNumber(data.activeSubscribers, 0)),
+    newSubscribers: asNumber(data.subscriptions_new_this_month, asNumber(data.newSubscribers, 0)),
+    collectionRate: asNumber(data.collectionRate, 0),
+    expectedAmount: asNumber(data.expectedAmount, 0),
+    schoolGain: Math.max(
+      0,
+      asNumber(data.total_collected_fcfa, asNumber(data.collectedAmount, 0)) -
+        asNumber(data.commission_due_fcfa, asNumber(data.edutrackCommission, 0))
+    ),
+    edutrackCommission: asNumber(data.commission_due_fcfa, asNumber(data.edutrackCommission, 0)),
+    commissionPaid: asNumber(data.commission_paid_fcfa, asNumber(data.commissionPaid, 0)),
+    commissionRate: asNumber(data.commission_pct, asNumber(data.commissionRate, 0)),
+    remainingToReverse: asNumber(data.commission_remaining_fcfa, asNumber(data.remainingToReverse, 0)),
+    nextReverseDate: asNullableString(data.nextReverseDate),
+    isReverseOverdue: asBoolean(data.isReverseOverdue, false),
+    overdueMonths: Array.isArray(data.overdueMonths) ? data.overdueMonths.map(normalizeOverdueMonth) : [],
+  }
+}
+
+export const getSubscriptionsRevenueStats = async (month?: string): Promise<SubscriptionsRevenueStatsResponse> => {
+  const response = await apiClient.get("/subscriptions/revenue/summary", {
+    params: month ? { month } : undefined,
+  })
+  return normalizeSubscriptionsRevenueStats(response.data)
 }

@@ -218,6 +218,7 @@ export type SchoolSmsTemplateResponse = {
 
 export type SchoolSmsFeatureSettings = {
   is_enabled: boolean
+  monetize_parent_alerts: boolean
   commission_pct: number
   sms_unit_price_fcfa: number | null
   use_real_hours: boolean

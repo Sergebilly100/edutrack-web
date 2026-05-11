@@ -13,6 +13,7 @@ vi.mock("@/shared/api/client", () => {
 })
 
 import {
+  getDashboardStats,
   getAttendanceHistory,
   getQRAlerts,
   getSMSLog,
@@ -95,6 +96,42 @@ describe("dashboard.api", () => {
       status: "sent",
       recipientPhone: "2250700000000",
     })
+  })
+
+  it("normalizes dashboard stats financial fields", async () => {
+    getMock.mockResolvedValueOnce({
+      data: {
+        teacherAttendance: {
+          globalRate: "50",
+          partTime: { rate: "50", present: "1", expected: "2" },
+          fullTime: null,
+        },
+        studentAttendance: { rate: "26.7", present: "8", absent: "2", notMarked: "20", total: "30" },
+        salaries: {
+          monthlyTotal: "393035",
+          toPayCurrentPeriod: "402500",
+          totalPaid: "0",
+          remainingToPay: "393035",
+          economy: { label: "Du 1er au 11 mai", plannedHours: "100.5", completedHours: "80.5", savedAmount: "100000" },
+        },
+        subscriptions: {
+          collectedAmount: "5000",
+          activeSubscribers: "2",
+          collectionRate: "100",
+          expectedAmount: "5000",
+        },
+      },
+    })
+
+    const stats = await getDashboardStats("2026-05-11", "2026-05")
+
+    expect(getMock).toHaveBeenCalledWith("/dashboard/stats", {
+      params: { date: "2026-05-11", month: "2026-05" },
+    })
+    expect(stats.salaries.remainingToPay).toBe(393035)
+    expect(stats.salaries.totalPaid).toBe(0)
+    expect(stats.subscriptions.collectedAmount).toBe(5000)
+    expect(stats.subscriptions.activeSubscribers).toBe(2)
   })
 
   it("fetches and parses qr alerts", async () => {

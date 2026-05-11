@@ -218,7 +218,7 @@ export default function RoleMatrix({
     queryKey: ["settings", "sms-feature", "role-matrix"],
     queryFn: getSchoolSmsFeatureSettings,
   })
-  const isSubscriptionsCategoryEnabled = smsFeatureQuery.data?.is_enabled === true
+  const isSubscriptionsCategoryEnabled = smsFeatureQuery.data?.monetize_parent_alerts === true
 
   const permissionColumns = useMemo(
     () => {

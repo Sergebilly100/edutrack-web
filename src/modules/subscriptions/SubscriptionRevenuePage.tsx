@@ -11,7 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
-import RevenueOverviewCard from "@/modules/subscriptions/components/RevenueOverviewCard"
+import { SubscriptionsStatsCards } from "@/modules/subscriptions/components/SubscriptionsStatsCards"
+import { OverdueReversalBanner } from "@/modules/subscriptions/components/OverdueReversalBanner"
+import { getSubscriptionsRevenueStats } from "@/modules/subscriptions/subscriptions.api"
 import {
   getSubscriptionsRevenueHistory,
   getSubscriptionsRevenueDetails,
@@ -53,6 +55,13 @@ export default function SubscriptionRevenuePage() {
     queryFn: () => getSubscriptionsRevenueSummary(month),
   })
 
+  const statsQuery = useQuery({
+    queryKey: ["subscriptions", "revenue", "stats", month],
+    queryFn: () => getSubscriptionsRevenueStats(month),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
+  })
+
   const historyQuery = useQuery({
     queryKey: ["subscriptions", "revenue", "history"],
     queryFn: () => getSubscriptionsRevenueHistory(12),
@@ -72,6 +81,7 @@ export default function SubscriptionRevenuePage() {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["subscriptions", "revenue", "summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["subscriptions", "revenue", "stats"] }),
         queryClient.invalidateQueries({ queryKey: ["subscriptions", "revenue", "history"] }),
       ])
       setPaymentAmount("")
@@ -119,7 +129,11 @@ export default function SubscriptionRevenuePage() {
         </div>
       }
     >
-      {summary ? <RevenueOverviewCard summary={summary} loading={summaryQuery.isLoading} /> : null}
+      {statsQuery.data?.isReverseOverdue ? (
+        <OverdueReversalBanner overdueMonths={statsQuery.data.overdueMonths} />
+      ) : null}
+
+      <SubscriptionsStatsCards month={month} />
 
       {summary ? (
         <section className="space-y-3 rounded-lg border p-4">

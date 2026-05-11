@@ -37,6 +37,7 @@ import type { SalaryStatus } from "@/shared/components/SalaryRow"
 import { StatCard } from "@/shared/components/StatCard"
 import { WeekCoverageAlert } from "@/shared/components/WeekCoverageAlert"
 import { NotificationsPanel, type NotificationPanelItem } from "@/shared/components/layout/NotificationsPanel"
+import { DashboardStatsCards } from "./components/DashboardStatsCards"
 import {
   buildDirectorDashboardNotifications,
   readDashboardDismissedNotificationIds,
@@ -802,40 +803,7 @@ export default function DashboardPage() {
           />
         ) : null}
 
-        <section className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4" data-testid="dashboard-statcards">
-          <StatCard
-            title="Profs actifs"
-            value={countsQuery.data?.activeTeachers ?? 0}
-            subtitle="Comptes actifs"
-            icon={<Users className="h-4 w-4" />}
-            trend={{
-              value: Number(teacherTrend.toFixed(1)),
-              label: "vs mois dernier",
-            }}
-            variant="default"
-          />
-          <StatCard
-            title="Élèves actifs"
-            value={countsQuery.data?.activeStudents ?? 0}
-            subtitle="Inscrits actifs"
-            icon={<GraduationCap className="h-4 w-4" />}
-            variant="default"
-          />
-          <StatCard
-            title="Présence profs aujourd'hui"
-            value={`${Math.round(presentRate)}%`}
-            subtitle={`${todayQuery.data?.presentCount ?? 0} / ${(todayQuery.data?.courses ?? []).length} pointés`}
-            icon={<CheckCircle2 className="h-4 w-4" />}
-            variant={presenceVariant}
-          />
-          <StatCard
-            title="Salaires à payer"
-            value={formatFcfa(pendingSalaries.totalFcfa)}
-            subtitle={`${pendingSalaries.count} fiche(s) en attente`}
-            icon={<Wallet className="h-4 w-4" />}
-            variant={pendingSalaries.totalFcfa > 0 ? "warning" : "default"}
-          />
-        </section>
+        <DashboardStatsCards />
 
         <section ref={alertsRef} className="space-y-3 animate-fade-in">
           <WeekCoverageAlert

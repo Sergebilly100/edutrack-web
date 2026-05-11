@@ -40,6 +40,7 @@ import {
 } from "@/modules/salaries/salaries.api"
 import { usePendingValidationCount } from "@/shared/hooks/usePendingValidationCount"
 import { SalarySummaryCards } from "@/modules/salaries/components/SalarySummaryCards"
+import { SalariesStatsCards } from "@/modules/salaries/components/SalariesStatsCards"
 import { SalaryExportSection } from "@/modules/salaries/components/SalaryExportSection"
 import { ContextualHelp, EmptyState, OfflineIndicator, SalaryRow, emptyStateIcons } from "@/shared/components"
 import { usePermissions } from "@/shared/hooks/usePermissions"
@@ -267,6 +268,7 @@ export default function SalariesPage() {
     onSuccess: async (result) => {
       setComputeDialogOpen(false)
       await queryClient.invalidateQueries({ queryKey: ["salaries", "summary", selectedMonth] })
+      await queryClient.invalidateQueries({ queryKey: ["salaries-stats", selectedMonth] })
       toast({
         title: "Calcul terminé",
         description: `${result.updatedCount} fiche(s) salaire recalculée(s).`,
@@ -298,6 +300,8 @@ export default function SalariesPage() {
       setPaymentNotes("")
       await queryClient.invalidateQueries({ queryKey: ["salaries", "summary", selectedMonth] })
       await queryClient.invalidateQueries({ queryKey: ["salaries", "summary", payTargetMonth] })
+      await queryClient.invalidateQueries({ queryKey: ["salaries-stats", selectedMonth] })
+      await queryClient.invalidateQueries({ queryKey: ["salaries-stats", payTargetMonth] })
       toast({ title: "Salaire marqué comme payé" })
     },
     onError: (error: unknown) => {
@@ -350,6 +354,8 @@ export default function SalariesPage() {
       // Invalider les deux mois potentiellement touchés
       await queryClient.invalidateQueries({ queryKey: ["salaries", "summary", selectedMonth] })
       await queryClient.invalidateQueries({ queryKey: ["salaries", "summary", payTargetMonth] })
+      await queryClient.invalidateQueries({ queryKey: ["salaries-stats", selectedMonth] })
+      await queryClient.invalidateQueries({ queryKey: ["salaries-stats", payTargetMonth] })
       toast({ title: "Salaire marqué comme payé" })
     },
     onError: (error: unknown) => {
@@ -782,12 +788,7 @@ export default function SalariesPage() {
           />
         </header>
 
-        <SalarySummaryCards
-          totalPending={totalPending}
-          totalPaid={totalPaid}
-          vacataireCount={vacataireRows.length}
-          loading={salarySummaryQuery.isLoading}
-        />
+        <SalariesStatsCards month={selectedMonth} />
 
         {(validationCountQuery.data?.total ?? 0) > 0 ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">

@@ -1,10 +1,12 @@
 import { NavLink } from "react-router-dom"
+import { useQuery } from "@tanstack/react-query"
 
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
+import { getSmsFeatureSettings } from "@/modules/subscriptions/subscriptions.api"
 import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
 import { UserMenu } from "@/shared/components/layout/UserMenu"
-import { useAuthStore } from "@/shared/store/auth.store"
+import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
 
 interface MobileDrawerProps {
   open: boolean
@@ -17,8 +19,20 @@ const navLinkClassName = "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm
 export function MobileDrawer({ open, onClose, variant = "default" }: MobileDrawerProps) {
   const userRole = useAuthStore((state) => state.user?.role)
   const permissions = useAuthStore((state) => state.permissions)
-  const items = getNavItemsByRole(userRole, permissions)
   const isSuperAdmin = variant === "super_admin"
+  const smsFeatureQuery = useQuery({
+    queryKey: ["subscriptions", "feature-settings", "mobile-drawer"],
+    queryFn: getSmsFeatureSettings,
+    staleTime: 60_000,
+    enabled: !isSuperAdmin && (userRole === "director" || isStaffRole(userRole)),
+  })
+  const subscriptionsEnabled = smsFeatureQuery.data?.monetize_parent_alerts === true
+  const items = getNavItemsByRole(userRole, permissions).filter((item) => {
+    if (item.href === "/subscriptions" || item.href === "/subscriptions/revenue") {
+      return subscriptionsEnabled
+    }
+    return true
+  })
 
   return (
     <Sheet open={open} onOpenChange={(nextOpen) => (nextOpen ? null : onClose())}>

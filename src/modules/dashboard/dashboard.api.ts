@@ -794,3 +794,124 @@ export const getQRAlerts = async (limit = 20): Promise<DashboardQRAlertItem[]> =
       return bDate - aDate
     })
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// DASHBOARD STATS (KPI CARDS)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+export type DashboardStatsTeacherAttendance = {
+  globalRate: number
+  partTime: {
+    rate: number
+    present: number
+    expected: number
+  }
+  fullTime: {
+    rate: number
+    present: number
+    expected: number
+  }
+}
+
+export type DashboardStatsStudentAttendance = {
+  rate: number
+  present: number
+  absent: number
+  notMarked: number
+  total: number
+}
+
+export type DashboardStatsSalaries = {
+  monthlyTotal: number
+  toPayCurrentPeriod: number
+  totalPaid: number
+  remainingToPay: number
+  economy: {
+    label: string
+    plannedHours: number
+    completedHours: number
+    savedAmount: number
+  }
+}
+
+export type DashboardStatsSubscriptions = {
+  isEnabled: boolean
+  collectedAmount: number
+  activeSubscribers: number
+  collectionRate: number
+  expectedAmount: number
+}
+
+export type DashboardStatsResponse = {
+  teacherAttendance: DashboardStatsTeacherAttendance
+  studentAttendance: DashboardStatsStudentAttendance
+  salaries: DashboardStatsSalaries
+  subscriptions: DashboardStatsSubscriptions
+}
+
+const normalizeDashboardStats = (payload: unknown): DashboardStatsResponse => {
+  const data = isRecord(payload) ? payload : {}
+
+  const teacherAttendance = isRecord(data.teacherAttendance) ? data.teacherAttendance : {}
+  const teacherPartTime = isRecord(teacherAttendance.partTime) ? teacherAttendance.partTime : {}
+  const teacherFullTime = isRecord(teacherAttendance.fullTime) ? teacherAttendance.fullTime : {}
+
+  const studentAttendance = isRecord(data.studentAttendance) ? data.studentAttendance : {}
+
+  const salaries = isRecord(data.salaries) ? data.salaries : {}
+  const economy = isRecord(salaries.economy) ? salaries.economy : {}
+
+  const subscriptions = isRecord(data.subscriptions) ? data.subscriptions : {}
+
+  return {
+    teacherAttendance: {
+      globalRate: asNumber(teacherAttendance.globalRate, 0),
+      partTime: {
+        rate: asNumber(teacherPartTime.rate, 0),
+        present: asNumber(teacherPartTime.present, 0),
+        expected: asNumber(teacherPartTime.expected, 0),
+      },
+      fullTime: {
+        rate: asNumber(teacherFullTime.rate, 0),
+        present: asNumber(teacherFullTime.present, 0),
+        expected: asNumber(teacherFullTime.expected, 0),
+      },
+    },
+    studentAttendance: {
+      rate: asNumber(studentAttendance.rate, 0),
+      present: asNumber(studentAttendance.present, 0),
+      absent: asNumber(studentAttendance.absent, 0),
+      notMarked: asNumber(studentAttendance.notMarked, 0),
+      total: asNumber(studentAttendance.total, 0),
+    },
+    salaries: {
+      monthlyTotal: asNumber(salaries.monthlyTotal, 0),
+      toPayCurrentPeriod: asNumber(salaries.toPayCurrentPeriod, 0),
+      totalPaid: asNumber(salaries.totalPaid, 0),
+      remainingToPay: asNumber(salaries.remainingToPay, asNumber(salaries.toPayCurrentPeriod, 0)),
+      economy: {
+        label: asString(economy.label, ""),
+        plannedHours: asNumber(economy.plannedHours, 0),
+        completedHours: asNumber(economy.completedHours, 0),
+        savedAmount: asNumber(economy.savedAmount, 0),
+      },
+    },
+    subscriptions: {
+      isEnabled: asBoolean(subscriptions.isEnabled ?? subscriptions.is_enabled),
+      collectedAmount: asNumber(subscriptions.collectedAmount, 0),
+      activeSubscribers: asNumber(subscriptions.activeSubscribers, 0),
+      collectionRate: asNumber(subscriptions.collectionRate, 0),
+      expectedAmount: asNumber(subscriptions.expectedAmount, 0),
+    },
+  }
+}
+
+export const getDashboardStats = async (date?: string, month?: string): Promise<DashboardStatsResponse> => {
+  const response = await api.get("/dashboard/stats", {
+    params: {
+      date: date || new Date().toISOString().slice(0, 10),
+      month: month || new Date().toISOString().slice(0, 7),
+    },
+  })
+  return normalizeDashboardStats(response.data)
+}

@@ -106,7 +106,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
     staleTime: 60_000,
     enabled: role === "director" || isStaffRole(role),
   })
-  const smsFeatureEnabled = smsFeatureQuery.data?.is_enabled === true
+  const subscriptionsEnabled = smsFeatureQuery.data?.monetize_parent_alerts === true
   const validationCountQuery = useQuery({
     queryKey: ["validations", "pending", "count", "sidebar"],
     queryFn: getPendingValidationCount,
@@ -116,7 +116,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
   })
   const visibleItems = getNavItemsByRole(role, permissions).filter((item) => {
     if (item.href === "/subscriptions" || item.href === "/subscriptions/revenue") {
-      return smsFeatureEnabled
+      return subscriptionsEnabled
     }
     return true
   })

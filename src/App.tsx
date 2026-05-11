@@ -1,7 +1,9 @@
 import { Suspense, lazy, useEffect, type ReactElement } from "react"
 import { Navigate, Route, Routes, useSearchParams } from "react-router-dom"
+import { useQuery } from "@tanstack/react-query"
 import axios from "axios"
 
+import { getSmsFeatureSettings } from "@/modules/subscriptions/subscriptions.api"
 import { AppShell } from "@/shared/components/layout/AppShell"
 import { TeacherTopBar } from "@/shared/components/layout/TeacherTopBar"
 import { usePermissions } from "@/shared/hooks/usePermissions"
@@ -242,6 +244,15 @@ function PlaceholderPage({ title }: { title: string }) {
 function PermissionRoute({ href, element }: { href: string; element: ReactElement }) {
   const user = useAuthStore((state) => state.user)
   const permissions = useAuthStore((state) => state.permissions)
+  const isSubscriptionRoute = href === "/subscriptions" || href === "/subscriptions/revenue"
+  const shouldCheckSubscriptionsFeature =
+    isSubscriptionRoute && (user?.role === "director" || isStaffRole(user?.role))
+  const subscriptionFeatureQuery = useQuery({
+    queryKey: ["subscriptions", "feature-settings", "route-guard"],
+    queryFn: getSmsFeatureSettings,
+    staleTime: 60_000,
+    enabled: shouldCheckSubscriptionsFeature,
+  })
 
   if (!user) {
     return <Navigate to="/login" replace />
@@ -254,6 +265,15 @@ function PermissionRoute({ href, element }: { href: string; element: ReactElemen
   const allowed = getNavItemsByRole(user.role, permissions)
   const canAccess = allowed.some((item) => item.href === href)
   if (canAccess) {
+    if (shouldCheckSubscriptionsFeature) {
+      if (subscriptionFeatureQuery.isLoading) {
+        return <SessionLoader />
+      }
+      if (subscriptionFeatureQuery.data?.monetize_parent_alerts !== true) {
+        const fallback = allowed.find((item) => item.href !== "/subscriptions" && item.href !== "/subscriptions/revenue")?.href
+        return <Navigate to={fallback ?? "/dashboard"} replace />
+      }
+    }
     return element
   }
 

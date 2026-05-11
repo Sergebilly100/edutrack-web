@@ -1,0 +1,176 @@
+import { useQuery } from "@tanstack/react-query"
+import { Receipt, CheckCircle, PiggyBank, BarChart2 } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { getSalariesStats } from "../salaries.api"
+import { formatFcfa, formatRate } from "@/shared/utils/formatting"
+import { cn } from "@/lib/utils"
+
+const QUERY_STALE_TIME = 5 * 60 * 1000 // 5 minutes
+
+type SalariesStatsCardsProps = {
+  month?: string
+}
+
+function getAttendanceColor(rate: number): string {
+  if (rate >= 85) return "text-green-600"
+  if (rate >= 60) return "text-amber-600"
+  return "text-red-600"
+}
+
+function getAttendanceBgColor(rate: number): string {
+  if (rate >= 85) return "bg-green-50"
+  if (rate >= 60) return "bg-amber-50"
+  return "bg-red-50"
+}
+
+function StatCardSkeleton() {
+  return (
+    <Card className="border border-gray-100 rounded-2xl shadow-sm">
+      <div className="p-5 space-y-3">
+        <div className="flex items-start justify-between">
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-8 w-24" />
+          </div>
+          <Skeleton className="h-10 w-10 rounded-xl" />
+        </div>
+        <Skeleton className="h-3 w-full" />
+      </div>
+    </Card>
+  )
+}
+
+export function SalariesStatsCards({ month }: SalariesStatsCardsProps) {
+  const { data: stats, isLoading, error } = useQuery({
+    queryKey: ["salaries-stats", month ?? "current"],
+    queryFn: () => getSalariesStats(month),
+    staleTime: QUERY_STALE_TIME,
+    refetchOnWindowFocus: true,
+  })
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCardSkeleton />
+        <StatCardSkeleton />
+        <div className="col-span-2">
+          <StatCardSkeleton />
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !stats) {
+    return (
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i} className="border border-gray-100 rounded-2xl shadow-sm p-5">
+            <p className="text-sm font-medium text-gray-500 mb-1">Données non disponibles</p>
+            <p className="text-2xl font-bold text-gray-900">—</p>
+          </Card>
+        ))}
+      </div>
+    )
+  }
+
+  const attendanceRate = stats.teacherAttendance.globalRate
+  const paymentProgress = stats.totalPayroll > 0 ? Math.min(100, (stats.totalPaid / stats.totalPayroll) * 100) : 0
+
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+      {/* CARD 1: Total à payer ce mois */}
+      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex-1">
+            <p className="text-sm text-gray-500 mb-1">Total à payer ce mois</p>
+            <p className="text-2xl font-bold text-gray-900">{formatFcfa(stats.totalToPay)}</p>
+          </div>
+          <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
+            <Receipt className="h-5 w-5 text-blue-600" />
+          </div>
+        </div>
+        <p className="text-sm text-gray-500">
+          Masse salariale du mois : {formatFcfa(stats.totalPayroll)}
+        </p>
+      </Card>
+
+      {/* CARD 2: Total déjà payé */}
+      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex-1">
+            <p className="text-sm text-gray-500 mb-1">Total déjà payé</p>
+            <p className="text-2xl font-bold text-gray-900">{formatFcfa(stats.totalPaid)}</p>
+          </div>
+          <div className="h-10 w-10 rounded-xl bg-green-50 flex items-center justify-center">
+            <CheckCircle className="h-5 w-5 text-green-600" />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">{formatRate(paymentProgress)} du mois réglé</span>
+          </div>
+          <Progress value={paymentProgress} className="h-2" />
+        </div>
+      </Card>
+
+      {/* CARD 3: Économie du mois */}
+      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex-1">
+            <p className="text-sm text-gray-500 mb-1">Économie du mois</p>
+            <p className="text-2xl font-bold text-amber-600">{formatFcfa(stats.economy.savedAmount)}</p>
+          </div>
+          <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center">
+            <PiggyBank className="h-5 w-5 text-amber-600" />
+          </div>
+        </div>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="space-y-1 text-sm text-gray-500 cursor-help">
+                <div>Heures prévues jusqu'à aujourd'hui : {stats.economy.plannedHours.toFixed(1)} h</div>
+                <div>Heures effectuées : {stats.economy.completedHours.toFixed(1)} h</div>
+                <div>Heures manquées : {(stats.economy.plannedHours - stats.economy.completedHours).toFixed(1)} h</div>
+                <div className="font-semibold text-amber-700">Économie : {formatFcfa(stats.economy.savedAmount)}</div>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="text-xs max-w-xs">
+                Basé sur les heures non effectuées et non justifiées uniquement.
+                Les absences justifiées sont exclues du calcul.
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </Card>
+
+      {/* CARD 4: Taux de présence professeurs (placée en première ligne sur mobile) */}
+      <Card className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex-1">
+            <p className="text-sm text-gray-500 mb-1">Taux de présence profs</p>
+            <p className={cn("text-2xl font-bold", getAttendanceColor(attendanceRate))}>
+              {formatRate(attendanceRate)}
+            </p>
+          </div>
+          <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center", getAttendanceBgColor(attendanceRate))}>
+            <BarChart2 className={cn("h-5 w-5", getAttendanceColor(attendanceRate))} />
+          </div>
+        </div>
+        <div className="space-y-1 text-sm text-gray-500">
+          <div>
+            Vacataires : {formatRate(stats.teacherAttendance.partTime.rate)} (
+            {stats.teacherAttendance.partTime.present.toFixed(1)}h/{stats.teacherAttendance.partTime.expected.toFixed(1)}h)
+          </div>
+          <div>
+            Permanents : {formatRate(stats.teacherAttendance.fullTime.rate)} (
+            {stats.teacherAttendance.fullTime.present.toFixed(1)}h/{stats.teacherAttendance.fullTime.expected.toFixed(1)}h)
+          </div>
+        </div>
+      </Card>
+    </div>
+  )
+}
