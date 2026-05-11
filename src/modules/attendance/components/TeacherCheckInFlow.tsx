@@ -410,7 +410,11 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
   }
 
   const finishCourseMutation = useMutation({ mutationFn: teacherScheduleApi.checkOut })
-  const endQrMutation = useMutation({ mutationFn: teacherScheduleApi.scanQr })
+  // useOfflineMutation : si hors ligne, le scan de fin est mis en queue et
+  // sera envoyé automatiquement au retour réseau, évitant le blocage en fin de cours.
+  const endQrMutation = useOfflineMutation(teacherScheduleApi.scanQr, {
+    queueKey: "attendance-qr-end-scan",
+  })
   const endQrSkipMutation = useOfflineMutation(teacherScheduleApi.skipQr, {
     queueKey: "attendance-qr-end-skip",
   })
@@ -423,7 +427,8 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
         schedule_id: slot.id,
       })
 
-      if (result.room_mismatch) {
+      // Si hors ligne, result est undefined (mis en queue) — on accepte silencieusement
+      if (result && result.room_mismatch) {
         toast({
           title: "QR incorrect",
           description: "Ce QR ne correspond pas à celui scanné en début de cours. Scannez le même QR code que pour commencer le cours.",
