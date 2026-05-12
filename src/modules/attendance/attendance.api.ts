@@ -308,7 +308,8 @@ export const teacherScheduleApi = {
     const rows = extractList(response.data).map(toComplianceItem)
     return rows[0] ?? null
   },
-
+  
+  // Soumettre la présence d'élèves pour un créneau donné
   submitStudentAttendance: async (body: {
     schedule_id: string
     date: string

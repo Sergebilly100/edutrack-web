@@ -75,6 +75,7 @@ export default function StudentDetailPage() {
 
   const [parentName, setParentName] = useState("")
   const [parentPhone, setParentPhone] = useState("")
+  const [parentEmail, setParentEmail] = useState("")
   const [parentName2, setParentName2] = useState("")
   const [parentPhone2, setParentPhone2] = useState("")
   const [note, setNote] = useState("")
@@ -105,6 +106,7 @@ export default function StudentDetailPage() {
       updateStudent(studentId, {
         parentName: parentName.trim() ? parentName.trim() : null,
         parentPhone: parentPhone.trim() ? parentPhone.trim() : null,
+        parentEmail: parentEmail.trim() ? parentEmail.trim() : null,
         parentName2: parentName2.trim() ? parentName2.trim() : null,
         parentPhone2: parentPhone2.trim() ? parentPhone2.trim() : null,
       }),
@@ -165,6 +167,7 @@ export default function StudentDetailPage() {
 
     setParentName(student.parentName ?? "")
     setParentPhone(student.parentPhone ?? "")
+    setParentEmail(student.parentEmail ?? "")
     setParentName2(student.parentName2 ?? "")
     setParentPhone2(student.parentPhone2 ?? "")
     setNote(student.note ?? "")
@@ -224,7 +227,8 @@ export default function StudentDetailPage() {
     })
   }, [studentQuery.data?.recentAbsences, absenceFilterMonth, absenceFilterSubject, absenceFilterStatus])
 
-  const areContactsValid = isValidOptionalPhone(parentPhone) && isValidOptionalPhone(parentPhone2)
+  const isValidOptionalEmail = (email: string) => !email.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+  const areContactsValid = isValidOptionalPhone(parentPhone) && isValidOptionalPhone(parentPhone2) && isValidOptionalEmail(parentEmail)
 
   if (!studentId) {
     return (
@@ -537,6 +541,21 @@ export default function StudentDetailPage() {
                     </a>
                   </Button>
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="student-parent-email">Email parent <span className="text-xs text-muted-foreground">(optionnel)</span></Label>
+                <Input
+                  id="student-parent-email"
+                  type="email"
+                  value={parentEmail}
+                  onChange={(event) => setParentEmail(event.target.value)}
+                  inputMode="email"
+                  placeholder="parent@exemple.com"
+                />
+                {parentEmail.trim() && !isValidOptionalEmail(parentEmail) ? (
+                  <p className="text-xs text-destructive">Format email invalide</p>
+                ) : null}
               </div>
 
               <div className="grid gap-2 md:grid-cols-2">

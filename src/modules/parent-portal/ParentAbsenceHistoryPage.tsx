@@ -104,6 +104,11 @@ export default function ParentAbsenceHistoryPage() {
         </div>
       ) : absencesQuery.data?.length ? (
         <div className="space-y-3">
+          {/* // Affiche le nombre d'absences et le mois sélectionné */}
+          <p className="pt-1 text-sm font-medium text-muted-foreground">
+            {absencesQuery.data.length} absence(s) en {monthLabelFr(month)}
+          </p>
+
           {absencesQuery.data.map((row, index) => (
             <div
               key={`${row.date}-${index}`}
@@ -119,9 +124,7 @@ export default function ParentAbsenceHistoryPage() {
               </div>
             </div>
           ))}
-          <p className="pt-1 text-sm font-medium text-muted-foreground">
-            {absencesQuery.data.length} absence(s) en {monthLabelFr(month)}
-          </p>
+
         </div>
       ) : (
         <EmptyState title="Aucune absence ce mois. Bravo !" message="Votre enfant n'a pas d'absence enregistrée sur cette période." />

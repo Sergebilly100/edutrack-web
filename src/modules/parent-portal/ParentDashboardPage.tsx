@@ -187,9 +187,12 @@ export default function ParentDashboardPage() {
     return `du ${formatShortDate(start.toISOString().slice(0, 10))} au ${formatShortDate(end.toISOString().slice(0, 10))}`
   }, [today])
 
+  // nombre de jours avant expiration de l'abonnement
   const daysRemaining = subscriptionQuery.data?.days_remaining ?? 999
+
+  // Afficher une alerte si l'abonnement expire dans moins de 15 jours
   const subscriptionAlert =
-    daysRemaining <= 30
+    daysRemaining <= 15
       ? {
           type: daysRemaining <= 7 ? "error" : "warning",
           message: `rendez vous à l'administration de l'école pour le renouvellement.`,

@@ -8,6 +8,7 @@ export type StudentItem = {
   lastName: string
   parentName?: string | null
   parentPhone: string | null
+  parentEmail?: string | null
   parentName2?: string | null
   parentPhone2: string | null
   note?: string | null
@@ -39,6 +40,7 @@ export type CreateStudentPayload = {
   lastName: string
   parentName?: string | null
   parentPhone?: string | null
+  parentEmail?: string | null
   parentName2?: string | null
   parentPhone2?: string | null
   note?: string | null
@@ -51,6 +53,7 @@ export type UpdateStudentPayload = {
   lastName?: string
   parentName?: string | null
   parentPhone?: string | null
+  parentEmail?: string | null
   parentName2?: string | null
   parentPhone2?: string | null
   note?: string | null
@@ -65,6 +68,7 @@ export type StudentDetail = {
   classId: string
   isActive: boolean
   parentPhone: string | null
+  parentEmail: string | null
   parentPhone2: string | null
   parentName: string | null
   parentName2: string | null
@@ -219,6 +223,7 @@ export const createStudent = (payload: CreateStudentPayload) =>
       last_name: payload.lastName,
       parent_name: payload.parentName ?? null,
       parent_phone: payload.parentPhone ?? null,
+      parent_email: payload.parentEmail ?? null,
       parent_name_2: payload.parentName2 ?? null,
       parent_phone_2: payload.parentPhone2 ?? null,
       notes: payload.note ?? null,
@@ -234,6 +239,7 @@ export const updateStudent = (studentId: string, payload: UpdateStudentPayload) 
       last_name: payload.lastName,
       parent_name: payload.parentName,
       parent_phone: payload.parentPhone,
+      parent_email: payload.parentEmail,
       parent_name_2: payload.parentName2,
       parent_phone_2: payload.parentPhone2,
       notes: payload.note,
