@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
 import { fetchImportHistory, type ImportType } from "@/modules/import-export/import-export.api"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { ContextualHelp } from "@/shared/components/ContextualHelp"
@@ -207,9 +208,22 @@ export default function ImportPage() {
                             <p className="font-medium">{item.importedByName ?? "Utilisateur inconnu"}</p>
                             <p className="text-xs text-muted-foreground">{item.importedByRole ?? "Rôle non renseigné"}</p>
                           </TableCell>
-                          <TableCell>{labelByType[item.type]}</TableCell>
+                          <TableCell>
+                            <p>{labelByType[item.type]}</p>
+                            {item.schedulePeriod && (
+                              <p className="text-xs text-muted-foreground">
+                                (Période de validité  : {item.schedulePeriod})
+                              </p>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right">{item.importedCount}</TableCell>
-                          <TableCell className="text-right">{item.updatedCount}</TableCell>
+                          <TableCell className="text-right">
+                            {item.updatedCount > 0 ? (
+                              <span className="text-green-600">{item.updatedCount}</span>
+                            ) : (
+                              <Badge variant="outline">Aucune</Badge>
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

@@ -9,6 +9,7 @@ export type ImportHistoryItem = {
   type: "students" | "teachers" | "schedule"
   importedCount: number
   updatedCount: number
+  schedulePeriod: string | null
   importedBy: string | null
   importedByName: string | null
   importedByRole: string | null
@@ -20,6 +21,7 @@ const ImportHistoryItemSchema = z.object({
   type: z.enum(["students", "teachers", "schedule"]),
   imported_count: z.number(),
   updated_count: z.number(),
+  schedule_period: z.string().nullable().optional(),
   imported_by: z.string().nullable().optional(),
   imported_by_name: z.string().nullable().optional(),
   imported_by_role: z.string().nullable().optional(),
@@ -46,6 +48,8 @@ export type ImportHistoryResult = {
   totalPages: number
 }
 
+// fetchImportHistory est une fonction qui interroge l'API pour récupérer l'historique des imports, 
+// en appliquant les filtres de pagination, de mois et de type d'import.
 export const fetchImportHistory = async (filter: ImportHistoryFilter = {}): Promise<ImportHistoryResult> => {
   const { limit = 20, page = 1, month, type } = filter
   const response = await api.get("/import/history", {
@@ -59,6 +63,7 @@ export const fetchImportHistory = async (filter: ImportHistoryFilter = {}): Prom
       type: item.type,
       importedCount: item.imported_count,
       updatedCount: item.updated_count,
+      schedulePeriod: item.schedule_period ?? null,
       importedBy: item.imported_by ?? null,
       importedByName: item.imported_by_name ?? null,
       importedByRole: item.imported_by_role ?? null,
