@@ -1101,7 +1101,7 @@ export default function SalariesPage() {
                         ? new Date(detailsMutation.data.payment.paidAt).toLocaleString("fr-FR")
                         : "Aucun paiement enregistré sur la période."}
                       {detailsMutation.data.payment.paidAt && detailsMutation.data.payment.paidByName
-                        ? ` • par ${detailsMutation.data.payment.paidByName}`
+                        ? ` • par ${detailsMutation.data.payment.paidByName}${detailsMutation.data.payment.paidByRole ? ` (${detailsMutation.data.payment.paidByRole})` : ""}`
                         : ""}
                       {detailsMutation.data.payment.paidAt && detailsMutation.data.payment.notes
                         ? ` • note: ${detailsMutation.data.payment.notes}`
@@ -1183,7 +1183,9 @@ export default function SalariesPage() {
                     <p className="text-xs text-muted-foreground">
                       Dernier paiement:{" "}
                       {new Date(detailsMutation.data.payment.paidAt).toLocaleString("fr-FR")}{" "}
-                      {detailsMutation.data.payment.paidByName ? `• par ${detailsMutation.data.payment.paidByName}` : ""}
+                      {detailsMutation.data.payment.paidByName
+                        ? `• par ${detailsMutation.data.payment.paidByName}${detailsMutation.data.payment.paidByRole ? ` (${detailsMutation.data.payment.paidByRole})` : ""}`
+                        : ""}
                       {detailsMutation.data.payment.notes ? ` • note: ${detailsMutation.data.payment.notes}` : ""}
                     </p>
                   ) : (
@@ -1307,7 +1309,7 @@ export default function SalariesPage() {
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {item.paidAt ? new Date(item.paidAt).toLocaleString("fr-FR") : "Non payé"}
-                          {item.paidByName ? ` • ${item.paidByName}` : ""}
+                          {item.paidByName ? ` • ${item.paidByName}${item.paidByRole ? ` (${item.paidByRole})` : ""}` : ""}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {(item.hoursPaid !== null ? `${formatHours(item.hoursPaid)} • ` : "") + (item.notes ?? "-")}

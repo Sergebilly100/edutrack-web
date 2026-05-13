@@ -9,6 +9,9 @@ export type ImportHistoryItem = {
   type: "students" | "teachers" | "schedule"
   importedCount: number
   updatedCount: number
+  importedBy: string | null
+  importedByName: string | null
+  importedByRole: string | null
 }
 
 const ImportHistoryItemSchema = z.object({
@@ -17,6 +20,9 @@ const ImportHistoryItemSchema = z.object({
   type: z.enum(["students", "teachers", "schedule"]),
   imported_count: z.number(),
   updated_count: z.number(),
+  imported_by: z.string().nullable().optional(),
+  imported_by_name: z.string().nullable().optional(),
+  imported_by_role: z.string().nullable().optional(),
 })
 
 const ImportHistoryResponseSchema = z.object({
@@ -53,6 +59,9 @@ export const fetchImportHistory = async (filter: ImportHistoryFilter = {}): Prom
       type: item.type,
       importedCount: item.imported_count,
       updatedCount: item.updated_count,
+      importedBy: item.imported_by ?? null,
+      importedByName: item.imported_by_name ?? null,
+      importedByRole: item.imported_by_role ?? null,
     })),
     total: parsed.total,
     page: parsed.page,

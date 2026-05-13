@@ -58,6 +58,11 @@ export type RenewSubscriptionPayload = {
   paid_now: boolean
 }
 
+export type UpdateParentContactPayload = {
+  phone: string
+  email?: string | null
+}
+
 export type RevenueSummary = {
   month: string
   subscriptions_active_count: number
@@ -213,6 +218,20 @@ export const renewSubscriptionParent = async (
     await apiClient.post(`/subscriptions/parents/${parentId}/renew`, payload)
   } catch (error) {
     throw new Error(parseApiError(error, "Impossible de renouveler l'abonnement."))
+  }
+}
+
+export const updateParentSubscriptionContact = async (
+  parentId: string,
+  payload: UpdateParentContactPayload
+): Promise<void> => {
+  try {
+    await apiClient.patch(`/subscriptions/parents/${parentId}/contact`, {
+      phone: payload.phone,
+      email: payload.email?.trim() ? payload.email.trim() : null,
+    })
+  } catch (error) {
+    throw new Error(parseApiError(error, "Impossible de modifier le contact parent."))
   }
 }
 

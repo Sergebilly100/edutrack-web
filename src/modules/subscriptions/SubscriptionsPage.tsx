@@ -47,6 +47,7 @@ import {
   listSubscriptionParents,
   renewSubscriptionParent,
   resetParentSubscriptionPassword,
+  updateParentSubscriptionContact,
   type SubscriptionListItem,
   type SubscriptionStatus,
 } from "@/modules/subscriptions/subscriptions.api"
@@ -75,6 +76,7 @@ type SubscriptionActionsProps = {
   resetPasswordPending: boolean
   onDetails: (item: SubscriptionListItem) => void
   onRenew: (item: SubscriptionListItem) => void
+  onEditContact: (item: SubscriptionListItem) => void
   onResetPassword: (item: SubscriptionListItem) => void
   onCancel: (item: SubscriptionListItem) => void
   compact?: boolean
@@ -88,6 +90,7 @@ function SubscriptionActions({
   resetPasswordPending,
   onDetails,
   onRenew,
+  onEditContact,
   onResetPassword,
   onCancel,
   compact = false,
@@ -95,6 +98,7 @@ function SubscriptionActions({
   const latest = item.latest_subscription
   const canShowRenew = canRenew && Boolean(latest)
   const canShowCancel = canCancel && latest?.status === "active"
+  const canEditContact = canCreate && latest?.status === "active"
   const hasMenuActions = canCreate || canShowCancel || (compact && canShowRenew)
 
   return (
@@ -137,9 +141,14 @@ function SubscriptionActions({
                 Réinitialiser le mot de passe
               </DropdownMenuItem>
             ) : null}
+            {canEditContact ? (
+              <DropdownMenuItem onClick={() => onEditContact(item)}>
+                Modifier téléphone/email
+              </DropdownMenuItem>
+            ) : null}
             {canShowCancel ? (
               <>
-                {(compact && canShowRenew) || canCreate ? <DropdownMenuSeparator /> : null}
+                {(compact && canShowRenew) || canCreate || canEditContact ? <DropdownMenuSeparator /> : null}
                 <DropdownMenuItem
                   onClick={() => onCancel(item)}
                   className="text-destructive focus:text-destructive"
@@ -165,6 +174,9 @@ export default function SubscriptionsPage() {
   const [month, setMonth] = useState(toMonth(new Date()))
   const [createOpen, setCreateOpen] = useState(false)
   const [renewTarget, setRenewTarget] = useState<SubscriptionListItem | null>(null)
+  const [contactTarget, setContactTarget] = useState<SubscriptionListItem | null>(null)
+  const [contactPhone, setContactPhone] = useState("")
+  const [contactEmail, setContactEmail] = useState("")
   const [cancelTarget, setCancelTarget] = useState<SubscriptionListItem | null>(null)
   const [detailsTarget, setDetailsTarget] = useState<SubscriptionListItem | null>(null)
   const [resetCredentials, setResetCredentials] = useState<{ phone: string; password: string } | null>(null)
@@ -240,6 +252,26 @@ export default function SubscriptionsPage() {
       setCredentialsCopied(false)
     },
   })
+
+  const updateContactMutation = useMutation({
+    mutationFn: ({ parentId, phone, email }: { parentId: string; phone: string; email: string | null }) =>
+      updateParentSubscriptionContact(parentId, { phone, email }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["subscriptions", "parents"] })
+      await queryClient.invalidateQueries({ queryKey: ["subscriptions", "details"] })
+      toast({
+        title: "Contact parent modifié",
+        description: "Le nouveau téléphone et l'email sont utilisés pour l'abonnement actif.",
+      })
+      setContactTarget(null)
+    },
+  })
+
+  const openContactEditor = (item: SubscriptionListItem) => {
+    setContactTarget(item)
+    setContactPhone(item.phone)
+    setContactEmail(item.email ?? "")
+  }
 
   const items = parentsQuery.data?.data ?? []
 
@@ -366,6 +398,7 @@ export default function SubscriptionsPage() {
                   resetPasswordPending={resetPasswordMutation.isPending}
                   onDetails={setDetailsTarget}
                   onRenew={setRenewTarget}
+                  onEditContact={openContactEditor}
                   onResetPassword={setPasswordResetTarget}
                   onCancel={setCancelTarget}
                   compact
@@ -429,6 +462,7 @@ export default function SubscriptionsPage() {
                       resetPasswordPending={resetPasswordMutation.isPending}
                       onDetails={setDetailsTarget}
                       onRenew={setRenewTarget}
+                      onEditContact={openContactEditor}
                       onResetPassword={setPasswordResetTarget}
                       onCancel={setCancelTarget}
                     />
@@ -548,6 +582,70 @@ export default function SubscriptionsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={Boolean(contactTarget)} onOpenChange={(open) => !open && setContactTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Modifier le contact parent</DialogTitle>
+            <DialogDescription>
+              Action disponible uniquement sur un abonnement actif.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="parent-contact-phone">Téléphone</Label>
+              <Input
+                id="parent-contact-phone"
+                value={contactPhone}
+                onChange={(event) => setContactPhone(event.target.value)}
+                placeholder="2250700000000"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="parent-contact-email">Email</Label>
+              <Input
+                id="parent-contact-email"
+                type="email"
+                value={contactEmail}
+                onChange={(event) => setContactEmail(event.target.value)}
+                placeholder="parent@example.com"
+              />
+            </div>
+            {updateContactMutation.isError ? (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  {updateContactMutation.error instanceof Error
+                    ? updateContactMutation.error.message
+                    : "Impossible de modifier le contact parent."}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setContactTarget(null)}>
+                Annuler
+              </Button>
+              <Button
+                type="button"
+                disabled={
+                  updateContactMutation.isPending ||
+                  !/^225\d{10}$/.test(contactPhone.trim()) ||
+                  (contactEmail.trim().length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim()))
+                }
+                onClick={() => {
+                  if (!contactTarget) return
+                  updateContactMutation.mutate({
+                    parentId: contactTarget.parent_id,
+                    phone: contactPhone.trim(),
+                    email: contactEmail.trim() || null,
+                  })
+                }}
+              >
+                Enregistrer
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={Boolean(passwordResetTarget)} onOpenChange={(open) => !open && setPasswordResetTarget(null)}>
         <AlertDialogContent>

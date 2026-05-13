@@ -193,6 +193,7 @@ export default function ImportPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Date</TableHead>
+                        <TableHead>Action par</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead className="text-right">Importés</TableHead>
                         <TableHead className="text-right">Mis à jour</TableHead>
@@ -202,6 +203,10 @@ export default function ImportPage() {
                       {historyItems.map((item) => (
                         <TableRow key={item.id}>
                           <TableCell>{formatDateTime(item.importedAt)}</TableCell>
+                          <TableCell>
+                            <p className="font-medium">{item.importedByName ?? "Utilisateur inconnu"}</p>
+                            <p className="text-xs text-muted-foreground">{item.importedByRole ?? "Rôle non renseigné"}</p>
+                          </TableCell>
                           <TableCell>{labelByType[item.type]}</TableCell>
                           <TableCell className="text-right">{item.importedCount}</TableCell>
                           <TableCell className="text-right">{item.updatedCount}</TableCell>

@@ -89,6 +89,7 @@ export type SalaryTeacherDetails = {
     paidAt: string | null
     paidBy: string | null
     paidByName: string | null
+    paidByRole: string | null
     notes: string | null
   }
   payments: Array<{
@@ -98,6 +99,7 @@ export type SalaryTeacherDetails = {
     paidAt: string
     paidBy: string
     paidByName: string | null
+    paidByRole: string | null
     notes: string | null
   }>
   rows: SalaryDetailRow[]
@@ -118,6 +120,7 @@ export type SalaryPaymentHistoryItem = {
   paidAt: string | null
   paidBy: string | null
   paidByName: string | null
+  paidByRole: string | null
   notes: string | null
 }
 
@@ -277,6 +280,7 @@ export const getTeacherSalaryDetails = async (
       paidAt: asNullableString(payment.paidAt),
       paidBy: asNullableString(payment.paidBy),
       paidByName: asNullableString(payment.paidByName),
+      paidByRole: asNullableString(payment.paidByRole),
       notes: asNullableString(payment.notes),
     },
     payments: Array.isArray(payload.payments)
@@ -289,6 +293,7 @@ export const getTeacherSalaryDetails = async (
             paidAt: asString(row.paidAt),
             paidBy: asString(row.paidBy),
             paidByName: asNullableString(row.paidByName),
+            paidByRole: asNullableString(row.paidByRole),
             notes: asNullableString(row.notes),
           }
         })
@@ -376,6 +381,7 @@ export const getTeacherPaymentHistory = async (
         paidAt: asNullableString(row.paidAt),
         paidBy: asNullableString(row.paidBy),
         paidByName: asNullableString(row.paidByName),
+        paidByRole: asNullableString(row.paidByRole),
         notes: asNullableString(row.notes),
       }
     }),
