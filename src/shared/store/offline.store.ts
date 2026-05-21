@@ -17,15 +17,18 @@ type OfflineQueueProcessor<TData = unknown, TVariables = unknown> = {
 
 type OfflineState = {
   queue: OfflineQueueItem[]
-  isSyncing: boolean
   addToQueue: (item: OfflineQueueItem) => void
   removeFromQueue: (id: string) => void
-  markSyncing: (isSyncing: boolean) => void
 }
 
 export const OFFLINE_STORE_PERSIST_KEY = "edutrack-offline-store"
 
 const processors = new Map<string, OfflineQueueProcessor>()
+
+// Module-level Promise lock — prevents concurrent sync runs regardless of render cycles.
+// Zustand state (isSyncing) is async and can be read stale by two callers before either
+// has called markSyncing(true), causing double-sends. A plain Promise ref is synchronous.
+let syncLock: Promise<number> | null = null
 
 const idbStorage: StateStorage = {
   getItem: async (name) => {
@@ -76,7 +79,6 @@ export const useOfflineStore = create<OfflineState>()(
   persist(
     (setState) => ({
       queue: [],
-      isSyncing: false,
       addToQueue: (item) => {
         setState((state) => ({
           queue: [...state.queue, item].sort((a, b) => a.timestamp - b.timestamp),
@@ -87,14 +89,11 @@ export const useOfflineStore = create<OfflineState>()(
           queue: state.queue.filter((item) => item.id !== id),
         }))
       },
-      markSyncing: (isSyncing) => {
-        setState({ isSyncing })
-      },
     }),
     {
       name: OFFLINE_STORE_PERSIST_KEY,
       storage: createJSONStorage(() => idbStorage),
-      partialize: (state) => ({ queue: state.queue, isSyncing: false }),
+      partialize: (state) => ({ queue: state.queue }),
     }
   )
 )
@@ -111,47 +110,54 @@ export function registerOfflineProcessor<TData, TVariables>(
 }
 
 export async function syncOfflineQueue(): Promise<number> {
-  const { isSyncing, queue, markSyncing } = useOfflineStore.getState()
+  // If a sync is already in flight, wait for it and return its count rather than starting a new one.
+  if (syncLock !== null) {
+    return syncLock
+  }
 
-  if (isSyncing || queue.length === 0) {
+  const { queue } = useOfflineStore.getState()
+  if (queue.length === 0) {
     return 0
   }
 
-  markSyncing(true)
-  let syncedCount = 0
+  syncLock = (async (): Promise<number> => {
+    let syncedCount = 0
 
-  try {
-    const sortedQueue = [...useOfflineStore.getState().queue].sort(
-      (a, b) => a.timestamp - b.timestamp
-    )
+    try {
+      const sortedQueue = [...useOfflineStore.getState().queue].sort(
+        (a, b) => a.timestamp - b.timestamp
+      )
 
-    for (const item of sortedQueue) {
-      const processor = processors.get(item.queueKey)
+      for (const item of sortedQueue) {
+        const processor = processors.get(item.queueKey)
 
-      if (!processor) {
-        continue
+        if (!processor) {
+          continue
+        }
+
+        try {
+          const data = await processWithRetry(
+            processor.mutationFn,
+            item.variables,
+            processor.maxRetries
+          )
+
+          processor.onSync?.(data)
+          useOfflineStore.getState().removeFromQueue(item.id)
+          syncedCount += 1
+        } catch (error) {
+          console.error(
+            `[offline-sync] Failed to sync queue item ${item.id} after ${processor.maxRetries} retries`,
+            error
+          )
+        }
       }
-
-      try {
-        const data = await processWithRetry(
-          processor.mutationFn,
-          item.variables,
-          processor.maxRetries
-        )
-
-        processor.onSync?.(data)
-        useOfflineStore.getState().removeFromQueue(item.id)
-        syncedCount += 1
-      } catch (error) {
-        console.error(
-          `[offline-sync] Failed to sync queue item ${item.id} after ${processor.maxRetries} retries`,
-          error
-        )
-      }
+    } finally {
+      syncLock = null
     }
-  } finally {
-    useOfflineStore.getState().markSyncing(false)
-  }
 
-  return syncedCount
+    return syncedCount
+  })()
+
+  return syncLock
 }

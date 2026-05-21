@@ -17,12 +17,21 @@ export function useAutoSync() {
     }
 
     void (async () => {
-      const syncedCount = await syncOfflineQueue()
+      try {
+        const syncedCount = await syncOfflineQueue()
 
-      if (syncedCount > 0) {
+        if (syncedCount > 0) {
+          toast({
+            title: "Synchronisation",
+            description: `${syncedCount} pointage${syncedCount > 1 ? "s" : ""} synchronisé${syncedCount > 1 ? "s" : ""}`,
+          })
+        }
+      } catch (error) {
+        console.error("[auto-sync] Failed to sync offline queue", error)
         toast({
-          title: "Synchronisation",
-          description: `${syncedCount} pointages synchronisés`,
+          variant: "destructive",
+          title: "Synchronisation échouée",
+          description: "Impossible de synchroniser les pointages. Réessayez manuellement.",
         })
       }
     })()

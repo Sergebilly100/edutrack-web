@@ -18,7 +18,7 @@ vi.mock("idb-keyval", () => {
 })
 
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
-import { useOfflineMutation } from "@/shared/hooks/useOfflineMutation"
+import { OfflineMutationQueuedError, useOfflineMutation } from "@/shared/hooks/useOfflineMutation"
 import {
   OFFLINE_STORE_PERSIST_KEY,
   syncOfflineQueue,
@@ -48,7 +48,7 @@ function setOnlineStatus(isOnline: boolean) {
 describe("offline hooks", () => {
   beforeEach(async () => {
     idbMemory.clear()
-    useOfflineStore.setState({ queue: [], isSyncing: false })
+    useOfflineStore.setState({ queue: [] })
     await useOfflineStore.persist.clearStorage()
     vi.clearAllMocks()
     vi.useRealTimers()
@@ -68,7 +68,9 @@ describe("offline hooks", () => {
     )
 
     await act(async () => {
-      await result.current.mutateAsync({ attendanceId: "att-1" })
+      await expect(
+        result.current.mutateAsync({ attendanceId: "att-1" })
+      ).rejects.toBeInstanceOf(OfflineMutationQueuedError)
     })
 
     expect(mutationFn).not.toHaveBeenCalled()
@@ -97,7 +99,9 @@ describe("offline hooks", () => {
     )
 
     await act(async () => {
-      await result.current.mutateAsync({ attendanceId: "att-2" })
+      await expect(
+        result.current.mutateAsync({ attendanceId: "att-2" })
+      ).rejects.toBeInstanceOf(OfflineMutationQueuedError)
     })
 
     expect(useOfflineStore.getState().queue).toHaveLength(1)
@@ -163,8 +167,8 @@ describe("offline hooks", () => {
     )
 
     await act(async () => {
-      await r1.current.mutateAsync({ id: "x" })
-      await r2.current.mutateAsync({ id: "y" })
+      await expect(r1.current.mutateAsync({ id: "x" })).rejects.toBeInstanceOf(OfflineMutationQueuedError)
+      await expect(r2.current.mutateAsync({ id: "y" })).rejects.toBeInstanceOf(OfflineMutationQueuedError)
     })
 
     expect(useOfflineStore.getState().queue).toHaveLength(2)
@@ -190,7 +194,9 @@ describe("offline hooks", () => {
     )
 
     await act(async () => {
-      await result.current.mutateAsync({ attendanceId: "att-3" })
+      await expect(
+        result.current.mutateAsync({ attendanceId: "att-3" })
+      ).rejects.toBeInstanceOf(OfflineMutationQueuedError)
     })
 
     await act(async () => {

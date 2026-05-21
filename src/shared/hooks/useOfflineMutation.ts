@@ -9,6 +9,13 @@ import {
   useOfflineStore,
 } from "@/shared/store/offline.store"
 
+export class OfflineMutationQueuedError extends Error {
+  constructor() {
+    super("Mutation queued for offline sync")
+    this.name = "OfflineMutationQueuedError"
+  }
+}
+
 type OfflineMutationOptions<TData, TVariables> = {
   queueKey: string
   optimisticUpdate?: (variables: TVariables) => void
@@ -64,13 +71,16 @@ export function useOfflineMutation<TData, TVariables>(
     addToQueue(queueItem)
   }
 
+  // When offline, mutateAsync rejects with OfflineMutationQueuedError so callers
+  // can distinguish "queued for later" from a real network/server error.
+  // Callers that don't care about the result can use mutate() instead.
   const mutateAsync: UseMutationResult<TData, Error, TVariables>["mutateAsync"] = async (
     variables,
     _mutateOptions
   ) => {
     if (!isOnline) {
       queueMutation(variables)
-      return undefined as TData
+      throw new OfflineMutationQueuedError()
     }
 
     return mutation.mutateAsync(variables, _mutateOptions)
