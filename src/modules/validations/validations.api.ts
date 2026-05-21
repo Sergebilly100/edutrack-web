@@ -220,6 +220,90 @@ export const cancelEndScanSanction = async (input: {
   })
 }
 
+// ── Validation history ───────────────────────────────────────────────────────
+
+export type ValidationHistoryStatus = "approved" | "rejected"
+
+export type ValidationHistoryItem = {
+  attendanceId: string
+  teacherId: string
+  teacherName: string
+  courseName: string
+  className: string
+  date: string
+  validationStatus: ValidationHistoryStatus
+  validatedHours: number | null
+  validationReason: string | null
+  validatedAt: string | null
+  kind: ValidationKind
+  slotLabel: string | null
+  roomName: string | null
+  scheduleDurationMinutes: number
+  actualMinutes: number | null
+  hourlyRate: number | null
+}
+
+export type ValidationHistoryPage = {
+  items: ValidationHistoryItem[]
+  total: number
+  page: number
+  limit: number
+}
+
+const normalizeHistoryItem = (value: unknown): ValidationHistoryItem => {
+  const row = isRecord(value) ? value : {}
+  const status = row.validationStatus === "approved" || row.validationStatus === "rejected"
+    ? row.validationStatus
+    : row.validation_status === "approved" || row.validation_status === "rejected"
+      ? row.validation_status
+      : "rejected"
+  const kind = row.kind === "gps_suspicious" ? "gps_suspicious" : "short_hours"
+  return {
+    attendanceId: asString(row.attendanceId ?? row.attendance_id),
+    teacherId: asString(row.teacherId ?? row.teacher_id),
+    teacherName: asString(row.teacherName ?? row.teacher_name, "Enseignant"),
+    courseName: asString(row.courseName ?? row.course_name, "Cours"),
+    className: asString(row.className ?? row.class_name, "Classe"),
+    date: asString(row.date),
+    validationStatus: status as ValidationHistoryStatus,
+    validatedHours: asNullableNumber(row.validatedHours ?? row.validated_hours),
+    validationReason: asNullableString(row.validationReason ?? row.validation_reason),
+    validatedAt: asNullableString(row.validatedAt ?? row.validated_at),
+    kind,
+    slotLabel: asNullableString(row.slotLabel ?? row.slot_label),
+    roomName: asNullableString(row.roomName ?? row.room_name),
+    scheduleDurationMinutes: asNumber(row.scheduleDurationMinutes ?? row.schedule_duration_minutes),
+    actualMinutes: asNullableNumber(row.actualMinutes ?? row.actual_minutes),
+    hourlyRate: asNullableNumber(row.hourlyRate ?? row.hourly_rate),
+  }
+}
+
+export const fetchValidationHistory = async (params: {
+  kind?: ValidationKind
+  month?: string
+  status?: ValidationHistoryStatus
+  search?: string
+  page?: number
+  limit?: number
+}): Promise<ValidationHistoryPage> => {
+  const query: Record<string, string | number> = {}
+  if (params.kind) query.kind = params.kind
+  if (params.month) query.month = params.month
+  if (params.status) query.status = params.status
+  if (params.search) query.search = params.search
+  if (params.page) query.page = params.page
+  if (params.limit) query.limit = params.limit
+
+  const response = await api.get<unknown>("/validations/history", { params: query })
+  const payload = isRecord(response.data) ? response.data : {}
+  return {
+    items: Array.isArray(payload.items) ? payload.items.map(normalizeHistoryItem) : [],
+    total: asNumber(payload.total),
+    page: asNumber(payload.page, 1),
+    limit: asNumber(payload.limit, 20),
+  }
+}
+
 // ── Teacher in-app notifications ────────────────────────────────────────────
 
 export type TeacherNotificationItem = {

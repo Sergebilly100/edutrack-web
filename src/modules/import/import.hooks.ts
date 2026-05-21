@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 import {
   confirmImport,
@@ -24,6 +24,7 @@ export function useDryRun() {
 }
 
 export function useConfirmImport() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({
       type,
@@ -37,6 +38,9 @@ export function useConfirmImport() {
       importMode?: ImportMode
       schedulePeriod?: { weekStart: string; weekEnd: string }
       conflictAcknowledged?: boolean
-    }) => confirmImport(type, file, { importMode, schedulePeriod, conflictAcknowledged })
+    }) => confirmImport(type, file, { importMode, schedulePeriod, conflictAcknowledged }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["import-history"] })
+    },
   })
 }

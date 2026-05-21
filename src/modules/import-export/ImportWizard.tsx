@@ -25,6 +25,7 @@ import { useConfirmImport, useDryRun } from "@/modules/import/import.hooks"
 import { downloadTemplate, type ImportIssue, type ImportMode, type ImportType } from "./import-export.api"
 import { DropZone } from "@/shared/components/DropZone"
 import { Spinner } from "@/shared/components/Spinner"
+import { ImportLoadingOverlay } from "./ImportLoadingOverlay"
 
 type WizardStep = 1 | 2 | 3
 
@@ -221,7 +222,8 @@ function ImportTypeTabs({
         <TabsContent key={type} value={type} className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
             <p className="text-sm text-muted-foreground">
-              Téléchargez le modèle {tabConfig[type].label.toLowerCase()} conforme au format EduTrack puis importez votre fichier. <br /> {type === "schedule" ? "NB : Les professeurs et les classes de votre fichier doivent être ajoutés au préalable dans le système." : ""}
+              Téléchargez le modèle {tabConfig[type].label.toLowerCase()} conforme au format EduTrack puis importez votre fichier. <br /> 
+              {type === "schedule" ? <span className="text-xs font-bold">NB : Les professeurs et les classes de votre fichier doivent être ajoutés au préalable dans le système</span> : ""}
             </p>
             <Button
               type="button"
@@ -565,17 +567,34 @@ export default function ImportWizard({
                       id="week-start"
                       type="date"
                       value={weekStart}
-                      onChange={(event) => setWeekStart(event.target.value)}
+                      onChange={(event) => {
+                        const newStart = event.target.value
+                        setWeekStart(newStart)
+                        if (weekEnd && weekEnd <= newStart) {
+                          setWeekEnd("")
+                        }
+                        setPeriodError(null)
+                      }}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="week-end">Semaine de fin (lundi)</Label>
+                    <Label htmlFor="week-end" className={!weekStart ? "text-muted-foreground" : undefined}>
+                      Semaine de fin (lundi)
+                    </Label>
                     <Input
                       id="week-end"
                       type="date"
                       value={weekEnd}
-                      onChange={(event) => setWeekEnd(event.target.value)}
+                      min={weekStart || undefined}
+                      disabled={!weekStart}
+                      onChange={(event) => {
+                        setWeekEnd(event.target.value)
+                        setPeriodError(null)
+                      }}
                     />
+                    {!weekStart ? (
+                      <p className="text-xs text-muted-foreground">Sélectionnez d&apos;abord la semaine de début.</p>
+                    ) : null}
                   </div>
                 </div>
                 {weekStart && weekEnd ? (
@@ -612,10 +631,7 @@ export default function ImportWizard({
         {step === 2 ? (
           <div className="space-y-6">
             {dryRunMutation.isPending ? (
-              <div className="flex min-h-[72px] items-center gap-2 rounded-md border p-4 text-sm">
-                <Spinner size="sm" />
-                <span>Analyse du fichier...</span>
-              </div>
+              <ImportLoadingOverlay importType={importType} phase="analysis" />
             ) : null}
 
             {validationError ? (
@@ -807,12 +823,7 @@ export default function ImportWizard({
         {step === 3 ? (
           <div className="space-y-6">
             {confirmMutation.isPending ? (
-              <div className="space-y-3 rounded-md border p-4">
-                <p className="text-sm font-medium">Import en cours...</p>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                  <div className="h-full w-1/2 animate-pulse rounded-full bg-primary" />
-                </div>
-              </div>
+              <ImportLoadingOverlay importType={importType} phase="import" />
             ) : null}
 
             {importError ? (

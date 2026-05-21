@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, CircleX, Clock, Info, Send, TriangleAlert } from "lucide-react"
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, CircleX, Clock, History, Info, Send, TriangleAlert } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -26,6 +26,7 @@ import {
   approveValidation,
   cancelEndScanSanction,
   fetchMissingEndScans,
+  fetchValidationHistory,
   getPendingValidations,
   rejectValidation,
   sendEndScanWarning,
@@ -33,6 +34,8 @@ import {
   type MissingEndScanSession,
   type MissingEndScanTeacher,
   type PendingValidationItem,
+  type ValidationHistoryItem,
+  type ValidationHistoryStatus,
 } from "./validations.api"
 
 const formatMinutes = (minutes: number | null): string => {
@@ -102,6 +105,39 @@ function getEndScanStatus(session: MissingEndScanSession): EndScanStatus {
   return session.endScanAction === "warned" ? "warned" : "sanctioned"
 }
 
+function HistoryStatusBadge({
+  status,
+  kind,
+  validatedHours,
+  scheduleDurationMinutes,
+}: {
+  status: ValidationHistoryStatus
+  kind: "short_hours" | "gps_suspicious"
+  validatedHours?: number | null
+  scheduleDurationMinutes?: number
+}) {
+  if (status === "approved") {
+    let label = "Présence validée"
+    if (kind === "short_hours") {
+      const scheduledH = (scheduleDurationMinutes ?? 0) / 60
+      const isRealHours = validatedHours !== null && validatedHours !== undefined && validatedHours < scheduledH - 0.01
+      label = isRealHours ? "Heure réel accordé" : "Heure prévue accordé"
+    }
+    return (
+      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+        <CheckCircle2 className="mr-1 h-3 w-3" />
+        {label}
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+      <CircleX className="mr-1 h-3 w-3" />
+      Absent
+    </Badge>
+  )
+}
+
 function EndScanStatusBadge({ session }: { session: MissingEndScanSession }) {
   const status = getEndScanStatus(session)
 
@@ -149,6 +185,14 @@ export default function ValidationsPage() {
   const [cancelSanctionReason, setCancelSanctionReason] = useState("")
   const [endScanStatusFilter, setEndScanStatusFilter] = useState<"all" | EndScanStatus>("all")
   const endScanMonthOptions = useMemo(() => getRecentMonthOptions(getCurrentMonth(), 12), [])
+
+  // History state (shared filters for short_hours and gps_suspicious)
+  const [historyMonth, setHistoryMonth] = useState<string>("all_months")
+  const [historyStatus, setHistoryStatus] = useState<"all" | ValidationHistoryStatus>("all")
+  const [historySearch, setHistorySearch] = useState("")
+  const [historyPage, setHistoryPage] = useState(1)
+  const historyMonthOptions = useMemo(() => getRecentMonthOptions(getCurrentMonth(), 12), [])
+  const HISTORY_LIMIT = 20
 
   const pendingQuery = useQuery({
     queryKey: ["validations", "pending"],
@@ -232,6 +276,34 @@ export default function ValidationsPage() {
     },
   })
 
+  const effectiveHistoryMonth = historyMonth === "all_months" ? undefined : historyMonth
+
+  const shortHoursHistoryQuery = useQuery({
+    queryKey: ["validations", "history", "short_hours", effectiveHistoryMonth, historyStatus, historySearch, historyPage],
+    queryFn: () => fetchValidationHistory({
+      kind: "short_hours",
+      month: effectiveHistoryMonth,
+      status: historyStatus === "all" ? undefined : historyStatus,
+      search: historySearch || undefined,
+      page: historyPage,
+      limit: HISTORY_LIMIT,
+    }),
+    staleTime: 60_000,
+  })
+
+  const gpsHistoryQuery = useQuery({
+    queryKey: ["validations", "history", "gps_suspicious", effectiveHistoryMonth, historyStatus, historySearch, historyPage],
+    queryFn: () => fetchValidationHistory({
+      kind: "gps_suspicious",
+      month: effectiveHistoryMonth,
+      status: historyStatus === "all" ? undefined : historyStatus,
+      search: historySearch || undefined,
+      page: historyPage,
+      limit: HISTORY_LIMIT,
+    }),
+    staleTime: 60_000,
+  })
+
   const endScanTeachers = endScanQuery.data ?? []
   const endScanTotal = endScanTeachers.reduce((sum, t) => sum + t.missingEndScanCount, 0)
 
@@ -239,6 +311,194 @@ export default function ValidationsPage() {
     if (!rejectTarget?.hourlyRate) return null
     return formatFcfa(rejectTarget.hourlyRate * (rejectTarget.scheduleDurationMinutes / 60))
   }, [rejectTarget])
+
+  const resetHistoryPage = () => setHistoryPage(1)
+
+  const renderHistoryFilters = () => (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <Select value={historyMonth} onValueChange={(v) => { setHistoryMonth(v); resetHistoryPage() }}>
+        <SelectTrigger className="w-full sm:w-[160px]">
+          <SelectValue placeholder="Tous les mois" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all_months">Tous les mois</SelectItem>
+          {historyMonthOptions.map((m) => (
+            <SelectItem key={m} value={m}>{formatMonthLabel(m)}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select value={historyStatus} onValueChange={(v) => { setHistoryStatus(v as typeof historyStatus); resetHistoryPage() }}>
+        <SelectTrigger className="w-full sm:w-[170px]">
+          <SelectValue placeholder="Tous les statuts" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Tous les statuts</SelectItem>
+          <SelectItem value="approved">Accordé</SelectItem>
+          <SelectItem value="rejected">Refusé (absent)</SelectItem>
+        </SelectContent>
+      </Select>
+      <Input
+        className="w-full sm:w-[200px]"
+        placeholder="Rechercher un enseignant"
+        value={historySearch}
+        onChange={(e) => { setHistorySearch(e.target.value); resetHistoryPage() }}
+      />
+    </div>
+  )
+
+  const renderHistoryTable = (
+    items: ValidationHistoryItem[],
+    total: number,
+    isLoading: boolean,
+    kind: "short_hours" | "gps_suspicious"
+  ) => {
+    if (isLoading) return <LoadingRows />
+    if (items.length === 0) {
+      return (
+        <EmptyState
+          icon={emptyStateIcons.allGood}
+          title="Aucun historique"
+          message="Les présences traitées apparaîtront ici."
+        />
+      )
+    }
+
+    const totalPages = Math.ceil(total / HISTORY_LIMIT)
+
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-muted-foreground">{total} entrée(s) au total</p>
+
+        {/* Mobile */}
+        <div className="space-y-3 lg:hidden">
+          {items.map((item) => (
+            <article key={item.attendanceId} className="rounded-xl border bg-card p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="truncate text-base font-semibold">{item.teacherName}</h3>
+                  <p className="text-sm text-muted-foreground">{item.courseName} • {item.className}</p>
+                </div>
+                <HistoryStatusBadge
+                  status={item.validationStatus}
+                  kind={kind}
+                  validatedHours={item.validatedHours}
+                  scheduleDurationMinutes={item.scheduleDurationMinutes}
+                />
+              </div>
+              <dl className="mt-4 grid gap-2 text-sm">
+                <div className="flex justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2">
+                  <dt className="text-muted-foreground">Date</dt>
+                  <dd className="font-medium">{formatDate(item.date)}</dd>
+                </div>
+                {kind === "short_hours" && (
+                  <>
+                    <div className="flex justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2">
+                      <dt className="text-muted-foreground">Prévu</dt>
+                      <dd className="font-medium">{formatMinutes(item.scheduleDurationMinutes)}</dd>
+                    </div>
+                    <div className="flex justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2">
+                      <dt className="text-muted-foreground">Accordé</dt>
+                      <dd className="font-medium">{item.validatedHours !== null ? formatMinutes(Math.round(item.validatedHours * 60)) : "-"}</dd>
+                    </div>
+                  </>
+                )}
+                {kind === "gps_suspicious" && (
+                  <div className="flex justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2">
+                    <dt className="text-muted-foreground">Créneau</dt>
+                    <dd className="font-medium">{item.slotLabel ?? "-"}</dd>
+                  </div>
+                )}
+                {item.validationReason && (
+                  <div className="flex justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2">
+                    <dt className="text-muted-foreground">Motif</dt>
+                    <dd className="font-medium text-right max-w-[60%] truncate">{item.validationReason}</dd>
+                  </div>
+                )}
+              </dl>
+            </article>
+          ))}
+        </div>
+
+        {/* Desktop */}
+        <div className="hidden overflow-x-auto rounded-lg border border-border lg:block">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Enseignant</TableHead>
+                <TableHead>Cours</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Créneau</TableHead>
+                {kind === "short_hours" && (
+                  <>
+                    <TableHead>Prévu</TableHead>
+                    <TableHead>Accordé</TableHead>
+                  </>
+                )}
+                <TableHead>Statut</TableHead>
+                <TableHead>Motif</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((item) => (
+                <TableRow key={item.attendanceId}>
+                  <TableCell className="font-medium">{item.teacherName}</TableCell>
+                  <TableCell>{item.courseName} • {item.className}</TableCell>
+                  <TableCell>{formatDate(item.date)}</TableCell>
+                  <TableCell>{item.slotLabel ?? "-"}</TableCell>
+                  {kind === "short_hours" && (
+                    <>
+                      <TableCell>{formatMinutes(item.scheduleDurationMinutes)}</TableCell>
+                      <TableCell>
+                        {item.validatedHours !== null ? formatMinutes(Math.round(item.validatedHours * 60)) : "-"}
+                      </TableCell>
+                    </>
+                  )}
+                  <TableCell>
+                    <HistoryStatusBadge
+                      status={item.validationStatus}
+                      kind={kind}
+                      validatedHours={item.validatedHours}
+                      scheduleDurationMinutes={item.scheduleDurationMinutes}
+                    />
+                  </TableCell>
+                  <TableCell className="max-w-[200px] truncate text-muted-foreground text-sm">
+                    {item.validationReason ?? "-"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground">Page {historyPage} / {totalPages}</p>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={historyPage <= 1}
+                onClick={() => setHistoryPage((p) => p - 1)}
+              >
+                Précédent
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={historyPage >= totalPages}
+                onClick={() => setHistoryPage((p) => p + 1)}
+              >
+                Suivant
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   const renderGpsTable = (items: PendingValidationItem[]) => {
     if (pendingQuery.isLoading) return <LoadingRows />
@@ -529,18 +789,6 @@ export default function ValidationsPage() {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">{endScanTeachers.length} enseignant(s), {endScanTotal} cours sans scan de fin</p>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Select value={endScanStatusFilter} onValueChange={(v) => setEndScanStatusFilter(v as typeof endScanStatusFilter)}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filtrer par statut" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les statuts</SelectItem>
-                <SelectItem value="pending">En attente</SelectItem>
-                <SelectItem value="warned">Averti</SelectItem>
-                <SelectItem value="sanctioned">Sanctionné</SelectItem>
-                <SelectItem value="cancelled">Sanction annulée</SelectItem>
-              </SelectContent>
-            </Select>
             <Button
               type="button"
               size="sm"
@@ -795,13 +1043,28 @@ export default function ValidationsPage() {
             </TabsTrigger>
             <TabsTrigger value="gps">Présences suspectes ({groups.gps_suspicious.length})</TabsTrigger>
           </TabsList>
-          <TabsContent value="hours" className="space-y-4">
-            <InfoBox>Ces enseignants ont terminé leur cours avant l'heure prévue. Choisissez les heures à accorder.</InfoBox>
-            {renderShortHoursTable(groups.short_hours)}
+          <TabsContent value="hours" className="space-y-6">
+            <div className="space-y-4">
+              <InfoBox>Ces enseignants ont terminé leur cours avant l'heure prévue. Choisissez les heures à accorder.</InfoBox>
+              {renderShortHoursTable(groups.short_hours)}
+            </div>
+            <div className="space-y-4 border-t border-border pt-6">
+              <div className="flex items-center gap-2">
+                <History className="h-4 w-4 text-muted-foreground" />
+                <h2 className="text-base font-medium">Historique des heures à valider</h2>
+              </div>
+              {renderHistoryFilters()}
+              {renderHistoryTable(
+                shortHoursHistoryQuery.data?.items ?? [],
+                shortHoursHistoryQuery.data?.total ?? 0,
+                shortHoursHistoryQuery.isLoading,
+                "short_hours"
+              )}
+            </div>
           </TabsContent>
           <TabsContent value="end-scan" className="space-y-4">
             <InfoBox>Ces enseignants ont pointé leur arrivée mais n'ont pas effectué le scan de fin de cours.</InfoBox>
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-start gap-2">
               <Select value={endScanMonth} onValueChange={setEndScanMonth}>
                 <SelectTrigger className="w-full md:ml-4 md:w-[180px] md:m-0">
                   <SelectValue />
@@ -814,12 +1077,39 @@ export default function ValidationsPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <Select value={endScanStatusFilter} onValueChange={(v) => setEndScanStatusFilter(v as typeof endScanStatusFilter)}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Filtrer par statut" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les statuts</SelectItem>
+                  <SelectItem value="pending">En attente</SelectItem>
+                  <SelectItem value="warned">Averti</SelectItem>
+                  <SelectItem value="sanctioned">Sanctionné</SelectItem>
+                  <SelectItem value="cancelled">Sanction annulée</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             {renderEndScanTab()}
           </TabsContent>
-          <TabsContent value="gps" className="space-y-4">
-            <InfoBox>Ces enseignants ont été détectés hors du périmètre de la salle au moment du scan. Vérifiez avec eux avant de valider.</InfoBox>
-            {renderGpsTable(groups.gps_suspicious)}
+          <TabsContent value="gps" className="space-y-6">
+            <div className="space-y-4">
+              <InfoBox>Ces enseignants ont été détectés hors du périmètre de la salle au moment du scan. Vérifiez avec eux avant de valider.</InfoBox>
+              {renderGpsTable(groups.gps_suspicious)}
+            </div>
+            <div className="space-y-4 border-t border-border pt-6">
+              <div className="flex items-center gap-2">
+                <History className="h-4 w-4 text-muted-foreground" />
+                <h2 className="text-base font-medium">Historique des présences suspectes</h2>
+              </div>
+              {renderHistoryFilters()}
+              {renderHistoryTable(
+                gpsHistoryQuery.data?.items ?? [],
+                gpsHistoryQuery.data?.total ?? 0,
+                gpsHistoryQuery.isLoading,
+                "gps_suspicious"
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </div>

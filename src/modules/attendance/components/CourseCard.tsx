@@ -101,8 +101,11 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
    */
   const canDoRollCall = rollCallPending && rollCallStillOpen
 
+  // Après un refresh, le store Zustand est vide mais room_scan_end_at indique
+  // que le scan a été validé — on s'appuie dessus pour garder le bouton.
+  const endQrDone = readyToFinish || !!attendance?.room_scan_end_at
   const canFinishCourse =
-    readyToFinish &&
+    endQrDone &&
     now <= finishWindowEnd &&
     !attendance?.checked_out_at
 

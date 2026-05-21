@@ -138,6 +138,9 @@ function SortableHeader<TData>({
   )
 }
 
+// teacherRowActions permet de gérer les actions spécifiques à chaque ligne du tableau (voir profil, bloquer/débloquer, exporter PDF) sans recréer les handlers à chaque rendu de ligne, 
+// ce qui améliore les performances et évite les problèmes de focus dans le menu déroulant. Les handlers sont passés en props depuis la définition des colonnes, 
+// garantissant ainsi une meilleure stabilité et réactivité de l'interface utilisateur.
 function TeacherRowActions({
   teacher,
   onViewProfile,
@@ -191,6 +194,9 @@ function TeacherRowActions({
   )
 }
 
+// TeacherRankingPanel affiche le classement de conformité des professeurs pour un mois donné, avec la possibilité de filtrer par matière. 
+// Il utilise les données de conformité et les informations des professeurs pour calculer les taux et afficher un classement clair et informatif, avec des indicateurs visuels 
+// pour les différentes métriques de conformité.
 function TeacherRankingPanel({
   teachers,
 }: {
@@ -198,24 +204,31 @@ function TeacherRankingPanel({
 }) {
   const [month, setMonth] = useState(() => getCurrentMonth())
   const [subject, setSubject] = useState("all")
+  // On récupère une liste plus large de professeurs pour avoir un pool complet pour les options de matière et éviter les problèmes de données manquantes dans le classement,
   const rankingTeachersQuery = useQuery({
     queryKey: ["teachers", "ranking", "subject-options"],
     queryFn: () => getTeachers({ page: 1, limit: 200 }),
     staleTime: 60_000,
   })
+  // La requête de conformité est spécifique au mois et fournit les données nécessaires pour calculer les taux de conformité et afficher le classement. 
+  // Elle est séparée de la requête des professeurs pour permettre une meilleure gestion du cache et éviter les problèmes de données manquantes.
   const complianceQuery = useQuery({
     queryKey: ["teachers", "ranking", month],
     queryFn: () => getTeacherCompliance(month),
     staleTime: 60_000,
     retry: false,
   })
+  // On utilise les données de la requête de classement pour construire une map des professeurs par ID, ce qui permet d'enrichir les données de conformité avec 
+  // les matières enseignées et d'autres informations nécessaires pour le classement, tout en évitant les problèmes de données manquantes ou de cache incohérent.
   const rankingTeachers = rankingTeachersQuery.data?.data ?? teachers
   const teachersById = useMemo(() => {
     return new Map(rankingTeachers.map((teacher) => [teacher.id, teacher]))
   }, [rankingTeachers])
   const subjectOptions = useMemo(() => {
     const values = new Set<string>()
-    for (const teacher of rankingTeachers) {
+    for (const teacher of rankingTeachers) { 
+    // On parcourt tous les professeurs du classement (qui inclut potentiellement plus de professeurs que ceux affichés dans le classement actuel) pour extraire les matières enseignées, 
+    // ce qui permet d'avoir une liste complète de matières pour les options de filtrage, même si certains professeurs du classement actuel n'ont pas de matière renseignée.
       for (const item of teacher.subjects) {
         const clean = item.trim()
         if (clean) values.add(clean)
@@ -223,6 +236,7 @@ function TeacherRankingPanel({
     }
     return Array.from(values).sort((a, b) => a.localeCompare(b, "fr"))
   }, [rankingTeachers])
+  // On combine les données de conformité avec les informations des professeurs pour construire les lignes du classement, en appliquant les filtres de matière et en calculant les rangs.
   const rankedRows = useMemo<RankingTeacherRow[]>(() => {
     return (complianceQuery.data ?? [])
       .map((row) => ({
@@ -233,11 +247,15 @@ function TeacherRankingPanel({
       .map((row, index) => ({ ...row, rank: index + 1 }))
   }, [complianceQuery.data, subject, teachersById])
 
+  // On calcule le meilleur taux et la moyenne à partir des lignes classées pour afficher les indicateurs globaux du classement, en gérant les cas où il n'y a pas de données.
   const topRate = rankedRows[0]?.complianceRate ?? 0
+
+  // La moyenne est calculée en sommant les taux de conformité de tous les professeurs classés et en divisant par le nombre total de professeurs, ce qui donne une 
+  // indication globale de la performance moyenne des professeurs par rapport aux critères de conformité pour le mois sélectionné.
   const averageRate =
     rankedRows.length === 0
       ? 0
-      : rankedRows.reduce((sum, row) => sum + row.complianceRate, 0) / rankedRows.length
+      : rankedRows.reduce((sum, row) => sum + row.complianceRate, 0) / rankedRows.length 
 
   return (
     <div className="space-y-4">
@@ -306,17 +324,21 @@ function TeacherRankingPanel({
       ) : null}
 
       <div className="space-y-2">
-        {complianceQuery.isLoading ? (
+        {complianceQuery.isLoading ? ( 
+          // Affiche des placeholders pendant le chargement du classement pour indiquer que les données sont en cours de récupération, ce qui améliore l'expérience utilisateur en évitant les écrans vides et en donnant un retour visuel sur l'état de chargement.
           Array.from({ length: 6 }).map((_, index) => (
             <div key={index} className="h-20 animate-pulse rounded-lg border bg-muted" />
           ))
-        ) : rankedRows.length === 0 ? (
+        ) : rankedRows.length === 0 ? ( 
+          // Affiche un état vide lorsque aucun classement n'est disponible pour les filtres sélectionnés
           <EmptyState
             icon={<AppIcon icon={TeachersIcon} size="md" className="text-muted-foreground" />}
             title="Aucun classement"
             message="Aucun scan de fin ne correspond aux filtres sélectionnés."
           />
         ) : (
+          // Affiche les lignes du classement une fois les données chargées, en utilisant les données de conformité enrichies avec les informations des professeurs pour 
+          // afficher les indicateurs et les matières enseignées, et en appliquant les styles et les indicateurs visuels pour chaque ligne du classement.
           rankedRows.map((teacher) => (
             <div
               key={teacher.teacherId}
@@ -339,22 +361,25 @@ function TeacherRankingPanel({
                     <span className="text-muted-foreground">
                       Taux de conformité
                     </span>
+                    {/* // le taux de conformité est calculé à partir de plusieurs critères (présence, salle correcte, pointage des élèves, scans de fin) et représente la performance globale du professeur par rapport à ces critères.
+                    // On affiche le taux de conformité arrondi à l'entier le plus proche, avec une mise en forme en pourcentage, pour donner une indication claire et rapide de la performance du professeur par rapport aux critères de conformité. */}
                     <span className="font-semibold">{Math.round(teacher.complianceRate)}%</span>
                   </div>
                   <Progress value={Math.max(0, Math.min(100, teacher.complianceRate))} />
                 </div>
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
-                <Badge variant="outline" className={teacher.attendanceRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.attendanceRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
+                <Badge title="Taux de présence: 20% du Total" variant="outline" className={teacher.attendanceRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.attendanceRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
+                  {/* // teacher.attendanceRate représente le taux de présence du professeur, calculé à partir des données de pointage et de présence, et est un indicateur clé de la régularité du professeur dans ses cours. */}
                   Présence {Math.round(teacher.attendanceRate)}%
                 </Badge>
-                <Badge variant="outline" className={teacher.scanEndRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.scanEndRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
+                <Badge title="Taux de scan de fin: 30% du Total" variant="outline" className={teacher.scanEndRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.scanEndRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
                   Scan fin {Math.round(teacher.scanEndRate)}%
                 </Badge>
-                <Badge variant="outline" className={teacher.roomCorrectRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.roomCorrectRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
+                <Badge title="Taux de salle correcte: 25% du Total" variant="outline" className={teacher.roomCorrectRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.roomCorrectRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
                   Salle correcte {Math.round(teacher.roomCorrectRate)}%
                 </Badge>
-                <Badge variant="outline" className={teacher.rollcallRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.rollcallRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
+                <Badge title="Taux de pointage des élèves: 25% du Total" variant="outline" className={teacher.rollcallRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.rollcallRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
                   Pointage élève {Math.round(teacher.rollcallRate)}%
                 </Badge>
               </div>
@@ -394,6 +419,8 @@ export default function TeachersPage() {
 
   const last30Days = useMemo(() => getLast30DaysPeriod(), [])
 
+  // La requête des professeurs est construite avec les filtres de type, statut et matière, ce qui permet d'affiner 
+  // la liste des professeurs affichés dans le tableau en fonction des critères sélectionnés par l'utilisateur.
   const teachersQuery = useQuery({
     queryKey: ["teachers", typeFilter, statusFilter, subjectFilter],
     queryFn: () =>
@@ -407,7 +434,10 @@ export default function TeachersPage() {
   })
 
   const teachers = teachersQuery.data?.data ?? []
-  const subjectOptions = useMemo(() => {
+
+  // On génère les options de matière à partir de tous les professeurs récupérés (et pas seulement ceux affichés) pour avoir 
+  // une liste complète de matières, même si certains professeurs n'ont pas de matière renseignée ou si le classement actuel est filtré.
+  const subjectOptions = useMemo(() => { 
     const set = new Set<string>()
     for (const teacher of teachers) {
       for (const subject of teacher.subjects) {
@@ -418,13 +448,18 @@ export default function TeachersPage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b, "fr"))
   }, [teachers])
 
+  // On récupère les statistiques de présence pour tous les professeurs dans la période sélectionnée 
+  // pour pouvoir afficher les taux de présence et autres indicateurs dans le tableau, en évitant les problèmes de données 
+  // manquantes ou de cache incohérent qui pourraient survenir si on faisait une requête par professeur.
   const bulkStatsQuery = useQuery({
     queryKey: ["teacher-stats-bulk", last30Days.dateFrom, last30Days.dateTo],
     queryFn: () => fetchTeacherAttendanceStats({ from: last30Days.dateFrom, to: last30Days.dateTo }),
     staleTime: 1000 * 60 * 2,
   })
 
-  const statsMap = useMemo<TeacherStatsMap>(() => {
+  // On construit une map des statistiques de présence par ID de professeur à partir des données de la requête en vrac, ce qui permet d'enrichir les données des 
+  // professeurs dans le tableau avec les taux de présence et autres indicateurs, tout en gérant les cas où certaines données pourraient être manquantes (en utilisant des valeurs par défaut) et en évitant les problèmes de cache incohérent.
+  const statsMap = useMemo<TeacherStatsMap>(() => { 
     const acc: TeacherStatsMap = {}
     for (const row of bulkStatsQuery.data ?? []) {
       acc[row.teacher_id] = {
@@ -458,6 +493,8 @@ export default function TeachersPage() {
   }
 
   // Mutation de blocage — cible teachers.is_blocked via blockTeacher/unblockTeacher
+  // toggleBlockMutation gère à la fois le blocage et le déblocage des professeurs en fonction de leur statut actuel, ce qui simplifie la logique de gestion du statut 
+  // et évite la nécessité de créer deux mutations distinctes pour ces actions.
   const toggleBlockMutation = useMutation({
     mutationFn: ({ teacher, reason }: { teacher: TeacherListItem; reason: string }) =>
       teacher.isBlocked ? unblockTeacher(teacher.id) : blockTeacher(teacher.id, reason),

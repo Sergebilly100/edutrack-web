@@ -78,6 +78,11 @@ module.exports = {
         "accordion-up": {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" }
+        },
+        progress: {
+          "0%": { transform: "translateX(-100%)" },
+          "50%": { transform: "translateX(0%)" },
+          "100%": { transform: "translateX(100%)" }
         }
       },
       animation: {
@@ -88,7 +93,8 @@ module.exports = {
         "surface-pop": "surface-pop 180ms cubic-bezier(0.22, 1, 0.36, 1)",
         "check-in": "check-in 140ms cubic-bezier(0.22, 1, 0.36, 1)",
         "accordion-down": "accordion-down 0.2s cubic-bezier(0.25, 1, 0.5, 1)",
-        "accordion-up": "accordion-up 0.16s cubic-bezier(0.25, 1, 0.5, 1)"
+        "accordion-up": "accordion-up 0.16s cubic-bezier(0.25, 1, 0.5, 1)",
+        progress: "progress 1.5s ease-in-out infinite"
       }
     }
   },

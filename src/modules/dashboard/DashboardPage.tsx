@@ -1167,12 +1167,13 @@ export default function DashboardPage() {
               </Button>
             </CardHeader>
             <CardContent>
+              {/* // Affichage d'un résumé des heures planifiées vs effectuées si l'école utilise les heures réelles pour le calcul de la paie
               {schoolQuery.data?.use_real_hours === true ? (
                 <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
                   Ce mois : {salaryRealHoursTotals.planned.toFixed(1)}h planifiées, {salaryRealHoursTotals.done.toFixed(1)}h réellement effectuées.
                   Écart : {(salaryRealHoursTotals.done - salaryRealHoursTotals.planned).toFixed(1)}h, impact estimé : {formatFcfa(salaryRealHoursTotals.impact)}.
                 </div>
-              ) : null}
+              ) : null} */}
               {salaryRows.length === 0 ? (
                 <EmptyState
                   icon={emptyStateIcons.noTeachers}
