@@ -29,7 +29,7 @@ import { DataTable, EmptyState, PageLayout } from "@/shared/components"
 import { AddIcon, AppIcon, ChevronRightIcon, FilterIcon, StudentsIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
-import { useStudentLabel } from "@/shared/hooks/useStudentLabel"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { normalizePhoneInput, isValidOptionalPhone } from "@/shared/utils/phone"
 
 type StudentTableRow = StudentItem & {
@@ -73,7 +73,7 @@ export default function StudentsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const user = useAuthStore((state) => state.user)
   const { hasPermission } = usePermissions()
-  const studentLabel = useStudentLabel()
+  const studentLabels = useStudentLabels()
   const canViewAttendance = hasPermission("attendance.view")
   const activeTab = canViewAttendance && searchParams.get("tab") === "absences" ? "absences" : "liste"
   const classFilter = searchParams.get("list_class") ?? "all"
@@ -148,7 +148,7 @@ export default function StudentsPage() {
       setCreateDialogOpen(false)
       resetCreateStudentForm()
       toast({
-        title: "Élève ajouté",
+        title: `${studentLabels.singular} ajouté`,
         description: "La fiche est disponible dans la liste.",
       })
     },
@@ -156,7 +156,7 @@ export default function StudentsPage() {
       const description =
         axios.isAxiosError(error) && typeof error.response?.data?.error === "string"
           ? error.response.data.error
-          : "Impossible d'ajouter l'élève."
+          : `Impossible d'ajouter l'${studentLabels.singularLower}.`
       toast({
         title: "Erreur",
         description,
@@ -239,7 +239,7 @@ export default function StudentsPage() {
             </Avatar>
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{row.original.name}</p>
-              <p className="text-xs text-muted-foreground">Élève</p>
+              <p className="text-xs text-muted-foreground">{studentLabels.singular}</p>
             </div>
           </div>
         ),
@@ -279,7 +279,7 @@ export default function StudentsPage() {
         ),
       },
     ],
-    [canViewAttendance]
+    [canViewAttendance, studentLabels.singular]
   )
 
   if (!user) {
@@ -298,13 +298,13 @@ export default function StudentsPage() {
 
   return (
     <PageLayout
-      title={studentLabel === "Élève" ? "Élèves" : "Étudiants"}
-      subtitle={`Liste des ${studentLabel.toLowerCase()}s et suivi des absences`}
+      title={studentLabels.plural}
+      subtitle={`Liste des ${studentLabels.pluralLower} et suivi des absences`}
       actions={
         canCreateStudent ? (
           <Button type="button" onClick={() => setCreateDialogOpen(true)}>
             <AddIcon className="mr-2 h-4 w-4" />
-            Ajouter un élève
+            {`Ajouter un ${studentLabels.singularLower}`}
           </Button>
         ) : null
       }
@@ -329,7 +329,7 @@ export default function StudentsPage() {
           <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
             <div className="flex flex-col gap-4 bg-[var(--surface-chrome)] px-4 py-4 md:flex-row md:items-center md:justify-between">
               <div className="space-y-1">
-                <p className="text-sm font-semibold">Vue opérationnelle élèves</p>
+                <p className="text-sm font-semibold">{`Vue opérationnelle ${studentLabels.pluralLower}`}</p>
                 <p className="text-xs text-muted-foreground">
                   Suivez les effectifs visibles, les statuts et les absences du mois avant d&apos;ouvrir une fiche.
                 </p>
@@ -362,7 +362,7 @@ export default function StudentsPage() {
               <div className="bg-background px-4 py-3">
                 <p className="text-[11px] font-medium uppercase text-muted-foreground">Filtre actif</p>
                 <p className="mt-1 truncate text-sm font-medium">
-                  {classFilter === "all" && statusFilter === "all" && !searchTerm ? "Tous les élèves" : "Vue affinée"}
+                  {classFilter === "all" && statusFilter === "all" && !searchTerm ? `Tous les ${studentLabels.pluralLower}` : "Vue affinée"}
                 </p>
               </div>
             </div>
@@ -419,7 +419,7 @@ export default function StudentsPage() {
 
           {studentsQuery.isError ? (
             <Alert variant="destructive">
-              <AlertDescription>Impossible de charger la liste des élèves.</AlertDescription>
+              <AlertDescription>{`Impossible de charger la liste des ${studentLabels.pluralLower}.`}</AlertDescription>
             </Alert>
           ) : null}
 
@@ -428,7 +428,7 @@ export default function StudentsPage() {
               columns={columns}
               data={tableData}
               isLoading={studentsQuery.isLoading}
-              searchPlaceholder="Rechercher un élève"
+              searchPlaceholder={`Rechercher un ${studentLabels.singularLower}`}
               pageSize={20}
               onRowClick={(student) =>
                 navigate(`/students/${student.id}?returnTo=${encodeURIComponent(returnTo)}`)
@@ -436,11 +436,11 @@ export default function StudentsPage() {
               emptyState={
                 <EmptyState
                   icon={<AppIcon icon={StudentsIcon} size="md" className="text-muted-foreground" />}
-                  title="Aucun élève"
-                  message="Aucun élève trouvé avec les filtres actuels."
+                  title={`Aucun ${studentLabels.singularLower}`}
+                  message={`Aucun ${studentLabels.singularLower} trouvé avec les filtres actuels.`}
                   action={
                     canCreateStudent
-                      ? { label: "Ajouter un élève", onClick: () => setCreateDialogOpen(true), icon: AddIcon }
+                      ? { label: `Ajouter un ${studentLabels.singularLower}`, onClick: () => setCreateDialogOpen(true), icon: AddIcon }
                       : undefined
                   }
                 />
@@ -494,8 +494,8 @@ export default function StudentsPage() {
       >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Ajouter un élève</DialogTitle>
-            <DialogDescription>Renseignez les informations principales de l&apos;élève.</DialogDescription>
+            <DialogTitle>{`Ajouter un ${studentLabels.singularLower}`}</DialogTitle>
+            <DialogDescription>{`Renseignez les informations principales de l'${studentLabels.singularLower}.`}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
@@ -597,7 +597,7 @@ export default function StudentsPage() {
                 !isCreateStudentValid
               }
             >
-              {createStudentMutation.isPending ? "Création..." : "Ajouter l'élève"}
+              {createStudentMutation.isPending ? "Création..." : `Ajouter l'${studentLabels.singularLower}`}
             </Button>
           </DialogFooter>
         </DialogContent>

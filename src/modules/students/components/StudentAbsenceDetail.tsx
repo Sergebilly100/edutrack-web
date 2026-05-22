@@ -1,5 +1,10 @@
 import { useState } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+
+import {
+  OfflineMutationQueuedError,
+  useOfflineMutation,
+} from "@/shared/hooks/useOfflineMutation"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -113,24 +118,41 @@ export default function StudentAbsenceDetail({
     enabled: open && Boolean(student),
   })
 
-  const excuseMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
-      excuseAbsence(id, reason),
-    onSuccess: () => {
+  const excuseMutation = useOfflineMutation<
+    { id: string; status: string; excuseReason: string },
+    { id: string; reason: string }
+  >(
+    ({ id, reason }) => excuseAbsence(id, reason),
+    {
+      queueKey: "student-absence-excuse",
+      onSync: () => {
+        void queryClient.invalidateQueries({ queryKey: absenceQueryKey })
+        void queryClient.invalidateQueries({
+          queryKey: ["students", "detail", student?.studentId],
+        })
+      },
+    }
+  )
+
+  const absences = detailQuery.data ?? []
+
+  const handleConfirmExcuse = async () => {
+    if (!excuseDialogId || !excuseReason.trim()) return
+    try {
+      await excuseMutation.mutateAsync({ id: excuseDialogId, reason: excuseReason.trim() })
       void queryClient.invalidateQueries({ queryKey: absenceQueryKey })
       void queryClient.invalidateQueries({
         queryKey: ["students", "detail", student?.studentId],
       })
       setExcuseDialogId(null)
       setExcuseReason("")
-    },
-  })
-
-  const absences = detailQuery.data ?? []
-
-  const handleConfirmExcuse = () => {
-    if (!excuseDialogId || !excuseReason.trim()) return
-    excuseMutation.mutate({ id: excuseDialogId, reason: excuseReason.trim() })
+    } catch (error) {
+      // Offline path: mutation was queued — close the dialog so the user sees the optimistic state
+      if (error instanceof OfflineMutationQueuedError) {
+        setExcuseDialogId(null)
+        setExcuseReason("")
+      }
+    }
   }
 
   const handleDialogOpenChange = (dialogOpen: boolean) => {

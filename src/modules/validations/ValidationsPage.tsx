@@ -20,6 +20,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { EmptyState, OfflineIndicator, emptyStateIcons } from "@/shared/components"
+import {
+  OfflineMutationQueuedError,
+  useOfflineMutation,
+} from "@/shared/hooks/useOfflineMutation"
 import { getCurrentMonth, getRecentMonthOptions, formatMonthLabel } from "@/shared/utils/month"
 import {
   applyEndScanAction,
@@ -211,24 +215,63 @@ export default function ValidationsPage() {
     ])
   }
 
-  const approveMutation = useMutation({
-    mutationFn: approveValidation,
-    onSuccess: async () => {
+  const approveMutation = useOfflineMutation<void, { attendanceId: string; validatedHours?: number }>(
+    approveValidation,
+    {
+      queueKey: "validation-approve",
+      onSync: () => {
+        void invalidateQueries()
+        toast({ title: "Validation synchronisée", description: "Heures mises à jour côté serveur." })
+      },
+    }
+  )
+
+  const rejectMutation = useOfflineMutation<void, { attendanceId: string; reason: string }>(
+    rejectValidation,
+    {
+      queueKey: "validation-reject",
+      onSync: () => {
+        void invalidateQueries()
+        toast({ title: "Refus synchronisé", description: "L'enseignant sera notifié." })
+      },
+    }
+  )
+
+  const runApprove = async (variables: { attendanceId: string; validatedHours?: number }) => {
+    try {
+      await approveMutation.mutateAsync(variables)
       setApproveTarget(null)
       await invalidateQueries()
       toast({ title: "Validation enregistrée", description: "Les heures ont été mises à jour." })
-    },
-  })
+    } catch (error) {
+      if (error instanceof OfflineMutationQueuedError) {
+        setApproveTarget(null)
+        toast({
+          title: "Validation en attente",
+          description: "L'action sera envoyée dès le retour du réseau.",
+        })
+      }
+    }
+  }
 
-  const rejectMutation = useMutation({
-    mutationFn: rejectValidation,
-    onSuccess: async () => {
+  const runReject = async (variables: { attendanceId: string; reason: string }) => {
+    try {
+      await rejectMutation.mutateAsync(variables)
       setRejectTarget(null)
       setRejectReason("")
       await invalidateQueries()
       toast({ title: "Présence refusée", description: "L'enseignant sera notifié." })
-    },
-  })
+    } catch (error) {
+      if (error instanceof OfflineMutationQueuedError) {
+        setRejectTarget(null)
+        setRejectReason("")
+        toast({
+          title: "Refus en attente",
+          description: "L'action sera envoyée dès le retour du réseau.",
+        })
+      }
+    }
+  }
 
   // End-scan queries/mutations
   const endScanQuery = useQuery({
@@ -1147,7 +1190,7 @@ export default function ValidationsPage() {
               disabled={approveMutation.isPending || !approveShortHoursTarget}
               onClick={() => {
                 if (!approveShortHoursTarget) return
-                approveMutation.mutate({
+                void runApprove({
                   attendanceId: approveShortHoursTarget.item.attendanceId,
                   validatedHours: approveShortHoursTarget.validatedHours,
                 })
@@ -1186,7 +1229,7 @@ export default function ValidationsPage() {
               disabled={approveMutation.isPending || !approveTarget}
               onClick={() => {
                 if (!approveTarget) return
-                approveMutation.mutate({ attendanceId: approveTarget.attendanceId })
+                void runApprove({ attendanceId: approveTarget.attendanceId })
               }}
             >
               {approveMutation.isPending ? "Validation..." : "Confirmer"}
@@ -1223,7 +1266,7 @@ export default function ValidationsPage() {
               disabled={rejectMutation.isPending || rejectReason.trim().length < 3 || !rejectTarget}
               onClick={() => {
                 if (!rejectTarget) return
-                rejectMutation.mutate({ attendanceId: rejectTarget.attendanceId, reason: rejectReason.trim() })
+                void runReject({ attendanceId: rejectTarget.attendanceId, reason: rejectReason.trim() })
               }}
             >
               {rejectMutation.isPending ? "Refus..." : "Confirmer refus"}

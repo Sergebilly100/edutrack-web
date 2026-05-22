@@ -43,6 +43,7 @@ import {
   writeDashboardDismissedNotificationIds,
 } from "@/shared/lib/dashboard-notifications"
 import { useAuthStore } from "@/shared/store/auth.store"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { getInitials } from "@/shared/utils/avatar"
 import { formatFcfa } from "@/shared/utils/formatting"
 
@@ -284,6 +285,7 @@ function TodayStudentAbsenceList({
   onOpenStudent: (studentId: string) => void
   expanded: boolean
 }) {
+  const studentLabels = useStudentLabels()
   const visibleItems = expanded ? items : items.slice(0, 5)
 
   if (items.length === 0) {
@@ -291,7 +293,7 @@ function TodayStudentAbsenceList({
       <EmptyState
         icon={emptyStateIcons.allGood}
         title="Aucune absence aujourd'hui"
-        message="Aucun élève n'a été marqué absent pour le moment. Les nouvelles absences apparaîtront ici en temps réel."
+        message={`Aucun ${studentLabels.singularLower} n'a été marqué absent pour le moment. Les nouvelles absences apparaîtront ici en temps réel.`}
       />
     )
   }
@@ -355,6 +357,7 @@ export default function DashboardPage() {
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<Set<string>>(readDashboardDismissedNotificationIds)
   const user = useAuthStore((state) => state.user)
   const permissions = useAuthStore((state) => state.permissions)
+  const studentLabels = useStudentLabels()
   const currentMonth = useMemo(() => getCurrentMonthKey(new Date()), [])
   const previousMonth = useMemo(() => getPreviousMonthKey(new Date()), [])
   const alertsRef = useRef<HTMLDivElement | null>(null)
@@ -1085,7 +1088,7 @@ export default function DashboardPage() {
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-lg font-semibold">Absences élèves aujourd'hui</CardTitle>
+              <CardTitle className="text-lg font-semibold">{`Absences ${studentLabels.pluralLower} aujourd'hui`}</CardTitle>
               {canToggleTodayStudentAbsences ? (
                 <Button
                   type="button"
@@ -1115,7 +1118,7 @@ export default function DashboardPage() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-lg font-semibold">Élèves à risque</CardTitle>
+              <CardTitle className="text-lg font-semibold">{`${studentLabels.plural} à risque`}</CardTitle>
               <Button asChild variant="outline" size="sm" className="min-h-10">
                 <Link to={riskStudentsLink}>Voir tous</Link>
               </Button>
@@ -1124,8 +1127,8 @@ export default function DashboardPage() {
               {topRiskStudents.length === 0 ? (
                 <EmptyState
                   icon={emptyStateIcons.allGood}
-                  title="Aucun élève à risque"
-                  message="Aucun élève ne dépasse le seuil d'alerte ce mois-ci."
+                  title={`Aucun ${studentLabels.singularLower} à risque`}
+                  message={`Aucun ${studentLabels.singularLower} ne dépasse le seuil d'alerte ce mois-ci.`}
                 />
               ) : (
                 <div className="space-y-2">

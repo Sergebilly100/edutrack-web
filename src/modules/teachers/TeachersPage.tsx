@@ -62,6 +62,7 @@ import {
 } from "@/shared/components/icons"
 import { DataTable, EmptyState, PageLayout } from "@/shared/components"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
 
 const THIRTY_DAYS_MS = 1000 * 60 * 60 * 24 * 30
@@ -202,6 +203,7 @@ function TeacherRankingPanel({
 }: {
   teachers: TeacherListItem[]
 }) {
+  const studentLabels = useStudentLabels()
   const [month, setMonth] = useState(() => getCurrentMonth())
   const [subject, setSubject] = useState("all")
   // On récupère une liste plus large de professeurs pour avoir un pool complet pour les options de matière et éviter les problèmes de données manquantes dans le classement,
@@ -264,7 +266,7 @@ function TeacherRankingPanel({
           <div className="space-y-1">
             <p className="text-sm font-semibold">Classement de conformité</p>
             <p className="text-xs text-muted-foreground">
-              Classement mensuel basé sur les taux de présence, salle correcte, pointage des élèves et les scans de fin de cours.
+              {`Classement mensuel basé sur les taux de présence, salle correcte, pointage des ${studentLabels.pluralLower} et les scans de fin de cours.`}
             </p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -379,8 +381,8 @@ function TeacherRankingPanel({
                 <Badge title="Taux de salle correcte: 25% du Total" variant="outline" className={teacher.roomCorrectRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.roomCorrectRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
                   Salle correcte {Math.round(teacher.roomCorrectRate)}%
                 </Badge>
-                <Badge title="Taux de pointage des élèves: 25% du Total" variant="outline" className={teacher.rollcallRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.rollcallRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
-                  Pointage élève {Math.round(teacher.rollcallRate)}%
+                <Badge title={`Taux de pointage des ${studentLabels.pluralLower}: 25% du Total`} variant="outline" className={teacher.rollcallRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.rollcallRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
+                  Pointage {studentLabels.singularLower} {Math.round(teacher.rollcallRate)}%
                 </Badge>
               </div>
             </div>
