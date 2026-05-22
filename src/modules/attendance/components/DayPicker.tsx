@@ -73,14 +73,15 @@ export default function DayPicker({ selectedDate, onChange, highlightDates = [] 
             const highlighted = highlights.has(toDateKey(day))
 
             return (
-              <button
+              <Button
                 key={toDateKey(day)}
                 type="button"
+                variant="ghost"
                 onClick={() => onChange(day)}
                 className={cn(
-                  "relative flex flex-1 flex-col items-center justify-center rounded-xl px-0.5 py-2 min-h-[56px] text-center transition-[background-color,color,box-shadow,transform] duration-150 ease-out-quint active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none motion-reduce:active:scale-100",
+                  "relative flex flex-1 flex-col items-center justify-center rounded-xl px-0.5 py-2 h-auto min-h-[56px] text-center hover:translate-y-0 active:translate-y-0 active:scale-[0.98]",
                   selected
-                    ? "bg-primary text-primary-foreground shadow-sm"
+                    ? "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:text-primary-foreground"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
                 aria-pressed={selected}
@@ -110,7 +111,7 @@ export default function DayPicker({ selectedDate, onChange, highlightDates = [] 
                     <span className="mt-1 h-1 w-1" />
                   )
                 }
-              </button>
+              </Button>
             )
           })}
         </div>

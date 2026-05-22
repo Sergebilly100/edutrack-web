@@ -1,4 +1,5 @@
 import { useMemo } from "react"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { ScheduleRow } from "@/modules/schedule/schedule.api"
 
@@ -73,10 +74,11 @@ export default function DayColumn({
 
       <div className="relative border-l bg-background" style={{ height: gridHeight }}>
         {hours.map((hour) => (
-          <button
+          <Button
             key={hour}
             type="button"
-            className="block h-16 w-full border-b transition-colors duration-150 ease-out-quint hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            variant="ghost"
+            className="block h-16 w-full rounded-none border-b p-0 transition-colors duration-150 ease-out-quint hover:bg-muted/40 hover:translate-y-0 active:translate-y-0 active:scale-100 focus-visible:ring-inset focus-visible:ring-offset-0"
             onClick={() => onSlotAdd(day.value, hour)}
             aria-label={`Ajouter un créneau le ${day.label} à ${String(hour).padStart(2, "0")}h`}
           />

@@ -886,27 +886,29 @@ export default function SchedulePage() {
                             >
                               <div className="space-y-1">
                                 {cellItems.map((item) => (
-                                  <button
+                                  <Button
                                     key={item.id}
                                     type="button"
+                                    variant="ghost"
                                     onClick={() => { setSelectedSchedule(item); setDetailOpen(true) }}
-                                    className="w-full rounded-md border bg-muted/30 p-2 text-left text-xs whitespace-normal break-words shadow-sm transition-[background-color,box-shadow,transform] duration-150 ease-out-quint hover:-translate-y-px hover:bg-muted/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    className="h-auto w-full justify-start whitespace-normal rounded-md border bg-muted/30 p-2 text-left text-xs break-words shadow-sm hover:bg-muted/60 hover:shadow-md"
                                   >
-                                    <p className="font-semibold leading-tight">{item.teacher.name}</p>
-                                    <p className="text-muted-foreground">{item.class.name}</p>
-                                    <p className="text-muted-foreground">{item.subject}</p>
-                                    {/* Afficher l'horaire réel si différent de la ligne */}
-                                    {item.timeSlot.startTime !== row.startTime && (
-                                      <p className="mt-0.5 text-[10px] text-amber-600">
-                                        {item.timeSlot.startTime} – {item.timeSlot.endTime}
-                                      </p>
-                                    )}
-                                    {blockedTeachers.has(item.teacher.id) ? (
-                                      <Badge variant="destructive" className="mt-1 text-[10px]">
-                                        Prof bloqué
-                                      </Badge>
-                                    ) : null}
-                                  </button>
+                                    <div className="flex w-full flex-col items-start">
+                                      <p className="font-semibold leading-tight">{item.teacher.name}</p>
+                                      <p className="text-muted-foreground">{item.class.name}</p>
+                                      <p className="text-muted-foreground">{item.subject}</p>
+                                      {item.timeSlot.startTime !== row.startTime && (
+                                        <p className="mt-0.5 text-[10px] text-amber-600">
+                                          {item.timeSlot.startTime} – {item.timeSlot.endTime}
+                                        </p>
+                                      )}
+                                      {blockedTeachers.has(item.teacher.id) ? (
+                                        <Badge variant="destructive" className="mt-1 text-[10px]">
+                                          Prof bloqué
+                                        </Badge>
+                                      ) : null}
+                                    </div>
+                                  </Button>
                                 ))}
                               </div>
                             </td>
@@ -941,19 +943,22 @@ export default function SchedulePage() {
                 {filteredSchedules
                   .filter((item) => String(item.dayOfWeek) === mobileDay)
                   .map((item) => (
-                    <button
+                    <Button
                       key={item.id}
                       type="button"
+                      variant="ghost"
                       onClick={() => { setSelectedSchedule(item); setDetailOpen(true) }}
-                      className="w-full rounded-lg border bg-muted/30 p-3 text-left shadow-sm transition-[background-color,box-shadow,transform] duration-150 ease-out-quint hover:-translate-y-px hover:bg-muted/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="h-auto w-full justify-start whitespace-normal rounded-lg border bg-muted/30 p-3 text-left shadow-sm hover:bg-muted/60 hover:shadow-md"
                     >
-                      <p className="text-xs font-semibold">{item.timeSlot.label}</p>
-                      <p className="text-sm font-medium">{item.subject}</p>
-                      <p className="text-xs text-muted-foreground">{item.teacher.name} · {item.class.name}</p>
-                      {blockedTeachers.has(item.teacher.id) ? (
-                        <Badge variant="destructive" className="mt-1">Prof bloqué</Badge>
-                      ) : null}
-                    </button>
+                      <div className="flex w-full flex-col items-start">
+                        <p className="text-xs font-semibold">{item.timeSlot.label}</p>
+                        <p className="text-sm font-medium">{item.subject}</p>
+                        <p className="text-xs text-muted-foreground">{item.teacher.name} · {item.class.name}</p>
+                        {blockedTeachers.has(item.teacher.id) ? (
+                          <Badge variant="destructive" className="mt-1">Prof bloqué</Badge>
+                        ) : null}
+                      </div>
+                    </Button>
                   ))}
                 {filteredSchedules.filter((s) => String(s.dayOfWeek) === mobileDay).length === 0 ? (
                   <EmptyState

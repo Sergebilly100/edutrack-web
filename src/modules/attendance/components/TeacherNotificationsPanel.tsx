@@ -135,10 +135,11 @@ export default function TeacherNotificationsPanel() {
                 </div>
               ) : (
                 notifications.map((notification) => (
-                  <button
+                  <Button
                     key={notification.id}
                     type="button"
-                    className={`w-full rounded-lg border p-3 text-left shadow-sm transition-colors hover:bg-muted/50 ${
+                    variant="ghost"
+                    className={`h-auto w-full justify-start whitespace-normal rounded-lg border p-3 text-left shadow-sm transition-colors hover:bg-muted/50 hover:translate-y-0 active:translate-y-0 active:scale-100 ${
                       notification.readAt === null ? "border-amber-200 bg-amber-50" : "border-border bg-background"
                     }`}
                     onClick={() => handleReadOne(notification)}
@@ -164,7 +165,7 @@ export default function TeacherNotificationsPanel() {
                         <p className="mt-1 text-[10px] text-muted-foreground">{formatDate(notification.createdAt)}</p>
                       </div>
                     </div>
-                  </button>
+                  </Button>
                 ))
               )}
             </div>

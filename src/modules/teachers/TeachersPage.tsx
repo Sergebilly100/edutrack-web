@@ -782,9 +782,10 @@ export default function TeachersPage() {
                   />
                 }
                 mobileCard={(teacher) => (
-                  <button
+                  <Button
                     type="button"
-                    className="flex w-full items-center gap-3 rounded-xl border bg-card p-4 text-left shadow-sm transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    variant="ghost"
+                    className="h-auto w-full justify-start gap-3 whitespace-normal rounded-xl border bg-card p-4 text-left shadow-sm hover:border-primary/30 hover:bg-card hover:shadow-md"
                     onClick={() => navigate(`/teachers/${teacher.id}`)}
                     data-testid="teacher-mobile-card"
                   >
@@ -807,7 +808,7 @@ export default function TeachersPage() {
                       <span className="text-xs text-muted-foreground">{teacher.attendanceRate}%</span>
                     </div>
                     <ChevronRightIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                  </button>
+                  </Button>
                 )}
               />
             </div>

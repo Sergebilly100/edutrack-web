@@ -54,6 +54,7 @@ function DashboardRoute() {
   const user = useAuthStore((state) => state.user)
   const setAccessToken = useAuthStore((state) => state.setAccessToken)
   const setUser = useAuthStore((state) => state.setUser)
+  const setTenant = useAuthStore((state) => state.setTenant)
   const setPermissions = useAuthStore((state) => state.setPermissions)
   const { refreshPermissions } = usePermissions()
 
@@ -83,6 +84,11 @@ function DashboardRoute() {
             positionNames?: string[]
             primaryPosition?: string | null
           }
+          tenant?: {
+            id: string
+            status: "trial" | "active" | "past_due" | "canceled" | "suspended"
+            trialEndsAt: string | null
+          } | null
         }>("/auth/me", {
           baseURL: import.meta.env.VITE_API_URL,
           withCredentials: true,
@@ -118,6 +124,7 @@ function DashboardRoute() {
           schemaName,
           plan: "standard",
         })
+        setTenant(meResponse.data.tenant ?? null)
         await refreshPermissions()
       } catch {
         setPermissions([])

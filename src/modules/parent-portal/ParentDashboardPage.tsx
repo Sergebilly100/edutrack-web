@@ -396,9 +396,11 @@ export default function ParentDashboardPage() {
               <p className="text-sm font-semibold">Abonnement bientôt expiré</p>
               <p className="mt-1 text-xs leading-snug sm:text-sm">{subscriptionAlert.message}</p>
             </div>
-            <button
+            <Button
               type="button"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-amber-800 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 dark:text-amber-100 dark:hover:bg-amber-900/40"
+              variant="ghost"
+              size="icon"
+              className="shrink-0 text-amber-800 hover:bg-amber-100 hover:text-amber-800 hover:translate-y-0 dark:text-amber-100 dark:hover:bg-amber-900/40 dark:hover:text-amber-100"
               onClick={() => {
                 setShowSubscriptionAlert(false)
                 sessionStorage.setItem(SUBSCRIPTION_ALERT_SEEN_KEY, "1")
@@ -406,7 +408,7 @@ export default function ParentDashboardPage() {
               aria-label="Fermer l'alerte abonnement"
             >
               <CircleX className="h-5 w-5"/>
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { NotificationButton } from "@/shared/components/layout/NotificationButton"
 import { DesktopSidebar, MobileMenuButton, MobileSidebar } from "@/shared/components/layout/Sidebar"
+import { SubscriptionStatusBanner } from "@/shared/components/SubscriptionStatusBanner"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 interface AppShellProps {
@@ -92,6 +93,7 @@ export function AppShell({ children }: AppShellProps) {
             </div>
           </header>
 
+          <SubscriptionStatusBanner />
           <main className="flex-1 overflow-y-auto px-4 pb-4 pt-0 md:px-6 md:pb-6 md:pt-0">
             <div key={location.pathname} className="route-surface min-h-full">
               {children ?? <Outlet />}

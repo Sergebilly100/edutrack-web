@@ -4,7 +4,7 @@ import axios from "axios"
 import { useParentAuthStore } from "@/modules/parent-portal/parent-auth.store"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useAuthStore } from "@/shared/store/auth.store"
-import type { AuthUser } from "@/shared/store/auth.store"
+import type { AuthTenant, AuthUser } from "@/shared/store/auth.store"
 
 type RefreshResponse = {
   accessToken: string
@@ -24,6 +24,7 @@ type MeResponse = {
     primaryPosition?: string | null
     username?: string
   }
+  tenant?: AuthTenant | null
 }
 
 type JwtPayloadPartial = {
@@ -76,6 +77,7 @@ export function useRestoreSession(): void {
   const setParentUser = useParentAuthStore((state) => state.setUser)
   const setAccessToken = useAuthStore((state) => state.setAccessToken)
   const setUser = useAuthStore((state) => state.setUser)
+  const setTenant = useAuthStore((state) => state.setTenant)
   const setSessionRestored = useAuthStore((state) => state.setSessionRestored)
   const setPermissions = useAuthStore((state) => state.setPermissions)
   const isSessionRestored = useAuthStore((state) => state.isSessionRestored)
@@ -132,7 +134,7 @@ export function useRestoreSession(): void {
           },
         })
 
-        const { user } = meResponse.data
+        const { user, tenant } = meResponse.data
 
         // Étape 4 — Hydrater le store
         setUser({
@@ -148,6 +150,7 @@ export function useRestoreSession(): void {
           schemaName,
           plan: "standard",
         })
+        setTenant(tenant ?? null)
         await refreshPermissions()
       } catch {
         // Cookie absent, expiré ou révoqué → session invalide, comportement normal.

@@ -20,6 +20,14 @@ export type AuthUser = {
   plan: string
 }
 
+export type TenantStatus = "trial" | "active" | "past_due" | "canceled" | "suspended"
+
+export type AuthTenant = {
+  id: string
+  status: TenantStatus
+  trialEndsAt: string | null
+}
+
 export type PermissionKey =
   | "teachers.view"
   | "teachers.create"
@@ -60,6 +68,7 @@ export type PermissionKey =
 
 type AuthState = {
   user: AuthUser | null
+  tenant: AuthTenant | null
   permissions: PermissionKey[]
   accessToken: string | null
   /**
@@ -75,6 +84,7 @@ type AuthState = {
    */
   isSessionRestored: boolean
   setUser: (user: AuthUser | null) => void
+  setTenant: (tenant: AuthTenant | null) => void
   setAccessToken: (accessToken: string | null) => void
   setRefreshToken: (refreshToken: string | null) => void
   setSessionRestored: () => void
@@ -84,11 +94,13 @@ type AuthState = {
 
 export const useAuthStore = create<AuthState>()((setState) => ({
   user: null,
+  tenant: null,
   permissions: [],
   accessToken: null,
   refreshToken: null,
   isSessionRestored: false,
   setUser: (user) => setState({ user }),
+  setTenant: (tenant) => setState({ tenant }),
   setAccessToken: (accessToken) => setState({ accessToken }),
   setRefreshToken: (refreshToken) => setState({ refreshToken }),
   setSessionRestored: () => setState({ isSessionRestored: true }),
@@ -96,6 +108,6 @@ export const useAuthStore = create<AuthState>()((setState) => ({
   logout: () =>
     setState(() => {
       clearDashboardDismissedNotifications()
-      return { user: null, permissions: [], accessToken: null, refreshToken: null }
+      return { user: null, tenant: null, permissions: [], accessToken: null, refreshToken: null }
     }),
 }))

@@ -882,14 +882,16 @@ export default function DashboardPage() {
                             <p className="mt-1 text-sm opacity-90">{item.message}</p>
                           </div>
                           {item.onDismiss ? (
-                            <button
+                            <Button
                               type="button"
-                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md hover:bg-background/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9 shrink-0 hover:bg-background/70 hover:translate-y-0"
                               aria-label={`Masquer ${item.title}`}
                               onClick={item.onDismiss}
                             >
                               <CircleX className="h-4 w-4" />
-                            </button>
+                            </Button>
                           ) : null}
                         </div>
                         <Button type="button" variant="outline" className="mt-3 w-full bg-background/80" onClick={item.onClick}>
