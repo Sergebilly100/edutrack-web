@@ -32,7 +32,8 @@ const PROVIDER_OPTIONS: Array<{ value: SmsProvider; label: string }> = [
   { value: "mock", label: "Mock (démo/test)" },
   { value: "infobip", label: "Infobip" },
   { value: "twilio", label: "Twilio" },
-  { value: "orange_api", label: "Orange API" },
+  { value: "africas_talking", label: "Africa's Talking" },
+  { value: "smsmode", label: "smsmode" },
   { value: "custom", label: "Autre fournisseur" },
 ]
 const GLOBAL_TEMPLATE_OPTIONS: Array<{ type: SmsTemplateType; label: string }> = [

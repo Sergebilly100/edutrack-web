@@ -15,7 +15,6 @@ export default function ParentLoginPage() {
   const [searchParams] = useSearchParams()
   const setUser = useParentAuthStore((state) => state.setUser)
   const setAccessToken = useParentAuthStore((state) => state.setAccessToken)
-  const setRefreshToken = useParentAuthStore((state) => state.setRefreshToken)
 
   const schoolInfoQuery = useQuery({
     queryKey: ["parent", "school-info", "login"],
@@ -32,7 +31,6 @@ export default function ParentLoginPage() {
     onSuccess: (result) => {
       sessionStorage.removeItem("parent_subscription_alert_seen")
       setAccessToken(result.accessToken)
-      setRefreshToken(result.refreshToken ?? null)
       setUser({
         id: result.user.id,
         role: "parent",

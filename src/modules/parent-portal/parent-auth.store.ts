@@ -14,10 +14,8 @@ export type ParentAuthUser = {
 type ParentAuthState = {
   user: ParentAuthUser | null
   accessToken: string | null
-  refreshToken: string | null
   setUser: (user: ParentAuthUser | null) => void
   setAccessToken: (accessToken: string | null) => void
-  setRefreshToken: (refreshToken: string | null) => void
   logout: () => void
 }
 
@@ -26,12 +24,10 @@ export const useParentAuthStore = create<ParentAuthState>()(
     (setState) => ({
       user: null,
       accessToken: null,
-      refreshToken: null,
       setUser: (user) => setState({ user }),
       setAccessToken: (accessToken) => setState({ accessToken }),
-      setRefreshToken: (refreshToken) => setState({ refreshToken }),
       logout: () => {
-        setState({ user: null, accessToken: null, refreshToken: null })
+        setState({ user: null, accessToken: null })
         if (typeof window !== "undefined") {
           window.localStorage.removeItem("parent-auth")
           window.sessionStorage.removeItem("parent_selected_student_id")
@@ -40,7 +36,7 @@ export const useParentAuthStore = create<ParentAuthState>()(
     }),
     {
       name: "parent-auth",
-      partialize: (state) => ({ user: state.user, accessToken: state.accessToken }),
+      partialize: (state) => ({ user: state.user }),
     }
   )
 )
