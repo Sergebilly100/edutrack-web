@@ -9,6 +9,7 @@ export type TeacherListItem = {
   lastName: string
   fullName: string
   phone: string | null
+  email: string | null
   type: TeacherType
   subjects: string[]
   hourlyRate: number | null
@@ -120,6 +121,7 @@ export type TeacherUpsertPayload = {
   firstName: string
   lastName: string
   phone: string | null
+  email: string | null
   type: TeacherType
   subjects: string[]
   hourlyRate: number | null
@@ -183,6 +185,7 @@ const mapTeacher = (value: unknown): TeacherListItem => {
     lastName,
     fullName,
     phone: asNullableString(item.phone),
+    email: asNullableString(item.email),
     type: (asString(item.type) === "permanent" ? "permanent" : "vacataire") as TeacherType,
     subjects: normalizeSubjects(item.subjects ?? item.subject),
     hourlyRate:
@@ -257,6 +260,7 @@ export async function createTeacher(payload: TeacherUpsertPayload): Promise<Teac
     first_name: payload.firstName,
     last_name: payload.lastName,
     phone: payload.phone,
+    email: payload.email,
     type: payload.type,
     subjects: payload.subjects,
     hourly_rate: payload.hourlyRate,
@@ -288,6 +292,7 @@ export async function updateTeacher(
     first_name: payload.firstName,
     last_name: payload.lastName,
     phone: payload.phone,
+    email: payload.email,
     type: payload.type,
     subjects: payload.subjects,
     hourly_rate: payload.hourlyRate,
@@ -347,6 +352,49 @@ export async function softDeleteTeacher(teacherId: string): Promise<TeacherListI
   const response = await api.delete(`/teachers/${teacherId}`)
   const envelope = toRecord(response.data)
   return mapTeacher(envelope.data ?? envelope)
+}
+
+export type ResetPasswordResult = {
+  emailSent: boolean
+  email: string | null
+  plainPassword?: string
+}
+
+export async function resetTeacherPassword(teacherId: string): Promise<ResetPasswordResult> {
+  const response = await api.post(`/teachers/${teacherId}/reset-password`, {})
+  const data = toRecord(response.data)
+  return {
+    emailSent: asBoolean(data.emailSent, false),
+    email: asNullableString(data.email),
+    plainPassword: typeof data.plainPassword === "string" ? data.plainPassword : undefined,
+  }
+}
+
+export type SendCredentialsResult = {
+  sentCount: number
+  skippedNoEmailCount: number
+  failedCount: number
+  skippedNoEmail: Array<{ teacherId: string; name: string }>
+}
+
+export async function sendCredentialsToTeachers(
+  teacherIds?: string[]
+): Promise<SendCredentialsResult> {
+  const response = await api.post(
+    `/teachers/send-credentials`,
+    teacherIds && teacherIds.length > 0 ? { teacher_ids: teacherIds } : {}
+  )
+  const data = toRecord(response.data)
+  const skipped = Array.isArray(data.skippedNoEmail) ? data.skippedNoEmail : []
+  return {
+    sentCount: asNumber(data.sentCount, 0),
+    skippedNoEmailCount: asNumber(data.skippedNoEmailCount, 0),
+    failedCount: asNumber(data.failedCount, 0),
+    skippedNoEmail: skipped.map((entry) => {
+      const item = toRecord(entry)
+      return { teacherId: asString(item.teacherId), name: asString(item.name) }
+    }),
+  }
 }
 
 export async function getTeacherStats(

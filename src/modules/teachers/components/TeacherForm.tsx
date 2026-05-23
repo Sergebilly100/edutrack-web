@@ -32,6 +32,10 @@ const teacherFormSchema = z
     phone: z.string().trim().refine((value) => !value || PHONE_CI_REGEX.test(value), {
         message: "Le téléphone doit respecter le format 225XXXXXXXXXX",
       }),
+    email: z.string().trim().max(255).refine(
+      (value) => !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value),
+      { message: "Email invalide" }
+    ),
     type: z.enum(["vacataire", "permanent"]),
     subjectsRaw: z.string().trim().min(1, "Au moins une matière est requise"),
     hourlyRate: z.string().trim(),
@@ -84,6 +88,7 @@ export type TeacherFormInitialValues = {
   firstName: string
   lastName: string
   phone: string | null
+  email: string | null
   type: TeacherType
   subjects: string[]
   hourlyRate: number | null
@@ -117,6 +122,7 @@ export default function TeacherForm({
       firstName: initialValues?.firstName ?? "",
       lastName: initialValues?.lastName ?? "",
       phone: initialValues?.phone ?? "",
+      email: initialValues?.email ?? "",
       type: initialValues?.type ?? "vacataire",
       subjectsRaw: initialValues?.subjects.join(", ") ?? "",
       hourlyRate: initialValues?.hourlyRate ? String(initialValues.hourlyRate) : "",
@@ -139,6 +145,7 @@ export default function TeacherForm({
       firstName: values.firstName.trim(),
       lastName: values.lastName.trim(),
       phone: values.phone || null,
+      email: values.email ? values.email.trim() : null,
       type: values.type,
       subjects: parseSubjects(values.subjectsRaw),
       hourlyRate: values.type === "vacataire" ? Number(values.hourlyRate) : null,
@@ -196,6 +203,29 @@ export default function TeacherForm({
                 />
               </FormControl>
               <p className="text-xs text-muted-foreground">Format attendu: 225XXXXXXXXXX.</p>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Email</FormLabel>
+              <FormControl>
+                <Input
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  placeholder="prof@ecole.ci"
+                  {...field}
+                />
+              </FormControl>
+              <p className="text-xs text-muted-foreground">
+                Utilisé pour l'envoi des identifiants et la réinitialisation du mot de passe.
+              </p>
               <FormMessage />
             </FormItem>
           )}

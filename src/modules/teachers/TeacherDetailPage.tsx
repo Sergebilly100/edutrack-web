@@ -33,6 +33,7 @@ import {
   blockTeacher,
   getTeacherById,
   getTeacherMonthlyAttendance,
+  resetTeacherPassword,
   unblockTeacher,
   type TeacherUpsertPayload,
   updateTeacher,
@@ -448,6 +449,12 @@ function DocumentsPanel({ teacherId }: { teacherId: string }) {
 function InfosPanel({ teacherId }: { teacherId: string }) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const [resetResult, setResetResult] = useState<{
+    open: boolean
+    plainPassword?: string
+    email?: string | null
+    emailSent: boolean
+  }>({ open: false, emailSent: false })
 
   const teacherQuery = useQuery({
     queryKey: ["teacher", teacherId],
@@ -472,6 +479,26 @@ function InfosPanel({ teacherId }: { teacherId: string }) {
     },
   })
 
+  const resetPasswordMutation = useMutation({
+    mutationFn: () => resetTeacherPassword(teacherId),
+    onSuccess: async (data) => {
+      await queryClient.invalidateQueries({ queryKey: ["teacher", teacherId] })
+      setResetResult({
+        open: true,
+        plainPassword: data.plainPassword,
+        email: data.email,
+        emailSent: data.emailSent,
+      })
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de réinitialiser le mot de passe.",
+        variant: "destructive",
+      })
+    },
+  })
+
   if (teacherQuery.isLoading) {
     return (
       <div className="space-y-2">
@@ -486,32 +513,89 @@ function InfosPanel({ teacherId }: { teacherId: string }) {
   }
 
   const teacher = teacherQuery.data
+  const hasEmail = Boolean(teacher.email?.trim())
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Informations du professeur</CardTitle>
-      </CardHeader>
-      <CardContent>
-      <TeacherForm
-        initialValues={{
-          firstName: teacher.firstName,
-          lastName: teacher.lastName,
-          phone: teacher.phone,
-          type: teacher.type,
-          subjects: teacher.subjects,
-          hourlyRate: teacher.hourlyRate,
-          monthlySalary: teacher.monthlySalary,
-        }}
-        lockSubjects
-        isPending={updateMutation.isPending}
-        submitLabel="Enregistrer"
-        onSubmit={async (payload) => {
-          await updateMutation.mutateAsync({ teacherId, payload })
-        }}
-        />
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Informations du professeur</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TeacherForm
+            initialValues={{
+              firstName: teacher.firstName,
+              lastName: teacher.lastName,
+              phone: teacher.phone,
+              email: teacher.email,
+              type: teacher.type,
+              subjects: teacher.subjects,
+              hourlyRate: teacher.hourlyRate,
+              monthlySalary: teacher.monthlySalary,
+            }}
+            lockSubjects
+            isPending={updateMutation.isPending}
+            submitLabel="Enregistrer"
+            onSubmit={async (payload) => {
+              await updateMutation.mutateAsync({ teacherId, payload })
+            }}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Compte</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Génère un nouveau mot de passe temporaire et l'envoie {hasEmail ? `à ${teacher.email}` : "(aucun email renseigné — le mot de passe sera affiché à l'écran)"}.
+            Le professeur devra le changer à sa prochaine connexion.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={resetPasswordMutation.isPending}
+            onClick={() => resetPasswordMutation.mutate()}
+          >
+            {resetPasswordMutation.isPending ? "Réinitialisation..." : "Réinitialiser le mot de passe"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Dialog
+        open={resetResult.open}
+        onOpenChange={(open) => setResetResult((prev) => ({ ...prev, open }))}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mot de passe réinitialisé</DialogTitle>
+            <DialogDescription>
+              {resetResult.emailSent
+                ? `Les identifiants ont été envoyés à ${resetResult.email}.`
+                : "Aucun email n'a pu être envoyé. Transmettez le mot de passe ci-dessous au professeur."}
+            </DialogDescription>
+          </DialogHeader>
+          {!resetResult.emailSent && resetResult.plainPassword ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">
+              <p className="text-xs uppercase tracking-wide">Mot de passe temporaire</p>
+              <p className="mt-1 font-mono text-lg font-semibold">{resetResult.plainPassword}</p>
+              <p className="mt-2 text-xs">
+                Notez-le immédiatement — il ne sera plus affiché après fermeture.
+              </p>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              onClick={() => setResetResult((prev) => ({ ...prev, open: false }))}
+            >
+              Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }
 
@@ -707,6 +791,7 @@ export default function TeacherDetailPage() {
         id: teacher.id,
         name: teacher.fullName,
         phone: teacher.phone,
+        email: teacher.email,
         subjects: teacher.subjects,
         type: teacher.type,
         blockReason: teacher.blockReason ?? undefined,

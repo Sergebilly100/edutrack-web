@@ -38,9 +38,28 @@ import {
   type MissingEndScanSession,
   type MissingEndScanTeacher,
   type PendingValidationItem,
+  type ValidationApprovalType,
   type ValidationHistoryItem,
   type ValidationHistoryStatus,
 } from "./validations.api"
+
+type ShortHoursHistoryFilter = "all" | "planned" | "actual" | "rejected"
+type GpsHistoryFilter = "all" | "approved" | "rejected"
+
+const resolveShortHoursFilter = (
+  filter: ShortHoursHistoryFilter
+): { status?: ValidationHistoryStatus; approvalType?: ValidationApprovalType } => {
+  if (filter === "all") return {}
+  if (filter === "rejected") return { status: "rejected" }
+  return { status: "approved", approvalType: filter }
+}
+
+const resolveGpsFilter = (
+  filter: GpsHistoryFilter
+): { status?: ValidationHistoryStatus } => {
+  if (filter === "all") return {}
+  return { status: filter }
+}
 
 const formatMinutes = (minutes: number | null): string => {
   if (minutes === null) return "-"
@@ -125,7 +144,7 @@ function HistoryStatusBadge({
     if (kind === "short_hours") {
       const scheduledH = (scheduleDurationMinutes ?? 0) / 60
       const isRealHours = validatedHours !== null && validatedHours !== undefined && validatedHours < scheduledH - 0.01
-      label = isRealHours ? "Heure réel accordé" : "Heure prévue accordé"
+      label = isRealHours ? "Heure réelle accordée" : "Heure prévue accordée"
     }
     return (
       <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
@@ -137,7 +156,7 @@ function HistoryStatusBadge({
   return (
     <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
       <CircleX className="mr-1 h-3 w-3" />
-      Absent
+      {kind === "short_hours" ? "Heures refusées" : "Marqué absent"}
     </Badge>
   )
 }
@@ -190,9 +209,10 @@ export default function ValidationsPage() {
   const [endScanStatusFilter, setEndScanStatusFilter] = useState<"all" | EndScanStatus>("all")
   const endScanMonthOptions = useMemo(() => getRecentMonthOptions(getCurrentMonth(), 12), [])
 
-  // History state (shared filters for short_hours and gps_suspicious)
+  // History state (filtres communs : mois, recherche, pagination ; statut séparé par onglet)
   const [historyMonth, setHistoryMonth] = useState<string>("all_months")
-  const [historyStatus, setHistoryStatus] = useState<"all" | ValidationHistoryStatus>("all")
+  const [shortHoursFilter, setShortHoursFilter] = useState<ShortHoursHistoryFilter>("all")
+  const [gpsFilter, setGpsFilter] = useState<GpsHistoryFilter>("all")
   const [historySearch, setHistorySearch] = useState("")
   const [historyPage, setHistoryPage] = useState(1)
   const historyMonthOptions = useMemo(() => getRecentMonthOptions(getCurrentMonth(), 12), [])
@@ -321,12 +341,14 @@ export default function ValidationsPage() {
 
   const effectiveHistoryMonth = historyMonth === "all_months" ? undefined : historyMonth
 
+  const shortHoursResolved = resolveShortHoursFilter(shortHoursFilter)
   const shortHoursHistoryQuery = useQuery({
-    queryKey: ["validations", "history", "short_hours", effectiveHistoryMonth, historyStatus, historySearch, historyPage],
+    queryKey: ["validations", "history", "short_hours", effectiveHistoryMonth, shortHoursFilter, historySearch, historyPage],
     queryFn: () => fetchValidationHistory({
       kind: "short_hours",
       month: effectiveHistoryMonth,
-      status: historyStatus === "all" ? undefined : historyStatus,
+      status: shortHoursResolved.status,
+      approvalType: shortHoursResolved.approvalType,
       search: historySearch || undefined,
       page: historyPage,
       limit: HISTORY_LIMIT,
@@ -334,12 +356,13 @@ export default function ValidationsPage() {
     staleTime: 60_000,
   })
 
+  const gpsResolved = resolveGpsFilter(gpsFilter)
   const gpsHistoryQuery = useQuery({
-    queryKey: ["validations", "history", "gps_suspicious", effectiveHistoryMonth, historyStatus, historySearch, historyPage],
+    queryKey: ["validations", "history", "gps_suspicious", effectiveHistoryMonth, gpsFilter, historySearch, historyPage],
     queryFn: () => fetchValidationHistory({
       kind: "gps_suspicious",
       month: effectiveHistoryMonth,
-      status: historyStatus === "all" ? undefined : historyStatus,
+      status: gpsResolved.status,
       search: historySearch || undefined,
       page: historyPage,
       limit: HISTORY_LIMIT,
@@ -357,7 +380,7 @@ export default function ValidationsPage() {
 
   const resetHistoryPage = () => setHistoryPage(1)
 
-  const renderHistoryFilters = () => (
+  const renderHistoryFilters = (kind: "short_hours" | "gps_suspicious") => (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
       <Select value={historyMonth} onValueChange={(v) => { setHistoryMonth(v); resetHistoryPage() }}>
         <SelectTrigger className="w-full sm:w-[160px]">
@@ -370,16 +393,36 @@ export default function ValidationsPage() {
           ))}
         </SelectContent>
       </Select>
-      <Select value={historyStatus} onValueChange={(v) => { setHistoryStatus(v as typeof historyStatus); resetHistoryPage() }}>
-        <SelectTrigger className="w-full sm:w-[170px]">
-          <SelectValue placeholder="Tous les statuts" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Tous les statuts</SelectItem>
-          <SelectItem value="approved">Accordé</SelectItem>
-          <SelectItem value="rejected">Refusé (absent)</SelectItem>
-        </SelectContent>
-      </Select>
+      {kind === "short_hours" ? (
+        <Select
+          value={shortHoursFilter}
+          onValueChange={(v) => { setShortHoursFilter(v as ShortHoursHistoryFilter); resetHistoryPage() }}
+        >
+          <SelectTrigger className="w-full sm:w-[210px]">
+            <SelectValue placeholder="Tous les statuts" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les statuts</SelectItem>
+            <SelectItem value="planned">Heure prévue accordée</SelectItem>
+            <SelectItem value="actual">Heure réelle accordée</SelectItem>
+            <SelectItem value="rejected">Heures refusées</SelectItem>
+          </SelectContent>
+        </Select>
+      ) : (
+        <Select
+          value={gpsFilter}
+          onValueChange={(v) => { setGpsFilter(v as GpsHistoryFilter); resetHistoryPage() }}
+        >
+          <SelectTrigger className="w-full sm:w-[180px]">
+            <SelectValue placeholder="Tous les statuts" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les statuts</SelectItem>
+            <SelectItem value="approved">Présence validée</SelectItem>
+            <SelectItem value="rejected">Marqué absent</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
       <Input
         className="w-full sm:w-[200px]"
         placeholder="Rechercher un enseignant"
@@ -1096,7 +1139,7 @@ export default function ValidationsPage() {
                 <History className="h-4 w-4 text-muted-foreground" />
                 <h2 className="text-base font-medium">Historique des heures à valider</h2>
               </div>
-              {renderHistoryFilters()}
+              {renderHistoryFilters("short_hours")}
               {renderHistoryTable(
                 shortHoursHistoryQuery.data?.items ?? [],
                 shortHoursHistoryQuery.data?.total ?? 0,
@@ -1145,7 +1188,7 @@ export default function ValidationsPage() {
                 <History className="h-4 w-4 text-muted-foreground" />
                 <h2 className="text-base font-medium">Historique des présences suspectes</h2>
               </div>
-              {renderHistoryFilters()}
+              {renderHistoryFilters("gps_suspicious")}
               {renderHistoryTable(
                 gpsHistoryQuery.data?.items ?? [],
                 gpsHistoryQuery.data?.total ?? 0,

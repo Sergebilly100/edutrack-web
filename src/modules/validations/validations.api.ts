@@ -278,10 +278,13 @@ const normalizeHistoryItem = (value: unknown): ValidationHistoryItem => {
   }
 }
 
+export type ValidationApprovalType = "planned" | "actual"
+
 export const fetchValidationHistory = async (params: {
   kind?: ValidationKind
   month?: string
   status?: ValidationHistoryStatus
+  approvalType?: ValidationApprovalType
   search?: string
   page?: number
   limit?: number
@@ -290,6 +293,7 @@ export const fetchValidationHistory = async (params: {
   if (params.kind) query.kind = params.kind
   if (params.month) query.month = params.month
   if (params.status) query.status = params.status
+  if (params.approvalType) query.approvalType = params.approvalType
   if (params.search) query.search = params.search
   if (params.page) query.page = params.page
   if (params.limit) query.limit = params.limit

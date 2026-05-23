@@ -10,6 +10,7 @@ type TeacherProfile = {
   name: string
   username?: string
   phone?: string | null
+  email?: string | null
   subjects?: string[]
   type: "vacataire" | "permanent"
   blockReason?: string
@@ -59,6 +60,9 @@ export function TeacherProfileCard({
           </p>
           <p className="text-sm text-muted-foreground">
             {teacher.phone?.trim() || "Téléphone non renseigné"}
+          </p>
+          <p className="text-sm text-muted-foreground break-all">
+            {teacher.email?.trim() || "Email non renseigné"}
           </p>
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
             <Badge

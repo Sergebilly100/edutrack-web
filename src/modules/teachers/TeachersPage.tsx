@@ -44,6 +44,7 @@ import {
   fetchTeacherAttendanceStats,
   getTeacherCompliance,
   getTeachers,
+  sendCredentialsToTeachers,
   unblockTeacher,
   type DashboardTeacherComplianceItem,
   type TeacherListItem,
@@ -473,6 +474,30 @@ export default function TeachersPage() {
     return acc
   }, [bulkStatsQuery.data])
 
+  const sendCredentialsMutation = useMutation({
+    mutationFn: () => sendCredentialsToTeachers(),
+    onSuccess: async (data) => {
+      await queryClient.invalidateQueries({ queryKey: ["teachers"] })
+      const lines = [
+        `${data.sentCount} email(s) envoyé(s).`,
+        data.skippedNoEmailCount > 0 ? `${data.skippedNoEmailCount} prof(s) sans email ignoré(s).` : "",
+        data.failedCount > 0 ? `${data.failedCount} échec(s) d'envoi.` : "",
+      ].filter(Boolean)
+      toast({
+        title: "Envoi des identifiants",
+        description: lines.join(" "),
+        variant: data.failedCount > 0 ? "destructive" : "default",
+      })
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible d'envoyer les identifiants.",
+        variant: "destructive",
+      })
+    },
+  })
+
   const createMutation = useMutation({
     mutationFn: createTeacher,
     onSuccess: async () => {
@@ -646,10 +671,21 @@ export default function TeachersPage() {
       subtitle="Gestion des profs, blocage et export"
       actions={
         canCreateTeacher ? (
-          <Button type="button" onClick={() => setCreateOpen(true)}>
-            <AddIcon className="mr-2 h-4 w-4" />
-            Ajouter un prof
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={sendCredentialsMutation.isPending}
+              onClick={() => sendCredentialsMutation.mutate()}
+              title="Envoie un email avec un mot de passe temporaire aux profs qui n'ont jamais reçu leurs identifiants."
+            >
+              {sendCredentialsMutation.isPending ? "Envoi..." : "Envoyer les identifiants"}
+            </Button>
+            <Button type="button" onClick={() => setCreateOpen(true)}>
+              <AddIcon className="mr-2 h-4 w-4" />
+              Ajouter un prof
+            </Button>
+          </div>
         ) : null
       }
     >
