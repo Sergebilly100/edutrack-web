@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { getDashboardStats } from "../dashboard.api"
 import { formatFcfa, formatRate } from "@/shared/utils/formatting"
 import { cn } from "@/lib/utils"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 
 const QUERY_STALE_TIME = 5 * 60 * 1000 // 5 minutes
 
@@ -42,6 +43,7 @@ function StatCardSkeleton() {
 }
 
 export function DashboardStatsCards() {
+  const studentLabels = useStudentLabels()
   const { data: stats, isLoading, error } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: () => getDashboardStats(),
@@ -128,7 +130,7 @@ export function DashboardStatsCards() {
       <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
-            <p className="text-sm text-gray-500 mb-1">Présence élèves</p>
+            <p className="text-sm text-gray-500 mb-1">{`Présence ${studentLabels.pluralLower}`}</p>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>

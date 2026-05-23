@@ -13,6 +13,7 @@ import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { ContextualHelp } from "@/shared/components/ContextualHelp"
 import { CalendarClockIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { useStudentLabels, type StudentLabels } from "@/shared/hooks/useStudentLabel"
 import { useAuthStore } from "@/shared/store/auth.store"
 import ImportWizard from "./ImportWizard"
 
@@ -27,11 +28,11 @@ const formatDateTime = (value: string) =>
     minute: "2-digit",
   })
 
-const labelByType: Record<ImportType, string> = {
-  students: "Élèves",
+const buildLabelByType = (labels: StudentLabels): Record<ImportType, string> => ({
+  students: labels.plural,
   teachers: "Professeurs",
   schedule: "Emploi du temps",
-}
+})
 
 // Build a list of the last 12 months as "YYYY-MM" for the month filter
 const buildMonthOptions = (): Array<{ value: string; label: string }> => {
@@ -50,6 +51,8 @@ const MONTH_OPTIONS = buildMonthOptions()
 
 export default function ImportPage() {
   const { hasPermission } = usePermissions()
+  const studentLabels = useStudentLabels()
+  const labelByType = buildLabelByType(studentLabels)
   const user = useAuthStore((state) => state.user)
   const isDirector = user?.role === "director"
   const canImportStudents = isDirector || hasPermission("import.students")
@@ -109,7 +112,7 @@ export default function ImportPage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Import de données</h1>
         <p className="text-sm text-muted-foreground">
-          Utilisez les modèles Excel puis importez vos élèves, professeurs et emploi du temps.
+          {`Utilisez les modèles Excel puis importez vos ${studentLabels.pluralLower}, professeurs et emploi du temps.`}
         </p>
       </header>
 
@@ -121,7 +124,7 @@ export default function ImportPage() {
         />
       ) : (
         <ContextualHelp title="Import indisponible pour votre poste" tone="warning">
-          Aucun droit d&apos;import n&apos;est actif sur votre profil. Demandez au directeur d&apos;ajouter au moins un droit: élèves, professeurs ou emploi du temps.
+          {`Aucun droit d'import n'est actif sur votre profil. Demandez au directeur d'ajouter au moins un droit: ${studentLabels.pluralLower}, professeurs ou emploi du temps.`}
         </ContextualHelp>
       )}
 
@@ -159,7 +162,7 @@ export default function ImportPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tous les types</SelectItem>
-                    <SelectItem value="students">Élèves</SelectItem>
+                    <SelectItem value="students">{studentLabels.plural}</SelectItem>
                     <SelectItem value="teachers">Professeurs</SelectItem>
                     <SelectItem value="schedule">Emploi du temps</SelectItem>
                   </SelectContent>

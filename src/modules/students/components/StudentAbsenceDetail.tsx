@@ -33,6 +33,7 @@ import {
 } from "@/modules/students/students.api"
 import { EmptyState } from "@/shared/components"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 
 type StudentAbsenceDetailProps = {
   open: boolean
@@ -104,6 +105,7 @@ export default function StudentAbsenceDetail({
 }: StudentAbsenceDetailProps) {
   const queryClient = useQueryClient()
   const { hasPermission } = usePermissions()
+  const studentLabels = useStudentLabels()
   const canExcuse = hasPermission("students.excuse")
 
   const [excuseDialogId, setExcuseDialogId] = useState<string | null>(null)
@@ -185,7 +187,7 @@ export default function StudentAbsenceDetail({
             {!detailQuery.isLoading && absences.length === 0 ? (
               <EmptyState
                 title="Aucune absence"
-                message="Aucune absence trouvée pour cet élève sur la période sélectionnée."
+                message={`Aucune absence trouvée pour cet ${studentLabels.singularLower} sur la période sélectionnée.`}
               />
             ) : null}
 
@@ -272,7 +274,7 @@ export default function StudentAbsenceDetail({
           <DialogHeader>
             <DialogTitle>Excuser l&apos;absence</DialogTitle>
             <DialogDescription>
-              Saisissez le motif d&apos;excuse. Ce motif sera enregistré sur le dossier de l&apos;élève.
+              {`Saisissez le motif d'excuse. Ce motif sera enregistré sur le dossier de l'${studentLabels.singularLower}.`}
             </DialogDescription>
           </DialogHeader>
           <Textarea

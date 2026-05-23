@@ -5,6 +5,7 @@ import { NavLink, useLocation } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "@/shared/components/ThemeToggle"
+import { useStudentLabels, type StudentLabels } from "@/shared/hooks/useStudentLabel"
 import { type AuthRole, useAuthStore } from "@/shared/store/auth.store"
 
 type LayoutItem = {
@@ -14,26 +15,26 @@ type LayoutItem = {
   roles?: AuthRole[]
 }
 
-const layoutItems: LayoutItem[] = [
+const buildLayoutItems = (labels: StudentLabels): LayoutItem[] => [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/attendance", label: "Pointage", icon: CalendarDays, roles: ["teacher"] },
   { to: "/teachers", label: "Profs", icon: UserCheck, roles: ["director", "staff", "super_admin"] },
-  { to: "/students", label: "Élèves", icon: GraduationCap, roles: ["director", "staff", "super_admin"] },
+  { to: "/students", label: labels.plural, icon: GraduationCap, roles: ["director", "staff", "super_admin"] },
   { to: "/schedule", label: "EDT", icon: CalendarDays, roles: ["director", "staff", "super_admin"] },
   { to: "/imports", label: "Imports", icon: BookOpen, roles: ["director", "staff", "super_admin"] },
   { to: "/admin", label: "Admin", icon: Shield, roles: ["super_admin"] },
 ]
 
-const routeLabels: Record<string, string> = {
+const buildRouteLabels = (labels: StudentLabels): Record<string, string> => ({
   "/dashboard": "Dashboard",
   "/teachers": "Profs",
-  "/students": "Élèves",
+  "/students": labels.plural,
   "/schedule": "Emploi du temps",
   "/imports": "Imports",
   "/attendance": "Pointage",
   "/admin": "Admin",
   "/onboarding": "Onboarding",
-}
+})
 
 const navItemClassName =
   "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition hover:bg-muted"
@@ -45,7 +46,11 @@ type AppLayoutProps = {
 export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation()
   const user = useAuthStore((state) => state.user)
+  const studentLabels = useStudentLabels()
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+
+  const layoutItems = useMemo(() => buildLayoutItems(studentLabels), [studentLabels])
+  const routeLabels = useMemo(() => buildRouteLabels(studentLabels), [studentLabels])
 
   const availableItems = useMemo(() => {
     if (!user) {
@@ -59,7 +64,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
       return item.roles.includes(user.role)
     })
-  }, [user])
+  }, [user, layoutItems])
 
   const activeLabel = routeLabels[location.pathname] ?? "EduTrack"
 

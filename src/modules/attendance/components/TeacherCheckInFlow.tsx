@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
 import { useOfflineMutation } from "@/shared/hooks/useOfflineMutation"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
+import { useStudentLabels, type StudentLabels } from "@/shared/hooks/useStudentLabel"
 import { useRollCallStore } from "@/shared/store/rollCall.store"
 import { AbsentIcon, CheckIcon, PresentIcon } from "@/shared/components/icons"
 import { cn } from "@/lib/utils"
@@ -61,12 +62,12 @@ const motivationalMessages = [
   "Votre taux de conformité est visible par la direction. Gardez le cap",
 ]
 
-const motivationalByStep: Record<1 | 2 | 3 | 4, string> = {
+const buildMotivationalByStep = (labels: StudentLabels): Record<1 | 2 | 3 | 4, string> => ({
   1: "Votre ponctualité est notée par la direction. Bonne séance !",
   2: "La vérification de salle protège votre dossier. Encore une étape.",
-  3: "L'appel des élèves complète votre dossier. Vous êtes presque au bout !",
+  3: `L'appel des ${labels.pluralLower} complète votre dossier. Vous êtes presque au bout !`,
   4: motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)],
-}
+})
 
 const getGeoPosition = async (enabled: boolean) => {
   if (!enabled || !("geolocation" in navigator)) {
@@ -99,6 +100,8 @@ export const shouldMarkCheckinQrDoneOnSheetClose = ({
 }) => step === 3 && !isRollCallPending && !isReadyToFinish
 
 export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheckInFlowProps) {
+  const studentLabels = useStudentLabels()
+  const motivationalByStep = useMemo(() => buildMotivationalByStep(studentLabels), [studentLabels])
   const attendanceDate = slot.date ?? toDateKey(new Date())
 
   const rollCallStore = useRollCallStore()
@@ -375,7 +378,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
     if (unmarkedCount > 0) {
       toast({
         title: "Appel incomplet",
-        description: `${unmarkedCount} élève${unmarkedCount > 1 ? "s" : ""} non marqué${unmarkedCount > 1 ? "s" : ""}. Marquez tous les élèves avant de valider.`,
+        description: `${unmarkedCount} ${unmarkedCount > 1 ? studentLabels.pluralLower : studentLabels.singularLower} non marqué${unmarkedCount > 1 ? "s" : ""}. Marquez tous les ${studentLabels.pluralLower} avant de valider.`,
         variant: "destructive",
       })
       return
@@ -510,7 +513,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
           <SheetHeader className="space-y-1 text-left">
             <SheetTitle>
               {isRollCallPending
-                ? "Pointage des élèves"
+                ? `Pointage des ${studentLabels.pluralLower}`
                 : isReadyToFinish
                   ? "Terminer le cours"
                 : isCheckinQrDone
@@ -540,7 +543,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                       )}
                     >
                       <span className="sr-only">
-                        {item === 1 ? "Présence" : item === 2 ? "Salle" : "Appel élèves"}
+                        {item === 1 ? "Présence" : item === 2 ? "Salle" : `Appel ${studentLabels.pluralLower}`}
                       </span>
                       {completed ? <CheckIcon className="h-4 w-4" /> : item}
                     </div>
@@ -701,7 +704,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
 
               {!studentsQuery.isLoading && !studentsQuery.data?.length ? (
                 <Alert>
-                  <AlertDescription>Aucun élève trouvé pour cette classe. Vérifiez la liste des élèves avant de valider l'appel.</AlertDescription>
+                  <AlertDescription>{`Aucun ${studentLabels.singularLower} trouvé pour cette classe. Vérifiez la liste des ${studentLabels.pluralLower} avant de valider l'appel.`}</AlertDescription>
                 </Alert>
               ) : null}
 
@@ -793,7 +796,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                 {submitStudentsMutation.isPending
                   ? "Envoi en cours..."
                   : !allStudentsMarked
-                    ? `Marquer encore ${unmarkedCount} élève${unmarkedCount > 1 ? "s" : ""}`
+                    ? `Marquer encore ${unmarkedCount} ${unmarkedCount > 1 ? studentLabels.pluralLower : studentLabels.singularLower}`
                     : `Valider l'appel — ${absentCount} absent${absentCount > 1 ? "s" : ""}`}
               </Button>
             </section>
@@ -869,10 +872,10 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
       <AlertDialog open={showRollCallPrompt} onOpenChange={setShowRollCallPrompt}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Faire le pointage des élèves maintenant ?</AlertDialogTitle>
+            <AlertDialogTitle>{`Faire le pointage des ${studentLabels.pluralLower} maintenant ?`}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
-                <p>Votre présence est confirmée. Souhaitez-vous faire le pointage des élèves maintenant ou plus tard ?</p>
+                <p>{`Votre présence est confirmée. Souhaitez-vous faire le pointage des ${studentLabels.pluralLower} maintenant ou plus tard ?`}</p>
                 <p className="font-medium text-amber-700">
                   Le pointage doit être effectué avant {formatTime(slot.end_time)}.
                 </p>

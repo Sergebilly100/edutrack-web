@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
+import { useStudentLabels, type StudentLabels } from "@/shared/hooks/useStudentLabel"
 import {
   completeOnboarding,
   createScheduleSlot,
@@ -81,10 +82,10 @@ const dayOptions = [
 
 const slotOptions = ["08:00-10:00", "10:00-12:00", "14:00-16:00", "16:00-18:00"]
 
-const stepLabels: Array<{ step: OnboardingStep; label: string }> = [
+const buildStepLabels = (labels: StudentLabels): Array<{ step: OnboardingStep; label: string }> => [
   { step: 1, label: "Infos école" },
   { step: 2, label: "Profs" },
-  { step: 3, label: "Élèves" },
+  { step: 3, label: labels.plural },
   { step: 4, label: "Emploi du temps" },
   { step: 5, label: "Test live" },
 ]
@@ -123,6 +124,8 @@ function clampStep(step: number): OnboardingStep {
 export default function OnboardingWizard() {
   const navigate = useNavigate()
   const { toast } = useToast()
+  const studentLabels = useStudentLabels()
+  const stepLabels = buildStepLabels(studentLabels)
 
   const [progress, setProgress] = useState<OnboardingProgress>(() => loadProgress())
 
@@ -163,7 +166,7 @@ export default function OnboardingWizard() {
   const createStudentMutation = useMutation({
     mutationFn: createStudent,
     onSuccess: () => {
-      toast({ title: "Élève ajouté" })
+      toast({ title: `${studentLabels.singular} ajouté` })
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : "Une erreur est survenue"
@@ -460,10 +463,10 @@ export default function OnboardingWizard() {
 
         {currentStep === 3 ? (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Étape 3 — Élèves</h2>
+            <h2 className="text-lg font-semibold">{`Étape 3 — ${studentLabels.plural}`}</h2>
             <Alert>
               <AlertDescription>
-                Importez vos élèves (type students) ou ajoutez-en un manuellement. Vous pouvez passer cette étape.
+                {`Importez vos ${studentLabels.pluralLower} (type students) ou ajoutez-en un manuellement. Vous pouvez passer cette étape.`}
               </AlertDescription>
             </Alert>
 
@@ -510,7 +513,7 @@ export default function OnboardingWizard() {
                 onClick={handleManualStudentSubmit}
                 disabled={createStudentMutation.isPending}
               >
-                Ajouter l'élève
+                {`Ajouter l'${studentLabels.singularLower}`}
               </Button>
             </div>
 

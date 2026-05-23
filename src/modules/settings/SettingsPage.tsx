@@ -23,6 +23,7 @@ import {
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { ContextualHelp } from "@/shared/components/ContextualHelp"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 const smsPriceSchema = z.object({
@@ -36,6 +37,7 @@ export default function SettingsPage() {
   const { toast } = useToast()
   const user = useAuthStore((state) => state.user)
   const { hasPermission } = usePermissions()
+  const studentLabels = useStudentLabels()
   const canManagePositions = user?.role === "director" || hasPermission("settings.positions")
   const canManageSchoolSettings = user?.role === "director" || hasPermission("settings.school")
   const canAccessSmsTemplate = user?.role === "director" || hasPermission("settings.sms_templates")
@@ -291,7 +293,7 @@ export default function SettingsPage() {
                   name="smsUnitPriceFcfa"
                   render={({ field }) => (
                     <FormItem className="space-y-2">
-                      <Label htmlFor="sms-unit-price">Tarif par élève/mois (FCFA)</Label>
+                      <Label htmlFor="sms-unit-price">{`Tarif par ${studentLabels.singularLower}/mois (FCFA)`}</Label>
                       <FormControl>
                         <Input
                           id="sms-unit-price"

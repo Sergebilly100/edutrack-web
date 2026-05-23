@@ -22,6 +22,7 @@ import {
   recordCommissionPayment,
 } from "@/modules/subscriptions/subscriptions.api"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 const toMonth = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`
@@ -37,6 +38,7 @@ export default function SubscriptionRevenuePage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const { hasPermission } = usePermissions()
+  const studentLabels = useStudentLabels()
   const user = useAuthStore((state) => state.user)
 
   const [monthCursor, setMonthCursor] = useState<Date>(new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)))
@@ -189,7 +191,7 @@ export default function SubscriptionRevenuePage() {
                 <TableRow>
                   <TableHead>Parent</TableHead>
                   <TableHead>Téléphone</TableHead>
-                  <TableHead>Élèves</TableHead>
+                  <TableHead>{studentLabels.plural}</TableHead>
 	                  <TableHead>Date encaissement</TableHead>
                   <TableHead>Durée</TableHead>
                   <TableHead>Montant</TableHead>

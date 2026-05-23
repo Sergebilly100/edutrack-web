@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { BookOpen, GraduationCap, Users, Calendar } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useStudentLabels, type StudentLabels } from "@/shared/hooks/useStudentLabel"
 import type { ImportType } from "./import-export.api"
 
 type Props = {
@@ -8,7 +9,9 @@ type Props = {
   phase: "analysis" | "import"
 }
 
-const MESSAGES: Record<ImportType, Record<"analysis" | "import", string[]>> = {
+const buildMessages = (
+  labels: StudentLabels,
+): Record<ImportType, Record<"analysis" | "import", string[]>> => ({
   students: {
     analysis: [
       "Lecture du fichier en cours…",
@@ -17,7 +20,7 @@ const MESSAGES: Record<ImportType, Record<"analysis" | "import", string[]>> = {
       "Validation des contacts parents…",
     ],
     import: [
-      "Enregistrement des élèves…",
+      `Enregistrement des ${labels.pluralLower}…`,
       "Mise à jour des classes…",
       "Sauvegarde des contacts…",
       "Finalisation de l'import…",
@@ -51,7 +54,7 @@ const MESSAGES: Record<ImportType, Record<"analysis" | "import", string[]>> = {
       "Finalisation de l'import…",
     ],
   },
-}
+})
 
 const ICON_BY_TYPE: Record<ImportType, typeof GraduationCap> = {
   students: GraduationCap,
@@ -62,7 +65,11 @@ const ICON_BY_TYPE: Record<ImportType, typeof GraduationCap> = {
 const DOTS = [0, 1, 2, 3, 4]
 
 export function ImportLoadingOverlay({ importType, phase }: Props) {
-  const messages = MESSAGES[importType][phase]
+  const studentLabels = useStudentLabels()
+  const messages = useMemo(
+    () => buildMessages(studentLabels)[importType][phase],
+    [studentLabels, importType, phase],
+  )
   const [msgIndex, setMsgIndex] = useState(0)
   const [dotIndex, setDotIndex] = useState(0)
 

@@ -4,11 +4,13 @@ import { useQuery } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
 import { getSmsFeatureSettings } from "@/modules/subscriptions/subscriptions.api"
 import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
 
 export function BottomNav() {
   const userRole = useAuthStore((state) => state.user?.role)
   const permissions = useAuthStore((state) => state.permissions)
+  const studentLabels = useStudentLabels()
   const smsFeatureQuery = useQuery({
     queryKey: ["subscriptions", "feature-settings", "bottom-nav"],
     queryFn: getSmsFeatureSettings,
@@ -16,7 +18,7 @@ export function BottomNav() {
     enabled: userRole === "director" || isStaffRole(userRole),
   })
   const subscriptionsEnabled = smsFeatureQuery.data?.monetize_parent_alerts === true
-  const items = getNavItemsByRole(userRole, permissions).filter((item) => {
+  const items = getNavItemsByRole(userRole, permissions, studentLabels.plural).filter((item) => {
     if (!item.mobileVisible) {
       return false
     }

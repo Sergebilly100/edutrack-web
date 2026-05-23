@@ -29,6 +29,7 @@ import {
   listSubscriptionClasses,
   listSubscriptionClassStudents,
 } from "@/modules/subscriptions/subscriptions.api"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 
 type PaymentMethod = "cash" | "momo_mtn" | "momo_orange"
 type DurationMonths = number
@@ -96,6 +97,7 @@ export default function CreateSubscriptionModal({
   onSubmit,
   onGoToSettings,
 }: CreateSubscriptionModalProps) {
+  const studentLabels = useStudentLabels()
   const [step, setStep] = useState(1)
   const [form, setForm] = useState(emptyForm)
   const [selectedClassId, setSelectedClassId] = useState<string>("")
@@ -227,7 +229,7 @@ export default function CreateSubscriptionModal({
         <DialogHeader>
           <DialogTitle>Nouvel abonnement parent</DialogTitle>
           <DialogDescription>
-            Créez une souscription parent et rattachez les élèves en 3 étapes.
+            {`Créez une souscription parent et rattachez les ${studentLabels.pluralLower} en 3 étapes.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -244,7 +246,7 @@ export default function CreateSubscriptionModal({
             <>
               <div className="flex flex-wrap gap-2">
                 <Badge variant={step === 1 ? "default" : "secondary"}>1. Infos parent</Badge>
-                <Badge variant={step === 2 ? "default" : "secondary"}>2. Élèves & durée</Badge>
+                <Badge variant={step === 2 ? "default" : "secondary"}>{`2. ${studentLabels.plural} & durée`}</Badge>
                 <Badge variant={step === 3 ? "default" : "secondary"}>3. Paiement</Badge>
               </div>
 
@@ -297,7 +299,7 @@ export default function CreateSubscriptionModal({
                     <Alert variant="destructive">
                       <Lock className="h-4 w-4" />
                       <AlertDescription className="space-y-2">
-                        <p>Tarif SMS non configuré. Configurez d'abord le tarif par élève/mois.</p>
+                        <p>{`Tarif SMS non configuré. Configurez d'abord le tarif par ${studentLabels.singularLower}/mois.`}</p>
                         {onGoToSettings ? (
                           <Button size="sm" variant="outline" onClick={onGoToSettings}>
                             Ouvrir les paramètres
@@ -331,7 +333,7 @@ export default function CreateSubscriptionModal({
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Élèves à rattacher</Label>
+                    <Label>{`${studentLabels.plural} à rattacher`}</Label>
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
@@ -347,7 +349,7 @@ export default function CreateSubscriptionModal({
                     </div>
                     <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border border-border p-3">
                       {!selectedClassId ? (
-                        <p className="text-sm text-muted-foreground">Sélectionnez une classe pour afficher ses élèves.</p>
+                        <p className="text-sm text-muted-foreground">{`Sélectionnez une classe pour afficher ses ${studentLabels.pluralLower}.`}</p>
                       ) : null}
                       {visibleStudents.map((student) => {
                         const checked = form.student_ids.includes(student.id)
@@ -382,18 +384,18 @@ export default function CreateSubscriptionModal({
                         Charger la page suivante
                       </Button>
                     ) : null}
-                    {!studentsValid ? <p className="text-xs text-red-600">Sélectionnez au moins un élève.</p> : null}
+                    {!studentsValid ? <p className="text-xs text-red-600">{`Sélectionnez au moins un ${studentLabels.singularLower}.`}</p> : null}
                   </div>
 
                   {form.student_ids.length > 0 ? (
                     <div className="space-y-2 rounded-lg border border-border p-3">
-                      <p className="text-sm font-medium">Élèves sélectionnés ({form.student_ids.length})</p>
+                      <p className="text-sm font-medium">{`${studentLabels.plural} sélectionnés (${form.student_ids.length})`}</p>
                       <div className="flex flex-wrap gap-2">
                         {form.student_ids.map((studentId) => {
                           const student = selectedStudentMap[studentId]
                           return (
                             <Badge key={studentId} variant="secondary" className="gap-2">
-                              {student?.fullName ?? "Élève sélectionné"}
+                              {student?.fullName ?? `${studentLabels.singular} sélectionné`}
                               <Button
                                 type="button"
                                 variant="ghost"
@@ -401,7 +403,7 @@ export default function CreateSubscriptionModal({
                                 className="h-5 px-1 text-xs"
                                 onClick={() =>
                                   handleStudentToggle(
-                                    student ?? { id: studentId, fullName: "Élève", className: "", registrationNumber: null },
+                                    student ?? { id: studentId, fullName: studentLabels.singular, className: "", registrationNumber: null },
                                     false
                                   )
                                 }
@@ -434,7 +436,7 @@ export default function CreateSubscriptionModal({
                   </div>
 
                   <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
-                    {form.student_ids.length} élève(s) × {formatFcfa(smsUnitPriceFcfa ?? 0)} × {form.duration_months} mois ={" "}
+                    {form.student_ids.length} {studentLabels.pluralLower} × {formatFcfa(smsUnitPriceFcfa ?? 0)} × {form.duration_months} mois ={" "}
                     <span className="font-semibold">{formatFcfa(computedTotal)}</span>
                   </div>
                 </section>
@@ -473,7 +475,7 @@ export default function CreateSubscriptionModal({
                     <p className="font-medium">Récapitulatif</p>
                     <Separator />
                     <p>Parent: {form.full_name || "-"}</p>
-                    <p>Élèves: {form.student_ids.length}</p>
+                    <p>{`${studentLabels.plural}: ${form.student_ids.length}`}</p>
                     <p>Durée: {form.duration_months} mois</p>
                     <p>Méthode: {paymentMethodLabels[form.payment_method]}</p>
                     <p className="font-semibold">Total: {formatFcfa(computedTotal)}</p>

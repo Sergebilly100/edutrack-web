@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils"
 import { EmptyState } from "@/shared/components"
 
 import { useTeacherStats } from "@/modules/teachers/hooks/useTeacherStats"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 
 const formatHours = (value: number) => `${value.toFixed(2)}h`
 const escapeCsvCell = (value: string | number) => {
@@ -51,6 +52,7 @@ export default function TeacherAnalysisPanel() {
     handleReset,
   } = useTeacherStats()
   const location = useLocation()
+  const studentLabels = useStudentLabels()
 
   const handleExportCsv = () => {
     const headers = [
@@ -62,7 +64,7 @@ export default function TeacherAnalysisPanel() {
       "Heures prévues",
       "Retards",
       "Salle incorrecte",
-      "Pointage élèves manquant",
+      `Pointage ${studentLabels.pluralLower} manquant`,
     ]
     const rows = (statsQuery.data ?? []).map((row) =>
       [
@@ -309,7 +311,7 @@ export default function TeacherAnalysisPanel() {
                             </Badge>
                           </div>
                           <div className="flex items-center justify-between rounded-lg border px-3 py-2">
-                            <span className="inline-flex items-center gap-2 text-muted-foreground"><ListChecks className="h-4 w-4" /> Pointage élèves</span>
+                            <span className="inline-flex items-center gap-2 text-muted-foreground"><ListChecks className="h-4 w-4" /> {`Pointage ${studentLabels.pluralLower}`}</span>
                             <Badge variant="outline" role="status" className={doneOrMissing ? "border-amber-200 bg-amber-50 text-amber-700" : "border-green-200 bg-green-50 text-green-700"}>
                               {doneOrMissing ? `Manquant ${row.rollcall_missing_count}` : `Fait ${row.rollcall_done_count}/${row.total_scheduled}`}
                             </Badge>
@@ -336,7 +338,7 @@ export default function TeacherAnalysisPanel() {
                         <TableHead>Heures</TableHead>
                         <TableHead>Retards</TableHead>
                         <TableHead>Salle incorrecte</TableHead>
-                        <TableHead>Pointage élèves</TableHead>
+                        <TableHead>{`Pointage ${studentLabels.pluralLower}`}</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>

@@ -29,6 +29,7 @@ import StudentAbsenceDetail from "@/modules/students/components/StudentAbsenceDe
 import { type StudentAbsenceStat } from "@/modules/students/students.api"
 import { useStudentAbsences } from "@/modules/students/hooks/useStudentAbsences"
 import { EmptyState } from "@/shared/components"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 
 const smsConfig: Record<
   "all_sent" | "partial" | "none",
@@ -74,6 +75,7 @@ export default function StudentAbsencePanel() {
   } = useStudentAbsences()
   const navigate = useNavigate()
   const location = useLocation()
+  const studentLabels = useStudentLabels()
 
   const [selectedStudent, setSelectedStudent] = useState<StudentAbsenceStat | null>(null)
 
@@ -82,7 +84,7 @@ export default function StudentAbsencePanel() {
   const handleExportCsv = () => {
     const rows = statsQuery.data ?? []
     const headers = [
-      "Élève",
+      studentLabels.singular,
       "Classe",
       "Nb absences",
       "Taux",
@@ -350,7 +352,7 @@ export default function StudentAbsencePanel() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Élève</TableHead>
+                      <TableHead>{studentLabels.singular}</TableHead>
                       <TableHead>Absences</TableHead>
                       <TableHead>Taux d&apos;absence</TableHead>
                       <TableHead>Contact parent</TableHead>

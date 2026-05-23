@@ -28,6 +28,7 @@ import {
   listParentStudents,
 } from "@/modules/parent-portal/parent.api"
 import { currentIsoWeek, formatDateFr, formatShortDate } from "@/modules/parent-portal/parent.utils"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { monthKeyInBusinessTimezone, todayInBusinessTimezone } from "@/shared/lib/business-date"
 
 const SELECTED_STUDENT_STORAGE_KEY = "parent_selected_student_id"
@@ -91,6 +92,7 @@ const slotStatusMeta = {
 }
 
 export default function ParentDashboardPage() {
+  const studentLabels = useStudentLabels()
   const studentsQuery = useQuery({
     queryKey: ["parent", "students"],
     queryFn: listParentStudents,
@@ -381,7 +383,7 @@ export default function ParentDashboardPage() {
           </div>
           <div>
             <p className="text-sm font-semibold">Aucune absence récente</p>
-            <p className="text-xs text-muted-foreground">Aucune absence enregistrée pour cet élève sur la période.</p>
+            <p className="text-xs text-muted-foreground">{`Aucune absence enregistrée pour cet ${studentLabels.singularLower} sur la période.`}</p>
           </div>
         </div>
       )}

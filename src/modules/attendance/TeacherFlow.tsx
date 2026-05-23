@@ -24,6 +24,7 @@ import {
 } from "@/modules/attendance/attendance.api"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
 import { useOfflineMutation } from "@/shared/hooks/useOfflineMutation"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { cacheRooms, getRoomByToken } from "@/shared/utils/indexedDB"
 
 export type TeacherSchedule = {
@@ -56,6 +57,7 @@ const DEMO_STUDENTS: StudentItem[] = [
 ]
 
 export default function TeacherFlow({ schedule, demoMode = false }: TeacherFlowProps) {
+  const studentLabels = useStudentLabels()
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [lateMinutes, setLateMinutes] = useState<number | null>(null)
   const [isQrSubmitting, setIsQrSubmitting] = useState(false)
@@ -394,14 +396,14 @@ export default function TeacherFlow({ schedule, demoMode = false }: TeacherFlowP
 
           {!studentsQuery.isLoading && studentRows.length === 0 ? (
             <Alert>
-              <AlertDescription>Aucun élève trouvé pour cette classe.</AlertDescription>
+              <AlertDescription>{`Aucun ${studentLabels.singularLower} trouvé pour cette classe.`}</AlertDescription>
             </Alert>
           ) : null}
 
           {studentsQuery.isError ? (
             <Alert variant="destructive">
               <AlertDescription>
-                Impossible de charger la liste des élèves pour le moment.
+                {`Impossible de charger la liste des ${studentLabels.pluralLower} pour le moment.`}
               </AlertDescription>
             </Alert>
           ) : null}

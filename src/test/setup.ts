@@ -4,6 +4,19 @@ import { afterAll, afterEach, beforeAll, vi } from "vitest"
 
 import { server } from "@/test/msw/server"
 
+vi.mock("@/shared/hooks/useStudentLabel", () => {
+  const defaultLabels = {
+    singular: "Élève",
+    plural: "Élèves",
+    singularLower: "élève",
+    pluralLower: "élèves",
+  }
+  return {
+    useStudentLabel: () => defaultLabels.singular,
+    useStudentLabels: () => defaultLabels,
+  }
+})
+
 // Mock IndexedDB for offline tests
 const indexedDBMock = {
   open: vi.fn(() => ({

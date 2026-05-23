@@ -25,6 +25,7 @@ import { useConfirmImport, useDryRun } from "@/modules/import/import.hooks"
 import { downloadTemplate, type ImportIssue, type ImportMode, type ImportType } from "./import-export.api"
 import { DropZone } from "@/shared/components/DropZone"
 import { Spinner } from "@/shared/components/Spinner"
+import { useStudentLabels, type StudentLabels } from "@/shared/hooks/useStudentLabel"
 import { ImportLoadingOverlay } from "./ImportLoadingOverlay"
 
 type WizardStep = 1 | 2 | 3
@@ -45,11 +46,13 @@ type ImportWizardProps = {
 
 const touchFeedbackClass = "active:scale-95 transition-transform duration-100"
 
-const tabConfig: Record<ImportType, { label: string; icon: LucideIcon; description: string }> = {
+const buildTabConfig = (
+  labels: StudentLabels,
+): Record<ImportType, { label: string; icon: LucideIcon; description: string }> => ({
   students: {
-    label: "Élèves",
+    label: labels.plural,
     icon: GraduationCap,
-    description: "Importer les élèves avec classe et contacts parent",
+    description: `Importer les ${labels.pluralLower} avec classe et contacts parent`,
   },
   teachers: {
     label: "Professeurs",
@@ -61,7 +64,7 @@ const tabConfig: Record<ImportType, { label: string; icon: LucideIcon; descripti
     icon: CalendarDays,
     description: "Importer les créneaux, classes, salles et matières",
   },
-}
+})
 
 const importTypeValues: ImportType[] = ["students", "teachers", "schedule"]
 
@@ -180,6 +183,8 @@ function ImportTypeTabs({
   onTemplateDownload,
   onFileSelected,
 }: ImportTypeTabsProps) {
+  const studentLabels = useStudentLabels()
+  const tabConfig = useMemo(() => buildTabConfig(studentLabels), [studentLabels])
   return (
     <Tabs
       value={importType}
@@ -251,6 +256,8 @@ export default function ImportWizard({
   allowedImportTypes,
 }: ImportWizardProps) {
   const { toast } = useToast()
+  const studentLabels = useStudentLabels()
+  const tabConfig = useMemo(() => buildTabConfig(studentLabels), [studentLabels])
   const availableTypes = useMemo<ImportType[]>(
     () =>
       (allowedImportTypes?.length ? allowedImportTypes : importTypeValues).filter((type, index, array) => {

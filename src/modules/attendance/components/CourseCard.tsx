@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils"
 import type { ScheduleSlot, TeacherAttendance } from "@/modules/attendance/attendance.api"
 import { AbsentIcon, LateIcon, PresentIcon, RoomIcon } from "@/shared/components/icons"
 import { useRollCallStore } from "@/shared/store/rollCall.store"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 
 interface CourseCardProps {
   slot: ScheduleSlot
@@ -55,6 +56,7 @@ const getStatus = (
 }
 
 export default function CourseCard({ slot, attendance, onStartCourse }: CourseCardProps) {
+  const studentLabels = useStudentLabels()
   const now = new Date()
   const status = getStatus(slot, attendance, now)
 
@@ -150,7 +152,7 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
           {rollCallPending && rollCallStillOpen ? (
             <p className="flex items-center gap-1.5 text-xs font-medium text-amber-700">
               <span className="h-2 w-2 rounded-full bg-amber-500" />
-              Appel élèves à faire avant {formatTime(slot.end_time)}
+              {`Appel ${studentLabels.pluralLower} à faire avant ${formatTime(slot.end_time)}`}
             </p>
           ) : null}
 
@@ -258,7 +260,7 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
               data-testid={`teacher-rollcall-${slot.id}`}
               onClick={() => onStartCourse(slot)}
             >
-              Faire le pointage des élèves
+              {`Faire le pointage des ${studentLabels.pluralLower}`}
             </Button>
           ) : null}
 

@@ -2,13 +2,15 @@ import { Link } from "react-router-dom"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 export default function AdministrativeDashboardPage() {
   const user = useAuthStore((state) => state.user)
   const permissions = useAuthStore((state) => state.permissions)
+  const studentLabels = useStudentLabels()
 
-  const quickLinks = getNavItemsByRole(user?.role, permissions).filter((item) => item.href !== "/dashboard")
+  const quickLinks = getNavItemsByRole(user?.role, permissions, studentLabels.plural).filter((item) => item.href !== "/dashboard")
 
   return (
     <div className="space-y-6 animate-fade-in">

@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { addDaysIso, addMonthsIso, todayInBusinessTimezone } from "@/shared/lib/business-date"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 
 type PaymentMethod = "cash" | "momo_mtn" | "momo_orange"
 type DurationMonths = number
@@ -70,6 +71,7 @@ export default function RenewSubscriptionModal({
   isSubmitting = false,
   onSubmit,
 }: RenewSubscriptionModalProps) {
+  const studentLabels = useStudentLabels()
   const [durationMonths, setDurationMonths] = useState<DurationMonths>(1)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash")
   const [paidNow, setPaidNow] = useState(true)
@@ -111,13 +113,13 @@ export default function RenewSubscriptionModal({
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Renouveler l'abonnement</DialogTitle>
-          <DialogDescription>Renouvelez la souscription sans modifier les élèves rattachés.</DialogDescription>
+          <DialogDescription>{`Renouvelez la souscription sans modifier les ${studentLabels.pluralLower} rattachés.`}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
             <p>Parent : <span className="font-medium">{parentFullName}</span></p>
-            <p>Élèves rattachés : <span className="font-medium">{studentsCount}</span></p>
+            <p>{`${studentLabels.plural} rattachés : `}<span className="font-medium">{studentsCount}</span></p>
             <p>Expiration actuelle : <span className="font-medium">{formatDateFr(currentEndsAt)}</span></p>
           </div>
 

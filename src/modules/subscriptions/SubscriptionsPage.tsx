@@ -53,6 +53,7 @@ import {
 } from "@/modules/subscriptions/subscriptions.api"
 import { ContextualHelp, EmptyState, PageLayout } from "@/shared/components"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { todayInBusinessTimezone } from "@/shared/lib/business-date"
 
 const formatFcfa = (value: number) => `${new Intl.NumberFormat("fr-FR").format(value)} FCFA`
@@ -168,6 +169,7 @@ export default function SubscriptionsPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const { hasPermission } = usePermissions()
+  const studentLabels = useStudentLabels()
 
   const [status, setStatus] = useState<FilterStatus>("all")
   const [search, setSearch] = useState("")
@@ -389,7 +391,7 @@ export default function SubscriptionsPage() {
                   </div>
                   {latest ? <SubscriptionStatusBadge status={latest.status} ends_at={latest.ends_at} /> : <Badge variant="outline">Sans abonnement</Badge>}
                 </div>
-                <p className="text-xs text-muted-foreground">{item.students.length} élève(s)</p>
+                <p className="text-xs text-muted-foreground">{`${item.students.length} ${studentLabels.pluralLower}`}</p>
                 <SubscriptionActions
                   item={item}
                   canCreate={canCreate}
@@ -424,7 +426,7 @@ export default function SubscriptionsPage() {
             <tr>
               <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Parent</th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Date abonnement</th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Élèves</th>
+              <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">{studentLabels.plural}</th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Durée</th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Montant</th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Statut</th>
@@ -735,7 +737,7 @@ export default function SubscriptionsPage() {
                       </Alert>
                     ) : null}
                     <div>
-                      <p className="mb-2 text-sm font-medium">Élèves rattachés</p>
+                      <p className="mb-2 text-sm font-medium">{`${studentLabels.plural} rattachés`}</p>
                       <div className="space-y-2">
                         {subscription.students.map((student) => (
                           <div key={student.id} className="rounded-md border p-2 text-xs">

@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import type { StudentItem } from "@/modules/students/students.api"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 
 type AttendanceSheetProps = {
   open: boolean
@@ -28,6 +29,7 @@ export default function AttendanceSheet({
   isPending,
   onSubmit,
 }: AttendanceSheetProps) {
+  const studentLabels = useStudentLabels()
   const [absentStudentIds, setAbsentStudentIds] = useState<Set<string>>(new Set())
   const [confirmationMode, setConfirmationMode] = useState(false)
 
@@ -75,7 +77,7 @@ export default function AttendanceSheet({
         <DialogHeader>
           <DialogTitle>Faire l&apos;appel</DialogTitle>
           <DialogDescription>
-            {students.length} élèves · Créneau {scheduleLabel}
+            {students.length} {studentLabels.pluralLower} · Créneau {scheduleLabel}
           </DialogDescription>
         </DialogHeader>
 

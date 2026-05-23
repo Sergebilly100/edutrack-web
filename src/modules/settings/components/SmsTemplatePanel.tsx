@@ -12,6 +12,7 @@ import {
   resetSchoolStudentAbsenceSmsTemplate,
   updateSchoolStudentAbsenceSmsTemplate,
 } from "@/modules/settings/settings.api"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 
 const SMS_TEMPLATE_QUERY_KEY = ["settings", "sms-template", "student-absence"] as const
 
@@ -19,6 +20,7 @@ export default function SmsTemplatePanel() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const [messageTemplate, setMessageTemplate] = useState("")
+  const studentLabels = useStudentLabels()
 
   const templateQuery = useQuery({
     queryKey: SMS_TEMPLATE_QUERY_KEY,
@@ -40,7 +42,7 @@ export default function SmsTemplatePanel() {
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: SMS_TEMPLATE_QUERY_KEY })
-      toast({ title: "Template absence élève mis à jour" })
+      toast({ title: `Template absence ${studentLabels.singularLower} mis à jour` })
     },
     onError: () => {
       toast({
@@ -82,7 +84,7 @@ export default function SmsTemplatePanel() {
             <MessageSquareText className="h-3.5 w-3.5 text-muted-foreground" />
           </div>
           <div>
-            <p className="text-sm font-medium">Template SMS absence élève</p>
+            <p className="text-sm font-medium">{`Template SMS absence ${studentLabels.singularLower}`}</p>
             <p className="text-xs text-muted-foreground">
               Visible/modifiable selon autorisation du super admin.
             </p>
@@ -101,7 +103,7 @@ export default function SmsTemplatePanel() {
 
         <Card className="border-border shadow-none">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Absence élève vers parent</CardTitle>
+            <CardTitle className="text-sm">{`Absence ${studentLabels.singularLower} vers parent`}</CardTitle>
             <CardDescription>
               Source active: {sourceLabel}
             </CardDescription>

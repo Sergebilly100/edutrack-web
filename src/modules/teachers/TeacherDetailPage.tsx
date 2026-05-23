@@ -48,6 +48,7 @@ import {
 } from "@/shared/components"
 import { BackIcon, WarningIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { getCurrentMonth, formatMonthLabel } from "@/shared/utils/month"
 import { computeAbsenceHours, computeRemainingHours, toDisplayedStatus, toSortableTime } from "@/shared/utils/salary-helpers"
 
@@ -195,6 +196,7 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
   const [page, setPage] = useState(1)
   const pageSize = 12
   const monthOptions = useMemo(() => getRecentMonthOptionsWithLabels(18), [])
+  const studentLabels = useStudentLabels()
 
   const monthlyQuery = useQuery({
     queryKey: ["teacher", teacherId, "monthly-attendance", month],
@@ -331,7 +333,7 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
                     <TableHead>Entrée en salle</TableHead>
                     <TableHead>Sortie de salle</TableHead>
                     <TableHead>Salle</TableHead>
-                    <TableHead>Pointage élèves</TableHead>
+                    <TableHead>{`Pointage ${studentLabels.pluralLower}`}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

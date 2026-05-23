@@ -30,7 +30,7 @@ import { excuseAbsence, getStudentById, retrySmsNotification, updateStudent } fr
 import { DocumentList, DocumentUpload, PageLayout, PresenceDonut, StatCard } from "@/shared/components"
 import { BackIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
-import { useStudentLabel } from "@/shared/hooks/useStudentLabel"
+import { useStudentLabel, useStudentLabels } from "@/shared/hooks/useStudentLabel"
 
 const initials = (firstName: string, lastName: string) =>
   `${lastName?.[0] ?? ""}${firstName?.[0] ?? ""}`.toUpperCase()
@@ -70,6 +70,7 @@ export default function StudentDetailPage() {
   const { toast } = useToast()
   const { studentId = "" } = useParams<{ studentId: string }>()
   const studentLabel = useStudentLabel()
+  const studentLabels = useStudentLabels()
   const { hasPermission } = usePermissions()
   const canManageStudentDocuments = hasPermission("students.documents")
 
@@ -234,7 +235,7 @@ export default function StudentDetailPage() {
     return (
       <div className="p-4 md:p-6">
         <Alert variant="destructive">
-          <AlertDescription>Identifiant élève manquant.</AlertDescription>
+          <AlertDescription>{`Identifiant ${studentLabels.singularLower} manquant.`}</AlertDescription>
         </Alert>
       </div>
     )
@@ -253,7 +254,7 @@ export default function StudentDetailPage() {
     return (
       <div className="p-4 md:p-6">
         <Alert variant="destructive">
-          <AlertDescription>Élève introuvable.</AlertDescription>
+          <AlertDescription>{`${studentLabels.singular} introuvable.`}</AlertDescription>
         </Alert>
       </div>
     )
@@ -603,7 +604,7 @@ export default function StudentDetailPage() {
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
                 rows={6}
-                placeholder="Ajouter une note sur cet élève..."
+                placeholder={`Ajouter une note sur cet ${studentLabels.singularLower}...`}
                 className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
               <p className="text-xs text-muted-foreground">
@@ -644,7 +645,7 @@ export default function StudentDetailPage() {
             </CardHeader>
             <CardContent>
               {student.parentSms.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Aucun SMS trouvé pour cet élève.</p>
+                <p className="text-sm text-muted-foreground">{`Aucun SMS trouvé pour cet ${studentLabels.singularLower}.`}</p>
               ) : (
                 <div className="space-y-3">
                 <div className="mb-3 flex flex-wrap gap-2">
@@ -704,7 +705,7 @@ export default function StudentDetailPage() {
           <DialogHeader>
             <DialogTitle>Excuser l&apos;absence</DialogTitle>
             <DialogDescription>
-              Saisissez le motif d&apos;excuse. Il sera enregistré sur le dossier de l&apos;élève.
+              {`Saisissez le motif d'excuse. Il sera enregistré sur le dossier de l'${studentLabels.singularLower}.`}
             </DialogDescription>
           </DialogHeader>
           <Textarea

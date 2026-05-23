@@ -204,9 +204,19 @@ const hasPermissions = (
   return true
 }
 
+const withStudentLabel = (items: NavItem[], studentPluralLabel: string | undefined): NavItem[] => {
+  if (!studentPluralLabel) {
+    return items
+  }
+  return items.map((item) =>
+    item.href === "/students" ? { ...item, label: studentPluralLabel } : item,
+  )
+}
+
 export function getNavItemsByRole(
   role: AuthRole | undefined,
-  permissions: PermissionKey[] = []
+  permissions: PermissionKey[] = [],
+  studentPluralLabel?: string,
 ): NavItem[] {
   if (!role) {
     return []
@@ -214,13 +224,16 @@ export function getNavItemsByRole(
 
   const roleItems = NAV_ITEMS.filter((item) => item.roles.includes(role))
   if (role === "director" || role === "super_admin" || role === "teacher") {
-    return roleItems
+    return withStudentLabel(roleItems, studentPluralLabel)
   }
 
   if (!isStaffRole(role)) {
-    return roleItems
+    return withStudentLabel(roleItems, studentPluralLabel)
   }
 
   const permissionsSet = new Set<PermissionKey>(permissions)
-  return roleItems.filter((item) => hasPermissions(item, permissionsSet))
+  return withStudentLabel(
+    roleItems.filter((item) => hasPermissions(item, permissionsSet)),
+    studentPluralLabel,
+  )
 }

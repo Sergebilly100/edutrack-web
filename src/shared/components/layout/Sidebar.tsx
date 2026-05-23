@@ -31,6 +31,7 @@ import { getPendingValidationCount } from "@/modules/validations/validations.api
 import { NotificationButton } from "@/shared/components/layout/NotificationButton"
 import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
 import { useTheme } from "@/shared/hooks/useTheme"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { getUserRoleLabel } from "@/shared/lib/user-role-label"
 import { isStaffRole } from "@/shared/store/auth.store"
 import { useAuthStore } from "@/shared/store/auth.store"
@@ -98,6 +99,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
   const togglePinned = useSidebarStore((state) => state.togglePinned)
   const pinned = useSidebarStore((state) => state.pinned)
   const { theme, setTheme, resolvedTheme } = useTheme()
+  const studentLabels = useStudentLabels()
 
   const role = user?.role
   const smsFeatureQuery = useQuery({
@@ -114,7 +116,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
     refetchInterval: 5 * 60_000,
     enabled: role === "director" || isStaffRole(role),
   })
-  const visibleItems = getNavItemsByRole(role, permissions).filter((item) => {
+  const visibleItems = getNavItemsByRole(role, permissions, studentLabels.plural).filter((item) => {
     if (item.href === "/subscriptions" || item.href === "/subscriptions/revenue") {
       return subscriptionsEnabled
     }

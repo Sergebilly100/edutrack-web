@@ -13,8 +13,9 @@ import {
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 import { getSchoolSmsFeatureSettings } from "@/modules/settings/settings.api"
+import { useStudentLabels, type StudentLabels } from "@/shared/hooks/useStudentLabel"
 
-const BASE_PERMISSION_COLUMNS = [
+const buildBasePermissionColumns = (labels: StudentLabels) => [
   {
     key: "teachers",
     label: "Profs",
@@ -22,7 +23,7 @@ const BASE_PERMISSION_COLUMNS = [
   },
   {
     key: "students",
-    label: "Élèves",
+    label: labels.plural,
     permissions: ["students.view", "students.create", "students.edit", "students.documents", "students.excuse"],
   },
   {
@@ -50,9 +51,9 @@ const BASE_PERMISSION_COLUMNS = [
     label: "Import",
     permissions: ["import.students", "import.teachers", "import.schedule"],
   },
-] as const
+]
 
-const BASE_PERMISSION_ROWS = [
+const buildBasePermissionRows = (labels: StudentLabels) => [
   { key: "view", label: "Voir" },
   { key: "create", label: "Créer" },
   { key: "edit", label: "Modifier" },
@@ -65,10 +66,10 @@ const BASE_PERMISSION_ROWS = [
   { key: "export", label: "Exporter" },
   { key: "approve", label: "Valider une présence" },
   { key: "reject", label: "Refuser une présence" },
-  { key: "students", label: "Importer élèves" },
+  { key: "students", label: `Importer ${labels.pluralLower}` },
   { key: "teachers", label: "Importer profs" },
   { key: "schedule", label: "Importer EDT" },
-] as const
+]
 
 const SMS_PERMISSION_COLUMN = {
   key: "settings",
@@ -96,10 +97,11 @@ const SUBSCRIPTIONS_PERMISSION_ROWS = [
   { key: "subscriptions_revenue", label: "Voir les revenus et commissions" },
 ] as const
 
-type PermissionColumn =
-  | (typeof BASE_PERMISSION_COLUMNS)[number]
-  | typeof SMS_PERMISSION_COLUMN
-  | typeof SUBSCRIPTIONS_PERMISSION_COLUMN
+type PermissionColumn = {
+  key: string
+  label: string
+  permissions: readonly string[]
+}
 type PermissionRow = {
   key: string
   label: string
@@ -219,10 +221,11 @@ export default function RoleMatrix({
     queryFn: getSchoolSmsFeatureSettings,
   })
   const isSubscriptionsCategoryEnabled = smsFeatureQuery.data?.monetize_parent_alerts === true
+  const studentLabels = useStudentLabels()
 
-  const permissionColumns = useMemo(
+  const permissionColumns = useMemo<PermissionColumn[]>(
     () => {
-      const columns: Array<PermissionColumn | typeof SUBSCRIPTIONS_PERMISSION_COLUMN> = [...BASE_PERMISSION_COLUMNS]
+      const columns: PermissionColumn[] = [...buildBasePermissionColumns(studentLabels)]
 
       if (isSubscriptionsCategoryEnabled) {
         columns.push(SUBSCRIPTIONS_PERMISSION_COLUMN)
@@ -233,11 +236,11 @@ export default function RoleMatrix({
 
       return columns
     },
-    [canManageSmsTemplates, isSubscriptionsCategoryEnabled]
+    [canManageSmsTemplates, isSubscriptionsCategoryEnabled, studentLabels]
   )
   const permissionRows = useMemo(
     () => {
-      const rows: PermissionRow[] = [...BASE_PERMISSION_ROWS]
+      const rows: PermissionRow[] = [...buildBasePermissionRows(studentLabels)]
 
       if (isSubscriptionsCategoryEnabled) {
         rows.push(...SUBSCRIPTIONS_PERMISSION_ROWS)
@@ -248,7 +251,7 @@ export default function RoleMatrix({
 
       return rows
     },
-    [canManageSmsTemplates, isSubscriptionsCategoryEnabled]
+    [canManageSmsTemplates, isSubscriptionsCategoryEnabled, studentLabels]
   )
   const permissionSet = useMemo(() => new Set(position.permissions), [position.permissions])
 

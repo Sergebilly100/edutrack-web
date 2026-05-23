@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/shared/components"
 import { getParentAbsences, listParentStudents } from "@/modules/parent-portal/parent.api"
 import { currentIsoMonth, formatDateFr, monthLabelFr } from "@/modules/parent-portal/parent.utils"
+import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 
 const SELECTED_STUDENT_STORAGE_KEY = "parent_selected_student_id"
 
@@ -22,6 +23,7 @@ const lastMonths = (count: number): string[] => {
 }
 
 export default function ParentAbsenceHistoryPage() {
+  const studentLabels = useStudentLabels()
   const studentsQuery = useQuery({
     queryKey: ["parent", "students", "history"],
     queryFn: listParentStudents,
@@ -58,7 +60,7 @@ export default function ParentAbsenceHistoryPage() {
     <div className="space-y-4 text-base">
       <div className="space-y-2">
         <h1 className="text-xl font-semibold">
-          Historique des absences - {selectedStudent?.first_name ?? "Élève"}
+          Historique des absences - {selectedStudent?.first_name ?? studentLabels.singular}
         </h1>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -70,7 +72,7 @@ export default function ParentAbsenceHistoryPage() {
             }}
           >
             <SelectTrigger className="h-12 text-base">
-              <SelectValue placeholder="Sélectionnez un élève" />
+              <SelectValue placeholder={`Sélectionnez un ${studentLabels.singularLower}`} />
             </SelectTrigger>
             <SelectContent>
               {(studentsQuery.data ?? []).map((student) => (
