@@ -53,18 +53,28 @@ export function OfflineQueueBadge() {
   const handleSyncNow = async () => {
     setSyncing(true)
     try {
+      const queuedBeforeSync = useOfflineStore.getState().queue.length
       const count = await syncOfflineQueue()
+      const remainingCount = useOfflineStore.getState().queue.length
       toast({
         title:
           count > 0
             ? `${count} action${count > 1 ? "s" : ""} synchronisée${count > 1 ? "s" : ""}`
-            : "Aucune action synchronisée",
+            : remainingCount > 0
+              ? "Synchronisation incomplète"
+              : "Aucune action à synchroniser",
         description:
           count > 0
-            ? undefined
-            : "Réessayez une fois la connexion stabilisée.",
+            ? remainingCount > 0
+              ? `${remainingCount} action${remainingCount > 1 ? "s restent" : " reste"} en attente. Réessayez après stabilisation de la connexion.`
+              : undefined
+            : remainingCount > 0
+              ? `${remainingCount} action${remainingCount > 1 ? "s n'ont" : " n'a"} pas pu être envoyée${remainingCount > 1 ? "s" : ""}.`
+              : queuedBeforeSync > 0
+                ? "La liste d'attente est déjà vide."
+                : undefined,
       })
-      if (count === queue.length) {
+      if (remainingCount === 0) {
         setOpen(false)
       }
     } finally {

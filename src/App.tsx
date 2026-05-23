@@ -305,7 +305,10 @@ function PermissionRoute({ href, element }: { href: string; element: ReactElemen
       if (subscriptionFeatureQuery.isLoading) {
         return <SessionLoader />
       }
-      if (subscriptionFeatureQuery.data?.monetize_parent_alerts !== true) {
+      if (
+        subscriptionFeatureQuery.isSuccess &&
+        subscriptionFeatureQuery.data?.monetize_parent_alerts !== true
+      ) {
         const fallback = allowed.find((item) => item.href !== "/subscriptions" && item.href !== "/subscriptions/revenue")?.href
         return <Navigate to={fallback ?? "/dashboard"} replace />
       }

@@ -94,6 +94,66 @@ type AuthState = {
   logout: () => void
 }
 
+const AUTH_SNAPSHOT_KEY = "edutrack-auth-snapshot-v1"
+const AUTH_SNAPSHOT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+
+type AuthSnapshot = {
+  version: 1
+  savedAt: number
+  user: AuthUser
+  tenant: AuthTenant | null
+  permissions: PermissionKey[]
+}
+
+const isBrowser = typeof window !== "undefined"
+
+export function readAuthSnapshot(): AuthSnapshot | null {
+  if (!isBrowser) return null
+
+  try {
+    const raw = window.localStorage.getItem(AUTH_SNAPSHOT_KEY)
+    if (!raw) return null
+
+    const snapshot = JSON.parse(raw) as AuthSnapshot
+    if (
+      snapshot.version !== 1 ||
+      !snapshot.user ||
+      Date.now() - snapshot.savedAt > AUTH_SNAPSHOT_MAX_AGE_MS
+    ) {
+      window.localStorage.removeItem(AUTH_SNAPSHOT_KEY)
+      return null
+    }
+
+    return snapshot
+  } catch {
+    window.localStorage.removeItem(AUTH_SNAPSHOT_KEY)
+    return null
+  }
+}
+
+const writeAuthSnapshot = (state: Pick<AuthState, "user" | "tenant" | "permissions">) => {
+  if (!isBrowser) return
+
+  if (!state.user) {
+    window.localStorage.removeItem(AUTH_SNAPSHOT_KEY)
+    return
+  }
+
+  const snapshot: AuthSnapshot = {
+    version: 1,
+    savedAt: Date.now(),
+    user: state.user,
+    tenant: state.tenant,
+    permissions: state.permissions,
+  }
+
+  try {
+    window.localStorage.setItem(AUTH_SNAPSHOT_KEY, JSON.stringify(snapshot))
+  } catch {
+    // Le snapshot améliore le mode offline, mais ne doit jamais bloquer l'app.
+  }
+}
+
 export const useAuthStore = create<AuthState>()((setState) => ({
   user: null,
   tenant: null,
@@ -101,12 +161,27 @@ export const useAuthStore = create<AuthState>()((setState) => ({
   accessToken: null,
   refreshToken: null,
   isSessionRestored: false,
-  setUser: (user) => setState({ user }),
-  setTenant: (tenant) => setState({ tenant }),
+  setUser: (user) =>
+    setState((state) => {
+      const next = { ...state, user }
+      writeAuthSnapshot(next)
+      return { user }
+    }),
+  setTenant: (tenant) =>
+    setState((state) => {
+      const next = { ...state, tenant }
+      writeAuthSnapshot(next)
+      return { tenant }
+    }),
   setAccessToken: (accessToken) => setState({ accessToken }),
   setRefreshToken: (refreshToken) => setState({ refreshToken }),
   setSessionRestored: () => setState({ isSessionRestored: true }),
-  setPermissions: (permissions) => setState({ permissions }),
+  setPermissions: (permissions) =>
+    setState((state) => {
+      const next = { ...state, permissions }
+      writeAuthSnapshot(next)
+      return { permissions }
+    }),
   logout: () =>
     setState(() => {
       clearDashboardDismissedNotifications()
@@ -115,6 +190,9 @@ export const useAuthStore = create<AuthState>()((setState) => ({
       // différent, permissions différentes, et l'action n'a pas de
       // sens hors du contexte de la session prof).
       useOfflineStore.getState().clearQueue()
+      if (isBrowser) {
+        window.localStorage.removeItem(AUTH_SNAPSHOT_KEY)
+      }
       return { user: null, tenant: null, permissions: [], accessToken: null, refreshToken: null }
     }),
 }))

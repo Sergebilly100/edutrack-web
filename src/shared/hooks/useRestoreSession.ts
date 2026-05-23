@@ -3,7 +3,7 @@ import axios from "axios"
 
 import { useParentAuthStore } from "@/modules/parent-portal/parent-auth.store"
 import { usePermissions } from "@/shared/hooks/usePermissions"
-import { useAuthStore } from "@/shared/store/auth.store"
+import { readAuthSnapshot, useAuthStore } from "@/shared/store/auth.store"
 import type { AuthTenant, AuthUser } from "@/shared/store/auth.store"
 
 type RefreshResponse = {
@@ -57,6 +57,14 @@ const decodeJwtPayload = (token: string): JwtPayloadPartial => {
   } catch {
     return {}
   }
+}
+
+const isNetworkUnavailable = (error: unknown): boolean => {
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    return true
+  }
+
+  return axios.isAxiosError(error) && !error.response
 }
 
 /**
@@ -154,12 +162,21 @@ export function useRestoreSession(): void {
         })
         setTenant(tenant ?? null)
         await refreshPermissions()
-      } catch {
-        // Cookie absent, expiré ou révoqué → session invalide, comportement normal.
-        // La redirection vers /login est gérée par App.tsx (RoleRedirect)
-        // une fois isSessionRestored = true.
-        setPermissions([])
-        setParentUser(null)
+      } catch (error) {
+        const snapshot = isNetworkUnavailable(error) ? readAuthSnapshot() : null
+
+        if (snapshot) {
+          setUser(snapshot.user)
+          setTenant(snapshot.tenant)
+          setPermissions(snapshot.permissions)
+          setParentUser(null)
+        } else {
+          // Cookie absent, expiré ou révoqué → session invalide, comportement normal.
+          // La redirection vers /login est gérée par App.tsx (RoleRedirect)
+          // une fois isSessionRestored = true.
+          setPermissions([])
+          setParentUser(null)
+        }
       } finally {
         setSessionRestored()
       }

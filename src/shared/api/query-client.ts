@@ -1,24 +1,14 @@
 import { QueryClient } from "@tanstack/react-query"
 import type { QueryKey } from "@tanstack/react-query"
+import { del, get, set } from "idb-keyval"
 
 const QUERY_CACHE_STORAGE_KEY = "edutrack-query-cache-v1"
 const QUERY_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000
 const QUERY_CACHE_SAVE_DEBOUNCE_MS = 750
-const PERSISTED_QUERY_PREFIXES = new Set([
-  "attendance",
-  "attendance-policy",
-  "dashboard",
-  "rooms",
-  "salaries",
-  "schedule",
-  "school",
-  "students",
-  "teacher",
-  "teacher-attendance",
-  "teacher-compliance",
-  "teacher-schedule",
-  "teachers",
-  "validations",
+const NON_PERSISTED_QUERY_PREFIXES = new Set([
+  "auth",
+  "admin",
+  "parent-auth",
 ])
 
 type PersistedQuery = {
@@ -37,7 +27,15 @@ const isBrowser = typeof window !== "undefined"
 
 const shouldPersistQuery = (queryKey: QueryKey): boolean => {
   const [prefix] = queryKey
-  return typeof prefix === "string" && PERSISTED_QUERY_PREFIXES.has(prefix)
+  return typeof prefix === "string" && !NON_PERSISTED_QUERY_PREFIXES.has(prefix)
+}
+
+const removePersistedQueryCache = async (): Promise<void> => {
+  try {
+    await del(QUERY_CACHE_STORAGE_KEY)
+  } catch {
+    // Un stockage IndexedDB indisponible ne doit pas empêcher le rendu de l'app.
+  }
 }
 
 export const queryClient = new QueryClient({
@@ -57,16 +55,15 @@ export const queryClient = new QueryClient({
   },
 })
 
-function restoreQueryCache(): void {
+export async function restoreQueryCache(): Promise<void> {
   if (!isBrowser) return
 
   try {
-    const raw = window.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)
-    if (!raw) return
+    const cache = await get<PersistedQueryCache>(QUERY_CACHE_STORAGE_KEY)
+    if (!cache) return
 
-    const cache = JSON.parse(raw) as PersistedQueryCache
     if (cache.version !== 1 || Date.now() - cache.savedAt > QUERY_CACHE_MAX_AGE_MS) {
-      window.localStorage.removeItem(QUERY_CACHE_STORAGE_KEY)
+      await removePersistedQueryCache()
       return
     }
 
@@ -75,11 +72,11 @@ function restoreQueryCache(): void {
       queryClient.setQueryData(query.queryKey, query.data, { updatedAt: query.updatedAt })
     }
   } catch {
-    window.localStorage.removeItem(QUERY_CACHE_STORAGE_KEY)
+    await removePersistedQueryCache()
   }
 }
 
-function persistQueryCache(): void {
+async function persistQueryCache(): Promise<void> {
   if (!isBrowser) return
 
   const queries = queryClient
@@ -95,10 +92,7 @@ function persistQueryCache(): void {
     }))
 
   try {
-    window.localStorage.setItem(
-      QUERY_CACHE_STORAGE_KEY,
-      JSON.stringify({ version: 1, savedAt: Date.now(), queries })
-    )
+    await set(QUERY_CACHE_STORAGE_KEY, { version: 1, savedAt: Date.now(), queries })
   } catch {
     // Quota dépassé : on garde le cache mémoire et on évite de casser l'app.
   }
@@ -114,10 +108,10 @@ function installQueryCachePersistence(): void {
     }
     saveTimer = window.setTimeout(() => {
       saveTimer = null
-      persistQueryCache()
+      void persistQueryCache()
     }, QUERY_CACHE_SAVE_DEBOUNCE_MS)
   })
 }
 
-restoreQueryCache()
+export const queryCacheRestorePromise = restoreQueryCache()
 installQueryCachePersistence()

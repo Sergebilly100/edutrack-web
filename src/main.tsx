@@ -6,7 +6,7 @@ import { registerSW } from "virtual:pwa-register"
 import "@fontsource-variable/inter"
 import { Toaster } from "@/components/ui/toaster"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { queryClient } from "@/shared/api/query-client"
+import { queryCacheRestorePromise, queryClient } from "@/shared/api/query-client"
 import { ThemeProvider } from "@/shared/providers/ThemeProvider"
 import { installOfflineProcessors } from "@/shared/store/offline-processors"
 import App from "./App"
@@ -18,17 +18,19 @@ registerSW({ immediate: true })
 // Doit s'exécuter avant le premier sync (useAutoSync dans App).
 installOfflineProcessors()
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <ThemeProvider>
-      <TooltipProvider delayDuration={0}>
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <QueryClientProvider client={queryClient}>
-            <App />
-            <Toaster />
-          </QueryClientProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </ThemeProvider>
-  </React.StrictMode>
-)
+void queryCacheRestorePromise.finally(() => {
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <ThemeProvider>
+        <TooltipProvider delayDuration={0}>
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <QueryClientProvider client={queryClient}>
+              <App />
+              <Toaster />
+            </QueryClientProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+      </ThemeProvider>
+    </React.StrictMode>
+  )
+})
