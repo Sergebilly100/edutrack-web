@@ -1,4 +1,5 @@
 export { OfflineIndicator } from "./OfflineIndicator"
+export { OfflineQueueBadge } from "./OfflineQueueBadge"
 export { Spinner } from "./Spinner"
 export { EmptyState, emptyStateIcons } from "./EmptyState"
 export { DataTable, DataTablePagination, DataTableSkeleton, DataTableToolbar } from "./DataTable"

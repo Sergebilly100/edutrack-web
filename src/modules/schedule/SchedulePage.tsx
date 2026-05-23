@@ -50,6 +50,16 @@ import {
   ListIcon,
   ScheduleIcon,
 } from "@/shared/components/icons"
+import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
+import {
+  OfflineMutationQueuedError,
+  useOfflineMutation,
+} from "@/shared/hooks/useOfflineMutation"
+import {
+  OFFLINE_QUEUE_KEYS,
+  type ScheduleDeleteFromDateOfflinePayload,
+  type ScheduleUpdateOfflinePayload,
+} from "@/shared/store/offline-processors"
 import { useAuthStore } from "@/shared/store/auth.store"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 
@@ -388,6 +398,30 @@ export default function SchedulePage() {
     openEditModal(selectedSchedule)
   }
 
+  const { isOnline } = useNetworkStatus()
+
+  // Branche offline-only pour les MAJ : l'optimistic update reste géré par
+  // upsertMutation.onMutate ci-dessous. On enregistre juste un processor qui
+  // rejouera la requête à la reconnexion (registry global, voir
+  // offline-processors.ts). Le create reste online-only : l'id serveur est
+  // attribué à la création — on ne peut pas le rejouer en aveugle.
+  const offlineUpdateMutation = useOfflineMutation<
+    { id: string },
+    ScheduleUpdateOfflinePayload
+  >(
+    ({ scheduleId, payload }) => updateScheduleSlot(scheduleId, payload),
+    { queueKey: OFFLINE_QUEUE_KEYS.scheduleUpdate }
+  )
+
+  const offlineDeleteMutation = useOfflineMutation<
+    void,
+    ScheduleDeleteFromDateOfflinePayload
+  >(
+    ({ scheduleId, effectiveFrom, deleteScope }) =>
+      deleteScheduleSlotFromDate(scheduleId, effectiveFrom, deleteScope),
+    { queueKey: OFFLINE_QUEUE_KEYS.scheduleDeleteFromDate }
+  )
+
   const upsertMutation = useMutation({
     mutationFn: async (values: { id?: string; payload: ScheduleCreatePayload }) => {
       if (values.id) return updateScheduleSlot(values.id, values.payload)
@@ -516,7 +550,93 @@ export default function SchedulePage() {
       payload.updateScope = editScope
     }
 
+    // Offline + update : mise en queue. L'optimistic update de upsertMutation
+    // n'est pas déclenché (on appelle offlineUpdateMutation), donc on applique
+    // manuellement la même mise à jour locale avant de queue-er.
+    if (!isOnline && editingSchedule?.id) {
+      const previous = queryClient.getQueryData<WeeklyScheduleData>(weeklyQueryKey)
+      if (previous) {
+        const optimisticSchedule = createOptimisticSchedule(
+          editingSchedule.id,
+          payload,
+          previous
+        )
+        if (optimisticSchedule) {
+          queryClient.setQueryData<WeeklyScheduleData>(weeklyQueryKey, {
+            ...previous,
+            schedules: previous.schedules.map((s) =>
+              s.id === editingSchedule.id ? optimisticSchedule : s
+            ),
+          })
+        }
+      }
+
+      try {
+        await offlineUpdateMutation.mutateAsync({
+          scheduleId: editingSchedule.id,
+          payload,
+        })
+      } catch (error) {
+        if (error instanceof OfflineMutationQueuedError) {
+          toast({
+            title: "Modification en attente",
+            description: "Le créneau sera mis à jour côté serveur dès le retour du réseau.",
+          })
+          setFormOpen(false)
+          setEditingSchedule(null)
+          setEditScope(null)
+          return
+        }
+        // Hors offline, l'erreur est inattendue : ne devrait pas se produire
+        // puisque useOfflineMutation rejette uniquement OfflineMutationQueuedError
+        // en mode offline et délègue au mutationFn online sinon.
+        throw error
+      }
+      return
+    }
+
     await upsertMutation.mutateAsync({ id: editingSchedule?.id, payload })
+  }
+
+  // Wrapper offline-aware autour de deleteMutation. Le optimistic update
+  // (suppression locale du créneau) est appliqué manuellement avant la mise
+  // en queue puisque deleteMutation.onMutate n'est pas déclenché en offline.
+  const runDelete = async (values: {
+    id: string
+    effectiveFrom: string
+    deleteScope?: "this" | "this_and_following"
+  }) => {
+    if (!isOnline) {
+      const previous = queryClient.getQueryData<WeeklyScheduleData>(weeklyQueryKey)
+      if (previous) {
+        queryClient.setQueryData<WeeklyScheduleData>(weeklyQueryKey, {
+          ...previous,
+          schedules: previous.schedules.filter((s) => s.id !== values.id),
+        })
+      }
+
+      try {
+        await offlineDeleteMutation.mutateAsync({
+          scheduleId: values.id,
+          effectiveFrom: values.effectiveFrom,
+          deleteScope: values.deleteScope,
+        })
+      } catch (error) {
+        if (error instanceof OfflineMutationQueuedError) {
+          toast({
+            title: "Suppression en attente",
+            description: "Le créneau sera supprimé côté serveur dès le retour du réseau.",
+          })
+          setDetailOpen(false)
+          setSelectedSchedule(null)
+          return
+        }
+        throw error
+      }
+      return
+    }
+
+    await deleteMutation.mutateAsync(values)
   }
 
   if (!user) return <Navigate to="/" replace />
@@ -962,7 +1082,7 @@ export default function SchedulePage() {
                     return
                   }
                   const effectiveFrom = occurrenceDateFromWeek(selectedWeekMonday, selectedSchedule.dayOfWeek)
-                  void deleteMutation.mutateAsync({
+                  void runDelete({
                     id: selectedSchedule.id,
                     effectiveFrom,
                     deleteScope: "this",
@@ -997,7 +1117,7 @@ export default function SchedulePage() {
                     return
                   }
                   const effectiveFrom = occurrenceDateFromWeek(selectedWeekMonday, selectedSchedule.dayOfWeek)
-                  void deleteMutation.mutateAsync({
+                  void runDelete({
                     id: selectedSchedule.id,
                     effectiveFrom,
                     deleteScope: "this_and_following",
@@ -1035,7 +1155,7 @@ export default function SchedulePage() {
                     return
                   }
                   const effectiveFrom = occurrenceDateFromWeek(selectedWeekMonday, selectedSchedule.dayOfWeek)
-                  void deleteMutation.mutateAsync({ id: selectedSchedule.id, effectiveFrom })
+                  void runDelete({ id: selectedSchedule.id, effectiveFrom })
                   setConfirmDeleteOpen(false)
                 }}
                 disabled={deleteMutation.isPending}

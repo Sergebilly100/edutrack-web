@@ -8,9 +8,17 @@ type ForceState = "auto" | "offline" | "recovered"
 
 type OfflineIndicatorProps = {
   forceState?: ForceState
+  // Indique si la page courante supporte vraiment l'offline (mutations
+  // en queue + sync auto). Si false, le bandeau prévient l'utilisateur
+  // que ses actions échoueront au lieu de prétendre qu'elles sont
+  // sauvegardées localement.
+  offlineCapable?: boolean
 }
 
-export function OfflineIndicator({ forceState = "auto" }: OfflineIndicatorProps) {
+export function OfflineIndicator({
+  forceState = "auto",
+  offlineCapable = false,
+}: OfflineIndicatorProps) {
   const { isOnline, wasOffline } = useNetworkStatus()
   const [showRecovered, setShowRecovered] = useState(false)
   const previousIsOnline = useRef(isOnline)
@@ -66,16 +74,29 @@ export function OfflineIndicator({ forceState = "auto" }: OfflineIndicatorProps)
       aria-live="polite"
     >
       {mode === "offline" ? (
-        <div className="bg-amber-500 text-white text-sm font-medium py-2 px-4 flex items-center gap-2">
+        <div
+          className={cn(
+            "text-white text-sm font-medium py-2 px-4 flex items-center gap-2",
+            offlineCapable ? "bg-amber-500" : "bg-red-600"
+          )}
+        >
           <OfflineIcon className="h-4 w-4" />
-          <span>Hors ligne - vos actions sont sauvegardées localement</span>
+          <span>
+            {offlineCapable
+              ? "Hors ligne - vos actions sont sauvegardées localement"
+              : "Hors ligne - les actions sur cette page sont indisponibles"}
+          </span>
         </div>
       ) : null}
 
       {mode === "recovered" ? (
         <div className="bg-green-600 text-white text-sm font-medium py-2 px-4 flex items-center gap-2">
           <OnlineIcon className="h-4 w-4" />
-          <span>Connexion rétablie - synchronisation en cours...</span>
+          <span>
+            {offlineCapable
+              ? "Connexion rétablie - synchronisation en cours..."
+              : "Connexion rétablie"}
+          </span>
         </div>
       ) : null}
     </div>

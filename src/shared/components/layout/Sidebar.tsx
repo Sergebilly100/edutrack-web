@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils"
 import { logout as logoutApi } from "@/modules/auth/auth.api"
 import { getSmsFeatureSettings } from "@/modules/subscriptions/subscriptions.api"
 import { getPendingValidationCount } from "@/modules/validations/validations.api"
+import { OfflineQueueBadge } from "@/shared/components/OfflineQueueBadge"
 import { NotificationButton } from "@/shared/components/layout/NotificationButton"
 import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
 import { useTheme } from "@/shared/hooks/useTheme"
@@ -190,6 +191,9 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
 
       {!collapsed && (
         <div className="space-y-1">
+          <div className="flex justify-end px-2 pb-1">
+            <OfflineQueueBadge />
+          </div>
           {user?.role === "director" && location.pathname !== "/dashboard" ? (
             <div className="flex items-center justify-between rounded-lg px-2 py-1.5 transition-colors hover:bg-accent">
               <span className="text-xs font-medium text-muted-foreground">Notifications</span>

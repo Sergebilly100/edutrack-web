@@ -1,6 +1,7 @@
 import { Menu } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { OfflineQueueBadge } from "@/shared/components/OfflineQueueBadge"
 import { ThemeToggle } from "@/shared/components/ThemeToggle"
 import { UserMenu } from "@/shared/components/layout/UserMenu"
 
@@ -24,6 +25,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
         </div>
 
         <div className="flex items-center justify-end gap-1">
+          <OfflineQueueBadge />
           <ThemeToggle />
           <UserMenu collapsed />
         </div>

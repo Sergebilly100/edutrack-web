@@ -5,9 +5,15 @@ import { queryClient } from "@/shared/api/query-client"
 import { useParentAuthStore } from "@/modules/parent-portal/parent-auth.store"
 import { useAuthStore } from "@/shared/store/auth.store"
 
+// 15s : sur réseau instable, axios attendait jusqu'à 60-120s avant d'échouer,
+// laissant l'utilisateur incertain sur l'état réel de sa requête (le bug du
+// paiement salaire "succès apparent" en offline venait en partie de là).
+const REQUEST_TIMEOUT_MS = 15_000
+
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
   withCredentials: true,
+  timeout: REQUEST_TIMEOUT_MS,
 })
 
 apiClient.interceptors.request.use((config) => {

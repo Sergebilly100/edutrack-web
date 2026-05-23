@@ -49,19 +49,31 @@ import {
   updateSalaryStatus,
   type SalaryTeacherDetails,
   type SalarySummaryItem,
+  type UpdateSalaryStatusInput,
 } from "@/modules/salaries/salaries.api"
 import { usePendingValidationCount } from "@/shared/hooks/usePendingValidationCount"
 import { SalarySummaryCards } from "@/modules/salaries/components/SalarySummaryCards"
 import { SalariesStatsCards } from "@/modules/salaries/components/SalariesStatsCards"
 import { SalaryExportSection } from "@/modules/salaries/components/SalaryExportSection"
 import { ContextualHelp, EmptyState, OfflineIndicator, SalaryRow, emptyStateIcons } from "@/shared/components"
+import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
+import {
+  OfflineMutationQueuedError,
+  useOfflineMutation,
+} from "@/shared/hooks/useOfflineMutation"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { OFFLINE_QUEUE_KEYS } from "@/shared/store/offline-processors"
 import { formatFcfa } from "@/shared/utils/formatting"
+
+// Tooltip pour les actions qui restent online-only (exports, paiement
+// permanent qui nécessite un GET intermédiaire pour récupérer le salaryRecordId).
+const OFFLINE_ACTION_TITLE = "Indisponible hors ligne — réessayer une fois reconnecté."
 
 export default function SalariesPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const { hasPermission } = usePermissions()
+  const { isOnline } = useNetworkStatus()
   const canComputeSalaries = hasPermission("salary.compute")
   const canMarkSalaryAsPaid = hasPermission("salary.mark_paid")
 
@@ -129,9 +141,16 @@ export default function SalariesPage() {
     },
   })
 
-  const computeMutation = useMutation({
-    mutationFn: () => computeSalaries(selectedMonth),
-    onSuccess: async (result) => {
+  const computeMutation = useOfflineMutation<
+    { month: string; updatedCount: number },
+    string
+  >(computeSalaries, {
+    queueKey: OFFLINE_QUEUE_KEYS.salaryCompute,
+  })
+
+  const runCompute = async () => {
+    try {
+      const result = await computeMutation.mutateAsync(selectedMonth)
       setComputeDialogOpen(false)
       await queryClient.invalidateQueries({ queryKey: ["salaries", "summary", selectedMonth] })
       await queryClient.invalidateQueries({ queryKey: ["salaries-stats", selectedMonth] })
@@ -139,38 +158,71 @@ export default function SalariesPage() {
         title: "Calcul terminé",
         description: `${result.updatedCount} fiche(s) salaire recalculée(s).`,
       })
-    },
-    onError: () => {
+    } catch (error) {
+      if (error instanceof OfflineMutationQueuedError) {
+        setComputeDialogOpen(false)
+        toast({
+          title: "Calcul en attente",
+          description: "Le recalcul sera lancé dès le retour du réseau.",
+        })
+        return
+      }
       toast({
         title: "Erreur",
         description: "Impossible de recalculer les salaires.",
         variant: "destructive",
       })
-    },
-  })
+    }
+  }
 
-  const markPaidMutation = useMutation({
-    mutationFn: (input: { recordId: string; notes?: string; hoursToPay?: number }) =>
-      updateSalaryStatus({
+  const markPaidMutation = useOfflineMutation<void, UpdateSalaryStatusInput>(
+    updateSalaryStatus,
+    {
+      queueKey: OFFLINE_QUEUE_KEYS.salaryMarkPaid,
+    }
+  )
+
+  const closePayDialog = () => {
+    setPayDialogOpen(false)
+    setSelectedSalaryRow(null)
+    setPayDialogDetails(null)
+    setPayDialogDetailsLoading(false)
+    setHoursToPayInput("")
+    setPaymentNotes("")
+  }
+
+  const invalidateSalaryQueriesAfterPayment = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["salaries", "summary", selectedMonth] })
+    await queryClient.invalidateQueries({ queryKey: ["salaries", "summary", payTargetMonth] })
+    await queryClient.invalidateQueries({ queryKey: ["salaries-stats", selectedMonth] })
+    await queryClient.invalidateQueries({ queryKey: ["salaries-stats", payTargetMonth] })
+  }
+
+  const runMarkPaid = async (input: {
+    recordId: string
+    notes?: string
+    hoursToPay?: number
+  }) => {
+    try {
+      await markPaidMutation.mutateAsync({
         recordId: input.recordId,
         status: "paid",
         notes: input.notes,
         hoursToPay: input.hoursToPay,
-      }),
-    onSuccess: async () => {
-      setPayDialogOpen(false)
-      setSelectedSalaryRow(null)
-      setPayDialogDetails(null)
-      setPayDialogDetailsLoading(false)
-      setHoursToPayInput("")
-      setPaymentNotes("")
-      await queryClient.invalidateQueries({ queryKey: ["salaries", "summary", selectedMonth] })
-      await queryClient.invalidateQueries({ queryKey: ["salaries", "summary", payTargetMonth] })
-      await queryClient.invalidateQueries({ queryKey: ["salaries-stats", selectedMonth] })
-      await queryClient.invalidateQueries({ queryKey: ["salaries-stats", payTargetMonth] })
+      })
+      closePayDialog()
+      await invalidateSalaryQueriesAfterPayment()
       toast({ title: "Salaire marqué comme payé" })
-    },
-    onError: (error: unknown) => {
+    } catch (error) {
+      if (error instanceof OfflineMutationQueuedError) {
+        closePayDialog()
+        toast({
+          title: "Paiement en attente",
+          description:
+            "L'opération sera envoyée au serveur dès le retour du réseau.",
+        })
+        return
+      }
       const message =
         typeof error === "object" &&
         error !== null &&
@@ -184,8 +236,8 @@ export default function SalariesPage() {
         description: message,
         variant: "destructive",
       })
-    },
-  })
+    }
+  }
 
   const computeAndMarkPaidMutation = useMutation({
     mutationFn: async (input: { teacherId: string; month: string; notes?: string }) => {
@@ -212,16 +264,8 @@ export default function SalariesPage() {
       })
     },
     onSuccess: async () => {
-      setPayDialogOpen(false)
-      setSelectedSalaryRow(null)
-      setPayDialogDetails(null)
-      setHoursToPayInput("")
-      setPaymentNotes("")
-      // Invalider les deux mois potentiellement touchés
-      await queryClient.invalidateQueries({ queryKey: ["salaries", "summary", selectedMonth] })
-      await queryClient.invalidateQueries({ queryKey: ["salaries", "summary", payTargetMonth] })
-      await queryClient.invalidateQueries({ queryKey: ["salaries-stats", selectedMonth] })
-      await queryClient.invalidateQueries({ queryKey: ["salaries-stats", payTargetMonth] })
+      closePayDialog()
+      await invalidateSalaryQueriesAfterPayment()
       toast({ title: "Salaire marqué comme payé" })
     },
     onError: (error: unknown) => {
@@ -631,7 +675,8 @@ export default function SalariesPage() {
                   setBulkPeriodTo(selectedMonth)
                   setBulkExportDialogOpen(true)
                 }}
-                disabled={exportBulkMutation.isPending}
+                disabled={exportBulkMutation.isPending || !isOnline}
+                title={!isOnline ? OFFLINE_ACTION_TITLE : undefined}
                 data-testid="salaries-export-school-button"
               >
                 Export bilan PDF
@@ -837,7 +882,28 @@ export default function SalariesPage() {
                         {canMarkSalaryAsPaid &&
                         (row.status === "pending" ||
                         (row.status === "paid" && row.isPartiallyPaid)) ? (
-                          <Button type="button" size="sm" className="mr-2" onClick={() => void openMarkPaidDialog(row)}>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="mr-2"
+                            onClick={() => void openMarkPaidDialog(row)}
+                            disabled={
+                              // Le compute fallback online est requis pour
+                              // les vacataires sans salaryRecordId : on désactive
+                              // dans ce cas précis. Sinon, la mutation de
+                              // paiement peut être mise en queue offline.
+                              !isOnline &&
+                              row.teacherType === "vacataire" &&
+                              !row.salaryRecordId
+                            }
+                            title={
+                              !isOnline &&
+                              row.teacherType === "vacataire" &&
+                              !row.salaryRecordId
+                                ? "Aucune fiche calculée : recalcul nécessaire en ligne."
+                                : undefined
+                            }
+                          >
                             Marquer payé
                           </Button>
                         ) : null}
@@ -1259,7 +1325,12 @@ export default function SalariesPage() {
             <Button type="button" variant="outline" onClick={() => setComputeDialogOpen(false)}>
               Annuler
             </Button>
-            <Button type="button" onClick={() => computeMutation.mutate()} disabled={computeMutation.isPending} data-testid="salaries-compute-confirm-button">
+            <Button
+              type="button"
+              onClick={() => void runCompute()}
+              disabled={computeMutation.isPending}
+              data-testid="salaries-compute-confirm-button"
+            >
               Confirmer
             </Button>
           </DialogFooter>
@@ -1448,22 +1519,31 @@ export default function SalariesPage() {
                   return
                 }
 
-                markPaidMutation.mutate({
+                void runMarkPaid({
                   recordId: selectedSalaryRow.salaryRecordId,
                   notes: paymentNotes,
                   hoursToPay: parsedHoursToPay,
                 })
               }}
               disabled={
-                // On désactive si l'une ou l'autre mutation est en cours
+                // On désactive si l'une ou l'autre mutation est en cours.
+                // Le permanent passe par computeAndMarkPaidMutation qui reste
+                // online-only (compute + GET intermédiaire pour récupérer le
+                // salaryRecordId, impossible offline).
                 markPaidMutation.isPending ||
                 computeAndMarkPaidMutation.isPending ||
                 !selectedSalaryRow ||
+                (selectedSalaryRow.teacherType === "permanent" && !isOnline) ||
                 (selectedSalaryRow.teacherType !== "permanent" && !selectedSalaryRow.salaryRecordId) ||
                 (selectedSalaryRow.teacherType === "vacataire" && parsedHoursToPay === null) ||
                 (selectedSalaryRow.teacherType === "permanent" &&
                   payDialogDetails?.summary.status === "paid" &&
                   !payDialogDetails?.summary.isPartiallyPaid)
+              }
+              title={
+                selectedSalaryRow?.teacherType === "permanent" && !isOnline
+                  ? OFFLINE_ACTION_TITLE
+                  : undefined
               }
             >
               {(markPaidMutation.isPending || computeAndMarkPaidMutation.isPending)
@@ -1554,10 +1634,12 @@ export default function SalariesPage() {
               }}
               disabled={
                 exportBulkMutation.isPending ||
+                !isOnline ||
                 bulkPeriodFrom.length !== 7 ||
                 bulkPeriodTo.length !== 7 ||
                 bulkPeriodFrom > bulkPeriodTo
               }
+              title={!isOnline ? OFFLINE_ACTION_TITLE : undefined}
             >
               Générer
             </Button>

@@ -8,10 +8,15 @@ import { Toaster } from "@/components/ui/toaster"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { queryClient } from "@/shared/api/query-client"
 import { ThemeProvider } from "@/shared/providers/ThemeProvider"
+import { installOfflineProcessors } from "@/shared/store/offline-processors"
 import App from "./App"
 import "./index.css"
 
 registerSW({ immediate: true })
+
+// Enregistrement global des processors offline pour les mutations critiques.
+// Doit s'exécuter avant le premier sync (useAutoSync dans App).
+installOfflineProcessors()
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

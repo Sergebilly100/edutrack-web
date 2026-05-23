@@ -4,6 +4,7 @@ import { Navigate, Outlet, useLocation } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { OfflineQueueBadge } from "@/shared/components/OfflineQueueBadge"
 import { NotificationButton } from "@/shared/components/layout/NotificationButton"
 import { DesktopSidebar, MobileMenuButton, MobileSidebar } from "@/shared/components/layout/Sidebar"
 import { SubscriptionStatusBanner } from "@/shared/components/SubscriptionStatusBanner"
@@ -76,6 +77,7 @@ export function AppShell({ children }: AppShellProps) {
             <MobileMenuButton />
             <span className="truncate text-sm font-semibold">EduTrack CI</span>
             <div className="ml-auto flex items-center gap-2">
+              <OfflineQueueBadge />
               <NotificationButton count={isDashboardRoute ? mobileAlertsCount : 0} />
               {isDashboardRoute ? (
                 <Button

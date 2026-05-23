@@ -19,6 +19,7 @@ type OfflineState = {
   queue: OfflineQueueItem[]
   addToQueue: (item: OfflineQueueItem) => void
   removeFromQueue: (id: string) => void
+  clearQueue: () => void
 }
 
 export const OFFLINE_STORE_PERSIST_KEY = "edutrack-offline-store"
@@ -89,6 +90,9 @@ export const useOfflineStore = create<OfflineState>()(
           queue: state.queue.filter((item) => item.id !== id),
         }))
       },
+      clearQueue: () => {
+        setState({ queue: [] })
+      },
     }),
     {
       name: OFFLINE_STORE_PERSIST_KEY,
@@ -107,6 +111,17 @@ export function registerOfflineProcessor<TData, TVariables>(
   return () => {
     processors.delete(queueKey)
   }
+}
+
+// Variante pour les mutations critiques (paiements, plannings) : enregistre
+// le processor au niveau module, sans cleanup. Garantit que la queue se vide
+// au retour réseau même si l'utilisateur a quitté la page qui a déclenché la
+// mise en file d'attente.
+export function registerGlobalOfflineProcessor<TData, TVariables>(
+  queueKey: string,
+  processor: OfflineQueueProcessor<TData, TVariables>
+): void {
+  processors.set(queueKey, processor as OfflineQueueProcessor)
 }
 
 export async function syncOfflineQueue(): Promise<number> {
@@ -132,6 +147,11 @@ export async function syncOfflineQueue(): Promise<number> {
         const processor = processors.get(item.queueKey)
 
         if (!processor) {
+          // L'item ne sera traité que si la page qui détient son processor est
+          // remontée. Pour les actions critiques, utiliser registerGlobalOfflineProcessor.
+          console.warn(
+            `[offline-sync] No processor registered for queueKey="${item.queueKey}" — item ${item.id} skipped this round.`
+          )
           continue
         }
 

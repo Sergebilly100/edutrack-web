@@ -178,7 +178,11 @@ export default function TeacherSchedulePage() {
   return (
     <div className="space-y-4 pb-4" data-testid="teacher-schedule-page">
       
-      {!isOnline ? <OfflineIndicator forceState="offline" /> : <OfflineIndicator />}
+      {!isOnline ? (
+        <OfflineIndicator forceState="offline" offlineCapable />
+      ) : (
+        <OfflineIndicator offlineCapable />
+      )}
 
       <header className="rounded-lg border bg-card p-4 shadow-sm !mt-0">
         <div className="flex items-start justify-between gap-2">

@@ -1048,7 +1048,7 @@ export default function ValidationsPage() {
 
   return (
     <>
-      <OfflineIndicator />
+      <OfflineIndicator offlineCapable />
       <div className="space-y-6 animate-in fade-in duration-200 mt-3">
         <header className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">Validation des horaires</h1>
