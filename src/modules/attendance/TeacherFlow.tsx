@@ -236,6 +236,7 @@ export default function TeacherFlow({ schedule, demoMode = false }: TeacherFlowP
           qr_token: token,
           scan_type: "start",
           schedule_id: schedule.id,
+          date: new Date().toISOString().split("T")[0],
         })
         .catch((error: unknown) => {
           if (isOfflineQueued(error)) {

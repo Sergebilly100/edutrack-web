@@ -275,6 +275,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
           qr_token: qrToken,
           scan_type: "start",
           schedule_id: slot.id,
+          date: attendanceDate,
         })
         .catch((error: unknown) => {
           if (isOfflineQueued(error)) {
@@ -488,6 +489,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
         qr_token: token,
         scan_type: "end",
         schedule_id: slot.id,
+        date: attendanceDate,
       })
 
       // Si hors ligne, result est undefined (mis en queue) — on accepte silencieusement

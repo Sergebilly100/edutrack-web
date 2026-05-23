@@ -10,6 +10,7 @@ export type QrScanPayload = {
   qr_token: string
   scan_type: "start" | "end"
   schedule_id: string
+  date?: string
 }
 export type QrScanResponse = { room_mismatch?: boolean }
 export type QrSkipPayload = {
@@ -264,6 +265,7 @@ export const teacherScheduleApi = {
     qr_token: string
     scan_type: "start" | "end"
     schedule_id: string
+    date?: string
   }) => {
     const response = await api.post<{
       data?: { roomMismatch?: boolean }

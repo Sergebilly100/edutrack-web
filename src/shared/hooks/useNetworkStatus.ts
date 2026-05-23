@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { onlineManager } from "@tanstack/react-query"
 
 export type NetworkStatus = {
   isOnline: boolean
@@ -11,6 +12,14 @@ function getInitialOnlineStatus() {
   }
 
   return navigator.onLine
+}
+
+const setOnlineState = (
+  nextOnline: boolean,
+  setIsOnline: (value: boolean) => void
+) => {
+  onlineManager.setOnline(nextOnline)
+  setIsOnline(nextOnline)
 }
 
 // navigator.onLine returns true even on captive portals (WiFi with no real internet).
@@ -66,6 +75,8 @@ export function useNetworkStatus(): NetworkStatus {
   const recheckIntervalRef = useRef<number | null>(null)
 
   useEffect(() => {
+    onlineManager.setOnline(initialOnlineStatus)
+
     const clearWasOfflineTimeout = () => {
       if (timeoutRef.current !== null) {
         window.clearTimeout(timeoutRef.current)
@@ -85,7 +96,7 @@ export function useNetworkStatus(): NetworkStatus {
 
       const applyConfirmedOnline = () => {
         clearRecheckInterval()
-        setIsOnline(true)
+        setOnlineState(true, setIsOnline)
         setWasOffline(true)
 
         timeoutRef.current = window.setTimeout(() => {
@@ -103,7 +114,7 @@ export function useNetworkStatus(): NetworkStatus {
         if (confirmed) {
           applyConfirmedOnline()
         } else {
-          setIsOnline(false)
+          setOnlineState(false, setIsOnline)
           setWasOffline(true)
           if (recheckIntervalRef.current === null) {
             recheckIntervalRef.current = window.setInterval(() => {
@@ -119,12 +130,21 @@ export function useNetworkStatus(): NetworkStatus {
     const handleOffline = () => {
       clearWasOfflineTimeout()
       clearRecheckInterval()
-      setIsOnline(false)
+      setOnlineState(false, setIsOnline)
       setWasOffline(true)
     }
 
     window.addEventListener("online", handleOnline)
     window.addEventListener("offline", handleOffline)
+
+    if (initialOnlineStatus && PING_ENABLED) {
+      void confirmConnectivity().then((confirmed) => {
+        if (!confirmed) {
+          setOnlineState(false, setIsOnline)
+          setWasOffline(true)
+        }
+      })
+    }
 
     return () => {
       clearWasOfflineTimeout()

@@ -150,9 +150,22 @@ export function installOfflineProcessors(): void {
 
   // ── Attendance : 3 étapes prof + scans de fin ─────────────────────────
   const invalidateAttendance = () => {
-    void queryClient.invalidateQueries({ queryKey: ["teacher-attendance"] })
-    void queryClient.invalidateQueries({ queryKey: ["teacher-compliance"] })
-    void queryClient.invalidateQueries({ queryKey: ["attendance"] })
+    const queryKeys = [
+      ["teacher-attendance"],
+      ["teacher-compliance"],
+      ["teacher-schedule"],
+      ["attendance"],
+      ["dashboard"],
+      ["validations"],
+      ["teachers"],
+      ["teacher"],
+      ["salaries"],
+    ]
+
+    for (const queryKey of queryKeys) {
+      void queryClient.invalidateQueries({ queryKey })
+      void queryClient.refetchQueries({ queryKey, type: "active" })
+    }
   }
 
   registerGlobalOfflineProcessor<CheckInResponse, CheckInPayload>(
