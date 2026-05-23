@@ -93,6 +93,8 @@ export type ActiveScheduleData = {
   schedules: ScheduleRow[]
 }
 
+export type ScheduleRecurrence = "recurring" | "one_shot"
+
 export type ScheduleCreatePayload = {
   schedulePeriodId: string
   teacherId: string
@@ -104,10 +106,19 @@ export type ScheduleCreatePayload = {
   dayOfWeek: number
   subject: string
   effectiveFrom?: string
+  recurrence?: ScheduleRecurrence
   isActive?: boolean
 }
 
 export type ScheduleUpdatePayload = ScheduleCreatePayload
+
+export type SchedulePeriodSummary = {
+  id: string
+  name: string
+  validFrom: string
+  validTo: string
+  isActive: boolean
+}
 
 // ─── Normalisation des heures ─────────────────────────────────────────────────
 //
@@ -216,6 +227,7 @@ const toSchedulePayload = (payload: ScheduleCreatePayload) => ({
   day_of_week: payload.dayOfWeek,
   subject: payload.subject,
   ...(payload.effectiveFrom ? { effective_from: payload.effectiveFrom } : {}),
+  ...(payload.recurrence ? { recurrence: payload.recurrence } : {}),
   is_active: payload.isActive,
 })
 
@@ -407,5 +419,31 @@ export const deleteScheduleSlotFromDate = async (
   await api.delete(`/schedule/${scheduleId}`, {
     params: { effective_from: effectiveFrom },
   })
+}
+
+const ActiveSchedulePeriodsResponseSchema = z.object({
+  periods: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        valid_from: z.string(),
+        valid_to: z.string(),
+        is_active: z.boolean(),
+      })
+    )
+    .default([]),
+})
+
+export const fetchActiveSchedulePeriods = async (): Promise<SchedulePeriodSummary[]> => {
+  const response = await api.get("/schedule/periods", { params: { active: "true" } })
+  const parsed = ActiveSchedulePeriodsResponseSchema.parse(response.data)
+  return parsed.periods.map((p) => ({
+    id: p.id,
+    name: p.name,
+    validFrom: p.valid_from,
+    validTo: p.valid_to,
+    isActive: p.is_active,
+  }))
 }
 

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { isAxiosError } from "axios"
 import { Navigate } from "react-router-dom"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -27,6 +26,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   Select,
   SelectContent,
@@ -57,10 +57,12 @@ import WeekGrid from "./components/WeekGrid"
 import {
   createScheduleSlot,
   deleteScheduleSlotFromDate,
+  fetchActiveSchedulePeriods,
   fetchNextWeekCoverage,
   fetchWeeklySchedule,
   type ScheduleCreatePayload,
   type ScheduleRow,
+  type SchedulePeriodSummary,
   type TimeSlotCatalogItem,
   type WeeklyScheduleData,
   updateScheduleSlot,
@@ -255,6 +257,13 @@ export default function SchedulePage() {
     queryFn: () => getTeachers({ page: 1, limit: 200 }),
   })
 
+  const activePeriodsQuery = useQuery({
+    queryKey: ["schedule", "active-periods"],
+    queryFn: fetchActiveSchedulePeriods,
+    enabled: formOpen,
+    staleTime: 60_000,
+  })
+
   const data = scheduleQuery.data
   const canEditSchedule = hasPermission("schedule.edit")
 
@@ -265,6 +274,25 @@ export default function SchedulePage() {
       ),
     [teachersQuery.data?.data]
   )
+
+  const formPeriodOptions = useMemo<SchedulePeriodSummary[]>(() => {
+    const map = new Map<string, SchedulePeriodSummary>()
+    for (const p of activePeriodsQuery.data ?? []) {
+      map.set(p.id, p)
+    }
+    if (data?.period && !map.has(data.period.id)) {
+      map.set(data.period.id, {
+        id: data.period.id,
+        name: data.period.name,
+        validFrom: data.period.validFrom,
+        validTo: data.period.validTo,
+        isActive: data.period.isActive,
+      })
+    }
+    return [...map.values()].sort((a, b) =>
+      a.validFrom < b.validFrom ? -1 : a.validFrom > b.validFrom ? 1 : 0
+    )
+  }, [activePeriodsQuery.data, data])
 
   const selectedTeacherSubjects = useMemo<string[]>(() => {
     if (!formState.teacherId || !data) return []
@@ -331,6 +359,8 @@ export default function SchedulePage() {
       roomId: schedule.room.id,
       subject: schedule.subject,
       schedulePeriodId: schedule.schedulePeriodId,
+      // En édition, on ne change pas le type de récurrence (le backend conserve end_date)
+      recurrence: null,
     })
     setFormOpen(true)
   }
@@ -407,6 +437,14 @@ export default function SchedulePage() {
       toast({ variant: "destructive", title: "Aucune période", description: "Sélectionnez une période." })
       return
     }
+    if (!editingSchedule && !formState.recurrence) {
+      toast({
+        variant: "destructive",
+        title: "Type de créneau requis",
+        description: "Indiquez s'il s'agit d'un créneau récurrent ou unique (rattrapage).",
+      })
+      return
+    }
     if (formState.startTime >= formState.endTime) {
       toast({ variant: "destructive", title: "Horaire invalide", description: "La fin doit être après le début." })
       return
@@ -416,6 +454,11 @@ export default function SchedulePage() {
       toast({ variant: "destructive", title: "Formulaire incomplet", description: "Renseignez tous les champs." })
       return
     }
+
+    // Pour un créneau unique (rattrapage), on prend la date de l'occurrence dans la semaine sélectionnée.
+    // Pour un récurrent, on conserve l'ancien comportement (propagation à partir de cette occurrence).
+    const occurrenceDate = occurrenceDateFromWeek(selectedWeekMonday, payload.dayOfWeek)
+
     if (isPastScheduleSelection(selectedWeekMonday, payload.dayOfWeek, payload.startTime ?? "", new Date())) {
       toast({
         variant: "destructive",
@@ -424,7 +467,22 @@ export default function SchedulePage() {
       })
       return
     }
-    payload.effectiveFrom = occurrenceDateFromWeek(selectedWeekMonday, payload.dayOfWeek)
+
+    // Pour un one_shot, valider que la date d'occurrence est dans la fourchette
+    // de la période sélectionnée (utile si l'utilisateur change la période).
+    if (formState.recurrence === "one_shot") {
+      const period = formPeriodOptions.find((p) => p.id === payload.schedulePeriodId)
+      if (period && (occurrenceDate < period.validFrom || occurrenceDate > period.validTo)) {
+        toast({
+          variant: "destructive",
+          title: "Date hors période",
+          description: `Le créneau de rattrapage doit tomber entre ${period.validFrom} et ${period.validTo}.`,
+        })
+        return
+      }
+    }
+
+    payload.effectiveFrom = occurrenceDate
     await upsertMutation.mutateAsync({ id: editingSchedule?.id, payload })
   }
 
@@ -452,7 +510,7 @@ export default function SchedulePage() {
           </div>
 
           {canEditSchedule ? (
-            <Button onClick={() => openCreateModal()} disabled={!data?.period} className="w-full sm:w-auto">
+            <Button onClick={() => openCreateModal()} disabled={!data} className="w-full sm:w-auto">
               <AddIcon className="mr-2 h-4 w-4" />Ajouter un créneau
             </Button>
           ) : (
@@ -894,16 +952,64 @@ export default function SchedulePage() {
                 onValueChange={(v) => setFormState((p) => ({ ...p, schedulePeriodId: v }))}>
                 <SelectTrigger><SelectValue placeholder="Choisir une période" /></SelectTrigger>
                 <SelectContent>
-                  {data?.period ? (
-                    <SelectItem value={data.period.id}>
-                      {data.period.name}
+                  {formPeriodOptions.length === 0 ? (
+                    <SelectItem value="__none__" disabled>
+                      {activePeriodsQuery.isLoading ? "Chargement..." : "Aucune période active"}
                     </SelectItem>
                   ) : (
-                    <SelectItem value="__none__" disabled>Aucune période active</SelectItem>
+                    formPeriodOptions.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        ({p.validFrom} → {p.validTo})
+                      </SelectItem>
+                    ))
                   )}
                 </SelectContent>
               </Select>
             </div>
+
+            {!editingSchedule ? (
+              <div className="space-y-1">
+                <Label>Type de créneau</Label>
+                <RadioGroup
+                  value={formState.recurrence ?? ""}
+                  onValueChange={(v) =>
+                    setFormState((p) => ({ ...p, recurrence: v as "recurring" | "one_shot" }))
+                  }
+                  className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+                >
+                  <label
+                    htmlFor="recurrence-recurring"
+                    className="flex cursor-pointer items-start gap-2 rounded-md border p-3 hover:bg-muted/40"
+                  >
+                    <RadioGroupItem value="recurring" id="recurrence-recurring" className="mt-0.5" />
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium leading-none">Récurrent</p>
+                      <p className="text-xs text-muted-foreground">
+                        Répété chaque semaine jusqu'à la fin de la période.
+                      </p>
+                    </div>
+                  </label>
+                  <label
+                    htmlFor="recurrence-one-shot"
+                    className="flex cursor-pointer items-start gap-2 rounded-md border p-3 hover:bg-muted/40"
+                  >
+                    <RadioGroupItem value="one_shot" id="recurrence-one-shot" className="mt-0.5" />
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium leading-none">Unique (rattrapage)</p>
+                      <p className="text-xs text-muted-foreground">
+                        Uniquement le jour choisi, sans répétition.
+                      </p>
+                    </div>
+                  </label>
+                </RadioGroup>
+                {formState.recurrence === "one_shot" && formState.dayOfWeek ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    Ce créneau apparaîtra uniquement le{" "}
+                    {occurrenceDateFromWeek(selectedWeekMonday, Number(formState.dayOfWeek))}.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="space-y-1">
               <Label>Professeur</Label>

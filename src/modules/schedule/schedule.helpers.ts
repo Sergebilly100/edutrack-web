@@ -2,6 +2,7 @@ import { isAxiosError } from "axios"
 
 import type {
   ScheduleCreatePayload,
+  ScheduleRecurrence,
   ScheduleRow,
   WeeklyScheduleData,
 } from "./schedule.api"
@@ -41,6 +42,8 @@ export type SlotFormState = {
   roomId: string
   subject: string
   schedulePeriodId: string
+  // null = choix non encore fait (radio obligatoire)
+  recurrence: ScheduleRecurrence | null
 }
 
 export type SlotCreatePrefill = {
@@ -57,6 +60,7 @@ export const emptyFormState: SlotFormState = {
   roomId: "",
   subject: "",
   schedulePeriodId: "",
+  recurrence: null,
 }
 
 export const toISODate = (date: Date) => {
@@ -161,6 +165,7 @@ export const toPayload = (formState: SlotFormState): ScheduleCreatePayload => ({
   endTime: formState.endTime,
   roomId: formState.roomId,
   subject: formState.subject.trim(),
+  ...(formState.recurrence ? { recurrence: formState.recurrence } : {}),
 })
 
 export const defaultFormStateFromData = (data: WeeklyScheduleData): SlotFormState => ({
@@ -172,6 +177,7 @@ export const defaultFormStateFromData = (data: WeeklyScheduleData): SlotFormStat
   roomId: data.catalog.rooms[0]?.id ?? "",
   subject: "",
   schedulePeriodId: data.period?.id ?? "",
+  recurrence: null,
 })
 
 export const createOptimisticSchedule = (
