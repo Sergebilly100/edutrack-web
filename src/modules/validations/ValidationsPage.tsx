@@ -38,70 +38,28 @@ import {
   type MissingEndScanSession,
   type MissingEndScanTeacher,
   type PendingValidationItem,
-  type ValidationApprovalType,
   type ValidationHistoryItem,
-  type ValidationHistoryStatus,
 } from "./validations.api"
-
-type ShortHoursHistoryFilter = "all" | "planned" | "actual" | "rejected"
-type GpsHistoryFilter = "all" | "approved" | "rejected"
-
-const resolveShortHoursFilter = (
-  filter: ShortHoursHistoryFilter
-): { status?: ValidationHistoryStatus; approvalType?: ValidationApprovalType } => {
-  if (filter === "all") return {}
-  if (filter === "rejected") return { status: "rejected" }
-  return { status: "approved", approvalType: filter }
-}
-
-const resolveGpsFilter = (
-  filter: GpsHistoryFilter
-): { status?: ValidationHistoryStatus } => {
-  if (filter === "all") return {}
-  return { status: filter }
-}
-
-const formatMinutes = (minutes: number | null): string => {
-  if (minutes === null) return "-"
-  const hours = Math.floor(minutes / 60)
-  const rest = minutes % 60
-  if (hours <= 0) return `${rest}min`
-  return rest === 0 ? `${hours}h` : `${hours}h${String(rest).padStart(2, "0")}`
-}
-
-const formatDate = (value: string): string => {
-  const parsed = new Date(`${value}T00:00:00`)
-  if (Number.isNaN(parsed.getTime())) return value
-  return parsed.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })
-}
-
-const formatTime = (value: string | null): string => {
-  if (!value) return "-"
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return value.slice(0, 5)
-  return parsed.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-}
-
-const formatFcfa = (amount: number): string => `${new Intl.NumberFormat("fr-FR").format(amount)} FCFA`
-
-function LoadingRows() {
-  return (
-    <div className="space-y-2">
-      {Array.from({ length: 4 }).map((_, index) => (
-        <Skeleton key={index} className="h-14 w-full" />
-      ))}
-    </div>
-  )
-}
-
-function InfoBox({ children }: { children: string }) {
-  return (
-    <div className="flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">
-      <Info className="mt-0.5 h-4 w-4 shrink-0" />
-      <p>{children}</p>
-    </div>
-  )
-}
+import {
+  formatDate,
+  formatFcfa,
+  formatMinutes,
+  formatTime,
+  getEndScanStatus,
+  resolveGpsFilter,
+  resolveShortHoursFilter,
+  type EndScanStatus,
+  type GpsHistoryFilter,
+  type ShortHoursHistoryFilter,
+} from "./validations.helpers"
+import {
+  ValidationsInfoBox as InfoBox,
+  ValidationsLoadingRows as LoadingRows,
+} from "./components/ValidationsLoadingRows"
+import {
+  EndScanStatusBadge,
+  HistoryStatusBadge,
+} from "./components/ValidationsBadges"
 
 type ApproveShortHoursTarget = {
   item: PendingValidationItem
@@ -118,78 +76,6 @@ type EndScanActionTarget = {
 type CancelSanctionTarget = {
   session: MissingEndScanSession
   teacher: MissingEndScanTeacher
-}
-
-type EndScanStatus = "pending" | "warned" | "sanctioned" | "cancelled"
-
-function getEndScanStatus(session: MissingEndScanSession): EndScanStatus {
-  if (!session.endScanAction) return "pending"
-  if (session.endScanActionCancelledAt) return "cancelled"
-  return session.endScanAction === "warned" ? "warned" : "sanctioned"
-}
-
-function HistoryStatusBadge({
-  status,
-  kind,
-  validatedHours,
-  scheduleDurationMinutes,
-}: {
-  status: ValidationHistoryStatus
-  kind: "short_hours" | "gps_suspicious"
-  validatedHours?: number | null
-  scheduleDurationMinutes?: number
-}) {
-  if (status === "approved") {
-    let label = "Présence validée"
-    if (kind === "short_hours") {
-      const scheduledH = (scheduleDurationMinutes ?? 0) / 60
-      const isRealHours = validatedHours !== null && validatedHours !== undefined && validatedHours < scheduledH - 0.01
-      label = isRealHours ? "Heure réelle accordée" : "Heure prévue accordée"
-    }
-    return (
-      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-        <CheckCircle2 className="mr-1 h-3 w-3" />
-        {label}
-      </Badge>
-    )
-  }
-  return (
-    <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
-      <CircleX className="mr-1 h-3 w-3" />
-      {kind === "short_hours" ? "Heures refusées" : "Marqué absent"}
-    </Badge>
-  )
-}
-
-function EndScanStatusBadge({ session }: { session: MissingEndScanSession }) {
-  const status = getEndScanStatus(session)
-
-  if (status === "pending") {
-    return (
-      <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700">
-        En attente
-      </Badge>
-    )
-  }
-  if (status === "cancelled") {
-    return (
-      <Badge variant="outline" className="border-gray-200 bg-gray-50 text-gray-600">
-        Sanction annulée
-      </Badge>
-    )
-  }
-  if (status === "warned") {
-    return (
-      <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
-        Averti
-      </Badge>
-    )
-  }
-  return (
-    <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
-      Sanctionné
-    </Badge>
-  )
 }
 
 export default function ValidationsPage() {

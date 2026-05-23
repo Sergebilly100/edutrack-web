@@ -2,10 +2,23 @@ import { fileURLToPath, URL } from "node:url"
 import { defineConfig } from "vite"
 import react from "@vitejs/plugin-react"
 import { VitePWA } from "vite-plugin-pwa"
+import { visualizer } from "rollup-plugin-visualizer"
+
+const isAnalyze = process.env.ANALYZE === "true"
 
 export default defineConfig({
   plugins: [
     react(),
+    ...(isAnalyze
+      ? [
+          visualizer({
+            filename: "dist/bundle-stats.html",
+            open: false,
+            gzipSize: true,
+            brotliSize: true,
+          }),
+        ]
+      : []),
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "icons/*.png"],
@@ -112,6 +125,18 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "react-vendor": ["react", "react-dom", "react-router-dom"],
+          "chart-vendor": ["recharts"],
+          "qr-vendor": ["html5-qrcode", "qrcode.react"],
+          "query-vendor": ["@tanstack/react-query", "@tanstack/react-table"],
+        },
+      },
     },
   },
   test: {

@@ -48,40 +48,18 @@ import {
 import { StatCard } from "@/shared/components"
 import { useAuthStore } from "@/shared/store/auth.store"
 
-const PLAN_OPTIONS: TenantPlan[] = ["essential", "pro", "establishment"]
-const TEACHING_OPTIONS: TeachingType[] = ["primaire", "secondaire", "superieur", "mixte"]
-const STATUS_OPTIONS: TenantStatus[] = ["trial", "active", "suspended", "cancelled"]
-type CreatedDirectorCredentials = {
-  userId: string
-  name: string
-  phone: string
-  email: string | null
-  password: string
-}
-
-type AdminSchoolDetailLocationState = {
-  createdDirectorCredentials?: CreatedDirectorCredentials
-}
-
-const formatFcfa = (value: number) =>
-  `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} FCFA`
-
-const formatDate = (value: string | null) => (value ? new Date(value).toLocaleDateString("fr-FR") : "-")
-const formatDateTime = (value: string | null) => (value ? new Date(value).toLocaleString("fr-FR") : "-")
-const credentialLabel = (phone: string | null, email: string | null) => email ?? phone ?? "-"
-const toBarWidthClass = (pct: number) => {
-  if (pct >= 100) return "w-full"
-  if (pct >= 90) return "w-11/12"
-  if (pct >= 80) return "w-5/6"
-  if (pct >= 70) return "w-4/5"
-  if (pct >= 60) return "w-3/5"
-  if (pct >= 50) return "w-1/2"
-  if (pct >= 40) return "w-2/5"
-  if (pct >= 30) return "w-1/3"
-  if (pct >= 20) return "w-1/4"
-  if (pct >= 10) return "w-1/6"
-  return "w-1/12"
-}
+import {
+  PLAN_OPTIONS,
+  STATUS_OPTIONS,
+  TEACHING_OPTIONS,
+  credentialLabel,
+  formatDate,
+  formatDateTime,
+  formatFcfa,
+  toBarWidthClass,
+  type AdminSchoolDetailLocationState,
+  type CreatedDirectorCredentials,
+} from "./admin-school-detail.helpers"
 
 export default function AdminSchoolDetailPage() {
   const user = useAuthStore((state) => state.user)

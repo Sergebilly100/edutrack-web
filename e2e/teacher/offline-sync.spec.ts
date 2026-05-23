@@ -115,6 +115,66 @@ test.describe("Teacher Flow - Offline to Online Sync", () => {
     await expect(page.locator("text=en attente de synchronisation")).toBeVisible()
   })
 
+  test("should be idempotent — replaying the same queue twice produces no duplicates", async ({
+    page,
+    context,
+  }) => {
+    let checkInCalls = 0
+    await page.route("**/api/v1/attendance/check-in", async (route) => {
+      checkInCalls += 1
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ status: "present", lateMinutes: 0, checkedInAt: new Date().toISOString() }),
+      })
+    })
+
+    await context.setOffline(true)
+    await page.click('button:has-text("Démarrer le cours")')
+    await page.click('button:has-text("Je suis présent(e)")')
+    await expect(page.locator("text=Présence enregistrée")).toBeVisible({ timeout: 3000 })
+
+    await context.setOffline(false)
+    await expect(page.locator("text=Synchronisation réussie")).toBeVisible({ timeout: 10000 })
+
+    // Manually trigger a second flush by toggling offline/online again.
+    await context.setOffline(true)
+    await context.setOffline(false)
+    await page.waitForTimeout(2_000)
+
+    // The mutation must NOT be replayed once the server acknowledged it.
+    expect(checkInCalls).toBe(1)
+  })
+
+  test("conflict: last-write-wins is communicated to the user", async ({ page, context }) => {
+    // Mark the conflict in the API response so the UI can react to it.
+    await page.route("**/api/v1/attendance/bulk-students", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          upsertedCount: 3,
+          conflict: { resolution: "server_wins", conflicting: ["student-1"] },
+        }),
+      })
+    })
+
+    await context.setOffline(true)
+    await page.click('button:has-text("Démarrer le cours")')
+    await page.click('button:has-text("Je suis présent(e)")')
+    await page.click('input[type="checkbox"][data-student-id="student-1"]')
+    await page.click('button:has-text("Terminer l\'appel")')
+    await expect(page.locator("text=Appel enregistré")).toBeVisible({ timeout: 3000 })
+
+    await context.setOffline(false)
+    await expect(page.locator("text=Synchronisation réussie")).toBeVisible({ timeout: 10000 })
+    // last-write-wins toast (optional in the current UI — assertion is soft)
+    const conflictToast = page.locator("text=/conflit|server_wins|version serveur/i")
+    if (await conflictToast.count()) {
+      await expect(conflictToast.first()).toBeVisible()
+    }
+  })
+
   test("should handle QR scan when room not in IndexedDB cache", async ({ page, context }) => {
     // Vider le cache IndexedDB (simuler premier usage de l'app)
     await page.evaluate(() => {

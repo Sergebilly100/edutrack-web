@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { AbsentIcon, LateIcon, PresentIcon } from "@/shared/components/icons"
+import { ATTENDANCE_STATUS } from "@/shared/constants"
 
 type StatusBadgeProps = {
   status: "present" | "absent" | "late"
@@ -27,7 +28,7 @@ const statusStyles = {
 
 export function StatusBadge({ status, lateMinutes }: StatusBadgeProps) {
   const config = statusStyles[status]
-  const label = status === "late" ? `Retard ${lateMinutes ?? 0}min` : config.label
+  const label = status === ATTENDANCE_STATUS.LATE ? `Retard ${lateMinutes ?? 0}min` : config.label
 
   return (
     <Badge

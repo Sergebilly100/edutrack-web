@@ -6,16 +6,35 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:analyze": "ANALYZE=true npm run build",
     "preview": "vite preview",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "size": "size-limit",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
     "e2e:debug": "playwright test --debug",
     "e2e:report": "playwright show-report"
   },
+  "size-limit": [
+    {
+      "name": "Initial bundle (vendor chunks)",
+      "path": "dist/assets/react-vendor-*.js",
+      "limit": "200 kB"
+    },
+    {
+      "name": "Query vendor",
+      "path": "dist/assets/query-vendor-*.js",
+      "limit": "60 kB"
+    },
+    {
+      "name": "Chart vendor (lazy)",
+      "path": "dist/assets/chart-vendor-*.js",
+      "limit": "200 kB"
+    }
+  ],
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
     "@hookform/resolvers": "^5.2.2",
@@ -56,6 +75,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@playwright/test": "^1.59.1",
+    "@size-limit/file": "^12.1.0",
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^16.0.0",
     "@types/node": "^25.6.0",
@@ -71,6 +91,8 @@
     "jsdom": "^26.0.0",
     "msw": "^2.0.0",
     "postcss": "^8.5.3",
+    "rollup-plugin-visualizer": "^7.0.1",
+    "size-limit": "^12.1.0",
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.0.0",

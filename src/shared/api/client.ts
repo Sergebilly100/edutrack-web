@@ -93,6 +93,7 @@ apiClient.interceptors.response.use(
 
     const isUnauthorized = error.response?.status === 401
     const isMaintenance = error.response?.status === 503
+    const isForbidden = error.response?.status === 403
     const requestUrl = originalRequest.url ?? ""
     const isAuthEndpoint = requestUrl.includes("/auth/")
     const isPublicUnauthEndpoint =
@@ -104,6 +105,16 @@ apiClient.interceptors.response.use(
       const payload = error.response?.data as { error?: string; message?: string } | undefined
       redirectToMaintenance(payload?.error ?? payload?.message)
       return Promise.reject(error)
+    }
+
+    if (isForbidden) {
+      const payload = error.response?.data as
+        | { code?: string; error?: string; redirect?: string }
+        | undefined
+      if (payload?.code === "TENANT_SUSPENDED") {
+        redirectToMaintenance(payload.error ?? "Abonnement suspendu — contactez l'administration")
+        return Promise.reject(error)
+      }
     }
 
     if (isUnauthorized && !originalRequest._retry && !isAuthEndpoint && !isPublicUnauthEndpoint) {
