@@ -49,7 +49,7 @@ export type SalarySummaryResponse = {
   lastComputedAt: string | null
 }
 
-export type SalaryDetailAttendanceStatus = "present" | "absent" | "late" | "excused" | "not_marked"
+export type SalaryDetailAttendanceStatus = "present" | "absent" | "late" | "not_marked"
 
 export type SalaryDetailRow = {
   date: string
@@ -204,9 +204,11 @@ export const getSalarySummary = async (month: string): Promise<SalarySummaryResp
 }
 
 const parseAttendanceStatus = (value: unknown): SalaryDetailAttendanceStatus => {
-  if (value === "present" || value === "absent" || value === "late" || value === "excused" || value === "not_marked") {
+  if (value === "present" || value === "absent" || value === "late" || value === "not_marked") {
     return value
   }
+  // Donnée legacy 'excused' ou inconnu → traité comme 'present'.
+  if (value === "excused") return "present"
   return "not_marked"
 }
 

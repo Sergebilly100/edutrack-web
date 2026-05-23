@@ -137,7 +137,6 @@ export type MissingEndScanTeacher = {
   warningCount: number
   sanctionCount: number
   sessions: MissingEndScanSession[]
-  warningSent: boolean
 }
 
 const normalizeEndScanAction = (value: unknown): EndScanAction | null => {
@@ -172,7 +171,6 @@ const normalizeMissingEndScanTeacher = (value: unknown): MissingEndScanTeacher =
     warningCount: asNumber(row.warningCount ?? row.warning_count),
     sanctionCount: asNumber(row.sanctionCount ?? row.sanction_count),
     sessions,
-    warningSent: row.warningSent === true || row.warning_sent === true,
   }
 }
 
@@ -182,13 +180,19 @@ export const fetchMissingEndScans = async (month: string): Promise<MissingEndSca
   return Array.isArray(payload) ? payload.map(normalizeMissingEndScanTeacher) : []
 }
 
-export const sendEndScanWarning = async (teacherIds: string[], month: string): Promise<{ sentCount: number }> => {
-  const response = await api.post<unknown>("/validations/send-end-scan-warning", {
+export const bulkWarnEndScans = async (
+  teacherIds: string[],
+  month: string
+): Promise<{ teacherCount: number; warnedCount: number }> => {
+  const response = await api.post<unknown>("/validations/bulk-warn-end-scans", {
     teacher_ids: teacherIds,
     month,
   })
   const data = isRecord(response.data) ? response.data : {}
-  return { sentCount: asNumber(data.sentCount ?? data.sent_count) }
+  return {
+    teacherCount: asNumber(data.teacherCount ?? data.teacher_count),
+    warnedCount: asNumber(data.warnedCount ?? data.warned_count),
+  }
 }
 
 export const invalidateSession = async (attendanceId: string, reason: string): Promise<void> => {

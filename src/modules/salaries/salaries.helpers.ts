@@ -144,10 +144,6 @@ export const attendanceStatusMeta: Record<
     label: "Absent",
     className: "border-red-200 bg-red-50 text-red-700",
   },
-  excused: {
-    label: "Absence justifiée",
-    className: "border-blue-200 bg-blue-50 text-blue-700",
-  },
   not_marked: {
     label: "Non pointé",
     className: "border-slate-200 bg-slate-50 text-slate-700",

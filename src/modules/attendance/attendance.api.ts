@@ -56,7 +56,7 @@ export type ScheduleSlot = {
 export type TeacherAttendance = {
   id?: string
   schedule_id: string
-  status: "present" | "absent" | "late" | "excused"
+  status: "present" | "absent" | "late"
   late_minutes?: number | null
   date?: string
   room_scan_start_at?: string | null
@@ -103,15 +103,11 @@ const toComplianceItem = (row: unknown): TeacherComplianceItem => {
 
 const toAttendanceStatus = (
   value: unknown
-): "present" | "absent" | "late" | "excused" => {
-  if (
-    value === "absent" ||
-    value === "late" ||
-    value === "excused" ||
-    value === "present"
-  ) {
+): "present" | "absent" | "late" => {
+  if (value === "absent" || value === "late" || value === "present") {
     return value
   }
+  // Donnée legacy 'excused' ou inconnu → traité comme 'present' (cf. STUDENT_ATTENDANCE_STATUS pour les élèves).
   return "present"
 }
 

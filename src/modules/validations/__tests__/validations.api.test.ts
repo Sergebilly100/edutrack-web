@@ -17,6 +17,7 @@ vi.mock("@/shared/api/client", () => ({
 import {
   applyEndScanAction,
   approveValidation,
+  bulkWarnEndScans,
   cancelEndScanSanction,
   fetchMissingEndScans,
   fetchTeacherNotifications,
@@ -25,7 +26,6 @@ import {
   markAllTeacherNotificationsRead,
   markTeacherNotificationRead,
   rejectValidation,
-  sendEndScanWarning,
 } from "../validations.api"
 
 describe("validations.api", () => {
@@ -186,7 +186,6 @@ describe("validations.api", () => {
             missing_end_scan_count: 2,
             warning_count: 1,
             sanction_count: 0,
-            warning_sent: false,
             sessions: [
               {
                 date: "2026-05-01",
@@ -231,19 +230,29 @@ describe("validations.api", () => {
     })
   })
 
-  // ── sendEndScanWarning ────────────────────────────────────────────────────
+  // ── bulkWarnEndScans ──────────────────────────────────────────────────────
 
-  describe("sendEndScanWarning", () => {
-    it("retourne sentCount normalisé", async () => {
-      postMock.mockResolvedValueOnce({ data: { sent_count: 3 } })
+  describe("bulkWarnEndScans", () => {
+    it("retourne teacherCount et warnedCount normalisés", async () => {
+      postMock.mockResolvedValueOnce({ data: { teacher_count: 3, warned_count: 7 } })
 
-      const result = await sendEndScanWarning(["t-1", "t-2", "t-3"], "2026-05")
+      const result = await bulkWarnEndScans(["t-1", "t-2", "t-3"], "2026-05")
 
-      expect(postMock).toHaveBeenCalledWith("/validations/send-end-scan-warning", {
+      expect(postMock).toHaveBeenCalledWith("/validations/bulk-warn-end-scans", {
         teacher_ids: ["t-1", "t-2", "t-3"],
         month: "2026-05",
       })
-      expect(result.sentCount).toBe(3)
+      expect(result.teacherCount).toBe(3)
+      expect(result.warnedCount).toBe(7)
+    })
+
+    it("supporte aussi le format camelCase", async () => {
+      postMock.mockResolvedValueOnce({ data: { teacherCount: 2, warnedCount: 5 } })
+
+      const result = await bulkWarnEndScans(["t-1", "t-2"], "2026-05")
+
+      expect(result.teacherCount).toBe(2)
+      expect(result.warnedCount).toBe(5)
     })
   })
 

@@ -28,12 +28,12 @@ import { getCurrentMonth, getRecentMonthOptions, formatMonthLabel } from "@/shar
 import {
   applyEndScanAction,
   approveValidation,
+  bulkWarnEndScans,
   cancelEndScanSanction,
   fetchMissingEndScans,
   fetchValidationHistory,
   getPendingValidations,
   rejectValidation,
-  sendEndScanWarning,
   type EndScanAction,
   type MissingEndScanSession,
   type MissingEndScanTeacher,
@@ -78,6 +78,15 @@ type CancelSanctionTarget = {
   teacher: MissingEndScanTeacher
 }
 
+type BulkWarnTarget =
+  | { scope: "all" }
+  | { scope: "teacher"; teacherId: string; teacherName: string }
+
+const countEligibleSessions = (teacher: MissingEndScanTeacher): number =>
+  teacher.sessions.filter(
+    (s) => s.endScanAction === null || s.endScanActionCancelledAt !== null
+  ).length
+
 export default function ValidationsPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -92,6 +101,7 @@ export default function ValidationsPage() {
   const [endScanActionTarget, setEndScanActionTarget] = useState<EndScanActionTarget | null>(null)
   const [cancelSanctionTarget, setCancelSanctionTarget] = useState<CancelSanctionTarget | null>(null)
   const [cancelSanctionReason, setCancelSanctionReason] = useState("")
+  const [bulkWarnTarget, setBulkWarnTarget] = useState<BulkWarnTarget | null>(null)
   const [endScanStatusFilter, setEndScanStatusFilter] = useState<"all" | EndScanStatus>("all")
   const endScanMonthOptions = useMemo(() => getRecentMonthOptions(getCurrentMonth(), 12), [])
 
@@ -187,10 +197,23 @@ export default function ValidationsPage() {
   })
 
   const warnMutation = useMutation({
-    mutationFn: (teacherIds: string[]) => sendEndScanWarning(teacherIds, endScanMonth),
+    mutationFn: (teacherIds: string[]) => bulkWarnEndScans(teacherIds, endScanMonth),
     onSuccess: async (data) => {
-      await queryClient.invalidateQueries({ queryKey: ["validations", "missing-end-scans"] })
-      toast({ title: "Avertissement envoyé", description: `${data.sentCount} enseignant(s) notifié(s).` })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["validations", "missing-end-scans"] }),
+        queryClient.invalidateQueries({ queryKey: ["salaries"] }),
+      ])
+      if (data.warnedCount === 0) {
+        toast({
+          title: "Aucun cours à tolérer",
+          description: "Les sessions sélectionnées sont déjà traitées.",
+        })
+        return
+      }
+      toast({
+        title: "Cours tolérés",
+        description: `${data.warnedCount} cours toléré(s) sur ${data.teacherCount} enseignant(s).`,
+      })
     },
   })
 
@@ -259,6 +282,32 @@ export default function ValidationsPage() {
   const endScanTeachers = endScanQuery.data ?? []
   const endScanTotal = endScanTeachers.reduce((sum, t) => sum + t.missingEndScanCount, 0)
 
+  const bulkWarnImpact = useMemo(() => {
+    if (!bulkWarnTarget) return { teacherCount: 0, eligibleCount: 0, teachers: [] as MissingEndScanTeacher[] }
+    const teachers =
+      bulkWarnTarget.scope === "all"
+        ? endScanTeachers
+        : endScanTeachers.filter((t) => t.teacherId === bulkWarnTarget.teacherId)
+    const withEligible = teachers
+      .map((t) => ({ teacher: t, eligible: countEligibleSessions(t) }))
+      .filter((row) => row.eligible > 0)
+    return {
+      teacherCount: withEligible.length,
+      eligibleCount: withEligible.reduce((sum, r) => sum + r.eligible, 0),
+      teachers: withEligible.map((r) => r.teacher),
+    }
+  }, [bulkWarnTarget, endScanTeachers])
+
+  const confirmBulkWarn = () => {
+    if (!bulkWarnTarget) return
+    const teacherIds =
+      bulkWarnTarget.scope === "all"
+        ? endScanTeachers.map((t) => t.teacherId)
+        : [bulkWarnTarget.teacherId]
+    warnMutation.mutate(teacherIds)
+    setBulkWarnTarget(null)
+  }
+
   const selectedAmount = useMemo(() => {
     if (!rejectTarget?.hourlyRate) return null
     return formatFcfa(rejectTarget.hourlyRate * (rejectTarget.scheduleDurationMinutes / 60))
@@ -291,7 +340,6 @@ export default function ValidationsPage() {
             <SelectItem value="all">Tous les statuts</SelectItem>
             <SelectItem value="planned">Heure prévue accordée</SelectItem>
             <SelectItem value="actual">Heure réelle accordée</SelectItem>
-            <SelectItem value="rejected">Heures refusées</SelectItem>
           </SelectContent>
         </Select>
       ) : (
@@ -767,10 +815,10 @@ export default function ValidationsPage() {
               variant="outline"
               className="w-full sm:w-auto"
               disabled={warnMutation.isPending}
-              onClick={() => warnMutation.mutate(endScanTeachers.map((t) => t.teacherId))}
+              onClick={() => setBulkWarnTarget({ scope: "all" })}
             >
               <Send className="mr-2 h-4 w-4" />
-              {warnMutation.isPending ? "Envoi..." : "Tolérer tous avec avertissement"}
+              {warnMutation.isPending ? "Traitement..." : "Tolérer tous les profs avec un avertissement"}
             </Button>
           </div>
         </div>
@@ -819,11 +867,6 @@ export default function ValidationsPage() {
                         {teacher.sanctionCount} sanction{teacher.sanctionCount > 1 ? "s" : ""}
                       </Badge>
                     ) : null}
-                    {teacher.warningSent ? (
-                      <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
-                        Notifié
-                      </Badge>
-                    ) : null}
                   </CollapsibleTrigger>
                   <Button
                     type="button"
@@ -831,10 +874,16 @@ export default function ValidationsPage() {
                     variant="outline"
                     className="w-full border-amber-200 text-amber-700 hover:bg-amber-50 sm:w-auto"
                     disabled={warnMutation.isPending}
-                    onClick={() => warnMutation.mutate([teacher.teacherId])}
+                    onClick={() =>
+                      setBulkWarnTarget({
+                        scope: "teacher",
+                        teacherId: teacher.teacherId,
+                        teacherName: teacher.teacherName,
+                      })
+                    }
                   >
                     <Send className="mr-2 h-3 w-3" />
-                    Tolérer tous avec avertissement
+                    Tolérer tous ses cours avec un avertissement
                   </Button>
                 </div>
 
@@ -1003,7 +1052,7 @@ export default function ValidationsPage() {
       <div className="space-y-6 animate-in fade-in duration-200 mt-3">
         <header className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">Validation des horaires</h1>
-          <p className="text-sm text-muted-foreground">{total} présence(s) en attente de décision.</p>
+          <p className="text-sm text-muted-foreground">Présence(s) en attente de décision.</p>
         </header>
 
         <Tabs defaultValue="hours" className="space-y-4">
@@ -1324,6 +1373,74 @@ export default function ValidationsPage() {
               }}
             >
               {cancelSanctionMutation.isPending ? "Annulation..." : "Confirmer l'annulation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Modale confirmation tolérance en masse ──────────────────────────── */}
+      <Dialog
+        open={bulkWarnTarget !== null}
+        onOpenChange={(open) => !open && setBulkWarnTarget(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {bulkWarnTarget?.scope === "all"
+                ? "Tolérer tous les profs avec un avertissement"
+                : `Tolérer tous les cours de ${bulkWarnTarget?.scope === "teacher" ? bulkWarnTarget.teacherName : ""}`}
+            </DialogTitle>
+            <DialogDescription>
+              {bulkWarnImpact.eligibleCount === 0
+                ? "Aucun cours éligible : toutes les sessions sont déjà traitées."
+                : bulkWarnTarget?.scope === "all"
+                  ? `Vous êtes sur le point de tolérer ${bulkWarnImpact.eligibleCount} cours sans scan de fin pour ${bulkWarnImpact.teacherCount} enseignant(s).`
+                  : `Vous êtes sur le point de tolérer ${bulkWarnImpact.eligibleCount} cours sans scan de fin.`}
+            </DialogDescription>
+          </DialogHeader>
+          {bulkWarnImpact.eligibleCount > 0 ? (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 space-y-2">
+                <div className="flex items-start gap-2">
+                  <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="space-y-1">
+                    <p className="font-medium">Conséquences de cette action :</p>
+                    <ul className="list-disc pl-4 space-y-0.5">
+                      <li>Ces sessions seront marquées « Toléré ».</li>
+                      <li>{bulkWarnImpact.teacherCount > 1 ? "Les enseignants" : "L'enseignant"} recevr{bulkWarnImpact.teacherCount > 1 ? "ont" : "a"} une notification par SMS et email.</li>
+                      <li>Aucun impact sur {bulkWarnImpact.teacherCount > 1 ? "leurs" : "son"} salaire{bulkWarnImpact.teacherCount > 1 ? "s" : ""}.</li>
+                      <li>Les sanctions et tolérances déjà appliquées ne seront pas modifiées.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              {bulkWarnTarget?.scope === "all" && bulkWarnImpact.teachers.length > 0 ? (
+                <div className="rounded-lg border border-border p-3 text-sm">
+                  <p className="text-muted-foreground mb-1">Enseignants concernés :</p>
+                  <ul className="space-y-0.5">
+                    {bulkWarnImpact.teachers.map((t) => (
+                      <li key={t.teacherId} className="flex justify-between gap-2">
+                        <span className="truncate">{t.teacherName}</span>
+                        <span className="text-muted-foreground shrink-0">
+                          {countEligibleSessions(t)} cours
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setBulkWarnTarget(null)}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              disabled={warnMutation.isPending || bulkWarnImpact.eligibleCount === 0}
+              onClick={confirmBulkWarn}
+            >
+              {warnMutation.isPending ? "Traitement..." : "Confirmer la tolérance"}
             </Button>
           </DialogFooter>
         </DialogContent>

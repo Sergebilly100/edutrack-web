@@ -4,7 +4,7 @@ import type {
   ValidationHistoryStatus,
 } from "./validations.api"
 
-export type ShortHoursHistoryFilter = "all" | "planned" | "actual" | "rejected"
+export type ShortHoursHistoryFilter = "all" | "planned" | "actual"
 export type GpsHistoryFilter = "all" | "approved" | "rejected"
 export type EndScanStatus = "pending" | "warned" | "sanctioned" | "cancelled"
 
@@ -12,7 +12,6 @@ export const resolveShortHoursFilter = (
   filter: ShortHoursHistoryFilter
 ): { status?: ValidationHistoryStatus; approvalType?: ValidationApprovalType } => {
   if (filter === "all") return {}
-  if (filter === "rejected") return { status: "rejected" }
   return { status: "approved", approvalType: filter }
 }
 

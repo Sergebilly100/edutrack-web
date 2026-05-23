@@ -13,6 +13,7 @@ export type AuthUser = {
   phone: string | null
   email: string | null
   profilePhotoUrl: string | null
+  mustChangePassword: boolean
   positionNames?: string[]
   primaryPosition?: string | null
   tenantId: string

@@ -89,6 +89,7 @@ describe("DashboardPage", () => {
         phone: null,
         email: "director@example.com",
         profilePhotoUrl: null,
+        mustChangePassword: false,
         tenantId: "tenant-1",
         schemaName: "school_sainte_marie",
         plan: "standard",

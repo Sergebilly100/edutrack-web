@@ -47,7 +47,7 @@ export const buildCourseDateTime = (date: string, time: string): Date | null => 
 }
 
 export const isPresentLikeCourse = (course: DashboardCourseItem): boolean =>
-  course.status === "present" || course.status === "late" || course.status === "excused"
+  course.status === "present" || course.status === "late"
 
 export const hasCourseStartedFor15Minutes = (
   date: string,

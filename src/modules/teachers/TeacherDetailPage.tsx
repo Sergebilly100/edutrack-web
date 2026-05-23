@@ -41,6 +41,7 @@ import {
   getTeacherSalaryDetails,
 } from "@/modules/teachers/teachers.api"
 import {
+  ConfirmActionDialog,
   DocumentList,
   DocumentUpload,
   PageLayout,
@@ -94,7 +95,6 @@ const statusLabel: Record<string, string> = {
   present: "Présent",
   absent: "Absent",
   late: "Retard",
-  excused: "Excusé",
   not_marked: "Non marqué",
 }
 
@@ -102,7 +102,6 @@ const statusBadgeClass: Record<string, string> = {
   present: "border-green-200 bg-green-50 text-green-700",
   absent: "border-red-200 bg-red-50 text-red-700",
   late: "border-amber-200 bg-amber-50 text-amber-700",
-  excused: "border-blue-200 bg-blue-50 text-blue-700",
   not_marked: "border-slate-200 bg-slate-50 text-slate-600",
 }
 
@@ -455,6 +454,7 @@ function InfosPanel({ teacherId }: { teacherId: string }) {
     email?: string | null
     emailSent: boolean
   }>({ open: false, emailSent: false })
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
 
   const teacherQuery = useQuery({
     queryKey: ["teacher", teacherId],
@@ -482,6 +482,7 @@ function InfosPanel({ teacherId }: { teacherId: string }) {
   const resetPasswordMutation = useMutation({
     mutationFn: () => resetTeacherPassword(teacherId),
     onSuccess: async (data) => {
+      setResetConfirmOpen(false)
       await queryClient.invalidateQueries({ queryKey: ["teacher", teacherId] })
       setResetResult({
         open: true,
@@ -491,6 +492,7 @@ function InfosPanel({ teacherId }: { teacherId: string }) {
       })
     },
     onError: () => {
+      setResetConfirmOpen(false)
       toast({
         title: "Erreur",
         description: "Impossible de réinitialiser le mot de passe.",
@@ -556,12 +558,32 @@ function InfosPanel({ teacherId }: { teacherId: string }) {
             type="button"
             variant="outline"
             disabled={resetPasswordMutation.isPending}
-            onClick={() => resetPasswordMutation.mutate()}
+            onClick={() => setResetConfirmOpen(true)}
           >
             {resetPasswordMutation.isPending ? "Réinitialisation..." : "Réinitialiser le mot de passe"}
           </Button>
         </CardContent>
       </Card>
+
+      <ConfirmActionDialog
+        open={resetConfirmOpen}
+        onOpenChange={(open) => {
+          if (!resetPasswordMutation.isPending) setResetConfirmOpen(open)
+        }}
+        title="Réinitialiser le mot de passe"
+        description={`Cette action va générer un nouveau mot de passe temporaire pour ${teacher.firstName} ${teacher.lastName}.`}
+        consequences={[
+          "L'ancien mot de passe est immédiatement invalidé — le professeur ne pourra plus se connecter avec.",
+          hasEmail
+            ? `Un email est envoyé à ${teacher.email} avec le nouveau mot de passe.`
+            : "Aucun email renseigné — le nouveau mot de passe vous sera affiché à l'écran pour transmission manuelle.",
+          "Le professeur devra changer ce mot de passe à sa prochaine connexion.",
+        ]}
+        confirmLabel="Confirmer la réinitialisation"
+        pendingLabel="Réinitialisation..."
+        isPending={resetPasswordMutation.isPending}
+        onConfirm={() => resetPasswordMutation.mutate()}
+      />
 
       <Dialog
         open={resetResult.open}
@@ -765,9 +787,7 @@ export default function TeacherDetailPage() {
   const currentMonthSummary = currentMonthAttendanceQuery.data?.summary
   const presentLikeCount = currentMonthRows.filter(
     (row) =>
-      row.attendanceStatus === "present" ||
-      row.attendanceStatus === "late" ||
-      row.attendanceStatus === "excused"
+      row.attendanceStatus === "present" || row.attendanceStatus === "late"
   ).length
   const attendanceRate =
     currentMonthRows.length > 0 ? (presentLikeCount / currentMonthRows.length) * 100 : 0

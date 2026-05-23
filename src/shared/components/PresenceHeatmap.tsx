@@ -12,7 +12,6 @@ const statusClass: Record<TeacherMonthlyAttendanceStatus, string> = {
   present: "bg-green-500",
   late: "bg-amber-500",
   absent: "bg-red-500",
-  excused: "bg-blue-500",
   not_marked: "bg-slate-200",
 }
 
@@ -20,7 +19,6 @@ const statusLabel: Record<TeacherMonthlyAttendanceStatus, string> = {
   present: "Présent",
   late: "Retard",
   absent: "Absent",
-  excused: "Excusé",
   not_marked: "Non marqué",
 }
 

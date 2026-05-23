@@ -22,6 +22,7 @@ const AdminSchoolDetailPage = lazy(() => import("@/modules/admin/AdminSchoolDeta
 const AdminRevenuSmsPage = lazy(() => import("@/modules/admin/AdminRevenuSmsPage"))
 const AdminSmsPage = lazy(() => import("@/modules/admin/AdminSmsPage"))
 const AccountPage = lazy(() => import("@/modules/account/AccountPage"))
+const FirstLoginPasswordPage = lazy(() => import("@/modules/account/FirstLoginPasswordPage"))
 const AttendancePage = lazy(() => import("@/modules/attendance/AttendancePage"))
 const AdministrativeDashboardPage = lazy(() => import("@/modules/dashboard/AdministrativeDashboardPage"))
 const DashboardPage = lazy(() => import("@/modules/dashboard/DashboardPage"))
@@ -81,6 +82,7 @@ function DashboardRoute() {
             phone: string | null
             email: string | null
             profilePhotoUrl: string | null
+            mustChangePassword?: boolean
             positionNames?: string[]
             primaryPosition?: string | null
           }
@@ -116,6 +118,7 @@ function DashboardRoute() {
           phone: meResponse.data.user.phone,
           email: meResponse.data.user.email,
           profilePhotoUrl: meResponse.data.user.profilePhotoUrl,
+          mustChangePassword: Boolean(meResponse.data.user.mustChangePassword),
           positionNames: Array.isArray(meResponse.data.user.positionNames)
             ? meResponse.data.user.positionNames
             : [],
@@ -150,6 +153,10 @@ function RoleRedirect() {
 
   if (!user) {
     return <Navigate to="/login" replace />
+  }
+
+  if (user.mustChangePassword) {
+    return <Navigate to="/account/first-login-password" replace />
   }
 
   if (user.role === "teacher") {
@@ -204,6 +211,10 @@ function AttendanceRoute() {
     return <Navigate to="/login" replace />
   }
 
+  if (user.mustChangePassword) {
+    return <Navigate to="/account/first-login-password" replace />
+  }
+
   if (user.role === "teacher") {
     return <TeacherShell element={<AttendancePage />} />
   }
@@ -232,11 +243,29 @@ function NonTeacherShellRoute() {
     return <Navigate to="/login" replace />
   }
 
+  if (user.mustChangePassword) {
+    return <Navigate to="/account/first-login-password" replace />
+  }
+
   if (user.role === "teacher") {
     return <Navigate to="/attendance" replace />
   }
 
   return <AppShell />
+}
+
+function FirstLoginPasswordRoute() {
+  const user = useAuthStore((state) => state.user)
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (!user.mustChangePassword) {
+    return <RoleRedirect />
+  }
+
+  return <FirstLoginPasswordPage />
 }
 
 function PlaceholderPage({ title }: { title: string }) {
@@ -326,6 +355,7 @@ export default function App() {
         <Route path="/maintenance" element={<MaintenancePage />} />
         <Route path="/attendance" element={<AttendanceRoute />} />
         <Route path="/onboarding" element={<OnboardingRoute />} />
+        <Route path="/account/first-login-password" element={<FirstLoginPasswordRoute />} />
 
         <Route element={<NonTeacherShellRoute />}>
           <Route path="/dashboard" element={<PermissionRoute href="/dashboard" element={<DashboardRoute />} />} />

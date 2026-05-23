@@ -20,6 +20,7 @@ type MeResponse = {
     phone: string | null
     email: string | null
     profilePhotoUrl: string | null
+    mustChangePassword?: boolean
     positionNames?: string[]
     primaryPosition?: string | null
     username?: string
@@ -144,6 +145,7 @@ export function useRestoreSession(): void {
           phone: user.phone,
           email: user.email,
           profilePhotoUrl: user.profilePhotoUrl,
+          mustChangePassword: Boolean(user.mustChangePassword ?? jwtClaims.mustChangePassword),
           positionNames: Array.isArray(user.positionNames) ? user.positionNames : [],
           primaryPosition: user.primaryPosition ?? null,
           tenantId: schemaName,

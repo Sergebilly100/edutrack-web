@@ -44,9 +44,7 @@ const getStatus = (
   const startWindow = new Date(start.getTime() - 5 * 60 * 1000)
 
   const hasCheckIn =
-    attendance?.status === "present" ||
-    attendance?.status === "late" ||
-    attendance?.status === "excused"
+    attendance?.status === "present" || attendance?.status === "late"
 
   if (hasCheckIn && now >= end) return "done"
   if (now >= startWindow && now < start) return "starting_soon"
@@ -66,9 +64,7 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
   const rollCallStillOpen = now <= end
 
   const alreadyCheckedIn =
-    attendance?.status === "present" ||
-    attendance?.status === "late" ||
-    attendance?.status === "excused"
+    attendance?.status === "present" || attendance?.status === "late"
 
   const flowState = useRollCallStore((s) => s.getFlowState(slot.id, courseDateKey))
   const rollCallPending = flowState === "rollcall_pending" // Le prof a choisi "Non, plus tard" dans la modale d'appel

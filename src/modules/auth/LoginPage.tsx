@@ -84,12 +84,19 @@ export default function LoginPage() {
         phone: result.user.phone,
         email: result.user.email,
         profilePhotoUrl: result.user.profilePhotoUrl,
+        mustChangePassword: Boolean(result.user.mustChangePassword),
         positionNames: Array.isArray(result.user.positionNames) ? result.user.positionNames : [],
         primaryPosition: result.user.primaryPosition ?? null,
         tenantId: schemaNameFromToken,
         schemaName: schemaNameFromToken,
         plan: 'standard',
       });
+
+      if (result.user.mustChangePassword) {
+        navigate('/account/first-login-password', { replace: true });
+        return;
+      }
+
       await refreshPermissions();
 
       if (result.user.role === 'teacher') {

@@ -11,7 +11,7 @@ const approveValidationMock = vi.fn()
 const rejectValidationMock = vi.fn()
 const applyEndScanActionMock = vi.fn()
 const cancelEndScanSanctionMock = vi.fn()
-const sendEndScanWarningMock = vi.fn()
+const bulkWarnEndScansMock = vi.fn()
 
 vi.mock("../validations.api", () => ({
   getPendingValidations: () => getPendingValidationsMock(),
@@ -20,7 +20,7 @@ vi.mock("../validations.api", () => ({
   rejectValidation: (input: unknown) => rejectValidationMock(input),
   applyEndScanAction: (input: unknown) => applyEndScanActionMock(input),
   cancelEndScanSanction: (input: unknown) => cancelEndScanSanctionMock(input),
-  sendEndScanWarning: (ids: unknown, month: unknown) => sendEndScanWarningMock(ids, month),
+  bulkWarnEndScans: (ids: unknown, month: unknown) => bulkWarnEndScansMock(ids, month),
   invalidateSession: vi.fn(),
 }))
 
@@ -90,7 +90,6 @@ const makeEndScanTeacher = (overrides = {}) => ({
   missingEndScanCount: 1,
   warningCount: 0,
   sanctionCount: 0,
-  warningSent: false,
   sessions: [
     {
       date: "2026-05-03",

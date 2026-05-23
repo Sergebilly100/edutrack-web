@@ -61,7 +61,7 @@ import {
   UnblockIcon,
   ViewIcon,
 } from "@/shared/components/icons"
-import { DataTable, EmptyState, PageLayout } from "@/shared/components"
+import { ConfirmActionDialog, DataTable, EmptyState, PageLayout } from "@/shared/components"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
@@ -412,6 +412,7 @@ export default function TeachersPage() {
   const [blockReasonInput, setBlockReasonInput] = useState("")
   const [teacherForExport, setTeacherForExport] = useState<TeacherListItem | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
+  const [sendCredentialsConfirmOpen, setSendCredentialsConfirmOpen] = useState(false)
   const [exportPeriod, setExportPeriod] = useState(getDefaultExportPeriod)
   const rawTab = searchParams.get("tab")
   const activeTab = rawTab === "analyse" || rawTab === "classement" ? rawTab : "liste"
@@ -477,6 +478,7 @@ export default function TeachersPage() {
   const sendCredentialsMutation = useMutation({
     mutationFn: () => sendCredentialsToTeachers(),
     onSuccess: async (data) => {
+      setSendCredentialsConfirmOpen(false)
       await queryClient.invalidateQueries({ queryKey: ["teachers"] })
       const lines = [
         `${data.sentCount} email(s) envoyé(s).`,
@@ -490,6 +492,7 @@ export default function TeachersPage() {
       })
     },
     onError: () => {
+      setSendCredentialsConfirmOpen(false)
       toast({
         title: "Erreur",
         description: "Impossible d'envoyer les identifiants.",
@@ -676,7 +679,7 @@ export default function TeachersPage() {
               type="button"
               variant="outline"
               disabled={sendCredentialsMutation.isPending}
-              onClick={() => sendCredentialsMutation.mutate()}
+              onClick={() => setSendCredentialsConfirmOpen(true)}
               title="Envoie un email avec un mot de passe temporaire aux profs qui n'ont jamais reçu leurs identifiants."
             >
               {sendCredentialsMutation.isPending ? "Envoi..." : "Envoyer les identifiants"}
@@ -1010,6 +1013,26 @@ export default function TeachersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmActionDialog
+        open={sendCredentialsConfirmOpen}
+        onOpenChange={(open) => {
+          if (!sendCredentialsMutation.isPending) setSendCredentialsConfirmOpen(open)
+        }}
+        title="Envoyer les identifiants aux professeurs"
+        description="Cette action concerne tous les professeurs qui n'ont pas encore reçu leurs identifiants."
+        consequences={[
+          "Un nouveau mot de passe temporaire est généré pour chaque professeur ciblé.",
+          "Un email leur est envoyé avec leurs identifiants.",
+          "Les professeurs sans email renseigné sont ignorés (un récapitulatif est affiché après l'envoi).",
+          "L'éventuel mot de passe précédent de ces comptes est invalidé.",
+          "Le professeur devra changer son mot de passe à sa prochaine connexion.",
+        ]}
+        confirmLabel="Confirmer l'envoi"
+        pendingLabel="Envoi..."
+        isPending={sendCredentialsMutation.isPending}
+        onConfirm={() => sendCredentialsMutation.mutate()}
+      />
     </PageLayout>
   )
 }

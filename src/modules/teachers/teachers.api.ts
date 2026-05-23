@@ -60,7 +60,6 @@ export type TeacherMonthlyAttendanceStatus =
   | "present"
   | "absent"
   | "late"
-  | "excused"
   | "not_marked"
 
 export type TeacherMonthlyAttendanceRow = {
@@ -421,11 +420,12 @@ const toAttendanceStatus = (value: unknown): TeacherMonthlyAttendanceStatus => {
     value === "present" ||
     value === "absent" ||
     value === "late" ||
-    value === "excused" ||
     value === "not_marked"
   ) {
     return value
   }
+  // Donnée legacy 'excused' ou inconnu → traité comme 'present'.
+  if (value === "excused") return "present"
   return "not_marked"
 }
 
