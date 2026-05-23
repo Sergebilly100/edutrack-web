@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 
 import QRScanner from "@/modules/attendance/QRScanner"
 import { teacherScheduleApi, type ScheduleSlot } from "@/modules/attendance/attendance.api"
@@ -26,10 +26,14 @@ import {
 } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
-import { useOfflineMutation } from "@/shared/hooks/useOfflineMutation"
+import {
+  OfflineMutationQueuedError,
+  useOfflineMutation,
+} from "@/shared/hooks/useOfflineMutation"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
 import { useStudentLabels, type StudentLabels } from "@/shared/hooks/useStudentLabel"
 import { useRollCallStore } from "@/shared/store/rollCall.store"
+import { OFFLINE_QUEUE_KEYS } from "@/shared/store/offline-processors"
 import { AbsentIcon, CheckIcon, PresentIcon } from "@/shared/components/icons"
 import { cn } from "@/lib/utils"
 
@@ -88,6 +92,9 @@ const getGeoPosition = async (enabled: boolean) => {
     )
   })
 }
+
+const isOfflineQueued = (error: unknown): error is OfflineMutationQueuedError =>
+  error instanceof OfflineMutationQueuedError
 
 export const shouldMarkCheckinQrDoneOnSheetClose = ({
   step,
@@ -163,10 +170,12 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
   }, [open, slot.id, attendanceDate, rollCallStore])
 
   const checkInMutation = useOfflineMutation(teacherScheduleApi.checkIn, {
-    queueKey: "attendance-checkin",
+    queueKey: OFFLINE_QUEUE_KEYS.attendanceCheckin,
   })
 
-  const qrMutation = useMutation({ mutationFn: teacherScheduleApi.scanQr })
+  const qrMutation = useOfflineMutation(teacherScheduleApi.scanQr, {
+    queueKey: OFFLINE_QUEUE_KEYS.attendanceQrScan,
+  })
 
   const studentsQuery = useQuery({
     queryKey: ["students", slot.class_id],
@@ -176,11 +185,11 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
     gcTime: 1000 * 60 * 30,
   })
 
-  const submitStudentsMutation = useMutation({
-    mutationFn: teacherScheduleApi.submitStudentAttendance,
+  const submitStudentsMutation = useOfflineMutation(teacherScheduleApi.submitStudentAttendance, {
+    queueKey: OFFLINE_QUEUE_KEYS.attendanceStudentsBulk,
   })
   const qrSkipMutation = useOfflineMutation(teacherScheduleApi.skipQr, {
-    queueKey: "attendance-qr-skip",
+    queueKey: OFFLINE_QUEUE_KEYS.attendanceQrSkip,
   })
   const attendancePolicyQuery = useQuery({
     queryKey: ["attendance-policy", "teacher"],
@@ -242,22 +251,40 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
     try {
       // ── 1. Envoyer le checkIn au backend (présence confirmée) ──
       const geo = await getGeoPosition(geoCheckEnabled)
-      const checkInResult = await checkInMutation.mutateAsync({
-        schedule_id: slot.id,
-        date: attendanceDate,
-        ...geo,
-      })
+      let checkInQueued = false
+      let qrQueued = false
+      const checkInResult = await checkInMutation
+        .mutateAsync({
+          schedule_id: slot.id,
+          date: attendanceDate,
+          ...geo,
+        })
+        .catch((error: unknown) => {
+          if (isOfflineQueued(error)) {
+            checkInQueued = true
+            return null
+          }
+          throw error
+        })
       const resolvedLateMinutes = checkInResult?.late_minutes ?? null
       setLateMinutes(resolvedLateMinutes)
 
       // ── 2. Valider le scan QR ──
-      const qrResult = await qrMutation.mutateAsync({
-        qr_token: qrToken,
-        scan_type: "start",
-        schedule_id: slot.id,
-      })
+      const qrResult = await qrMutation
+        .mutateAsync({
+          qr_token: qrToken,
+          scan_type: "start",
+          schedule_id: slot.id,
+        })
+        .catch((error: unknown) => {
+          if (isOfflineQueued(error)) {
+            qrQueued = true
+            return null
+          }
+          throw error
+        })
 
-      setQrWarning(qrResult.room_mismatch ? "Vous n'êtes pas dans la bonne salle." : null)
+      setQrWarning(qrResult?.room_mismatch ? "Vous n'êtes pas dans la bonne salle." : null)
       setQrValidated(true)
 
       const lateMsg =
@@ -266,8 +293,11 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
           : ""
 
       toast({
-        title: "Présence confirmée",
-        description: `Salle vérifiée.${lateMsg}${!isOnline ? " (hors ligne, sync auto)" : ""}`,
+        title: checkInQueued || qrQueued ? "Présence en attente de synchronisation" : "Présence confirmée",
+        description:
+          checkInQueued || qrQueued
+            ? "La présence et le QR seront envoyés dès le retour de la connexion."
+            : `Salle vérifiée.${lateMsg}${!isOnline ? " (hors ligne, sync auto)" : ""}`,
       })
 
       await wait(800)
@@ -295,11 +325,18 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
           date: attendanceDate,
         })
         setLateMinutes(result?.late_minutes ?? null)
-      } catch {
+      } catch (error) {
+        if (!isOfflineQueued(error)) {
+          toast({
+            title: "Pointage non enregistré",
+            description: "Impossible de confirmer votre présence. Réessayez dans quelques instants.",
+            variant: "destructive",
+          })
+          return
+        }
         toast({
-          title: "Pointage non enregistré",
+          title: "Pointage en attente",
           description: "Le pointage sera synchronisé automatiquement.",
-          variant: "destructive",
         })
       }
     }
@@ -312,7 +349,17 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
       })
       setQrWarning(null)
       setQrValidated(true)
-    } catch {
+    } catch (error) {
+      if (isOfflineQueued(error)) {
+        setQrWarning(null)
+        setQrValidated(true)
+        setShowRollCallPrompt(true)
+        toast({
+          title: "Validation sans QR en attente",
+          description: "L'action sera synchronisée automatiquement.",
+        })
+        return
+      }
       toast({
         title: "Validation sans QR impossible",
         description: "Impossible de confirmer la salle sans QR pour le moment.",
@@ -390,16 +437,27 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
       .map((s) => s.id)
 
     try {
+      let queued = false
       await submitStudentsMutation.mutateAsync({
         schedule_id: slot.id,
         date: attendanceDate,
         absent_student_ids: absentStudentIds,
+      }).catch((error: unknown) => {
+        if (isOfflineQueued(error)) {
+          queued = true
+          return null
+        }
+        throw error
       })
 
       rollCallStore.markReadyToFinish(slot.id, attendanceDate)
       toast({
-        title: `Appel enregistré — ${absentCount} absent(s)`,
-        description: "Terminez le cours à la fin pour confirmer les heures effectuées.",
+        title: queued
+          ? `Appel en attente — ${absentCount} absent(s)`
+          : `Appel enregistré — ${absentCount} absent(s)`,
+        description: queued
+          ? "La liste sera envoyée dès le retour de la connexion. Vous pouvez terminer le cours normalement."
+          : "Terminez le cours à la fin pour confirmer les heures effectuées.",
       })
       void queryClient.invalidateQueries({ queryKey: ["teacher-attendance", attendanceDate] })
       onClose()
@@ -412,14 +470,16 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
     }
   }
 
-  const finishCourseMutation = useMutation({ mutationFn: teacherScheduleApi.checkOut })
+  const finishCourseMutation = useOfflineMutation(teacherScheduleApi.checkOut, {
+    queueKey: OFFLINE_QUEUE_KEYS.attendanceCheckout,
+  })
   // useOfflineMutation : si hors ligne, le scan de fin est mis en queue et
   // sera envoyé automatiquement au retour réseau, évitant le blocage en fin de cours.
   const endQrMutation = useOfflineMutation(teacherScheduleApi.scanQr, {
-    queueKey: "attendance-qr-end-scan",
+    queueKey: OFFLINE_QUEUE_KEYS.attendanceQrEndScan,
   })
   const endQrSkipMutation = useOfflineMutation(teacherScheduleApi.skipQr, {
-    queueKey: "attendance-qr-end-skip",
+    queueKey: OFFLINE_QUEUE_KEYS.attendanceQrEndSkip,
   })
 
   const handleEndQrDetected = async (token: string) => {
@@ -445,7 +505,15 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
         title: "QR fin validé",
         description: "Vous pouvez maintenant terminer le cours.",
       })
-    } catch {
+    } catch (error) {
+      if (isOfflineQueued(error)) {
+        setEndQrScanned(true)
+        toast({
+          title: "QR fin en attente",
+          description: "Le scan sera envoyé dès le retour de la connexion.",
+        })
+        return
+      }
       toast({
         title: "QR non reconnu",
         description: "Ce QR ne correspond pas à la salle prévue. Réessayez.",
@@ -470,16 +538,27 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
   const handleFinishCourse = async () => {
     try {
       const geo = await getGeoPosition(geoCheckEnabled)
-      const result = await finishCourseMutation.mutateAsync({
-        schedule_id: slot.id,
-        date: attendanceDate,
-        ...geo,
-      })
+      let queued = false
+      const result = await finishCourseMutation
+        .mutateAsync({
+          schedule_id: slot.id,
+          date: attendanceDate,
+          ...geo,
+        })
+        .catch((error: unknown) => {
+          if (isOfflineQueued(error)) {
+            queued = true
+            return null
+          }
+          throw error
+        })
 
       rollCallStore.markDone(slot.id, attendanceDate)
       toast({
-        title: "Cours terminé",
-        description: `${result.actual_minutes} min enregistrées.`,
+        title: queued ? "Fin de cours en attente" : "Cours terminé",
+        description: queued
+          ? "La clôture sera synchronisée automatiquement."
+          : `${result?.actual_minutes ?? 0} min enregistrées.`,
       })
       void queryClient.invalidateQueries({ queryKey: ["teacher-attendance", attendanceDate] })
       onClose()

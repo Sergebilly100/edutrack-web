@@ -23,8 +23,12 @@ import {
   type StudentItem,
 } from "@/modules/attendance/attendance.api"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
-import { useOfflineMutation } from "@/shared/hooks/useOfflineMutation"
+import {
+  OfflineMutationQueuedError,
+  useOfflineMutation,
+} from "@/shared/hooks/useOfflineMutation"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
+import { OFFLINE_QUEUE_KEYS } from "@/shared/store/offline-processors"
 import { cacheRooms, getRoomByToken } from "@/shared/utils/indexedDB"
 
 export type TeacherSchedule = {
@@ -55,6 +59,9 @@ const DEMO_STUDENTS: StudentItem[] = [
   { id: "demo-student-2", full_name: "Traoré Mariam" },
   { id: "demo-student-3", full_name: "Koné Ibrahim" },
 ]
+
+const isOfflineQueued = (error: unknown): error is OfflineMutationQueuedError =>
+  error instanceof OfflineMutationQueuedError
 
 export default function TeacherFlow({ schedule, demoMode = false }: TeacherFlowProps) {
   const studentLabels = useStudentLabels()
@@ -112,16 +119,16 @@ export default function TeacherFlow({ schedule, demoMode = false }: TeacherFlowP
 
   const checkInMutation = useOfflineMutation<CheckInResponse, CheckInPayload>(
     checkIn,
-    { queueKey: "attendance-checkin" }
+    { queueKey: OFFLINE_QUEUE_KEYS.attendanceCheckin }
   )
 
   const qrScanMutation = useOfflineMutation<QrScanResponse, QrScanPayload>(qrScan, {
-    queueKey: "attendance-qr-scan",
+    queueKey: OFFLINE_QUEUE_KEYS.attendanceQrScan,
   })
 
   const bulkStudentsMutation = useOfflineMutation<BulkStudentsResponse, BulkStudentsPayload>(
     bulkStudents,
-    { queueKey: "attendance-students-bulk" }
+    { queueKey: OFFLINE_QUEUE_KEYS.attendanceStudentsBulk }
   )
 
   const absentCount = absentStudentIds.size
@@ -136,7 +143,14 @@ export default function TeacherFlow({ schedule, demoMode = false }: TeacherFlowP
       return
     }
 
-    const result = await checkInMutation.mutateAsync({ schedule_id: schedule.id })
+    const result = await checkInMutation
+      .mutateAsync({ schedule_id: schedule.id })
+      .catch((error: unknown) => {
+        if (isOfflineQueued(error)) {
+          return null
+        }
+        throw error
+      })
     let resolvedLateMinutes = lateMinutes
 
     if (typeof result?.late_minutes === "number" && result.late_minutes > 0) {
@@ -217,11 +231,18 @@ export default function TeacherFlow({ schedule, demoMode = false }: TeacherFlowP
         return
       }
 
-      const response = await qrScanMutation.mutateAsync({
-        qr_token: token,
-        scan_type: "start",
-        schedule_id: schedule.id,
-      })
+      const response = await qrScanMutation
+        .mutateAsync({
+          qr_token: token,
+          scan_type: "start",
+          schedule_id: schedule.id,
+        })
+        .catch((error: unknown) => {
+          if (isOfflineQueued(error)) {
+            return null
+          }
+          throw error
+        })
 
       const isRoomMismatch = isOnline
         ? Boolean(response?.room_mismatch) || matchedRoom.id !== schedule.room_id
@@ -277,11 +298,18 @@ export default function TeacherFlow({ schedule, demoMode = false }: TeacherFlowP
       return
     }
 
-    await bulkStudentsMutation.mutateAsync({
-      schedule_id: schedule.id,
-      date: new Date().toISOString().split("T")[0],
-      absent_student_ids: [...absentStudentIds],
-    })
+    await bulkStudentsMutation
+      .mutateAsync({
+        schedule_id: schedule.id,
+        date: new Date().toISOString().split("T")[0],
+        absent_student_ids: [...absentStudentIds],
+      })
+      .catch((error: unknown) => {
+        if (isOfflineQueued(error)) {
+          return null
+        }
+        throw error
+      })
 
     setStep(4)
     toast({

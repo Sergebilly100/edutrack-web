@@ -11,10 +11,13 @@ import { queryClient } from "@/shared/api/query-client"
 import {
   bulkStudents,
   checkIn,
+  checkOut,
   qrScan,
   qrSkip,
   type BulkStudentsPayload,
   type BulkStudentsResponse,
+  type CheckOutPayload,
+  type CheckOutResponse,
   type CheckInPayload,
   type CheckInResponse,
   type QrScanPayload,
@@ -60,6 +63,7 @@ export const OFFLINE_QUEUE_KEYS = {
   attendanceQrEndScan: "attendance-qr-end-scan",
   attendanceQrEndSkip: "attendance-qr-end-skip",
   attendanceStudentsBulk: "attendance-students-bulk",
+  attendanceCheckout: "attendance-checkout",
   validationApprove: "validation-approve",
   validationReject: "validation-reject",
   studentAbsenceExcuse: "student-absence-excuse",
@@ -203,6 +207,15 @@ export function installOfflineProcessors(): void {
     OFFLINE_QUEUE_KEYS.attendanceStudentsBulk,
     {
       mutationFn: bulkStudents,
+      onSync: invalidateAttendance,
+      maxRetries: 3,
+    }
+  )
+
+  registerGlobalOfflineProcessor<CheckOutResponse, CheckOutPayload>(
+    OFFLINE_QUEUE_KEYS.attendanceCheckout,
+    {
+      mutationFn: checkOut,
       onSync: invalidateAttendance,
       maxRetries: 3,
     }

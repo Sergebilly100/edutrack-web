@@ -1,18 +1,15 @@
-import { useEffect, useRef } from "react"
+import { useEffect } from "react"
 
 import { toast } from "@/components/ui/use-toast"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
-import { syncOfflineQueue } from "@/shared/store/offline.store"
+import { syncOfflineQueue, useOfflineStore } from "@/shared/store/offline.store"
 
 export function useAutoSync() {
   const { isOnline } = useNetworkStatus()
-  const previousOnlineRef = useRef(isOnline)
+  const pendingCount = useOfflineStore((state) => state.queue.length)
 
   useEffect(() => {
-    const becameOnline = !previousOnlineRef.current && isOnline
-    previousOnlineRef.current = isOnline
-
-    if (!becameOnline) {
+    if (!isOnline || pendingCount === 0) {
       return
     }
 
@@ -35,5 +32,5 @@ export function useAutoSync() {
         })
       }
     })()
-  }, [isOnline])
+  }, [isOnline, pendingCount])
 }

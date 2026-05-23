@@ -30,6 +30,7 @@ const QUEUE_KEY_LABELS: Record<string, string> = {
   "attendance-qr-end-scan": "Scan QR de fin",
   "attendance-qr-end-skip": "Saut QR de fin",
   "attendance-students-bulk": "Pointage élèves",
+  "attendance-checkout": "Fin de cours",
   "validation-approve": "Validation",
   "validation-reject": "Refus de validation",
   "student-absence-excuse": "Justification d'absence",

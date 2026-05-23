@@ -31,21 +31,30 @@ const openDB = (): Promise<IDBDatabase> => {
   })
 }
 
+const waitForRequest = <T>(request: IDBRequest<T>): Promise<T> =>
+  new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error)
+  })
+
+const waitForTransaction = (tx: IDBTransaction): Promise<void> =>
+  new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+    tx.onabort = () => reject(tx.error)
+  })
+
 export const cacheRooms = async (rooms: RoomCacheEntry[]): Promise<void> => {
   const db = await openDB()
   const tx = db.transaction('rooms', 'readwrite')
   const store = tx.objectStore('rooms')
+  const txDone = waitForTransaction(tx)
 
   const now = Date.now()
-  for (const room of rooms) {
-    await store.put({ ...room, cached_at: now })
-  }
+  const requests = rooms.map((room) => store.put({ ...room, cached_at: now }))
+  await Promise.all(requests.map(waitForRequest))
 
-  await new Promise<void>((resolve, reject) => {
-    tx.oncomplete = () => resolve()
-    tx.onerror = () => reject(tx.error)
-  })
-
+  await txDone
   db.close()
 }
 
@@ -55,16 +64,9 @@ export const getRoomByToken = async (qrToken: string): Promise<RoomCacheEntry | 
   const store = tx.objectStore('rooms')
   const index = store.index('qr_token')
 
-  return new Promise((resolve, reject) => {
-    const request = index.get(qrToken)
-
-    request.onsuccess = () => {
-      const result = request.result as RoomCacheEntry | undefined
-      resolve(result ?? null)
-    }
-
-    request.onerror = () => reject(request.error)
-  })
+  const result = await waitForRequest(index.get(qrToken))
+  db.close()
+  return (result as RoomCacheEntry | undefined) ?? null
 }
 
 export const getAllCachedRooms = async (): Promise<RoomCacheEntry[]> => {
@@ -72,28 +74,19 @@ export const getAllCachedRooms = async (): Promise<RoomCacheEntry[]> => {
   const tx = db.transaction('rooms', 'readonly')
   const store = tx.objectStore('rooms')
 
-  return new Promise((resolve, reject) => {
-    const request = store.getAll()
-
-    request.onsuccess = () => {
-      resolve((request.result as RoomCacheEntry[]) ?? [])
-    }
-
-    request.onerror = () => reject(request.error)
-  })
+  const result = await waitForRequest(store.getAll())
+  db.close()
+  return (result as RoomCacheEntry[]) ?? []
 }
 
 export const clearRoomsCache = async (): Promise<void> => {
   const db = await openDB()
   const tx = db.transaction('rooms', 'readwrite')
   const store = tx.objectStore('rooms')
+  const txDone = waitForTransaction(tx)
 
-  await new Promise<void>((resolve, reject) => {
-    const request = store.clear()
-
-    request.onsuccess = () => resolve()
-    request.onerror = () => reject(request.error)
-  })
+  await waitForRequest(store.clear())
+  await txDone
 
   db.close()
 }

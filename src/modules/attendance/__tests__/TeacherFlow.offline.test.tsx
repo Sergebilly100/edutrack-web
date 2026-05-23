@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { render, screen, waitFor } from "@testing-library/react"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { QueryClient } from "@tanstack/react-query"
 
-import TeacherFlow from "../TeacherFlow"
 import { cacheRooms, getRoomByToken, clearRoomsCache } from "@/shared/utils/indexedDB"
 
 // Mock du hook useNetworkStatus
@@ -50,27 +48,6 @@ describe("TeacherFlow - QR Scan Offline", () => {
         cached_at: Date.now(),
       },
     ])
-
-    const mockSchedule = {
-      id: "schedule-123",
-      class_id: "class-1",
-      class_name: "6ème A",
-      subject_name: "Mathématiques",
-      room_id: "room-1",
-      room_name: "Salle A1",
-      start_at: "2026-05-09T08:00:00.000Z",
-      end_at: "2026-05-09T09:30:00.000Z",
-    }
-
-    render(
-      <QueryClientProvider client={queryClient}>
-        <TeacherFlow schedule={mockSchedule} />
-      </QueryClientProvider>
-    )
-
-    // Simuler le passage à l'étape 2 (QR scan)
-    // Note: ceci nécessite d'abord de compléter l'étape 1 (check-in)
-    // Pour simplifier, on teste directement la fonction resolveScannedRoom
 
     const cachedRoom = await getRoomByToken("a".repeat(64))
 

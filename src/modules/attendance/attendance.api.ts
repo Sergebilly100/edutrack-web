@@ -3,6 +3,8 @@ import { apiClient as api } from "@/shared/api/client"
 export type GeoPayload = { latitude?: number; longitude?: number; accuracy?: number }
 export type CheckInPayload = { schedule_id: string; date?: string } & GeoPayload
 export type CheckInResponse = { late_minutes?: number | null; geo_status?: string | null }
+export type CheckOutPayload = { schedule_id: string; date?: string } & GeoPayload
+export type CheckOutResponse = { actual_minutes: number; geo_status: string }
 
 export type QrScanPayload = {
   qr_token: string
@@ -352,7 +354,7 @@ export const checkIn = (payload: CheckInPayload) =>
       geo_status: r.data?.data?.geoStatus ?? null,
     }))
 
-export const checkOut = (payload: { schedule_id: string; date?: string } & GeoPayload) =>
+export const checkOut = (payload: CheckOutPayload) =>
   api
     .post<{ data?: { actualMinutes?: number; geoStatus?: string } }>("/attendance/check-out", payload)
     .then((r) => ({

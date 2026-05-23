@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Html5Qrcode } from "html5-qrcode"
 
-import { QUEUE_ATTENDANCE_QR_SCAN } from "@/shared/constants/queues"
-import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
-import { type OfflineQueueItem, useOfflineStore } from "@/shared/store/offline.store"
-import { generateId } from "@/shared/utils/generateId"
-
 type UseQRScannerOptions = {
   onDetected?: (token: string) => void
   scheduleId: string
@@ -81,14 +76,6 @@ export function useQRScanner(options: UseQRScannerOptions): UseQRScannerResult {
   const isScanningRef = useRef(false)
   const onDetectedRef = useRef(options.onDetected)
 
-  const { isOnline } = useNetworkStatus()
-  const isOnlineRef = useRef(isOnline)
-  const addToQueue = useOfflineStore((state) => state.addToQueue)
-
-  useEffect(() => {
-    isOnlineRef.current = isOnline
-  }, [isOnline])
-
   useEffect(() => {
     onDetectedRef.current = options.onDetected
   }, [options.onDetected])
@@ -99,28 +86,6 @@ export function useQRScanner(options: UseQRScannerOptions): UseQRScannerResult {
       timeoutRef.current = null
     }
   }, [])
-
-  const queueOfflineToken = useCallback(
-    (token: string) => {
-      const queueItem: OfflineQueueItem<{
-        qr_token: string
-        scan_type: "start" | "end"
-        schedule_id: string
-      }> = {
-        id: generateId(),
-        queueKey: QUEUE_ATTENDANCE_QR_SCAN,
-        variables: {
-          qr_token: token,
-          scan_type: options.scanType,
-          schedule_id: options.scheduleId,
-        },
-        timestamp: Date.now(),
-      }
-
-      addToQueue(queueItem)
-    },
-    [addToQueue, options.scanType, options.scheduleId]
-  )
 
   const stopScan = useCallback(async () => {
     clearScanTimeout()
@@ -212,10 +177,6 @@ export function useQRScanner(options: UseQRScannerOptions): UseQRScannerResult {
           setError(null)
           onDetectedRef.current?.(decodedText)
 
-          if (!isOnlineRef.current) {
-            queueOfflineToken(decodedText)
-          }
-
           void stopScan()
         },
         () => {
@@ -236,7 +197,7 @@ export function useQRScanner(options: UseQRScannerOptions): UseQRScannerResult {
       setHasPermission(false)
       await stopScan()
     }
-  }, [clearScanTimeout, queueOfflineToken, stopScan])
+  }, [clearScanTimeout, stopScan])
 
   useEffect(() => {
     return () => {

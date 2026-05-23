@@ -649,7 +649,7 @@ export default function SchedulePage() {
 
   return (
     <div className="space-y-6 px-4 md:px-1">
-      <OfflineIndicator />
+      <OfflineIndicator offlineCapable />
       <header className="space-y-4">
         <WeekCoverageAlert
           nextWeekHasCoverage={nextWeekCoverageQuery.data ?? true}
