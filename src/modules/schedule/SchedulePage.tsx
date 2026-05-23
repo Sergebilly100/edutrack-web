@@ -230,6 +230,8 @@ export default function SchedulePage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingSchedule, setEditingSchedule] = useState<ScheduleRow | null>(null)
   const [formState, setFormState] = useState<SlotFormState>(emptyFormState)
+  const [scopeChoiceOpen, setScopeChoiceOpen] = useState(false)
+  const [editScope, setEditScope] = useState<"this" | "this_and_following" | "all" | null>(null)
 
   const weeklyQueryKey = useMemo(
     () => ["schedule-weekly", selectedWeekMonday] as const,
@@ -365,6 +367,27 @@ export default function SchedulePage() {
     setFormOpen(true)
   }
 
+  // Détermine si on demande à l'utilisateur la portée de la modification.
+  // Un créneau one-shot (endDate non nul) n'a qu'une occurrence — édition directe avec scope='this'.
+  const requestEditFor = (schedule: ScheduleRow) => {
+    const isOneShot = schedule.endDate !== null
+    if (isOneShot) {
+      setEditScope("this")
+      openEditModal(schedule)
+      return
+    }
+    setSelectedSchedule(schedule)
+    setDetailOpen(false)
+    setScopeChoiceOpen(true)
+  }
+
+  const chooseScopeAndEdit = (scope: "this" | "this_and_following" | "all") => {
+    if (!selectedSchedule) return
+    setEditScope(scope)
+    setScopeChoiceOpen(false)
+    openEditModal(selectedSchedule)
+  }
+
   const upsertMutation = useMutation({
     mutationFn: async (values: { id?: string; payload: ScheduleCreatePayload }) => {
       if (values.id) return updateScheduleSlot(values.id, values.payload)
@@ -398,19 +421,23 @@ export default function SchedulePage() {
       toast({ title: editingSchedule ? "Créneau modifié" : "Créneau ajouté" })
       setFormOpen(false)
       setEditingSchedule(null)
+      setEditScope(null)
     },
     onSettled: async () => { await queryClient.invalidateQueries({ queryKey: weeklyQueryKey }) },
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (values: { id: string; effectiveFrom: string }) =>
-      deleteScheduleSlotFromDate(values.id, values.effectiveFrom),
+    mutationFn: (values: { id: string; effectiveFrom: string; deleteScope?: "this" | "this_and_following" }) =>
+      deleteScheduleSlotFromDate(values.id, values.effectiveFrom, values.deleteScope),
     onMutate: async (values) => {
       await queryClient.cancelQueries({ queryKey: weeklyQueryKey })
       const previous = queryClient.getQueryData<WeeklyScheduleData>(weeklyQueryKey)
       if (previous) {
         queryClient.setQueryData<WeeklyScheduleData>(weeklyQueryKey, {
           ...previous,
+          // 'this' : on retire visuellement uniquement l'occurrence concernée pour
+          // la semaine affichée. Le refetch en onSettled rétablit la vérité.
+          // Autre cas : retrait complet du schedule.
           schedules: previous.schedules.filter((s) => s.id !== values.id),
         })
       }
@@ -483,6 +510,12 @@ export default function SchedulePage() {
     }
 
     payload.effectiveFrom = occurrenceDate
+
+    // En édition, propager la portée choisie (ou défaut côté backend = this_and_following).
+    if (editingSchedule && editScope) {
+      payload.updateScope = editScope
+    }
+
     await upsertMutation.mutateAsync({ id: editingSchedule?.id, payload })
   }
 
@@ -865,13 +898,13 @@ export default function SchedulePage() {
                           selectedSchedule.timeSlot.startTime,
                           new Date()
                         )}
-                        onClick={() => openEditModal(selectedSchedule)}
+                        onClick={() => requestEditFor(selectedSchedule)}
                       >
                         <EditIcon className="mr-2 h-4 w-4" />Modifier
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      Ce créneau a un historique. La modification créera une nouvelle version à partir de demain.
+                      Ce créneau a un historique. Vous pourrez choisir d'impacter uniquement cette occurrence ou les suivantes.
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -884,7 +917,7 @@ export default function SchedulePage() {
                     selectedSchedule.timeSlot.startTime,
                     new Date()
                   )}
-                  onClick={() => openEditModal(selectedSchedule)}
+                  onClick={() => requestEditFor(selectedSchedule)}
                 >
                   <EditIcon className="mr-2 h-4 w-4" />Modifier
                 </Button>
@@ -899,50 +932,208 @@ export default function SchedulePage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Supprimer ce créneau de {selectedSchedule?.subject ?? "cours"} ?</AlertDialogTitle>
             <AlertDialogDescription>
-              {selectedSchedule?.hasPastAttendance
-                ? `Ce créneau sera désactivé à partir de l'occurrence sélectionnée. L'historique des ${selectedSchedule.pastAttendanceCount} cours passés sera conservé.`
-                : "Ce créneau sera supprimé définitivement."}
+              {selectedSchedule?.endDate !== null
+                ? "Ce créneau de rattrapage sera supprimé définitivement."
+                : selectedSchedule?.hasPastAttendance
+                  ? `Choisissez la portée de la suppression. L'historique des ${selectedSchedule.pastAttendanceCount} cours déjà enseignés sera conservé.`
+                  : "Choisissez la portée de la suppression."}
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {selectedSchedule && selectedSchedule.endDate === null ? (
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="outline"
+                className="h-auto justify-start whitespace-normal py-3 text-left"
+                disabled={deleteMutation.isPending}
+                onClick={() => {
+                  if (!selectedSchedule) return
+                  if (isPastScheduleSelection(
+                    selectedWeekMonday,
+                    selectedSchedule.dayOfWeek,
+                    selectedSchedule.timeSlot.startTime,
+                    new Date()
+                  )) {
+                    toast({
+                      variant: "destructive",
+                      title: "Suppression impossible",
+                      description: "Un créneau passé ne peut pas être supprimé.",
+                    })
+                    return
+                  }
+                  const effectiveFrom = occurrenceDateFromWeek(selectedWeekMonday, selectedSchedule.dayOfWeek)
+                  void deleteMutation.mutateAsync({
+                    id: selectedSchedule.id,
+                    effectiveFrom,
+                    deleteScope: "this",
+                  })
+                  setConfirmDeleteOpen(false)
+                }}
+              >
+                <div className="flex flex-col items-start gap-0.5">
+                  <span className="text-sm font-medium">Cette occurrence uniquement</span>
+                  <span className="text-xs text-muted-foreground">
+                    Seule la séance de ce jour est retirée. Les semaines suivantes restent intactes.
+                  </span>
+                </div>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-auto justify-start whitespace-normal py-3 text-left"
+                disabled={deleteMutation.isPending}
+                onClick={() => {
+                  if (!selectedSchedule) return
+                  if (isPastScheduleSelection(
+                    selectedWeekMonday,
+                    selectedSchedule.dayOfWeek,
+                    selectedSchedule.timeSlot.startTime,
+                    new Date()
+                  )) {
+                    toast({
+                      variant: "destructive",
+                      title: "Suppression impossible",
+                      description: "Un créneau passé ne peut pas être supprimé.",
+                    })
+                    return
+                  }
+                  const effectiveFrom = occurrenceDateFromWeek(selectedWeekMonday, selectedSchedule.dayOfWeek)
+                  void deleteMutation.mutateAsync({
+                    id: selectedSchedule.id,
+                    effectiveFrom,
+                    deleteScope: "this_and_following",
+                  })
+                  setConfirmDeleteOpen(false)
+                }}
+              >
+                <div className="flex flex-col items-start gap-0.5">
+                  <span className="text-sm font-medium">Cette occurrence et les suivantes</span>
+                  <span className="text-xs text-muted-foreground">
+                    Le créneau s'arrête à cette date. Aucune séance future ne sera plus planifiée.
+                  </span>
+                </div>
+              </Button>
+            </div>
+          ) : null}
+
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteMutation.isPending}>Garder le créneau</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (!selectedSchedule) return
-                if (isPastScheduleSelection(
-                  selectedWeekMonday,
-                  selectedSchedule.dayOfWeek,
-                  selectedSchedule.timeSlot.startTime,
-                  new Date()
-                )) {
-                  toast({
-                    variant: "destructive",
-                    title: "Suppression impossible",
-                    description: "Un créneau passé ne peut pas être supprimé.",
-                  })
-                  return
-                }
-                const effectiveFrom = occurrenceDateFromWeek(selectedWeekMonday, selectedSchedule.dayOfWeek)
-                void deleteMutation.mutateAsync({ id: selectedSchedule.id, effectiveFrom })
-                setConfirmDeleteOpen(false)
-              }}
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending ? "Suppression..." : "Supprimer le créneau"}
-            </AlertDialogAction>
+            {selectedSchedule && selectedSchedule.endDate !== null ? (
+              <AlertDialogAction
+                onClick={() => {
+                  if (!selectedSchedule) return
+                  if (isPastScheduleSelection(
+                    selectedWeekMonday,
+                    selectedSchedule.dayOfWeek,
+                    selectedSchedule.timeSlot.startTime,
+                    new Date()
+                  )) {
+                    toast({
+                      variant: "destructive",
+                      title: "Suppression impossible",
+                      description: "Un créneau passé ne peut pas être supprimé.",
+                    })
+                    return
+                  }
+                  const effectiveFrom = occurrenceDateFromWeek(selectedWeekMonday, selectedSchedule.dayOfWeek)
+                  void deleteMutation.mutateAsync({ id: selectedSchedule.id, effectiveFrom })
+                  setConfirmDeleteOpen(false)
+                }}
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending ? "Suppression..." : "Supprimer le créneau"}
+              </AlertDialogAction>
+            ) : null}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* ── Dialog choix de portée d'édition ─────────────────────────────── */}
+      <Dialog open={scopeChoiceOpen} onOpenChange={setScopeChoiceOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Modifier ce cours</DialogTitle>
+            <DialogDescription>
+              Choisissez la portée de la modification pour ce créneau récurrent.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Button
+              variant="outline"
+              className="h-auto justify-start whitespace-normal py-3 text-left"
+              onClick={() => chooseScopeAndEdit("this")}
+            >
+              <div className="flex flex-col items-start gap-0.5">
+                <span className="text-sm font-medium">Cette occurrence uniquement</span>
+                <span className="text-xs text-muted-foreground">
+                  Seule la séance du jour choisi est modifiée. Les autres semaines restent intactes.
+                </span>
+              </div>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-auto justify-start whitespace-normal py-3 text-left"
+              onClick={() => chooseScopeAndEdit("this_and_following")}
+            >
+              <div className="flex flex-col items-start gap-0.5">
+                <span className="text-sm font-medium">Cette occurrence et les suivantes</span>
+                <span className="text-xs text-muted-foreground">
+                  À partir de cette date, toutes les séances futures prennent les nouvelles valeurs.
+                </span>
+              </div>
+            </Button>
+            {selectedSchedule?.hasPastAttendance ? (
+              <p className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+                L'option « Toutes les occurrences » est verrouillée : ce cours a déjà été enseigné
+                ({selectedSchedule.pastAttendanceCount} séance{selectedSchedule.pastAttendanceCount > 1 ? "s" : ""} passée{selectedSchedule.pastAttendanceCount > 1 ? "s" : ""}). L'historique doit être préservé.
+              </p>
+            ) : (
+              <Button
+                variant="outline"
+                className="h-auto justify-start whitespace-normal py-3 text-left"
+                onClick={() => chooseScopeAndEdit("all")}
+              >
+                <div className="flex flex-col items-start gap-0.5">
+                  <span className="text-sm font-medium">Toutes les occurrences</span>
+                  <span className="text-xs text-muted-foreground">
+                    L'ensemble du créneau (passé compris) est mis à jour. Utiliser pour corriger une erreur.
+                  </span>
+                </div>
+              </Button>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setScopeChoiceOpen(false)}>
+              Annuler
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Dialog formulaire ────────────────────────────────────────────── */}
       <Dialog
         open={formOpen}
-        onOpenChange={(open) => { setFormOpen(open); if (!open) setEditingSchedule(null) }}
+        onOpenChange={(open) => {
+          setFormOpen(open)
+          if (!open) {
+            setEditingSchedule(null)
+            setEditScope(null)
+          }
+        }}
       >
         <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle>{editingSchedule ? "Modifier un créneau" : "Ajouter un créneau"}</DialogTitle>
             <DialogDescription>Renseignez les informations nécessaires pour placer ce cours dans la semaine sélectionnée.</DialogDescription>
+            {editingSchedule && editScope ? (
+              <Badge variant="secondary" className="mt-2 w-fit">
+                Portée :{" "}
+                {editScope === "this"
+                  ? "Cette occurrence uniquement"
+                  : editScope === "this_and_following"
+                    ? "Cette occurrence et les suivantes"
+                    : "Toutes les occurrences"}
+              </Badge>
+            ) : null}
           </DialogHeader>
 
           <div className="space-y-3">

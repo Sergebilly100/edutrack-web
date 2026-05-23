@@ -46,6 +46,8 @@ export type ScheduleRow = {
   schedulePeriodId: string
   dayOfWeek: number
   subject: string
+  startDate: string | null
+  endDate: string | null
   pastAttendanceCount: number
   hasPastAttendance: boolean
   teacher: {
@@ -95,6 +97,8 @@ export type ActiveScheduleData = {
 
 export type ScheduleRecurrence = "recurring" | "one_shot"
 
+export type ScheduleUpdateScope = "this" | "this_and_following" | "all"
+
 export type ScheduleCreatePayload = {
   schedulePeriodId: string
   teacherId: string
@@ -107,6 +111,7 @@ export type ScheduleCreatePayload = {
   subject: string
   effectiveFrom?: string
   recurrence?: ScheduleRecurrence
+  updateScope?: ScheduleUpdateScope
   isActive?: boolean
 }
 
@@ -146,6 +151,8 @@ const ScheduleRowSchema = z.object({
   schedulePeriodId: z.string(),
   dayOfWeek: z.number(),
   subject: z.string(),
+  startDate: z.string().nullable().optional().default(null),
+  endDate: z.string().nullable().optional().default(null),
   pastAttendanceCount: z.number().optional().default(0),
   hasPastAttendance: z.boolean().optional().default(false),
   teacher: z.object({
@@ -228,6 +235,7 @@ const toSchedulePayload = (payload: ScheduleCreatePayload) => ({
   subject: payload.subject,
   ...(payload.effectiveFrom ? { effective_from: payload.effectiveFrom } : {}),
   ...(payload.recurrence ? { recurrence: payload.recurrence } : {}),
+  ...(payload.updateScope ? { update_scope: payload.updateScope } : {}),
   is_active: payload.isActive,
 })
 
@@ -412,12 +420,18 @@ export const deleteScheduleSlot = async (scheduleId: string): Promise<void> => {
   await api.delete(`/schedule/${scheduleId}`)
 }
 
+export type ScheduleDeleteScope = "this" | "this_and_following"
+
 export const deleteScheduleSlotFromDate = async (
   scheduleId: string,
-  effectiveFrom: string
+  effectiveFrom: string,
+  deleteScope?: ScheduleDeleteScope
 ): Promise<void> => {
   await api.delete(`/schedule/${scheduleId}`, {
-    params: { effective_from: effectiveFrom },
+    params: {
+      effective_from: effectiveFrom,
+      ...(deleteScope ? { delete_scope: deleteScope } : {}),
+    },
   })
 }
 
