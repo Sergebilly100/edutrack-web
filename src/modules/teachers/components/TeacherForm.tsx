@@ -273,11 +273,9 @@ export default function TeacherForm({
                   )}
                 />
               </FormControl>
-              {lockSubjects ? (
-                <p className="text-xs text-muted-foreground">
-                  Les matières enseignées sont gérées depuis l'emploi du temps/import.
-                </p>
-              ) : null}
+              <p className="text-xs text-muted-foreground">
+                Séparez les matières par des virgules. Modifier cette liste n'affecte pas l'emploi du temps déjà saisi.
+              </p>
               <FormMessage />
             </FormItem>
           )}

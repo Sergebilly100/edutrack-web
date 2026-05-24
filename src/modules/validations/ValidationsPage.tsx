@@ -627,7 +627,7 @@ export default function ValidationsPage() {
                       onClick={() => setRejectTarget(item)}
                     >
                       <CircleX className="mr-2 h-4 w-4" />
-                      Absent
+                      Marquer absent
                     </Button>
                   </div>
                 </TableCell>
@@ -1286,7 +1286,12 @@ export default function ValidationsPage() {
               ) : (
                 <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
                   <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>Ce cours ne sera pas comptabilisé. L'enseignant devra se rendre à l'administration pour se justifier.</span>
+                  <span>
+                    {endScanActionTarget.teacher.hourlyRate !== null
+                      ? `Montant planifié concerné : ${formatFcfa(endScanActionTarget.teacher.hourlyRate * (endScanActionTarget.session.scheduleDurationMinutes / 60))}. `
+                      : ""}
+                    Ce cours ne sera pas comptabilisé. L'enseignant devra se rendre à l'administration pour se justifier.
+                  </span>
                 </div>
               )}
             </div>

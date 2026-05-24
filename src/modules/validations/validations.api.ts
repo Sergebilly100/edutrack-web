@@ -128,11 +128,13 @@ export type MissingEndScanSession = {
   endScanActionReason: string | null
   endScanActionAt: string | null
   endScanActionCancelledAt: string | null
+  scheduleDurationMinutes: number
 }
 
 export type MissingEndScanTeacher = {
   teacherId: string
   teacherName: string
+  hourlyRate: number | null
   missingEndScanCount: number
   warningCount: number
   sanctionCount: number
@@ -161,12 +163,14 @@ const normalizeMissingEndScanTeacher = (value: unknown): MissingEndScanTeacher =
           endScanActionReason: asNullableString(session.endScanActionReason ?? session.end_scan_action_reason),
           endScanActionAt: asNullableString(session.endScanActionAt ?? session.end_scan_action_at),
           endScanActionCancelledAt: asNullableString(session.endScanActionCancelledAt ?? session.end_scan_action_cancelled_at),
+          scheduleDurationMinutes: asNumber(session.scheduleDurationMinutes ?? session.schedule_duration_minutes),
         }
       })
     : []
   return {
     teacherId: asString(row.teacherId ?? row.teacher_id),
     teacherName: asString(row.teacherName ?? row.teacher_name, "Enseignant"),
+    hourlyRate: asNullableNumber(row.hourlyRate ?? row.hourly_rate),
     missingEndScanCount: asNumber(row.missingEndScanCount ?? row.missing_end_scan_count),
     warningCount: asNumber(row.warningCount ?? row.warning_count),
     sanctionCount: asNumber(row.sanctionCount ?? row.sanction_count),

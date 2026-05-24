@@ -523,7 +523,7 @@ function InfosPanel({ teacherId }: { teacherId: string }) {
         <CardHeader>
           <CardTitle className="text-base">Informations du professeur</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <TeacherForm
             initialValues={{
               firstName: teacher.firstName,
@@ -535,13 +535,25 @@ function InfosPanel({ teacherId }: { teacherId: string }) {
               hourlyRate: teacher.hourlyRate,
               monthlySalary: teacher.monthlySalary,
             }}
-            lockSubjects
             isPending={updateMutation.isPending}
             submitLabel="Enregistrer"
             onSubmit={async (payload) => {
               await updateMutation.mutateAsync({ teacherId, payload })
             }}
           />
+          {teacher.updatedAt ? (
+            <p className="text-xs text-muted-foreground">
+              Dernière modification le{" "}
+              {new Date(teacher.updatedAt).toLocaleString("fr-FR", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+              {teacher.updatedByName ? ` par ${teacher.updatedByName}` : ""}.
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 

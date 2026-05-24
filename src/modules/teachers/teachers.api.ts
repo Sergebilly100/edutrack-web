@@ -20,6 +20,9 @@ export type TeacherListItem = {
   blockReason: string | null
   blockedAt: string | null
   username: string
+  updatedAt: string | null
+  updatedBy: string | null
+  updatedByName: string | null
 }
 
 export type TeacherStats = {
@@ -204,6 +207,9 @@ const mapTeacher = (value: unknown): TeacherListItem => {
     blockReason,
     blockedAt,
     username: asString(item.username),
+    updatedAt: asNullableString(item.updated_at ?? item.updatedAt),
+    updatedBy: asNullableString(item.updated_by ?? item.updatedBy),
+    updatedByName: asNullableString(item.updated_by_name ?? item.updatedByName),
   }
 }
 
