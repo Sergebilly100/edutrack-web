@@ -23,6 +23,7 @@ import {
   OFFLINE_STORE_PERSIST_KEY,
   syncOfflineQueue,
   useOfflineStore,
+  waitForOfflineStoreHydration,
 } from "@/shared/store/offline.store"
 
 function createQueryWrapper() {
@@ -48,7 +49,7 @@ function setOnlineStatus(isOnline: boolean) {
 describe("offline hooks", () => {
   beforeEach(async () => {
     idbMemory.clear()
-    useOfflineStore.setState({ queue: [] })
+    useOfflineStore.setState({ queue: [], _hasHydrated: true })
     await useOfflineStore.persist.clearStorage()
     vi.clearAllMocks()
     vi.useRealTimers()
@@ -204,5 +205,49 @@ describe("offline hooks", () => {
     })
 
     expect(mutationFn).toHaveBeenCalledTimes(1)
+  })
+
+  it("waits for hydration before reading the queue (no false-empty sync at boot)", async () => {
+    // Reproduit le bug du badge fantôme : queue persistée dans IndexedDB,
+    // hydratation pas encore faite → syncOfflineQueue doit attendre et lire
+    // la queue après rehydratation, pas avant.
+    useOfflineStore.setState({ queue: [], _hasHydrated: false })
+
+    // Démarre un sync qui devrait bloquer sur l'attente d'hydratation
+    const syncPromise = syncOfflineQueue()
+
+    // Au début, le sync n'a rien lu (queue vide vue avant hydratation)
+    // mais ne doit pas retourner 0 immédiatement.
+    let settled = false
+    void syncPromise.then(() => {
+      settled = true
+    })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(settled).toBe(false)
+
+    // Hydrate avec un item à traiter
+    useOfflineStore.setState({
+      queue: [
+        {
+          id: "after-hydration",
+          queueKey: "no-processor-yet",
+          variables: {},
+          timestamp: Date.now(),
+        },
+      ],
+      _hasHydrated: true,
+    })
+
+    const synced = await syncPromise
+    // Item sans processor → skip silencieux, queue inchangée
+    expect(synced).toBe(0)
+    expect(useOfflineStore.getState().queue).toHaveLength(1)
+  })
+
+  it("waitForOfflineStoreHydration resolves immediately when already hydrated", async () => {
+    useOfflineStore.setState({ _hasHydrated: true })
+    const start = Date.now()
+    await waitForOfflineStoreHydration()
+    expect(Date.now() - start).toBeLessThan(50)
   })
 })

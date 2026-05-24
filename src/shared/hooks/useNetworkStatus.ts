@@ -6,6 +6,20 @@ export type NetworkStatus = {
   wasOffline: boolean
 }
 
+/**
+ * Source de vérité : navigator.onLine + events 'online'/'offline'.
+ *
+ * On évite délibérément un ping HTTP au boot. Le backend peut être
+ * hébergé sur une origine différente (ex: localhost:3000 vs
+ * 127.0.0.1:4173) et bloquer les requêtes par CORS — l'app croit
+ * alors être offline en permanence, le bandeau orange reste affiché
+ * et la sync auto ne se déclenche jamais.
+ *
+ * En cas de captive portal (rare), les requêtes API échoueront et
+ * useOfflineMutation détecte les erreurs réseau pour requeue (voir
+ * isNetworkLevelError dans useOfflineMutation.ts).
+ */
+
 function getInitialOnlineStatus() {
   if (typeof navigator === "undefined") {
     return true
@@ -22,57 +36,11 @@ const setOnlineState = (
   setIsOnline(nextOnline)
 }
 
-// navigator.onLine returns true even on captive portals (WiFi with no real internet).
-// We confirm actual connectivity with a lightweight HTTP ping to the API health endpoint
-// before considering the device truly online.
-// Disabled in test env to avoid real network calls.
-function getHealthUrl() {
-  const apiBase = import.meta.env.VITE_API_URL as string | undefined
-  if (!apiBase) {
-    return "/health"
-  }
-
-  try {
-    const url = new URL(apiBase, window.location.origin)
-    url.pathname = "/health"
-    url.search = ""
-    url.hash = ""
-    return url.toString()
-  } catch {
-    return "/health"
-  }
-}
-
-const PING_URL = getHealthUrl()
-const PING_TIMEOUT_MS = 5000
-const OFFLINE_RECHECK_MS = 10000
-const PING_ENABLED = import.meta.env.MODE !== "test"
-
-async function confirmConnectivity(): Promise<boolean> {
-  if (!PING_ENABLED) {
-    return true
-  }
-  try {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), PING_TIMEOUT_MS)
-    const response = await fetch(PING_URL, {
-      method: "HEAD",
-      cache: "no-store",
-      signal: controller.signal,
-    })
-    clearTimeout(timer)
-    return response.ok
-  } catch {
-    return false
-  }
-}
-
 export function useNetworkStatus(): NetworkStatus {
   const initialOnlineStatus = getInitialOnlineStatus()
   const [isOnline, setIsOnline] = useState(initialOnlineStatus)
   const [wasOffline, setWasOffline] = useState(!initialOnlineStatus)
   const timeoutRef = useRef<number | null>(null)
-  const recheckIntervalRef = useRef<number | null>(null)
 
   useEffect(() => {
     onlineManager.setOnline(initialOnlineStatus)
@@ -84,52 +52,20 @@ export function useNetworkStatus(): NetworkStatus {
       }
     }
 
-    const clearRecheckInterval = () => {
-      if (recheckIntervalRef.current !== null) {
-        window.clearInterval(recheckIntervalRef.current)
-        recheckIntervalRef.current = null
-      }
-    }
-
     const handleOnline = () => {
       clearWasOfflineTimeout()
+      setOnlineState(true, setIsOnline)
+      setWasOffline(true)
 
-      const applyConfirmedOnline = () => {
-        clearRecheckInterval()
-        setOnlineState(true, setIsOnline)
-        setWasOffline(true)
-
-        timeoutRef.current = window.setTimeout(() => {
-          setWasOffline(false)
-        }, 5000)
-      }
-
-      if (!PING_ENABLED) {
-        applyConfirmedOnline()
-        return
-      }
-
-      // Don't trust navigator.onLine alone — confirm with a real HTTP ping.
-      void confirmConnectivity().then((confirmed) => {
-        if (confirmed) {
-          applyConfirmedOnline()
-        } else {
-          setOnlineState(false, setIsOnline)
-          setWasOffline(true)
-          if (recheckIntervalRef.current === null) {
-            recheckIntervalRef.current = window.setInterval(() => {
-              if (navigator.onLine) {
-                handleOnline()
-              }
-            }, OFFLINE_RECHECK_MS)
-          }
-        }
-      })
+      // wasOffline reste true 5s pour permettre l'affichage du bandeau
+      // "Connexion rétablie - synchronisation..." par OfflineIndicator.
+      timeoutRef.current = window.setTimeout(() => {
+        setWasOffline(false)
+      }, 5000)
     }
 
     const handleOffline = () => {
       clearWasOfflineTimeout()
-      clearRecheckInterval()
       setOnlineState(false, setIsOnline)
       setWasOffline(true)
     }
@@ -137,18 +73,8 @@ export function useNetworkStatus(): NetworkStatus {
     window.addEventListener("online", handleOnline)
     window.addEventListener("offline", handleOffline)
 
-    if (initialOnlineStatus && PING_ENABLED) {
-      void confirmConnectivity().then((confirmed) => {
-        if (!confirmed) {
-          setOnlineState(false, setIsOnline)
-          setWasOffline(true)
-        }
-      })
-    }
-
     return () => {
       clearWasOfflineTimeout()
-      clearRecheckInterval()
       window.removeEventListener("online", handleOnline)
       window.removeEventListener("offline", handleOffline)
     }

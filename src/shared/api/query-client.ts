@@ -48,15 +48,33 @@ export const queryClient = new QueryClient({
       // Live data (attendance/dashboard) overrides this per-query.
       staleTime: 30_000,
       gcTime: 24 * 60 * 60_000,
+      // offlineFirst : la query part toujours, même si onlineManager dit
+      // offline. Si elle échoue, Workbox/cache TanStack persiste la réponse
+      // précédente — donc l'UI continue à montrer les dernières données
+      // chargées. Sans ça, en offline les queries restent en `pending` ad
+      // vitam et affichent un état vide même si le cache contient les data.
+      networkMode: "offlineFirst",
     },
     mutations: {
       retry: 0,
+      // Les mutations offline passent par useOfflineMutation qui queue
+      // explicitement. networkMode: "offlineFirst" ici évite que TanStack
+      // mette en pause les mutations passantes (validations, etc.) quand
+      // onlineManager croit à tort qu'on est offline.
+      networkMode: "offlineFirst",
     },
   },
 })
 
+let cacheRestoreCompleted = false
+
+export const isQueryCacheRestored = (): boolean => cacheRestoreCompleted
+
 export async function restoreQueryCache(): Promise<void> {
-  if (!isBrowser) return
+  if (!isBrowser) {
+    cacheRestoreCompleted = true
+    return
+  }
 
   try {
     const cache = await get<PersistedQueryCache>(QUERY_CACHE_STORAGE_KEY)
@@ -73,6 +91,11 @@ export async function restoreQueryCache(): Promise<void> {
     }
   } catch {
     await removePersistedQueryCache()
+  } finally {
+    // Le flag autorise App.tsx à débloquer le rendu : sans cela, on
+    // affiche des pages vides en offline parce que les useQuery partent
+    // avant que setQueryData ait écrit le cache hydraté.
+    cacheRestoreCompleted = true
   }
 }
 

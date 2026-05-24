@@ -17,14 +17,23 @@ type OfflineQueueProcessor<TData = unknown, TVariables = unknown> = {
 
 type OfflineState = {
   queue: OfflineQueueItem[]
+  _hasHydrated: boolean
   addToQueue: (item: OfflineQueueItem) => void
   removeFromQueue: (id: string) => void
   clearQueue: () => void
+  setHasHydrated: (value: boolean) => void
 }
 
 export const OFFLINE_STORE_PERSIST_KEY = "edutrack-offline-store"
 
-const processors = new Map<string, OfflineQueueProcessor>()
+// Deux registries pour éviter qu'un cleanup local (useEffect d'un hook
+// useOfflineMutation) supprime le processor global équivalent (cas du
+// "badge fantôme" : la sync trouvait le processor au moment où le composant
+// était monté, puis le perdait juste après son unmount).
+const localProcessors = new Map<string, OfflineQueueProcessor>()
+const globalProcessors = new Map<string, OfflineQueueProcessor>()
+const resolveProcessor = (queueKey: string): OfflineQueueProcessor | undefined =>
+  localProcessors.get(queueKey) ?? globalProcessors.get(queueKey)
 
 // Module-level Promise lock — prevents concurrent sync runs regardless of render cycles.
 // Zustand state (isSyncing) is async and can be read stale by two callers before either
@@ -80,6 +89,7 @@ export const useOfflineStore = create<OfflineState>()(
   persist(
     (setState) => ({
       queue: [],
+      _hasHydrated: false,
       addToQueue: (item) => {
         setState((state) => ({
           queue: [...state.queue, item].sort((a, b) => a.timestamp - b.timestamp),
@@ -93,23 +103,48 @@ export const useOfflineStore = create<OfflineState>()(
       clearQueue: () => {
         setState({ queue: [] })
       },
+      setHasHydrated: (value) => {
+        setState({ _hasHydrated: value })
+      },
     }),
     {
       name: OFFLINE_STORE_PERSIST_KEY,
       storage: createJSONStorage(() => idbStorage),
       partialize: (state) => ({ queue: state.queue }),
+      // L'IndexedDB est async : sans cet écouteur, addToQueue/removeFromQueue
+      // peuvent s'exécuter avant la rehydratation, et l'état restauré écrase
+      // ensuite la mutation locale (badge fantôme après sync).
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true)
+      },
     }
   )
 )
+
+// Attend la fin de la rehydratation IndexedDB. Utilisé par syncOfflineQueue
+// pour ne pas lire une queue partielle au démarrage de l'app.
+export function waitForOfflineStoreHydration(): Promise<void> {
+  if (useOfflineStore.getState()._hasHydrated) {
+    return Promise.resolve()
+  }
+  return new Promise<void>((resolve) => {
+    const unsub = useOfflineStore.subscribe((state) => {
+      if (state._hasHydrated) {
+        unsub()
+        resolve()
+      }
+    })
+  })
+}
 
 export function registerOfflineProcessor<TData, TVariables>(
   queueKey: string,
   processor: OfflineQueueProcessor<TData, TVariables>
 ): () => void {
-  processors.set(queueKey, processor as OfflineQueueProcessor)
+  localProcessors.set(queueKey, processor as OfflineQueueProcessor)
 
   return () => {
-    processors.delete(queueKey)
+    localProcessors.delete(queueKey)
   }
 }
 
@@ -121,30 +156,36 @@ export function registerGlobalOfflineProcessor<TData, TVariables>(
   queueKey: string,
   processor: OfflineQueueProcessor<TData, TVariables>
 ): void {
-  processors.set(queueKey, processor as OfflineQueueProcessor)
+  globalProcessors.set(queueKey, processor as OfflineQueueProcessor)
 }
 
 export async function syncOfflineQueue(): Promise<number> {
-  // If a sync is already in flight, wait for it and return its count rather than starting a new one.
+  // Lock pose synchrone : indispensable pour que deux appels concurrents
+  // partagent la même promesse (sinon ils passeraient tous deux la garde
+  // avant l'affectation et rejoueraient deux fois la queue).
   if (syncLock !== null) {
     return syncLock
-  }
-
-  const { queue } = useOfflineStore.getState()
-  if (queue.length === 0) {
-    return 0
   }
 
   syncLock = (async (): Promise<number> => {
     let syncedCount = 0
 
     try {
+      // Sans ce gate, un appel au boot (avant la rehydratation IndexedDB)
+      // lirait queue=[] et partirait en no-op alors que des items sont
+      // persistés et apparaîtraient juste après dans le store.
+      await waitForOfflineStoreHydration()
+
+      if (useOfflineStore.getState().queue.length === 0) {
+        return 0
+      }
+
       const sortedQueue = [...useOfflineStore.getState().queue].sort(
         (a, b) => a.timestamp - b.timestamp
       )
 
       for (const item of sortedQueue) {
-        const processor = processors.get(item.queueKey)
+        const processor = resolveProcessor(item.queueKey)
 
         if (!processor) {
           // L'item ne sera traité que si la page qui détient son processor est

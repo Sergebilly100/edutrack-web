@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { CloudOff, RefreshCw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
-import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
 import { syncOfflineQueue, useOfflineStore } from "@/shared/store/offline.store"
 
 // Étiquettes lisibles par les utilisateurs pour chaque type d'action en queue.
@@ -41,12 +40,32 @@ const labelFor = (queueKey: string): string =>
 
 export function OfflineQueueBadge() {
   const queue = useOfflineStore((state) => state.queue)
-  const { isOnline } = useNetworkStatus()
+  const hasHydrated = useOfflineStore((state) => state._hasHydrated)
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  // navigator.onLine est plus fiable que useNetworkStatus pour activer le
+  // bouton : isOnline attend une confirmation HTTP qui peut prendre 5s et
+  // qui échoue dans certains cas (CORS, captive portal), bloquant le sync
+  // manuel alors que le réseau est OK.
+  const [browserOnline, setBrowserOnline] = useState(
+    typeof navigator === "undefined" ? true : navigator.onLine
+  )
+  useEffect(() => {
+    const setOnline = () => setBrowserOnline(true)
+    const setOffline = () => setBrowserOnline(false)
+    window.addEventListener("online", setOnline)
+    window.addEventListener("offline", setOffline)
+    return () => {
+      window.removeEventListener("online", setOnline)
+      window.removeEventListener("offline", setOffline)
+    }
+  }, [])
 
-  if (queue.length === 0) {
+  // Avant rehydratation IndexedDB, la queue lue depuis Zustand est vide
+  // mais des items peuvent exister en stockage : on attend pour ne pas
+  // afficher un faux 0 puis sauter à un vrai N.
+  if (!hasHydrated || queue.length === 0) {
     return null
   }
 
@@ -55,6 +74,10 @@ export function OfflineQueueBadge() {
     try {
       const queuedBeforeSync = useOfflineStore.getState().queue.length
       const count = await syncOfflineQueue()
+      // On ne fait PAS persist.rehydrate() ici : ça réécraserait la queue
+      // mémoire (déjà à jour via removeFromQueue) avec l'état IndexedDB
+      // qui est en retard à cause de la persistance async — ramenant les
+      // items supprimés ("badge fantôme").
       const remainingCount = useOfflineStore.getState().queue.length
       toast({
         title:
@@ -91,7 +114,7 @@ export function OfflineQueueBadge() {
         onClick={() => setOpen(true)}
         className={cn(
           "h-8 gap-1.5 px-2 text-xs text-bold",
-          isOnline
+          browserOnline
             ? "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
             : "border-red-300 bg-red-50 text-red-900 hover:bg-red-100"
         )}
@@ -107,7 +130,7 @@ export function OfflineQueueBadge() {
           <DialogHeader>
             <DialogTitle>Actions en attente de synchronisation</DialogTitle>
             <DialogDescription>
-              {isOnline
+              {browserOnline
                 ? "Ces actions seront envoyées automatiquement. Vous pouvez aussi forcer un envoi maintenant."
                 : "Ces actions seront envoyées dès le retour de la connexion."}
             </DialogDescription>
@@ -141,7 +164,7 @@ export function OfflineQueueBadge() {
             <Button
               type="button"
               onClick={() => void handleSyncNow()}
-              disabled={!isOnline || syncing}
+              disabled={!browserOnline || syncing}
             >
               <RefreshCw
                 className={cn("mr-2 h-4 w-4", syncing && "animate-spin")}

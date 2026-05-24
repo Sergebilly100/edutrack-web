@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { logout } from "@/modules/auth/auth.api"
 import { LogoutIcon } from "@/shared/components/icons"
+import { OfflineQueueBadge } from "@/shared/components/OfflineQueueBadge"
 import { ThemeToggle } from "@/shared/components/ThemeToggle"
 import { useAuthStore } from "@/shared/store/auth.store"
 
@@ -33,6 +34,7 @@ export function TeacherTopBar() {
         </div>
 
         <div className="flex items-center gap-1">
+          <OfflineQueueBadge />
           <ThemeToggle />
           <Button type="button" variant="ghost" size="icon" onClick={() => void handleLogout()} aria-label="Se déconnecter">
             <LogoutIcon className="h-4 w-4" />

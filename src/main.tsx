@@ -18,19 +18,19 @@ registerSW({ immediate: true })
 // Doit s'exécuter avant le premier sync (useAutoSync dans App).
 installOfflineProcessors()
 
-void queryCacheRestorePromise.finally(() => {
-  ReactDOM.createRoot(document.getElementById("root")!).render(
-    <React.StrictMode>
-      <ThemeProvider>
-        <TooltipProvider delayDuration={0}>
-          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <QueryClientProvider client={queryClient}>
-              <App />
-              <Toaster />
-            </QueryClientProvider>
-          </BrowserRouter>
-        </TooltipProvider>
-      </ThemeProvider>
-    </React.StrictMode>
-  )
-})
+void queryCacheRestorePromise
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <ThemeProvider>
+      <TooltipProvider delayDuration={0}>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <QueryClientProvider client={queryClient}>
+            <App />
+            <Toaster />
+          </QueryClientProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
+  </React.StrictMode>
+)

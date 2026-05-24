@@ -96,8 +96,8 @@ export function installOfflineProcessors(): void {
     {
       mutationFn: updateSalaryStatus,
       onSync: () => {
-        void queryClient.invalidateQueries({ queryKey: ["salaries"] })
-        void queryClient.invalidateQueries({ queryKey: ["salaries-stats"] })
+        void queryClient.invalidateQueries({ queryKey: ["salaries"], refetchType: "active" })
+        void queryClient.invalidateQueries({ queryKey: ["salaries-stats"], refetchType: "active" })
       },
       maxRetries: 3,
     }
@@ -108,7 +108,7 @@ export function installOfflineProcessors(): void {
     {
       mutationFn: computeSalaries,
       onSync: () => {
-        void queryClient.invalidateQueries({ queryKey: ["salaries"] })
+        void queryClient.invalidateQueries({ queryKey: ["salaries"], refetchType: "active" })
       },
       maxRetries: 3,
     }
@@ -119,7 +119,7 @@ export function installOfflineProcessors(): void {
     {
       mutationFn: ({ scheduleId, payload }) => updateScheduleSlot(scheduleId, payload),
       onSync: () => {
-        void queryClient.invalidateQueries({ queryKey: ["schedule"] })
+        void queryClient.invalidateQueries({ queryKey: ["schedule"], refetchType: "active" })
       },
       maxRetries: 3,
     }
@@ -130,7 +130,7 @@ export function installOfflineProcessors(): void {
     {
       mutationFn: deleteScheduleSlot,
       onSync: () => {
-        void queryClient.invalidateQueries({ queryKey: ["schedule"] })
+        void queryClient.invalidateQueries({ queryKey: ["schedule"], refetchType: "active" })
       },
       maxRetries: 3,
     }
@@ -142,13 +142,16 @@ export function installOfflineProcessors(): void {
       mutationFn: ({ scheduleId, effectiveFrom, deleteScope }) =>
         deleteScheduleSlotFromDate(scheduleId, effectiveFrom, deleteScope),
       onSync: () => {
-        void queryClient.invalidateQueries({ queryKey: ["schedule"] })
+        void queryClient.invalidateQueries({ queryKey: ["schedule"], refetchType: "active" })
       },
       maxRetries: 3,
     }
   )
 
   // ── Attendance : 3 étapes prof + scans de fin ─────────────────────────
+  // refetchType: "active" → invalidate + refetch des composants montés en un
+  // seul appel. Sans ça, les listes/dashboards ne se rafraichissent qu'au
+  // prochain mount ou via un refresh manuel.
   const invalidateAttendance = () => {
     const queryKeys = [
       ["teacher-attendance"],
@@ -160,11 +163,13 @@ export function installOfflineProcessors(): void {
       ["teachers"],
       ["teacher"],
       ["salaries"],
+      ["rooms"],
+      ["students"],
+      ["schedule"],
     ]
 
     for (const queryKey of queryKeys) {
-      void queryClient.invalidateQueries({ queryKey })
-      void queryClient.refetchQueries({ queryKey, type: "active" })
+      void queryClient.invalidateQueries({ queryKey, refetchType: "active" })
     }
   }
 
@@ -236,9 +241,10 @@ export function installOfflineProcessors(): void {
 
   // ── Validations ────────────────────────────────────────────────────────
   const invalidateValidations = () => {
-    void queryClient.invalidateQueries({ queryKey: ["validations"] })
-    void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
-    void queryClient.invalidateQueries({ queryKey: ["salaries"] })
+    void queryClient.invalidateQueries({ queryKey: ["validations"], refetchType: "active" })
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"], refetchType: "active" })
+    void queryClient.invalidateQueries({ queryKey: ["salaries"], refetchType: "active" })
+    void queryClient.invalidateQueries({ queryKey: ["attendance"], refetchType: "active" })
   }
 
   registerGlobalOfflineProcessor<void, { attendanceId: string; validatedHours?: number }>(
@@ -266,7 +272,8 @@ export function installOfflineProcessors(): void {
   >(OFFLINE_QUEUE_KEYS.studentAbsenceExcuse, {
     mutationFn: ({ id, reason }) => excuseAbsence(id, reason),
     onSync: () => {
-      void queryClient.invalidateQueries({ queryKey: ["students"] })
+      void queryClient.invalidateQueries({ queryKey: ["students"], refetchType: "active" })
+      void queryClient.invalidateQueries({ queryKey: ["attendance"], refetchType: "active" })
     },
     maxRetries: 3,
   })

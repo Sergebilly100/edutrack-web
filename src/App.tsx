@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, type ReactElement } from "react"
+import { Suspense, lazy, useEffect, useState, type ReactElement } from "react"
 import { Navigate, Route, Routes, useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import axios from "axios"
@@ -10,6 +10,7 @@ import { usePermissions } from "@/shared/hooks/usePermissions"
 import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
 import { useAutoSync } from "@/shared/hooks/useAutoSync"
 import { useRestoreSession } from "@/shared/hooks/useRestoreSession"
+import { queryCacheRestorePromise } from "@/shared/api/query-client"
 import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
 import { useParentAuthStore } from "@/modules/parent-portal/parent-auth.store"
 
@@ -341,11 +342,28 @@ export default function App() {
   useRestoreSession()
 
   const isSessionRestored = useAuthStore((state) => state.isSessionRestored)
+  const [isQueryCacheReady, setQueryCacheReady] = useState(false)
+
+  // Bloquer le rendu tant que le cache TanStack hydraté depuis IndexedDB
+  // n'a pas fini d'écrire les setQueryData. Sans ce gate, les useQuery
+  // démarrent avant l'hydratation → pages vides en offline alors que
+  // les données sont disponibles dans IndexedDB.
+  useEffect(() => {
+    let cancelled = false
+    void queryCacheRestorePromise.finally(() => {
+      if (!cancelled) {
+        setQueryCacheReady(true)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Bloquer tout rendu de route tant que la restauration de session n'est pas
   // terminée. Sans ce gate, RoleRedirect voit user=null et redirige vers /login
   // avant même que le cookie refresh ait été tenté.
-  if (!isSessionRestored) {
+  if (!isSessionRestored || !isQueryCacheReady) {
     return <SessionLoader />
   }
 
