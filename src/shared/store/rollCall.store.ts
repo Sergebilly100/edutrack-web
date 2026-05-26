@@ -24,8 +24,27 @@ export type FlowState = "rollcall_pending" | "checkin_qr_done" | "ready_to_finis
 
 type FlowKey = string // `${scheduleId}:${date}`
 
+/**
+ * Contexte du scan de début mémorisé localement pour ce créneau.
+ * Sert à valider le scan de fin **hors ligne** : sans ce contexte, un QR
+ * différent serait silencieusement mis en queue alors que le backend l'aurait
+ * refusé (validation start↔end côté serveur). On stocke le token brut (utile
+ * pour comparer exactement les chaînes) et le room_id résolu (utile pour les
+ * messages d'erreur et pour le scénario "saut QR" où il n'y a pas de token).
+ */
+export type StartScanContext = {
+  /** Token QR scanné en début (ou null si l'étape a été sautée via skipQr) */
+  qrToken: string | null
+  /** room_id résolu via IndexedDB ou cache React Query, null si saut QR */
+  roomId: string | null
+  /** Timestamp du scan début — utile pour debug + tri */
+  scannedAt: number
+}
+
 interface RollCallStore {
   flows: Record<FlowKey, FlowState>
+  /** Contexte du scan début par créneau (utilisé pour valider le scan fin offline) */
+  startScans: Record<FlowKey, StartScanContext>
 
   /** Étapes 1+2 faites, prof a explicitement choisi "appel plus tard" */
   markRollCallPending: (scheduleId: string, date: string) => void
@@ -39,7 +58,15 @@ interface RollCallStore {
   /** Appel soumis ou workflow complet → nettoyer */
   markDone: (scheduleId: string, date: string) => void
 
+  /** Enregistre le contexte du scan début (token + roomId). null pour skipQr. */
+  setStartScanContext: (
+    scheduleId: string,
+    date: string,
+    context: StartScanContext
+  ) => void
+
   getFlowState: (scheduleId: string, date: string) => FlowState | null
+  getStartScanContext: (scheduleId: string, date: string) => StartScanContext | null
 
   /** Raccourcis lisibles */
   isRollCallPending: (scheduleId: string, date: string) => boolean
@@ -51,6 +78,7 @@ export const useRollCallStore = create<RollCallStore>()(
   persist(
     (set, get) => ({
       flows: {},
+      startScans: {},
 
       markRollCallPending: (scheduleId, date) =>
         set((s) => ({
@@ -67,15 +95,29 @@ export const useRollCallStore = create<RollCallStore>()(
           flows: { ...s.flows, [`${scheduleId}:${date}`]: "ready_to_finish" },
         })),
 
+      // Nettoie aussi le contexte du scan début : le cours est terminé, le
+      // token QR n'a plus à rester en mémoire (RGPD + éviter les conflits
+      // si le même créneau est rejoué le lendemain).
       markDone: (scheduleId, date) =>
         set((s) => {
-          const next = { ...s.flows }
-          delete next[`${scheduleId}:${date}`]
-          return { flows: next }
+          const flowKey = `${scheduleId}:${date}`
+          const nextFlows = { ...s.flows }
+          const nextScans = { ...s.startScans }
+          delete nextFlows[flowKey]
+          delete nextScans[flowKey]
+          return { flows: nextFlows, startScans: nextScans }
         }),
+
+      setStartScanContext: (scheduleId, date, context) =>
+        set((s) => ({
+          startScans: { ...s.startScans, [`${scheduleId}:${date}`]: context },
+        })),
 
       getFlowState: (scheduleId, date) =>
         get().flows[`${scheduleId}:${date}`] ?? null,
+
+      getStartScanContext: (scheduleId, date) =>
+        get().startScans[`${scheduleId}:${date}`] ?? null,
 
       isRollCallPending: (scheduleId, date) =>
         get().flows[`${scheduleId}:${date}`] === "rollcall_pending",
@@ -87,7 +129,9 @@ export const useRollCallStore = create<RollCallStore>()(
         get().flows[`${scheduleId}:${date}`] != null,
     }),
     {
-      name: "edutrack-roll-call-v2",
+      // v3 ajoute `startScans` pour la validation offline du QR de fin.
+      // L'ancien storage v2 sans cette clé reste compatible (lecture safe).
+      name: "edutrack-roll-call-v3",
     }
   )
 )

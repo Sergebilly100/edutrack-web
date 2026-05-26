@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
+import { queryClient } from "@/shared/api/query-client"
 import { syncOfflineQueue, useOfflineStore } from "@/shared/store/offline.store"
 
 // Étiquettes lisibles par les utilisateurs pour chaque type d'action en queue.
@@ -78,6 +79,13 @@ export function OfflineQueueBadge() {
       // mémoire (déjà à jour via removeFromQueue) avec l'état IndexedDB
       // qui est en retard à cause de la persistance async — ramenant les
       // items supprimés ("badge fantôme").
+      // Si la sync a aboutit, on rafraîchit les vues actives — sans ça, le
+      // pointage élève reste affiché comme "en attente" alors qu'il vient
+      // d'être envoyé (le processor onSync n'est appelé qu'au niveau global,
+      // les composants montés peuvent rater l'invalidation).
+      if (count > 0) {
+        void queryClient.refetchQueries({ type: "active" })
+      }
       const remainingCount = useOfflineStore.getState().queue.length
       toast({
         title:

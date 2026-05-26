@@ -34,6 +34,8 @@ import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
 import { useStudentLabels, type StudentLabels } from "@/shared/hooks/useStudentLabel"
 import { useRollCallStore } from "@/shared/store/rollCall.store"
 import { OFFLINE_QUEUE_KEYS } from "@/shared/store/offline-processors"
+import { syncOfflineQueue } from "@/shared/store/offline.store"
+import { getRoomByToken } from "@/shared/utils/indexedDB"
 import { AbsentIcon, CheckIcon, PresentIcon } from "@/shared/components/icons"
 import { cn } from "@/lib/utils"
 
@@ -243,6 +245,9 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
   /**
    * Point 4 : c'est ici que la présence est réellement confirmée.
    * On chaîne : checkIn (backend) → qrScan (backend) → résultat.
+   *
+   * On enregistre aussi `startScanContext` (token + roomId résolu via cache)
+   * — c'est la source de vérité locale pour valider le QR de fin **hors ligne**.
    */
   const handleQrSubmit = async (token: string) => {
     const qrToken = token.trim()
@@ -290,6 +295,23 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
           }
           throw error
         })
+
+      // ── 3. Mémoriser le contexte du scan début pour valider le scan fin ──
+      // On résout `roomId` via IndexedDB (cache à jour grâce à fetchRooms /
+      // cacheRooms dans TeacherFlow). En cas d'échec, on garde au moins le
+      // token brut — la comparaison string suffira à détecter un mismatch.
+      let resolvedRoomId: string | null = null
+      try {
+        const cachedRoom = await getRoomByToken(qrToken)
+        resolvedRoomId = cachedRoom?.id ?? null
+      } catch (cacheError) {
+        console.warn("[TeacherCheckInFlow] failed to resolve room from cache", cacheError)
+      }
+      rollCallStore.setStartScanContext(slot.id, attendanceDate, {
+        qrToken,
+        roomId: resolvedRoomId,
+        scannedAt: Date.now(),
+      })
 
       setQrWarning(qrResult?.room_mismatch ? "Vous n'êtes pas dans la bonne salle." : null)
       setQrValidated(true)
@@ -356,10 +378,23 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
         date: attendanceDate,
         client_timestamp: new Date().toISOString(),
       })
+      // Le prof a sauté le QR début : pas de token de référence. On enregistre
+      // un contexte "vide" pour que le scan de fin sache qu'aucune validation
+      // start↔end n'est possible (alignement avec le comportement backend).
+      rollCallStore.setStartScanContext(slot.id, attendanceDate, {
+        qrToken: null,
+        roomId: null,
+        scannedAt: Date.now(),
+      })
       setQrWarning(null)
       setQrValidated(true)
     } catch (error) {
       if (isOfflineQueued(error)) {
+        rollCallStore.setStartScanContext(slot.id, attendanceDate, {
+          qrToken: null,
+          roomId: null,
+          scannedAt: Date.now(),
+        })
         setQrWarning(null)
         setQrValidated(true)
         setShowRollCallPrompt(true)
@@ -468,6 +503,16 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
           ? "La liste sera envoyée dès le retour de la connexion. Vous pouvez terminer le cours normalement."
           : "Terminez le cours à la fin pour confirmer les heures effectuées.",
       })
+      // Si la mutation a été mise en queue mais que le réseau est revenu
+      // entre-temps (blip, captive portal résolu), on déclenche une sync
+      // immédiate. Sans cette ligne, on dépend uniquement du useAutoSync de
+      // App qui peut ne pas re-fire si pendingCount n'a changé que d'un cran
+      // (1→1 si une autre mutation est déjà en queue).
+      if (queued && navigator.onLine) {
+        void syncOfflineQueue().catch((error) => {
+          console.warn("[TeacherCheckInFlow] best-effort sync after queue failed", error)
+        })
+      }
       void queryClient.invalidateQueries({ queryKey: ["teacher-attendance", attendanceDate] })
       onClose()
     } catch {
@@ -492,16 +537,44 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
   })
 
   const handleEndQrDetected = async (token: string) => {
+    const trimmedToken = token.trim()
+    if (!trimmedToken) return
+
+    /**
+     * Validation locale start↔end AVANT toute mise en queue.
+     *
+     * Pourquoi ici et pas seulement côté backend : en offline, la mutation est
+     * mise en queue sans appel serveur → un mismatch n'est jamais signalé et
+     * le prof peut clôturer un cours dans une salle différente de celle où il
+     * a commencé. Le backend refuse ce cas (attendance.service.ts:428-444) ;
+     * on duplique la garde côté client pour le comportement offline.
+     *
+     * Comparaison stricte de chaîne (qrToken === qrToken). Si le scan début a
+     * été *skip* (qrToken=null), il n'y a aucune référence : on laisse le
+     * serveur trancher (mode dégradé conforme au backend).
+     */
+    const startContext = rollCallStore.getStartScanContext(slot.id, attendanceDate)
+    if (startContext?.qrToken && startContext.qrToken !== trimmedToken) {
+      toast({
+        title: "QR incorrect",
+        description:
+          "Ce QR ne correspond pas à celui scanné en début de cours. Scannez exactement le même QR code que pour commencer.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       const result = await endQrMutation.mutateAsync({
-        qr_token: token,
+        qr_token: trimmedToken,
         scan_type: "end",
         schedule_id: slot.id,
         date: attendanceDate,
         client_timestamp: new Date().toISOString(),
       })
 
-      // Si hors ligne, result est undefined (mis en queue) — on accepte silencieusement
+      // Online : le backend confirme. Offline (result undefined) : on a déjà
+      // validé localement contre startContext, donc on peut accepter.
       if (result && result.room_mismatch) {
         toast({
           title: "QR incorrect",
@@ -577,6 +650,14 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
           ? "La clôture sera synchronisée automatiquement."
           : `${result?.actual_minutes ?? 0} min enregistrées.`,
       })
+      // Même logique que handleSubmitStudents : si on est revenu en ligne
+      // pendant le workflow, on vide la queue tout de suite plutôt que
+      // d'attendre le prochain événement réseau.
+      if (queued && navigator.onLine) {
+        void syncOfflineQueue().catch((error) => {
+          console.warn("[TeacherCheckInFlow] best-effort sync after queue failed", error)
+        })
+      }
       void queryClient.invalidateQueries({ queryKey: ["teacher-attendance", attendanceDate] })
       onClose()
     } catch {
