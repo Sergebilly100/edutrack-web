@@ -24,7 +24,10 @@ export type PendingValidationItem = {
   scheduleDurationMinutes: number
   validationReason: string | null
   hourlyRate: number | null
+  /** Onglet primaire d'affichage. */
   kind: ValidationKind
+  /** Tous les critères déclenchés (>= 1). Permet d'afficher plusieurs badges. */
+  kinds: ValidationKind[]
   slotLabel: string | null
   roomName: string | null
 }
@@ -41,9 +44,20 @@ export type PendingValidationCount = {
   total: number
 }
 
+const normalizeKind = (value: unknown): ValidationKind =>
+  value === "gps_suspicious" ? "gps_suspicious" : "short_hours"
+
+const normalizeKindsArray = (value: unknown, fallback: ValidationKind): ValidationKind[] => {
+  if (!Array.isArray(value)) return [fallback]
+  const result = value
+    .map((v) => (v === "gps_suspicious" || v === "short_hours" ? (v as ValidationKind) : null))
+    .filter((v): v is ValidationKind => v !== null)
+  return result.length > 0 ? result : [fallback]
+}
+
 const normalizeItem = (value: unknown): PendingValidationItem => {
   const row = isRecord(value) ? value : {}
-  const kind = row.kind === "gps_suspicious" ? "gps_suspicious" : "short_hours"
+  const kind = normalizeKind(row.kind)
   return {
     attendanceId: asString(row.attendanceId ?? row.attendance_id),
     teacherId: asString(row.teacherId ?? row.teacher_id),
@@ -66,6 +80,7 @@ const normalizeItem = (value: unknown): PendingValidationItem => {
     validationReason: asNullableString(row.validationReason ?? row.validation_reason),
     hourlyRate: asNullableNumber(row.hourlyRate ?? row.hourly_rate),
     kind,
+    kinds: normalizeKindsArray(row.kinds, kind),
     slotLabel: asNullableString(row.slotLabel ?? row.slot_label),
     roomName: asNullableString(row.roomName ?? row.room_name),
   }
@@ -244,6 +259,7 @@ export type ValidationHistoryItem = {
   validationReason: string | null
   validatedAt: string | null
   kind: ValidationKind
+  kinds: ValidationKind[]
   slotLabel: string | null
   roomName: string | null
   scheduleDurationMinutes: number
@@ -265,7 +281,7 @@ const normalizeHistoryItem = (value: unknown): ValidationHistoryItem => {
     : row.validation_status === "approved" || row.validation_status === "rejected"
       ? row.validation_status
       : "rejected"
-  const kind = row.kind === "gps_suspicious" ? "gps_suspicious" : "short_hours"
+  const kind = normalizeKind(row.kind)
   return {
     attendanceId: asString(row.attendanceId ?? row.attendance_id),
     teacherId: asString(row.teacherId ?? row.teacher_id),
@@ -278,6 +294,7 @@ const normalizeHistoryItem = (value: unknown): ValidationHistoryItem => {
     validationReason: asNullableString(row.validationReason ?? row.validation_reason),
     validatedAt: asNullableString(row.validatedAt ?? row.validated_at),
     kind,
+    kinds: normalizeKindsArray(row.kinds, kind),
     slotLabel: asNullableString(row.slotLabel ?? row.slot_label),
     roomName: asNullableString(row.roomName ?? row.room_name),
     scheduleDurationMinutes: asNumber(row.scheduleDurationMinutes ?? row.schedule_duration_minutes),

@@ -59,6 +59,7 @@ import {
 import {
   EndScanStatusBadge,
   HistoryStatusBadge,
+  KindBadges,
 } from "./components/ValidationsBadges"
 
 type ApproveShortHoursTarget = {
@@ -536,10 +537,7 @@ export default function ValidationsPage() {
                 <h3 className="truncate text-base font-semibold">{item.teacherName}</h3>
                 <p className="text-sm text-muted-foreground">{item.courseName} • {item.className}</p>
               </div>
-              <Badge variant="outline" role="status" className="gap-1 border-amber-200 bg-amber-50 text-amber-700">
-                <TriangleAlert className="h-3.5 w-3.5" />
-                GPS
-              </Badge>
+              <KindBadges kinds={item.kinds} />
             </div>
             <dl className="mt-4 grid gap-2 text-sm">
               <div className="flex justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2">
@@ -584,6 +582,7 @@ export default function ValidationsPage() {
             <TableRow>
               <TableHead>Enseignant</TableHead>
               <TableHead>Cours</TableHead>
+              <TableHead>Critères</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Créneau</TableHead>
               <TableHead>Salle</TableHead>
@@ -597,6 +596,7 @@ export default function ValidationsPage() {
               <TableRow key={item.attendanceId}>
                 <TableCell className="font-medium">{item.teacherName}</TableCell>
                 <TableCell>{item.courseName} • {item.className}</TableCell>
+                <TableCell><KindBadges kinds={item.kinds} /></TableCell>
                 <TableCell>{formatDate(item.date)}</TableCell>
                 <TableCell>{item.slotLabel ?? "-"}</TableCell>
                 <TableCell>{item.roomName ?? "-"}</TableCell>
@@ -662,10 +662,7 @@ export default function ValidationsPage() {
                   <h3 className="truncate text-base font-semibold">{item.teacherName}</h3>
                   <p className="text-sm text-muted-foreground">{item.courseName} • {item.className}</p>
                 </div>
-                <Badge variant="outline" role="status" className="gap-1 border-amber-200 bg-amber-50 text-amber-700">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  Heure courte
-                </Badge>
+                <KindBadges kinds={item.kinds} />
               </div>
               <dl className="mt-4 grid gap-2 text-sm">
                 <div className="flex justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2">
@@ -721,6 +718,7 @@ export default function ValidationsPage() {
             <TableRow>
               <TableHead>Enseignant</TableHead>
               <TableHead>Cours</TableHead>
+              <TableHead>Critères</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Créneau</TableHead>
               <TableHead>Salle</TableHead>
@@ -739,6 +737,7 @@ export default function ValidationsPage() {
                 <TableRow key={item.attendanceId}>
                   <TableCell className="font-medium">{item.teacherName}</TableCell>
                   <TableCell>{item.courseName} • {item.className}</TableCell>
+                  <TableCell><KindBadges kinds={item.kinds} /></TableCell>
                   <TableCell>{formatDate(item.date)}</TableCell>
                   <TableCell>{item.slotLabel ?? "-"}</TableCell>
                   <TableCell>{item.roomName ?? "-"}</TableCell>
@@ -1155,8 +1154,20 @@ export default function ValidationsPage() {
                 {approveShortHoursTarget.item.roomName ? (
                   <p className="mt-0.5 text-muted-foreground">Salle : {approveShortHoursTarget.item.roomName}</p>
                 ) : null}
+                <div className="mt-2">
+                  <KindBadges kinds={approveShortHoursTarget.item.kinds} />
+                </div>
               </div>
               <p className="text-sm font-medium">Heures accordées : {approveShortHoursTarget.label}</p>
+              {approveShortHoursTarget.item.kinds.length > 1 ? (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    Cette présence cumule plusieurs critères. Cet accord lève également
+                    l'alerte GPS suspect en plus des heures.
+                  </span>
+                </div>
+              ) : null}
             </div>
           ) : null}
           <DialogFooter>
@@ -1191,11 +1202,25 @@ export default function ValidationsPage() {
             </DialogDescription>
           </DialogHeader>
           {approveTarget ? (
-            <div className="rounded-lg border border-border p-3 text-sm">
-              <p className="font-medium">{approveTarget.courseName} • {approveTarget.className}</p>
-              <p className="mt-1 text-muted-foreground">
-                {formatDate(approveTarget.date)} à {formatTime(approveTarget.checkedInAt)}
-              </p>
+            <div className="space-y-2">
+              <div className="rounded-lg border border-border p-3 text-sm">
+                <p className="font-medium">{approveTarget.courseName} • {approveTarget.className}</p>
+                <p className="mt-1 text-muted-foreground">
+                  {formatDate(approveTarget.date)} à {formatTime(approveTarget.checkedInAt)}
+                </p>
+                <div className="mt-2">
+                  <KindBadges kinds={approveTarget.kinds} />
+                </div>
+              </div>
+              {approveTarget.kinds.length > 1 ? (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    Cette présence cumule plusieurs critères. Confirmer ici lève
+                    l'ensemble des alertes (heures courtes et GPS suspect) en une seule action.
+                  </span>
+                </div>
+              ) : null}
             </div>
           ) : null}
           <DialogFooter>
@@ -1224,6 +1249,14 @@ export default function ValidationsPage() {
             <DialogDescription>Une notification sera envoyée à l'enseignant avec ce motif.</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
+            {rejectTarget ? (
+              <div className="rounded-lg border border-border p-3 text-sm">
+                <p className="font-medium">{rejectTarget.courseName} • {rejectTarget.className}</p>
+                <div className="mt-2">
+                  <KindBadges kinds={rejectTarget.kinds} />
+                </div>
+              </div>
+            ) : null}
             <Input
               value={rejectReason}
               onChange={(event) => setRejectReason(event.target.value)}
@@ -1231,7 +1264,13 @@ export default function ValidationsPage() {
             />
             <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
               <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{selectedAmount ? `Montant planifié concerné : ${selectedAmount}. ` : ""}Les heures refusées ne seront pas comptabilisées.</span>
+              <span>
+                {selectedAmount ? `Montant planifié concerné : ${selectedAmount}. ` : ""}
+                Les heures refusées ne seront pas comptabilisées.
+                {rejectTarget && rejectTarget.kinds.length > 1
+                  ? " Ce refus s'applique à tous les critères déclenchés sur ce cours."
+                  : ""}
+              </span>
             </div>
           </div>
           <DialogFooter>

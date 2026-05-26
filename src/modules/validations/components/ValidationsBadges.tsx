@@ -1,12 +1,44 @@
-import { CheckCircle2, CircleX } from "lucide-react"
+import { CheckCircle2, CircleX, Clock, MapPin } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 
 import type {
   MissingEndScanSession,
   ValidationHistoryStatus,
+  ValidationKind,
 } from "../validations.api"
 import { getEndScanStatus } from "../validations.helpers"
+
+const KIND_LABEL: Record<ValidationKind, string> = {
+  short_hours: "Heures courtes",
+  gps_suspicious: "GPS suspect",
+}
+
+export function KindBadges({ kinds }: { kinds: ValidationKind[] }) {
+  if (kinds.length === 0) return null
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {kinds.includes("short_hours") && (
+        <Badge
+          variant="outline"
+          className="border-amber-200 bg-amber-50 text-amber-700"
+        >
+          <Clock className="mr-1 h-3 w-3" />
+          {KIND_LABEL.short_hours}
+        </Badge>
+      )}
+      {kinds.includes("gps_suspicious") && (
+        <Badge
+          variant="outline"
+          className="border-rose-200 bg-rose-50 text-rose-700"
+        >
+          <MapPin className="mr-1 h-3 w-3" />
+          {KIND_LABEL.gps_suspicious}
+        </Badge>
+      )}
+    </div>
+  )
+}
 
 export function HistoryStatusBadge({
   status,
