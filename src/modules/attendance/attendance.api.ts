@@ -1,9 +1,14 @@
 import { apiClient as api } from "@/shared/api/client"
 
 export type GeoPayload = { latitude?: number; longitude?: number; accuracy?: number }
-export type CheckInPayload = { schedule_id: string; date?: string } & GeoPayload
+// `client_timestamp` (ISO 8601) : heure réelle de l'action côté utilisateur.
+// Critique pour les actions offline rejouées plus tard — sans ce champ le backend
+// enregistrerait l'action à l'heure de la synchronisation, ce qui fausserait
+// retards / absences / heures réelles.
+export type ClientTimestampPayload = { client_timestamp?: string }
+export type CheckInPayload = { schedule_id: string; date?: string } & GeoPayload & ClientTimestampPayload
 export type CheckInResponse = { late_minutes?: number | null; geo_status?: string | null }
-export type CheckOutPayload = { schedule_id: string; date?: string } & GeoPayload
+export type CheckOutPayload = { schedule_id: string; date?: string } & GeoPayload & ClientTimestampPayload
 export type CheckOutResponse = { actual_minutes: number; geo_status: string }
 
 export type QrScanPayload = {
@@ -11,7 +16,7 @@ export type QrScanPayload = {
   scan_type: "start" | "end"
   schedule_id: string
   date?: string
-}
+} & ClientTimestampPayload
 export type QrScanResponse = { room_mismatch?: boolean }
 export type QrSkipPayload = {
   scan_type: "start" | "end"
@@ -238,7 +243,9 @@ export const teacherScheduleApi = {
     return extractList(response.data).map(toTeacherAttendance)
   },
 
-  checkIn: async (body: { schedule_id: string; date: string } & GeoPayload) => {
+  checkIn: async (
+    body: { schedule_id: string; date: string; client_timestamp?: string } & GeoPayload
+  ) => {
     const response = await api.post<{
       data?: { lateMinutes?: number | null; geoStatus?: string }
       late_minutes?: number | null
@@ -250,7 +257,9 @@ export const teacherScheduleApi = {
     }
   },
 
-  checkOut: async (body: { schedule_id: string; date?: string } & GeoPayload) => {
+  checkOut: async (
+    body: { schedule_id: string; date?: string; client_timestamp?: string } & GeoPayload
+  ) => {
     const response = await api.post<{
       data?: { actualMinutes?: number; geoStatus?: string }
     }>("/attendance/check-out", body)
@@ -266,6 +275,7 @@ export const teacherScheduleApi = {
     scan_type: "start" | "end"
     schedule_id: string
     date?: string
+    client_timestamp?: string
   }) => {
     const response = await api.post<{
       data?: { roomMismatch?: boolean }
@@ -282,6 +292,7 @@ export const teacherScheduleApi = {
     scan_type: "start" | "end"
     schedule_id: string
     date?: string
+    client_timestamp?: string
   }) => {
     await api.post("/attendance/qr-skip", body)
     return { success: true as const }

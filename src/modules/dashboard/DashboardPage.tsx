@@ -30,6 +30,7 @@ import {
 } from "@/modules/dashboard/dashboard.api"
 import { getPendingValidationCount } from "@/modules/validations/validations.api"
 import { EmptyState, emptyStateIcons } from "@/shared/components/EmptyState"
+import { OfflineGuard } from "@/shared/components/OfflineGuard"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { SalaryRow } from "@/shared/components/SalaryRow"
 import type { SalaryStatus } from "@/shared/components/SalaryRow"
@@ -704,33 +705,35 @@ export default function DashboardPage() {
                   </span>
                 ) : null}
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                aria-label="Mettre à jour les données"
-                disabled={isRefreshing}
-                onClick={() => {
-                  void handleDashboardRefresh()
-                }}
-              >
-                {isRefreshing ? (
-                  <>
-                    <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
-                    Mise à jour...
-                  </>
-                ) : refreshSuccess ? (
-                  <>
-                    <CheckCircle2 className="mr-1 h-4 w-4 text-green-600" />
-                    À jour
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="mr-1 h-4 w-4" />
-                    Actualiser
-                  </>
-                )}
-              </Button>
+              <OfflineGuard message="Actualisation indisponible hors ligne">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-label="Mettre à jour les données"
+                  disabled={isRefreshing}
+                  onClick={() => {
+                    void handleDashboardRefresh()
+                  }}
+                >
+                  {isRefreshing ? (
+                    <>
+                      <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
+                      Mise à jour...
+                    </>
+                  ) : refreshSuccess ? (
+                    <>
+                      <CheckCircle2 className="mr-1 h-4 w-4 text-green-600" />
+                      À jour
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-1 h-4 w-4" />
+                      Actualiser
+                    </>
+                  )}
+                </Button>
+              </OfflineGuard>
             </div>
           </div>
         </header>

@@ -15,6 +15,7 @@ import {
   type TenantPlan,
   updatePlanCatalog,
 } from "@/modules/admin/admin.api"
+import { OfflineDisabledFieldset, OfflineIndicator } from "@/shared/components"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 type EditablePlan = {
@@ -100,12 +101,14 @@ export default function AdminPlansPage() {
 
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
+      <OfflineIndicator />
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Plan & Tarifs</h1>
         <p className="text-sm text-muted-foreground">
           Configuration des prix, échéances et limites par plan.
         </p>
       </header>
+      <OfflineDisabledFieldset>
 
       {plansQuery.isLoading ? (
         <div className="grid gap-4 lg:grid-cols-3">
@@ -191,6 +194,7 @@ export default function AdminPlansPage() {
           <AlertDescription>Impossible de charger les plans tarifaires.</AlertDescription>
         </Alert>
       ) : null}
+      </OfflineDisabledFieldset>
     </div>
   )
 }

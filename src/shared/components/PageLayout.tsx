@@ -8,13 +8,17 @@ type PageLayoutProps = {
   subtitle?: string
   actions?: ReactNode
   contentClassName?: string
+  // Passer true si toutes les actions critiques de la page passent par
+  // useOfflineMutation (queue + sync auto). Sinon le bandeau reste rouge
+  // pour prévenir l'utilisateur que ses actions échoueront.
+  offlineCapable?: boolean
   children: ReactNode
 }
 
-export function PageLayout({ title, subtitle, actions, contentClassName, children }: PageLayoutProps) {
+export function PageLayout({ title, subtitle, actions, contentClassName, offlineCapable = false, children }: PageLayoutProps) {
   return (
     <div className="min-h-full bg-background">
-      <OfflineIndicator />
+      <OfflineIndicator offlineCapable={offlineCapable} />
       <header className="-mx-4 border-b bg-[var(--surface-chrome)] px-4 backdrop-blur md:-mx-6 md:top-0 md:z-40 md:px-6">
         <div className="flex min-h-16 flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:py-3">
           <div className="min-w-0">

@@ -16,7 +16,7 @@ import {
 } from "lucide-react"
 import { Link } from "react-router-dom"
 
-import { EmptyState } from "@/shared/components"
+import { EmptyState, OfflineIndicator } from "@/shared/components"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
@@ -207,6 +207,7 @@ export default function ParentDashboardPage() {
 
   return (
     <div className="space-y-3 text-base">
+      <OfflineIndicator />
       <section>
         {(studentsQuery.data?.length ?? 0) > 1 ? (
           <div className="rounded-xl border bg-card p-2 shadow-card">

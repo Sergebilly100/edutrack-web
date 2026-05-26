@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
 import { clearAdminCache, getMaintenanceConfig, updateMaintenanceConfig } from "@/modules/admin/admin.api"
+import { OfflineDisabledFieldset, OfflineIndicator } from "@/shared/components"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 export default function AdminMaintenancePage() {
@@ -51,11 +52,13 @@ export default function AdminMaintenancePage() {
 
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
+      <OfflineIndicator />
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Maintenance</h1>
         <p className="text-sm text-muted-foreground">Gestion du mode maintenance et opérations système.</p>
       </header>
 
+      <OfflineDisabledFieldset notice="Opérations de maintenance indisponibles hors ligne.">
       <Card>
         <CardHeader>
           <CardTitle>Mode maintenance</CardTitle>
@@ -104,6 +107,7 @@ export default function AdminMaintenancePage() {
           <AlertDescription>Impossible de charger les paramètres maintenance.</AlertDescription>
         </Alert>
       ) : null}
+      </OfflineDisabledFieldset>
     </div>
   )
 }

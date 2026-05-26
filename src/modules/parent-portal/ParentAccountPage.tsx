@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
+import { OfflineGuard, OfflineIndicator } from "@/shared/components"
 import { cn } from "@/lib/utils"
 import {
   changeParentPassword,
@@ -56,6 +57,7 @@ export default function ParentAccountPage() {
 
   return (
     <div className="space-y-4 text-base">
+      <OfflineIndicator />
       <Card>
         <CardHeader className="pb-3 p-3">
           <CardTitle className="text-xl">Mon compte</CardTitle>
@@ -163,9 +165,11 @@ export default function ParentAccountPage() {
               <Label className="text-base" htmlFor="confirm-password">Confirmer le mot de passe</Label>
               <Input id="confirm-password" className="h-10 text-base" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required />
             </div>
-            <Button type="submit" className="h-12 w-full text-base" disabled={changePasswordMutation.isPending}>
-              {changePasswordMutation.isPending ? "Enregistrement..." : "Enregistrer"}
-            </Button>
+            <OfflineGuard>
+              <Button type="submit" className="h-12 w-full text-base" disabled={changePasswordMutation.isPending}>
+                {changePasswordMutation.isPending ? "Enregistrement..." : "Enregistrer"}
+              </Button>
+            </OfflineGuard>
           </form>
 
           {changePasswordMutation.isSuccess ? (

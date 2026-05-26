@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, XCircle } from "lucide-react"
 
-import { EmptyState } from "@/shared/components"
+import { EmptyState, OfflineIndicator } from "@/shared/components"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
@@ -94,6 +94,7 @@ export default function ParentSchedulePage() {
 
   return (
     <div className="space-y-4 text-base">
+      <OfflineIndicator />
       <section className="space-y-3">
         <h1 className="text-xl font-semibold">Emploi du temps</h1>
       </section>

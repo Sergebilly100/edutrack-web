@@ -61,7 +61,7 @@ import {
   UnblockIcon,
   ViewIcon,
 } from "@/shared/components/icons"
-import { ConfirmActionDialog, DataTable, EmptyState, PageLayout } from "@/shared/components"
+import { ConfirmActionDialog, DataTable, EmptyState, OfflineGuard, PageLayout } from "@/shared/components"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
@@ -675,19 +675,23 @@ export default function TeachersPage() {
       actions={
         canCreateTeacher ? (
           <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={sendCredentialsMutation.isPending}
-              onClick={() => setSendCredentialsConfirmOpen(true)}
-              title="Envoie un email avec un mot de passe temporaire aux profs qui n'ont jamais reçu leurs identifiants."
-            >
-              {sendCredentialsMutation.isPending ? "Envoi..." : "Envoyer les identifiants"}
-            </Button>
-            <Button type="button" onClick={() => setCreateOpen(true)}>
-              <AddIcon className="mr-2 h-4 w-4" />
-              Ajouter un prof
-            </Button>
+            <OfflineGuard>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={sendCredentialsMutation.isPending}
+                onClick={() => setSendCredentialsConfirmOpen(true)}
+                title="Envoie un email avec un mot de passe temporaire aux profs qui n'ont jamais reçu leurs identifiants."
+              >
+                {sendCredentialsMutation.isPending ? "Envoi..." : "Envoyer les identifiants"}
+              </Button>
+            </OfflineGuard>
+            <OfflineGuard>
+              <Button type="button" onClick={() => setCreateOpen(true)}>
+                <AddIcon className="mr-2 h-4 w-4" />
+                Ajouter un prof
+              </Button>
+            </OfflineGuard>
           </div>
         ) : null
       }

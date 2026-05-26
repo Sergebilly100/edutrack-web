@@ -44,6 +44,7 @@ import {
   ConfirmActionDialog,
   DocumentList,
   DocumentUpload,
+  OfflineDisabledFieldset,
   PageLayout,
   PresenceHeatmap,
   TeacherProfileCard,
@@ -861,6 +862,7 @@ export default function TeacherDetailPage() {
         </Button>
       }
     >
+      <OfflineDisabledFieldset showNotice={false}>
       <div className="mb-4 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         <div className="flex flex-col gap-4 bg-muted/30 px-4 py-4 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0 space-y-1">
@@ -949,6 +951,7 @@ export default function TeacherDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </OfflineDisabledFieldset>
     </PageLayout>
   )
 }

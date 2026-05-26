@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
 import { apiClient } from "@/shared/api/client"
+import { OfflineDisabledFieldset, OfflineIndicator } from "@/shared/components"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 export default function AdminAccountPage() {
@@ -57,10 +58,12 @@ export default function AdminAccountPage() {
 
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
+      <OfflineIndicator />
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Mon compte</h1>
         <p className="text-sm text-muted-foreground">Paramètres personnels super admin.</p>
       </header>
+      <OfflineDisabledFieldset>
 
       <Card>
         <CardHeader>
@@ -108,6 +111,7 @@ export default function AdminAccountPage() {
           </Button>
         </CardContent>
       </Card>
+      </OfflineDisabledFieldset>
     </div>
   )
 }

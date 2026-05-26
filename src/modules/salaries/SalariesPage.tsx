@@ -55,7 +55,7 @@ import { usePendingValidationCount } from "@/shared/hooks/usePendingValidationCo
 import { SalarySummaryCards } from "@/modules/salaries/components/SalarySummaryCards"
 import { SalariesStatsCards } from "@/modules/salaries/components/SalariesStatsCards"
 import { SalaryExportSection } from "@/modules/salaries/components/SalaryExportSection"
-import { ContextualHelp, EmptyState, OfflineIndicator, SalaryRow, emptyStateIcons } from "@/shared/components"
+import { ContextualHelp, EmptyState, OfflineGuard, OfflineIndicator, SalaryRow, emptyStateIcons } from "@/shared/components"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
 import {
   OfflineMutationQueuedError,
@@ -596,7 +596,7 @@ export default function SalariesPage() {
 
   return (
     <>
-      <OfflineIndicator />
+      <OfflineIndicator offlineCapable />
 
       <div className="space-y-6 animate-fade-in mt-2" data-testid="salaries-page">
         <header className="space-y-4">
@@ -907,12 +907,16 @@ export default function SalariesPage() {
                             Marquer payé
                           </Button>
                         ) : null}
-                        <Button type="button" size="sm" variant="outline" onClick={() => void openDetailsDialog(row)}>
-                          Détails
-                        </Button>
-                        <Button type="button" size="sm" variant="outline" onClick={() => void openHistoryDialog(row)}>
-                          Historique
-                        </Button>
+                        <OfflineGuard>
+                          <Button type="button" size="sm" variant="outline" onClick={() => void openDetailsDialog(row)}>
+                            Détails
+                          </Button>
+                        </OfflineGuard>
+                        <OfflineGuard>
+                          <Button type="button" size="sm" variant="outline" onClick={() => void openHistoryDialog(row)}>
+                            Historique
+                          </Button>
+                        </OfflineGuard>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1057,7 +1061,7 @@ export default function SalariesPage() {
                       </p>
                     </div>
                     <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                      <p className="text-xs text-red-700">Absences constatées</p>
+                      <p className="text-xs text-red-700">Heure d'absences constatées</p>
                       <p className="text-lg font-semibold text-red-900">
                         {formatHours(detailsMutation.data.summary.absenceHours)}
                       </p>
@@ -1078,7 +1082,7 @@ export default function SalariesPage() {
                       <p className="text-base font-semibold text-violet-900">{toDisplayedStatus(detailsRow, detailsMutation.data)}</p>
                     </div>
                     <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                      <p className="text-xs text-emerald-700">Salaire actuel (heures réellement faites)</p>
+                      <p className="text-xs text-emerald-700">Salaire actuel (heures effectuées)</p>
                       <p className="text-base font-semibold text-emerald-900">
                         {formatFcfa(detailsMutation.data.summary.currentEarnedAmount ?? 0)}
                       </p>
@@ -1108,7 +1112,7 @@ export default function SalariesPage() {
                     </span>
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Heures restantes prévues (hors absences):{" "}
+                    Heures restantes prévues (à faire):{" "}
                     {formatHours(detailsMutation.data.summary.remainingPlannedHours)}
                   </p>
                   {detailsMutation.data.payment.paidAt ? (

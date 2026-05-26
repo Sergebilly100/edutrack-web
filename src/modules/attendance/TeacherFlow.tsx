@@ -144,7 +144,7 @@ export default function TeacherFlow({ schedule, demoMode = false }: TeacherFlowP
     }
 
     const result = await checkInMutation
-      .mutateAsync({ schedule_id: schedule.id })
+      .mutateAsync({ schedule_id: schedule.id, client_timestamp: new Date().toISOString() })
       .catch((error: unknown) => {
         if (isOfflineQueued(error)) {
           return null
@@ -237,6 +237,7 @@ export default function TeacherFlow({ schedule, demoMode = false }: TeacherFlowP
           scan_type: "start",
           schedule_id: schedule.id,
           date: new Date().toISOString().split("T")[0],
+          client_timestamp: new Date().toISOString(),
         })
         .catch((error: unknown) => {
           if (isOfflineQueued(error)) {

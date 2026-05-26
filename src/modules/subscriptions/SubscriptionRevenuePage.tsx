@@ -24,6 +24,7 @@ import {
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { useAuthStore } from "@/shared/store/auth.store"
+import { OfflineGuard} from "@/shared/components"
 
 const toMonth = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`
 const monthLabel = (month: string) => {
@@ -125,9 +126,11 @@ export default function SubscriptionRevenuePage() {
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <Button type="button" variant="outline" onClick={() => setExportOpen(true)}>
-            Exporter bilan
-          </Button>
+          <OfflineGuard>
+            <Button type="button" variant="outline" onClick={() => setExportOpen(true)}>
+              Exporter bilan
+            </Button>
+          </OfflineGuard>
         </div>
       }
     >

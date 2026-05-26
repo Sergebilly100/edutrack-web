@@ -251,12 +251,17 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
     try {
       // ── 1. Envoyer le checkIn au backend (présence confirmée) ──
       const geo = await getGeoPosition(geoCheckEnabled)
+      // Capture l'heure réelle du pointage AVANT toute attente réseau : si la
+      // mutation est mise en queue offline et rejouée plus tard, on garde la
+      // bonne heure d'arrivée du prof (sinon il serait marqué en retard/absent).
+      const eventTimestamp = new Date().toISOString()
       let checkInQueued = false
       let qrQueued = false
       const checkInResult = await checkInMutation
         .mutateAsync({
           schedule_id: slot.id,
           date: attendanceDate,
+          client_timestamp: eventTimestamp,
           ...geo,
         })
         .catch((error: unknown) => {
@@ -276,6 +281,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
           scan_type: "start",
           schedule_id: slot.id,
           date: attendanceDate,
+          client_timestamp: eventTimestamp,
         })
         .catch((error: unknown) => {
           if (isOfflineQueued(error)) {
@@ -324,6 +330,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
         const result = await checkInMutation.mutateAsync({
           schedule_id: slot.id,
           date: attendanceDate,
+          client_timestamp: new Date().toISOString(),
         })
         setLateMinutes(result?.late_minutes ?? null)
       } catch (error) {
@@ -347,6 +354,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
         scan_type: "start",
         schedule_id: slot.id,
         date: attendanceDate,
+        client_timestamp: new Date().toISOString(),
       })
       setQrWarning(null)
       setQrValidated(true)
@@ -490,6 +498,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
         scan_type: "end",
         schedule_id: slot.id,
         date: attendanceDate,
+        client_timestamp: new Date().toISOString(),
       })
 
       // Si hors ligne, result est undefined (mis en queue) — on accepte silencieusement
@@ -530,6 +539,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
         scan_type: "end",
         schedule_id: slot.id,
         date: attendanceDate,
+        client_timestamp: new Date().toISOString(),
       })
     } catch {
       // skip silencieux — le checkout reste possible
@@ -540,11 +550,16 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
   const handleFinishCourse = async () => {
     try {
       const geo = await getGeoPosition(geoCheckEnabled)
+      // Heure réelle de fin du cours : doit être préservée même si le réseau
+      // revient bien après (sinon `actualMinutes` serait surévalué et le prof
+      // pourrait passer à côté de la fenêtre de validation use_real_hours).
+      const eventTimestamp = new Date().toISOString()
       let queued = false
       const result = await finishCourseMutation
         .mutateAsync({
           schedule_id: slot.id,
           date: attendanceDate,
+          client_timestamp: eventTimestamp,
           ...geo,
         })
         .catch((error: unknown) => {

@@ -25,7 +25,7 @@ import {
 import AdminSchoolRow from "@/modules/admin/components/AdminSchoolRow"
 import RevenueChart from "@/modules/admin/components/RevenueChart"
 import SchoolFormModal from "@/modules/admin/components/SchoolFormModal"
-import { StatCard } from "@/shared/components"
+import { OfflineGuard, OfflineIndicator, StatCard } from "@/shared/components"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 type FilterPlan = "all" | TenantPlan
@@ -169,6 +169,7 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
+      <OfflineIndicator />
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">
@@ -181,9 +182,11 @@ export default function AdminPage() {
           </p>
         </div>
         {isSchoolsView ? (
-          <Button onClick={() => setCreateModalOpen(true)}>
-            Créer une école
-          </Button>
+          <OfflineGuard>
+            <Button onClick={() => setCreateModalOpen(true)}>
+              Créer une école
+            </Button>
+          </OfflineGuard>
         ) : null}
       </header>
 

@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
+import { OfflineDisabledFieldset, OfflineIndicator } from "@/shared/components"
 import {
   getGlobalSmsTemplates,
   getSmsDashboard,
@@ -190,10 +191,12 @@ const user = useAuthStore((state) => state.user)
 
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
+      <OfflineIndicator />
       <header className="space-y-1">
             <h1 className="text-2xl font-semibold tracking-tight">Pilotage SMS</h1>
               <p className="text-sm text-muted-foreground">Pilotage et config plateforme SMS (fournisseurs, qualité, conformité, consommation).</p>
       </header>
+      <OfflineDisabledFieldset>
 
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList>
@@ -609,6 +612,7 @@ const user = useAuthStore((state) => state.user)
           <AlertDescription>Impossible de charger les données SMS.</AlertDescription>
         </Alert>
       ) : null}
+      </OfflineDisabledFieldset>
       </div>
   )
 }

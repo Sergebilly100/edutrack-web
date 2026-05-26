@@ -45,7 +45,7 @@ import {
   updateSchoolConfig,
   updateSchoolSmsFeatureConfig,
 } from "@/modules/admin/admin.api"
-import { StatCard } from "@/shared/components"
+import { OfflineDisabledFieldset, OfflineIndicator, StatCard } from "@/shared/components"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 import {
@@ -365,6 +365,7 @@ export default function AdminSchoolDetailPage() {
     : []
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
+      <OfflineIndicator />
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <Button variant="ghost" size="sm" className="gap-2 px-0" onClick={() => navigate("/admin/schools")}>
@@ -376,6 +377,8 @@ export default function AdminSchoolDetailPage() {
         </div>
         {school ? <Badge>{school.metadata.status}</Badge> : null}
       </div>
+
+      <OfflineDisabledFieldset>
 
       {schoolQuery.isError ? (
         <Alert variant="destructive">
@@ -1196,6 +1199,7 @@ export default function AdminSchoolDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </OfflineDisabledFieldset>
     </div>
   )
 }

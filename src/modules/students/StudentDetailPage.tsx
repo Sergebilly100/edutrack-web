@@ -27,7 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import { excuseAbsence, getStudentById, retrySmsNotification, updateStudent } from "@/modules/students/students.api"
-import { DocumentList, DocumentUpload, PageLayout, PresenceDonut, StatCard } from "@/shared/components"
+import { DocumentList, DocumentUpload, OfflineDisabledFieldset, PageLayout, PresenceDonut, StatCard } from "@/shared/components"
 import { BackIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabel, useStudentLabels } from "@/shared/hooks/useStudentLabel"
@@ -293,6 +293,7 @@ export default function StudentDetailPage() {
         </Button>
       }
     >
+      <OfflineDisabledFieldset showNotice={false}>
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         <div className="flex flex-col gap-4 bg-muted/30 px-4 py-4 md:flex-row md:items-center md:justify-between">
           <div className="flex min-w-0 items-center gap-3">
@@ -735,6 +736,7 @@ export default function StudentDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </OfflineDisabledFieldset>
     </PageLayout>
   )
 }

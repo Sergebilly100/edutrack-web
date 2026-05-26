@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
+import { OfflineGuard } from "@/shared/components/OfflineGuard"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { createRoom, deleteRoom, getRoomQr, listRooms, regenerateRoomQr, updateRoom, type RoomListItem, type RoomQrPayload } from "./rooms.api"
@@ -324,10 +325,12 @@ export default function RoomsPage() {
             <CardDescription>Création, édition, suppression et gestion des QR codes.</CardDescription>
           </div>
           {canCreateRoom ? (
-            <Button onClick={openCreate} type="button">
-              <Plus className="mr-2 h-4 w-4" />
-              Ajouter une salle
-            </Button>
+            <OfflineGuard>
+              <Button onClick={openCreate} type="button">
+                <Plus className="mr-2 h-4 w-4" />
+                Ajouter une salle
+              </Button>
+            </OfflineGuard>
           ) : null}
         </CardHeader>
         <CardContent>

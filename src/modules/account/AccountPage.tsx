@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/ui/use-toast"
 import { updateMyProfile } from "@/modules/auth/auth.api"
 import { changePassword } from "@/modules/settings/settings.api"
+import { OfflineGuard, OfflineIndicator } from "@/shared/components"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 const profileSchema = z.object({
@@ -139,6 +140,7 @@ export default function AccountPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <OfflineIndicator />
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Mon compte</h1>
         <p className="text-sm text-muted-foreground">Gérez votre profil et vos accès personnels.</p>
@@ -213,9 +215,11 @@ export default function AccountPage() {
               </div>
 
               <div className="flex justify-end">
-                <Button type="submit" disabled={profileMutation.isPending}>
-                  {profileMutation.isPending ? "Mise à jour..." : "Enregistrer le profil"}
-                </Button>
+                <OfflineGuard>
+                  <Button type="submit" disabled={profileMutation.isPending}>
+                    {profileMutation.isPending ? "Mise à jour..." : "Enregistrer le profil"}
+                  </Button>
+                </OfflineGuard>
               </div>
             </form>
           </Form>
@@ -283,9 +287,11 @@ export default function AccountPage() {
               />
 
               <div className="flex justify-end">
-                <Button type="submit" disabled={passwordMutation.isPending}>
-                  {passwordMutation.isPending ? "Mise à jour..." : "Changer le mot de passe"}
-                </Button>
+                <OfflineGuard>
+                  <Button type="submit" disabled={passwordMutation.isPending}>
+                    {passwordMutation.isPending ? "Mise à jour..." : "Changer le mot de passe"}
+                  </Button>
+                </OfflineGuard>
               </div>
             </form>
           </Form>

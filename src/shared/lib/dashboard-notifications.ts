@@ -3,12 +3,20 @@ import type { NotificationPanelItem } from "@/shared/components/layout/Notificat
 
 export const DASHBOARD_DISMISSED_NOTIFICATIONS_KEY = "edutrack:dashboard:dismissed-notifications"
 
-const smsStatusTone: Record<DashboardSmsItem["status"], NotificationPanelItem["tone"]> = {
-  queued: "warning",
-  sent: "success",
-  delivered: "success",
-  failed: "danger",
-  unknown: "info",
+// SMS destinés au directeur — peuvent rester affichés même quand 'sent' (info utile pour lui).
+// Les autres types (parents/profs) ne s'affichent que si retry possible (status='failed').
+const DIRECTOR_SMS_TYPES = new Set([
+  "teacher_late_director",
+  "teacher_absent_director",
+  "qr_invalid_alert",
+  "payment_reminder",
+  "subscription_expiry_alert",
+  "subscription_revenue_payout",
+])
+
+// Types dont les SMS échoués peuvent être renvoyés depuis une page dédiée.
+const RETRYABLE_FROM_PAGE: Record<string, { href: string; label: string }> = {
+  student_absent_parent: { href: "/students", label: "Ouvrir les élèves" },
 }
 
 export const clearDashboardDismissedNotifications = (): void => {
@@ -125,12 +133,36 @@ export const buildDirectorDashboardNotifications = ({
   }
 
   for (const sms of smsLog) {
+    const isDirectorSms = DIRECTOR_SMS_TYPES.has(sms.type)
+    const isFailed = sms.status === "failed"
+
+    // Pour les SMS destinés au directeur : on garde failed + queued (information utile).
+    // Pour les autres : uniquement failed avec page de retry disponible.
+    if (!isDirectorSms) {
+      if (!isFailed) continue
+      const retry = RETRYABLE_FROM_PAGE[sms.type]
+      if (!retry) continue
+
+      items.push({
+        id: `sms-${sms.id}`,
+        title: "SMS non envoyé",
+        message: sms.message || "Message indisponible",
+        meta: `${formatDashboardNotificationTime(sms.sentAt ?? sms.createdAt)} · ${sms.recipientPhone}`,
+        tone: "danger",
+        targetHref: retry.href,
+        actionLabel: retry.label,
+      })
+      continue
+    }
+
+    if (!isFailed) continue
+
     items.push({
       id: `sms-${sms.id}`,
-      title: sms.status === "failed" ? "SMS non envoyé" : "Notification SMS",
+      title: "SMS directeur non envoyé",
       message: sms.message || "Message indisponible",
       meta: `${formatDashboardNotificationTime(sms.sentAt ?? sms.createdAt)} · ${sms.recipientPhone}`,
-      tone: smsStatusTone[sms.status],
+      tone: "danger",
     })
   }
 

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { fetchImportHistory, type ImportType } from "@/modules/import-export/import-export.api"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { ContextualHelp } from "@/shared/components/ContextualHelp"
+import { useOfflineGuard } from "@/shared/hooks/useOfflineGuard"
 import { CalendarClockIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabels, type StudentLabels } from "@/shared/hooks/useStudentLabel"
@@ -52,6 +53,7 @@ const MONTH_OPTIONS = buildMonthOptions()
 export default function ImportPage() {
   const { hasPermission } = usePermissions()
   const studentLabels = useStudentLabels()
+  const { isBlocked: isImportBlocked } = useOfflineGuard()
   const labelByType = buildLabelByType(studentLabels)
   const user = useAuthStore((state) => state.user)
   const isDirector = user?.role === "director"
@@ -117,11 +119,17 @@ export default function ImportPage() {
       </header>
 
       {allowedImportTypes.length > 0 ? (
-        <ImportWizard
-          selectedImportType={activeImportType}
-          onImportTypeChange={setActiveImportType}
-          allowedImportTypes={allowedImportTypes}
-        />
+        isImportBlocked ? (
+          <ContextualHelp title="Import indisponible hors ligne" tone="warning">
+            L'import de fichiers nécessite une connexion réseau active. Reconnectez-vous puis recommencez.
+          </ContextualHelp>
+        ) : (
+          <ImportWizard
+            selectedImportType={activeImportType}
+            onImportTypeChange={setActiveImportType}
+            allowedImportTypes={allowedImportTypes}
+          />
+        )
       ) : (
         <ContextualHelp title="Import indisponible pour votre poste" tone="warning">
           {`Aucun droit d'import n'est actif sur votre profil. Demandez au directeur d'ajouter au moins un droit: ${studentLabels.pluralLower}, professeurs ou emploi du temps.`}

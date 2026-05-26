@@ -20,6 +20,8 @@ import {
   updateRealHoursConfig,
   updateSchoolSmsUnitPrice,
 } from "@/modules/settings/settings.api"
+import { OfflineDisabledFieldset } from "@/shared/components/OfflineDisabledFieldset"
+import { OfflineGuard } from "@/shared/components/OfflineGuard"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { ContextualHelp } from "@/shared/components/ContextualHelp"
 import { usePermissions } from "@/shared/hooks/usePermissions"
@@ -219,20 +221,22 @@ export default function SettingsPage() {
                     <span className="text-sm font-medium">Tolérance sauvegardée</span>
                   </div>
                 ) : (
-                  <Button
-                    type="submit"
-                    disabled={
-                      saveRealHoursConfigMutation.isPending ||
-                      !smsPriceForm.formState.dirtyFields.checkoutToleranceMinutes ||
-                      !smsPriceForm.formState.isValid
-                    }
-                  >
-                    {saveRealHoursConfigMutation.isPending
-                      ? "Sauvegarde..."
-                      : smsPriceForm.formState.dirtyFields.checkoutToleranceMinutes
-                        ? "Sauvegarder"
-                        : "Tolérance à jour"}
-                  </Button>
+                  <OfflineGuard>
+                    <Button
+                      type="submit"
+                      disabled={
+                        saveRealHoursConfigMutation.isPending ||
+                        !smsPriceForm.formState.dirtyFields.checkoutToleranceMinutes ||
+                        !smsPriceForm.formState.isValid
+                      }
+                    >
+                      {saveRealHoursConfigMutation.isPending
+                        ? "Sauvegarde..."
+                        : smsPriceForm.formState.dirtyFields.checkoutToleranceMinutes
+                          ? "Sauvegarder"
+                          : "Tolérance à jour"}
+                    </Button>
+                  </OfflineGuard>
                 )}
               </form>
             </Form>
@@ -260,8 +264,16 @@ export default function SettingsPage() {
         </Alert>
       ) : null}
 
-      {canManagePositions ? <SchoolConfigPanel /> : null}
-      {canAccessSmsTemplate ? <SmsTemplatePanel /> : null}
+      {canManagePositions ? (
+        <OfflineDisabledFieldset notice="Configuration école indisponible hors ligne. Reconnectez-vous pour modifier ces paramètres.">
+          <SchoolConfigPanel />
+        </OfflineDisabledFieldset>
+      ) : null}
+      {canAccessSmsTemplate ? (
+        <OfflineDisabledFieldset notice="Templates SMS indisponibles hors ligne.">
+          <SmsTemplatePanel />
+        </OfflineDisabledFieldset>
+      ) : null}
       {canManageSchoolSettings ? (
         <section
           className={
@@ -317,16 +329,18 @@ export default function SettingsPage() {
                       <span className="text-sm font-medium">Tarif sauvegardé</span>
                     </div>
                   ) : (
-                    <Button
-                      type="submit"
-                      disabled={
-                        saveSmsPriceMutation.isPending ||
-                        !smsPriceForm.formState.isDirty ||
-                        !smsPriceForm.formState.isValid
-                      }
-                    >
-                      {saveSmsPriceMutation.isPending ? "Sauvegarde..." : "Sauvegarder le tarif"}
-                    </Button>
+                    <OfflineGuard>
+                      <Button
+                        type="submit"
+                        disabled={
+                          saveSmsPriceMutation.isPending ||
+                          !smsPriceForm.formState.isDirty ||
+                          !smsPriceForm.formState.isValid
+                        }
+                      >
+                        {saveSmsPriceMutation.isPending ? "Sauvegarde..." : "Sauvegarder le tarif"}
+                      </Button>
+                    </OfflineGuard>
                   )}
                   <p className="text-sm text-muted-foreground">
                     Commission EduTrack : <strong>{smsFeatureQuery.data.commission_pct}%</strong> (défini par

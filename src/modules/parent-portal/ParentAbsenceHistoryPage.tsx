@@ -5,7 +5,7 @@ import { Link } from "react-router-dom"
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { EmptyState } from "@/shared/components"
+import { EmptyState, OfflineIndicator } from "@/shared/components"
 import { getParentAbsences, listParentStudents } from "@/modules/parent-portal/parent.api"
 import { currentIsoMonth, formatDateFr, monthLabelFr } from "@/modules/parent-portal/parent.utils"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
@@ -58,6 +58,7 @@ export default function ParentAbsenceHistoryPage() {
 
   return (
     <div className="space-y-4 text-base">
+      <OfflineIndicator />
       <div className="space-y-2">
         <h1 className="text-xl font-semibold">
           Historique des absences - {selectedStudent?.first_name ?? studentLabels.singular}

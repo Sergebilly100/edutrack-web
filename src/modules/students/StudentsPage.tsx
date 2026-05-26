@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils"
 import { fetchWeeklySchedule } from "@/modules/schedule/schedule.api"
 import StudentAbsencePanel from "@/modules/students/components/StudentAbsencePanel"
 import { createStudent, getAttendanceHistory, listStudents, type StudentItem } from "@/modules/students/students.api"
-import { DataTable, EmptyState, PageLayout } from "@/shared/components"
+import { DataTable, EmptyState, OfflineGuard, PageLayout } from "@/shared/components"
 import { AddIcon, AppIcon, ChevronRightIcon, FilterIcon, StudentsIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
@@ -302,10 +302,12 @@ export default function StudentsPage() {
       subtitle={`Liste des ${studentLabels.pluralLower} et suivi des absences`}
       actions={
         canCreateStudent ? (
-          <Button type="button" onClick={() => setCreateDialogOpen(true)}>
-            <AddIcon className="mr-2 h-4 w-4" />
-            {`Ajouter un ${studentLabels.singularLower}`}
-          </Button>
+          <OfflineGuard>
+            <Button type="button" onClick={() => setCreateDialogOpen(true)}>
+              <AddIcon className="mr-2 h-4 w-4" />
+              {`Ajouter un ${studentLabels.singularLower}`}
+            </Button>
+          </OfflineGuard>
         ) : null
       }
     >

@@ -51,7 +51,7 @@ import {
   type SubscriptionListItem,
   type SubscriptionStatus,
 } from "@/modules/subscriptions/subscriptions.api"
-import { ContextualHelp, EmptyState, PageLayout } from "@/shared/components"
+import { ContextualHelp, EmptyState, OfflineGuard, PageLayout } from "@/shared/components"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { todayInBusinessTimezone } from "@/shared/lib/business-date"
@@ -110,9 +110,11 @@ function SubscriptionActions({
       </Button>
 
       {!compact && canShowRenew ? (
-        <Button size="sm" variant="outline" onClick={() => onRenew(item)}>
-          Renouveler l'accès
-        </Button>
+        <OfflineGuard>
+          <Button size="sm" variant="outline" onClick={() => onRenew(item)}>
+            Renouveler l'accès
+          </Button>
+        </OfflineGuard>
       ) : null}
 
       {hasMenuActions && latest?.status !== "cancelled" && latest?.status !== "expired" ? (
@@ -130,32 +132,40 @@ function SubscriptionActions({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
             {compact && canShowRenew ? (
-              <DropdownMenuItem onClick={() => onRenew(item)}>
-                Renouveler l'accès
-              </DropdownMenuItem>
+              <OfflineGuard>
+                <DropdownMenuItem onClick={() => onRenew(item)}>
+                  Renouveler l'accès
+                </DropdownMenuItem>
+              </OfflineGuard>
             ) : null}
             {canCreate ? (
-              <DropdownMenuItem
-                onClick={() => onResetPassword(item)}
-                disabled={resetPasswordPending}
-              >
-                Réinitialiser le mot de passe
-              </DropdownMenuItem>
+              <OfflineGuard>
+                <DropdownMenuItem
+                  onClick={() => onResetPassword(item)}
+                  disabled={resetPasswordPending}
+                >
+                  Réinitialiser le mot de passe
+                </DropdownMenuItem>
+              </OfflineGuard>
             ) : null}
             {canEditContact ? (
-              <DropdownMenuItem onClick={() => onEditContact(item)}>
-                Modifier téléphone/email
-              </DropdownMenuItem>
+              <OfflineGuard>
+                <DropdownMenuItem onClick={() => onEditContact(item)}>
+                  Modifier téléphone/email
+                </DropdownMenuItem>
+              </OfflineGuard>
             ) : null}
             {canShowCancel ? (
               <>
                 {(compact && canShowRenew) || canCreate || canEditContact ? <DropdownMenuSeparator /> : null}
-                <DropdownMenuItem
-                  onClick={() => onCancel(item)}
-                  className="text-destructive focus:text-destructive"
-                >
-                  Annuler l'abonnement
-                </DropdownMenuItem>
+                <OfflineGuard>
+                  <DropdownMenuItem
+                    onClick={() => onCancel(item)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    Annuler l'abonnement
+                  </DropdownMenuItem>
+                </OfflineGuard>
               </>
             ) : null}
           </DropdownMenuContent>
@@ -304,9 +314,11 @@ export default function SubscriptionsPage() {
       subtitle={`(${activeCount} actifs)`}
       actions={
         canCreate ? (
-          <Button type="button" className="w-full sm:w-auto" onClick={() => setCreateOpen(true)}>
-            Nouvel abonnement
-          </Button>
+          <OfflineGuard>
+            <Button type="button" className="w-full sm:w-auto" onClick={() => setCreateOpen(true)}>
+              Nouvel abonnement
+            </Button>
+          </OfflineGuard>
         ) : null
       }
     >

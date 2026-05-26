@@ -1,4 +1,6 @@
 export { OfflineIndicator } from "./OfflineIndicator"
+export { OfflineGuard } from "./OfflineGuard"
+export { OfflineDisabledFieldset } from "./OfflineDisabledFieldset"
 export { OfflineQueueBadge } from "./OfflineQueueBadge"
 export { Spinner } from "./Spinner"
 export { EmptyState, emptyStateIcons } from "./EmptyState"
