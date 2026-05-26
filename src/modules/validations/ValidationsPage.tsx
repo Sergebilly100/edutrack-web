@@ -60,6 +60,7 @@ import {
   EndScanStatusBadge,
   HistoryStatusBadge,
   KindBadges,
+  LikelyShortCourseBadge,
 } from "./components/ValidationsBadges"
 
 type ApproveShortHoursTarget = {
@@ -87,6 +88,11 @@ const countEligibleSessions = (teacher: MissingEndScanTeacher): number =>
   teacher.sessions.filter(
     (s) => s.endScanAction === null || s.endScanActionCancelledAt !== null
   ).length
+
+// Garde défensive : un item provenant d'un cache stale (avant le déploiement
+// du backend multi-critères) peut ne pas avoir `kinds`. On retombe sur [kind].
+const safeKinds = (item: PendingValidationItem): typeof item.kinds =>
+  Array.isArray(item.kinds) && item.kinds.length > 0 ? item.kinds : [item.kind]
 
 export default function ValidationsPage() {
   const queryClient = useQueryClient()
@@ -596,7 +602,7 @@ export default function ValidationsPage() {
               <TableRow key={item.attendanceId}>
                 <TableCell className="font-medium">{item.teacherName}</TableCell>
                 <TableCell>{item.courseName} • {item.className}</TableCell>
-                <TableCell><KindBadges kinds={item.kinds} /></TableCell>
+                <TableCell><KindBadges kinds={safeKinds(item)} /></TableCell>
                 <TableCell>{formatDate(item.date)}</TableCell>
                 <TableCell>{item.slotLabel ?? "-"}</TableCell>
                 <TableCell>{item.roomName ?? "-"}</TableCell>
@@ -662,7 +668,7 @@ export default function ValidationsPage() {
                   <h3 className="truncate text-base font-semibold">{item.teacherName}</h3>
                   <p className="text-sm text-muted-foreground">{item.courseName} • {item.className}</p>
                 </div>
-                <KindBadges kinds={item.kinds} />
+                <KindBadges kinds={safeKinds(item)} />
               </div>
               <dl className="mt-4 grid gap-2 text-sm">
                 <div className="flex justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2">
@@ -737,7 +743,7 @@ export default function ValidationsPage() {
                 <TableRow key={item.attendanceId}>
                   <TableCell className="font-medium">{item.teacherName}</TableCell>
                   <TableCell>{item.courseName} • {item.className}</TableCell>
-                  <TableCell><KindBadges kinds={item.kinds} /></TableCell>
+                  <TableCell><KindBadges kinds={safeKinds(item)} /></TableCell>
                   <TableCell>{formatDate(item.date)}</TableCell>
                   <TableCell>{item.slotLabel ?? "-"}</TableCell>
                   <TableCell>{item.roomName ?? "-"}</TableCell>
@@ -910,6 +916,14 @@ export default function ValidationsPage() {
                               Arrivée : {formatTime(session.startScanAt)}
                             </p>
                           ) : null}
+                          {session.likelyShortHours ? (
+                            <div className="mt-2">
+                              <LikelyShortCourseBadge
+                                estimatedDurationMinutes={session.estimatedDurationMinutes}
+                                scheduleDurationMinutes={session.scheduleDurationMinutes}
+                              />
+                            </div>
+                          ) : null}
                           {hasActiveAction ? (
                             isSanctioned ? (
                               <Button
@@ -965,6 +979,7 @@ export default function ValidationsPage() {
                               Arrivée
                             </span>
                           </TableHead>
+                          <TableHead>Indication</TableHead>
                           <TableHead>Statut</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -984,6 +999,14 @@ export default function ValidationsPage() {
                               <TableCell>{session.roomName ?? "-"}</TableCell>
                               <TableCell className="text-muted-foreground">
                                 {session.startScanAt ? formatTime(session.startScanAt) : "-"}
+                              </TableCell>
+                              <TableCell>
+                                {session.likelyShortHours ? (
+                                  <LikelyShortCourseBadge
+                                    estimatedDurationMinutes={session.estimatedDurationMinutes}
+                                    scheduleDurationMinutes={session.scheduleDurationMinutes}
+                                  />
+                                ) : null}
                               </TableCell>
                               <TableCell>
                                 <EndScanStatusBadge session={session} />
@@ -1155,11 +1178,11 @@ export default function ValidationsPage() {
                   <p className="mt-0.5 text-muted-foreground">Salle : {approveShortHoursTarget.item.roomName}</p>
                 ) : null}
                 <div className="mt-2">
-                  <KindBadges kinds={approveShortHoursTarget.item.kinds} />
+                  <KindBadges kinds={safeKinds(approveShortHoursTarget.item)} />
                 </div>
               </div>
               <p className="text-sm font-medium">Heures accordées : {approveShortHoursTarget.label}</p>
-              {approveShortHoursTarget.item.kinds.length > 1 ? (
+              {safeKinds(approveShortHoursTarget.item).length > 1 ? (
                 <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                   <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>
@@ -1209,10 +1232,10 @@ export default function ValidationsPage() {
                   {formatDate(approveTarget.date)} à {formatTime(approveTarget.checkedInAt)}
                 </p>
                 <div className="mt-2">
-                  <KindBadges kinds={approveTarget.kinds} />
+                  <KindBadges kinds={safeKinds(approveTarget)} />
                 </div>
               </div>
-              {approveTarget.kinds.length > 1 ? (
+              {safeKinds(approveTarget).length > 1 ? (
                 <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                   <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>
@@ -1253,7 +1276,7 @@ export default function ValidationsPage() {
               <div className="rounded-lg border border-border p-3 text-sm">
                 <p className="font-medium">{rejectTarget.courseName} • {rejectTarget.className}</p>
                 <div className="mt-2">
-                  <KindBadges kinds={rejectTarget.kinds} />
+                  <KindBadges kinds={safeKinds(rejectTarget)} />
                 </div>
               </div>
             ) : null}
@@ -1267,7 +1290,7 @@ export default function ValidationsPage() {
               <span>
                 {selectedAmount ? `Montant planifié concerné : ${selectedAmount}. ` : ""}
                 Les heures refusées ne seront pas comptabilisées.
-                {rejectTarget && rejectTarget.kinds.length > 1
+                {rejectTarget && safeKinds(rejectTarget).length > 1
                   ? " Ce refus s'applique à tous les critères déclenchés sur ce cours."
                   : ""}
               </span>

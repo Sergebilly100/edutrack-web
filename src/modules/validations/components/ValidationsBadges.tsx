@@ -14,11 +14,16 @@ const KIND_LABEL: Record<ValidationKind, string> = {
   gps_suspicious: "GPS suspect",
 }
 
-export function KindBadges({ kinds }: { kinds: ValidationKind[] }) {
-  if (kinds.length === 0) return null
+export function KindBadges({ kinds }: { kinds: ValidationKind[] | undefined | null }) {
+  // Défensif : si la donnée provient d'un cache stale ou d'une réponse API
+  // mal formée, on ne casse pas le rendu — on omet juste les badges.
+  if (!Array.isArray(kinds) || kinds.length === 0) return null
+  const hasShortHours = kinds.includes("short_hours")
+  const hasGpsSuspicious = kinds.includes("gps_suspicious")
+  if (!hasShortHours && !hasGpsSuspicious) return null
   return (
     <div className="flex flex-wrap items-center gap-1">
-      {kinds.includes("short_hours") && (
+      {hasShortHours && (
         <Badge
           variant="outline"
           className="border-amber-200 bg-amber-50 text-amber-700"
@@ -27,7 +32,7 @@ export function KindBadges({ kinds }: { kinds: ValidationKind[] }) {
           {KIND_LABEL.short_hours}
         </Badge>
       )}
-      {kinds.includes("gps_suspicious") && (
+      {hasGpsSuspicious && (
         <Badge
           variant="outline"
           className="border-rose-200 bg-rose-50 text-rose-700"
@@ -77,6 +82,38 @@ export function HistoryStatusBadge({
     <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
       <CircleX className="mr-1 h-3 w-3" />
       {kind === "short_hours" ? "Cours non comptabilisé" : "Marqué absent"}
+    </Badge>
+  )
+}
+
+/**
+ * Badge informatif affiché sur les sessions sans scan de fin lorsque le calcul
+ * (end_time prévu - checked_in_at) suggère un cours court. C'est une estimation,
+ * pas une mesure : elle n'impacte pas le salaire, elle aide juste le directeur
+ * à juger entre "Tolérer", "Sanctionner" ou "Ne pas comptabiliser".
+ */
+export function LikelyShortCourseBadge({
+  estimatedDurationMinutes,
+  scheduleDurationMinutes,
+}: {
+  estimatedDurationMinutes: number | null
+  scheduleDurationMinutes: number
+}) {
+  if (estimatedDurationMinutes === null) return null
+  const formatMinutes = (m: number): string => {
+    const h = Math.floor(m / 60)
+    const rest = m % 60
+    if (h <= 0) return `${rest}min`
+    return rest === 0 ? `${h}h` : `${h}h${String(rest).padStart(2, "0")}`
+  }
+  return (
+    <Badge
+      variant="outline"
+      className="border-orange-200 bg-orange-50 text-orange-700"
+      title={`Estimation : ${formatMinutes(estimatedDurationMinutes)} max (jusqu'à l'heure de fin prévue) vs ${formatMinutes(scheduleDurationMinutes)} prévu. Indication uniquement.`}
+    >
+      <Clock className="mr-1 h-3 w-3" />
+      Cours court probable
     </Badge>
   )
 }

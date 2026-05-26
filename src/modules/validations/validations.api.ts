@@ -144,6 +144,13 @@ export type MissingEndScanSession = {
   endScanActionAt: string | null
   endScanActionCancelledAt: string | null
   scheduleDurationMinutes: number
+  /**
+   * Durée estimée du cours en minutes (end_time prévu − checked_in_at).
+   * Borne supérieure d'aide à la décision ; ne crédite rien au salaire.
+   */
+  estimatedDurationMinutes: number | null
+  /** True si l'estimation suggère un cours court vs la durée prévue. */
+  likelyShortHours: boolean
 }
 
 export type MissingEndScanTeacher = {
@@ -179,6 +186,11 @@ const normalizeMissingEndScanTeacher = (value: unknown): MissingEndScanTeacher =
           endScanActionAt: asNullableString(session.endScanActionAt ?? session.end_scan_action_at),
           endScanActionCancelledAt: asNullableString(session.endScanActionCancelledAt ?? session.end_scan_action_cancelled_at),
           scheduleDurationMinutes: asNumber(session.scheduleDurationMinutes ?? session.schedule_duration_minutes),
+          estimatedDurationMinutes: asNullableNumber(
+            session.estimatedDurationMinutes ?? session.estimated_duration_minutes
+          ),
+          likelyShortHours:
+            session.likelyShortHours === true || session.likely_short_hours === true,
         }
       })
     : []
