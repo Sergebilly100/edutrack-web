@@ -237,11 +237,14 @@ export const applyEndScanAction = async (input: {
   attendanceId: string
   action: EndScanAction
   reason: string
+  /** Heures à créditer pour action='warned' (optionnel). */
+  validatedHours?: number
 }): Promise<void> => {
   await api.post("/validations/end-scan-action", {
     attendance_id: input.attendanceId,
     action: input.action,
     reason: input.reason,
+    ...(input.validatedHours !== undefined ? { validated_hours: input.validatedHours } : {}),
   })
 }
 

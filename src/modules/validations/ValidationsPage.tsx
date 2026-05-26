@@ -60,7 +60,6 @@ import {
   EndScanStatusBadge,
   HistoryStatusBadge,
   KindBadges,
-  LikelyShortCourseBadge,
 } from "./components/ValidationsBadges"
 
 type ApproveShortHoursTarget = {
@@ -106,6 +105,13 @@ export default function ValidationsPage() {
   const [endScanMonth, setEndScanMonth] = useState(() => getCurrentMonth())
   const [expandedTeacher, setExpandedTeacher] = useState<string | null>(null)
   const [endScanActionTarget, setEndScanActionTarget] = useState<EndScanActionTarget | null>(null)
+  /**
+   * Sur "Tolérer avec avertissement", le directeur peut choisir entre :
+   * - "planned" → créditer les heures pleines du créneau (statu quo)
+   * - "estimated" → créditer la durée max possible (end_time − checked_in_at)
+   * Pré-sélectionné à "estimated" si likelyShortHours, sinon "planned".
+   */
+  const [warnedHoursChoice, setWarnedHoursChoice] = useState<"planned" | "estimated">("planned")
   const [cancelSanctionTarget, setCancelSanctionTarget] = useState<CancelSanctionTarget | null>(null)
   const [cancelSanctionReason, setCancelSanctionReason] = useState("")
   const [bulkWarnTarget, setBulkWarnTarget] = useState<BulkWarnTarget | null>(null)
@@ -225,7 +231,7 @@ export default function ValidationsPage() {
   })
 
   const endScanActionMutation = useMutation({
-    mutationFn: (input: { attendanceId: string; action: EndScanAction; reason: string }) =>
+    mutationFn: (input: { attendanceId: string; action: EndScanAction; reason: string; validatedHours?: number }) =>
       applyEndScanAction(input),
     onSuccess: async (_, variables) => {
       setEndScanActionTarget(null)
@@ -234,9 +240,12 @@ export default function ValidationsPage() {
         queryClient.invalidateQueries({ queryKey: ["salaries"] }),
       ])
       const label = variables.action === "warned" ? "Avertissement enregistré" : "Sanction enregistrée"
+      // Description différenciée selon que les heures ont été réduites ou non.
       const desc =
         variables.action === "warned"
-          ? "L'enseignant a été averti. Son salaire reste intact."
+          ? variables.validatedHours !== undefined
+            ? "L'enseignant a été averti. Le salaire reflète les heures effectivement créditées."
+            : "L'enseignant a été averti. Son salaire reste intact."
           : "Le cours ne sera pas comptabilisé. L'enseignant doit se rendre à l'administration."
       toast({ title: label, description: desc })
     },
@@ -319,6 +328,25 @@ export default function ValidationsPage() {
     if (!rejectTarget?.hourlyRate) return null
     return formatFcfa(rejectTarget.hourlyRate * (rejectTarget.scheduleDurationMinutes / 60))
   }, [rejectTarget])
+
+  /**
+   * Ouvre la modale d'action scan de fin en initialisant le choix d'heures :
+   * - "estimated" par défaut si l'arrivée tardive suggère un cours court
+   *   (sinon le directeur devrait explicitement passer à "planned")
+   * - "planned" sinon (statu quo : crédite la durée pleine du créneau)
+   */
+  const openEndScanAction = (
+    session: MissingEndScanSession,
+    teacher: MissingEndScanTeacher,
+    action: EndScanAction
+  ) => {
+    setWarnedHoursChoice(
+      action === "warned" && session.likelyShortHours && session.estimatedDurationMinutes !== null
+        ? "estimated"
+        : "planned"
+    )
+    setEndScanActionTarget({ session, teacher, action })
+  }
 
   const resetHistoryPage = () => setHistoryPage(1)
 
@@ -911,18 +939,20 @@ export default function ValidationsPage() {
                           </div>
                           <p className="mt-2 text-sm text-muted-foreground">Salle: {session.roomName ?? "-"}</p>
                           {session.startScanAt ? (
-                            <p className="flex items-center gap-1 mt-1 text-sm text-muted-foreground">
+                            <p
+                              className={`flex items-center gap-1 mt-1 text-sm ${
+                                session.likelyShortHours ? "text-orange-700" : "text-muted-foreground"
+                              }`}
+                            >
                               <Clock className="h-3.5 w-3.5" />
                               Arrivée : {formatTime(session.startScanAt)}
+                              {session.likelyShortHours && session.estimatedDurationMinutes !== null ? (
+                                <span className="font-medium">
+                                  {" "}
+                                  (≤ {formatMinutes(session.estimatedDurationMinutes)})
+                                </span>
+                              ) : null}
                             </p>
-                          ) : null}
-                          {session.likelyShortHours ? (
-                            <div className="mt-2">
-                              <LikelyShortCourseBadge
-                                estimatedDurationMinutes={session.estimatedDurationMinutes}
-                                scheduleDurationMinutes={session.scheduleDurationMinutes}
-                              />
-                            </div>
                           ) : null}
                           {hasActiveAction ? (
                             isSanctioned ? (
@@ -943,7 +973,7 @@ export default function ValidationsPage() {
                                 className="border-amber-200 text-amber-700 hover:bg-amber-50"
                                 disabled={endScanActionMutation.isPending}
                                 onClick={() =>
-                                  setEndScanActionTarget({ session, teacher, action: "warned" })
+                                  openEndScanAction(session, teacher, "warned")
                                 }
                               >
                                 Tolérer avec avertissement
@@ -953,7 +983,7 @@ export default function ValidationsPage() {
                                 variant="destructive"
                                 disabled={endScanActionMutation.isPending}
                                 onClick={() =>
-                                  setEndScanActionTarget({ session, teacher, action: "sanctioned" })
+                                  openEndScanAction(session, teacher, "sanctioned")
                                 }
                               >
                                 Sanctionner
@@ -979,7 +1009,6 @@ export default function ValidationsPage() {
                               Arrivée
                             </span>
                           </TableHead>
-                          <TableHead>Indication</TableHead>
                           <TableHead>Statut</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -997,15 +1026,21 @@ export default function ValidationsPage() {
                               <TableCell>{session.subject}</TableCell>
                               <TableCell>{session.timeSlot}</TableCell>
                               <TableCell>{session.roomName ?? "-"}</TableCell>
-                              <TableCell className="text-muted-foreground">
+                              <TableCell
+                                className={
+                                  session.likelyShortHours ? "text-orange-700 font-medium" : "text-muted-foreground"
+                                }
+                                title={
+                                  session.likelyShortHours && session.estimatedDurationMinutes !== null
+                                    ? `Durée maximale possible : ${formatMinutes(session.estimatedDurationMinutes)} (jusqu'à l'heure de fin prévue de ${formatMinutes(session.scheduleDurationMinutes)})`
+                                    : undefined
+                                }
+                              >
                                 {session.startScanAt ? formatTime(session.startScanAt) : "-"}
-                              </TableCell>
-                              <TableCell>
-                                {session.likelyShortHours ? (
-                                  <LikelyShortCourseBadge
-                                    estimatedDurationMinutes={session.estimatedDurationMinutes}
-                                    scheduleDurationMinutes={session.scheduleDurationMinutes}
-                                  />
+                                {session.likelyShortHours && session.estimatedDurationMinutes !== null ? (
+                                  <span className="ml-1 text-xs">
+                                    (cours ≤ {formatMinutes(session.estimatedDurationMinutes)})
+                                  </span>
                                 ) : null}
                               </TableCell>
                               <TableCell>
@@ -1033,7 +1068,7 @@ export default function ValidationsPage() {
                                       className="min-h-10 text-amber-700 border-amber-200 hover:bg-amber-50"
                                       disabled={endScanActionMutation.isPending}
                                       onClick={() =>
-                                        setEndScanActionTarget({ session, teacher, action: "warned" })
+                                        openEndScanAction(session, teacher, "warned")
                                       }
                                     >
                                       Tolérer avec avertissement
@@ -1045,7 +1080,7 @@ export default function ValidationsPage() {
                                       className="min-h-10"
                                       disabled={endScanActionMutation.isPending}
                                       onClick={() =>
-                                        setEndScanActionTarget({ session, teacher, action: "sanctioned" })
+                                        openEndScanAction(session, teacher, "sanctioned")
                                       }
                                     >
                                       Sanctionner
@@ -1339,12 +1374,101 @@ export default function ValidationsPage() {
                 {endScanActionTarget.session.roomName ? (
                   <p className="text-muted-foreground">Salle : {endScanActionTarget.session.roomName}</p>
                 ) : null}
+                {endScanActionTarget.session.startScanAt ? (
+                  <p
+                    className={
+                      endScanActionTarget.session.likelyShortHours
+                        ? "text-orange-700 font-medium"
+                        : "text-muted-foreground"
+                    }
+                  >
+                    Arrivée : {formatTime(endScanActionTarget.session.startScanAt)}
+                    {endScanActionTarget.session.likelyShortHours &&
+                    endScanActionTarget.session.estimatedDurationMinutes !== null
+                      ? ` (≤ ${formatMinutes(endScanActionTarget.session.estimatedDurationMinutes)} sur ${formatMinutes(endScanActionTarget.session.scheduleDurationMinutes)} prévu)`
+                      : ""}
+                  </p>
+                ) : null}
               </div>
               {endScanActionTarget.action === "warned" ? (
-                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>Le salaire de l'enseignant reste intact. Un message d'avertissement lui sera envoyé.</span>
-                </div>
+                <>
+                  {endScanActionTarget.session.likelyShortHours &&
+                  endScanActionTarget.session.estimatedDurationMinutes !== null &&
+                  endScanActionTarget.session.estimatedDurationMinutes <
+                    endScanActionTarget.session.scheduleDurationMinutes ? (
+                    <fieldset className="space-y-2">
+                      <legend className="text-sm font-medium">Heures à créditer</legend>
+                      {(() => {
+                        const session = endScanActionTarget.session
+                        const teacher = endScanActionTarget.teacher
+                        const plannedHours = session.scheduleDurationMinutes / 60
+                        const estimatedHours = (session.estimatedDurationMinutes ?? 0) / 60
+                        const plannedAmount =
+                          teacher.hourlyRate !== null ? formatFcfa(teacher.hourlyRate * plannedHours) : null
+                        const estimatedAmount =
+                          teacher.hourlyRate !== null ? formatFcfa(teacher.hourlyRate * estimatedHours) : null
+                        return (
+                          <>
+                            <label
+                              className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                                warnedHoursChoice === "estimated"
+                                  ? "border-primary bg-primary/5"
+                                  : "border-border hover:bg-muted/50"
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="warned-hours-choice"
+                                value="estimated"
+                                checked={warnedHoursChoice === "estimated"}
+                                onChange={() => setWarnedHoursChoice("estimated")}
+                                className="mt-0.5 h-4 w-4 accent-primary"
+                              />
+                              <span className="flex-1">
+                                <span className="block font-medium">
+                                  {formatMinutes(session.estimatedDurationMinutes)} estimées
+                                  {estimatedAmount ? ` · ${estimatedAmount}` : ""}
+                                </span>
+                                <span className="block text-xs text-muted-foreground mt-0.5">
+                                  Recommandé — durée max possible jusqu'à l'heure de fin prévue.
+                                </span>
+                              </span>
+                            </label>
+                            <label
+                              className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                                warnedHoursChoice === "planned"
+                                  ? "border-primary bg-primary/5"
+                                  : "border-border hover:bg-muted/50"
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="warned-hours-choice"
+                                value="planned"
+                                checked={warnedHoursChoice === "planned"}
+                                onChange={() => setWarnedHoursChoice("planned")}
+                                className="mt-0.5 h-4 w-4 accent-primary"
+                              />
+                              <span className="flex-1">
+                                <span className="block font-medium">
+                                  {formatMinutes(session.scheduleDurationMinutes)} prévues
+                                  {plannedAmount ? ` · ${plannedAmount}` : ""}
+                                </span>
+                                <span className="block text-xs text-muted-foreground mt-0.5">
+                                  Crédite la durée pleine du créneau (l'enseignant a peut-être enseigné plus que l'estimation).
+                                </span>
+                              </span>
+                            </label>
+                          </>
+                        )
+                      })()}
+                    </fieldset>
+                  ) : null}
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>Un message d'avertissement sera envoyé à l'enseignant.</span>
+                  </div>
+                </>
               ) : (
                 <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
                   <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
@@ -1368,13 +1492,28 @@ export default function ValidationsPage() {
               disabled={endScanActionMutation.isPending || !endScanActionTarget}
               onClick={() => {
                 if (!endScanActionTarget) return
+                const session = endScanActionTarget.session
+                // Pour 'warned' : si le choix porte sur les heures estimées et que
+                // l'estimation est strictement inférieure aux heures prévues, on
+                // transmet validatedHours pour que le salaire reflète cette décision.
+                // Si "planned", on n'envoie rien → comportement statu quo (heures pleines).
+                const validatedHours =
+                  endScanActionTarget.action === "warned" &&
+                  warnedHoursChoice === "estimated" &&
+                  session.estimatedDurationMinutes !== null &&
+                  session.estimatedDurationMinutes < session.scheduleDurationMinutes
+                    ? Math.round((session.estimatedDurationMinutes / 60) * 100) / 100
+                    : undefined
                 endScanActionMutation.mutate({
-                  attendanceId: endScanActionTarget.session.attendanceId,
+                  attendanceId: session.attendanceId,
                   action: endScanActionTarget.action,
                   reason:
                     endScanActionTarget.action === "warned"
-                      ? "Scan de fin manquant — toléré avec avertissement"
+                      ? validatedHours !== undefined
+                        ? `Scan de fin manquant — toléré, heures estimées créditées (${formatMinutes(session.estimatedDurationMinutes)})`
+                        : "Scan de fin manquant — toléré avec avertissement"
                       : "Scan de fin manquant — sanctionné",
+                  validatedHours,
                 })
               }}
             >

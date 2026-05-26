@@ -86,38 +86,6 @@ export function HistoryStatusBadge({
   )
 }
 
-/**
- * Badge informatif affiché sur les sessions sans scan de fin lorsque le calcul
- * (end_time prévu - checked_in_at) suggère un cours court. C'est une estimation,
- * pas une mesure : elle n'impacte pas le salaire, elle aide juste le directeur
- * à juger entre "Tolérer", "Sanctionner" ou "Ne pas comptabiliser".
- */
-export function LikelyShortCourseBadge({
-  estimatedDurationMinutes,
-  scheduleDurationMinutes,
-}: {
-  estimatedDurationMinutes: number | null
-  scheduleDurationMinutes: number
-}) {
-  if (estimatedDurationMinutes === null) return null
-  const formatMinutes = (m: number): string => {
-    const h = Math.floor(m / 60)
-    const rest = m % 60
-    if (h <= 0) return `${rest}min`
-    return rest === 0 ? `${h}h` : `${h}h${String(rest).padStart(2, "0")}`
-  }
-  return (
-    <Badge
-      variant="outline"
-      className="border-orange-200 bg-orange-50 text-orange-700"
-      title={`Estimation : ${formatMinutes(estimatedDurationMinutes)} max (jusqu'à l'heure de fin prévue) vs ${formatMinutes(scheduleDurationMinutes)} prévu. Indication uniquement.`}
-    >
-      <Clock className="mr-1 h-3 w-3" />
-      Cours court probable
-    </Badge>
-  )
-}
-
 export function EndScanStatusBadge({ session }: { session: MissingEndScanSession }) {
   const status = getEndScanStatus(session)
 
