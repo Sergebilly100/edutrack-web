@@ -10,6 +10,7 @@ describe("TeacherForm", () => {
         initialValues={{
           firstName: "Awa",
           lastName: "Kouamé",
+          matricule: null,
           phone: "2250701234567",
           email: null,
           type: "vacataire",
@@ -33,6 +34,7 @@ describe("TeacherForm", () => {
         initialValues={{
           firstName: "Awa",
           lastName: "Kouamé",
+          matricule: null,
           phone: "2250701234567",
           email: null,
           type: "permanent",
@@ -53,6 +55,7 @@ describe("TeacherForm", () => {
       expect(onSubmit).toHaveBeenCalledWith({
         firstName: "Awa",
         lastName: "Kouamé",
+        matricule: null,
         phone: "2250701234567",
         email: null,
         type: "permanent",

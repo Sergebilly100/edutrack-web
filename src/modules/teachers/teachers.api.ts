@@ -8,6 +8,7 @@ export type TeacherListItem = {
   firstName: string
   lastName: string
   fullName: string
+  matricule: string | null
   phone: string | null
   email: string | null
   type: TeacherType
@@ -34,6 +35,7 @@ export type TeacherStats = {
 export type TeacherAttendanceStats = {
   teacher_id: string
   teacher_name: string
+  teacher_matricule: string | null
   teacher_type: "vacataire" | "permanent"
   subjects: string[]
   total_scheduled: number
@@ -56,6 +58,7 @@ export type ClassOption = {
 export type TeacherOption = {
   id: string
   name: string
+  matricule: string | null
   subjects: string[]
 }
 
@@ -122,6 +125,7 @@ export type GetTeachersParams = {
 export type TeacherUpsertPayload = {
   firstName: string
   lastName: string
+  matricule: string | null
   phone: string | null
   email: string | null
   type: TeacherType
@@ -186,6 +190,7 @@ const mapTeacher = (value: unknown): TeacherListItem => {
     firstName,
     lastName,
     fullName,
+    matricule: asNullableString(item.matricule),
     phone: asNullableString(item.phone),
     email: asNullableString(item.email),
     type: (asString(item.type) === "permanent" ? "permanent" : "vacataire") as TeacherType,
@@ -264,6 +269,7 @@ export async function createTeacher(payload: TeacherUpsertPayload): Promise<Teac
   const response = await api.post("/teachers", {
     first_name: payload.firstName,
     last_name: payload.lastName,
+    matricule: payload.matricule,
     phone: payload.phone,
     email: payload.email,
     type: payload.type,
@@ -296,6 +302,7 @@ export async function updateTeacher(
   const response = await api.put(`/teachers/${teacherId}`, {
     first_name: payload.firstName,
     last_name: payload.lastName,
+    matricule: payload.matricule,
     phone: payload.phone,
     email: payload.email,
     type: payload.type,
@@ -540,6 +547,7 @@ export const fetchTeacherOptions = async (): Promise<TeacherOption[]> => {
   return response.data.map((teacher) => ({
     id: teacher.id,
     name: teacher.fullName,
+    matricule: teacher.matricule,
     subjects: teacher.subjects,
   }))
 }

@@ -305,6 +305,14 @@ export default function StudentDetailPage() {
             <div className="min-w-0">
               <p className="truncate text-lg font-semibold">{student.lastName} {student.firstName}</p>
               <p className="truncate text-sm text-muted-foreground">{student.className}</p>
+              {student.matricule ? (
+                <p className="truncate text-xs text-muted-foreground">Matricule : {student.matricule}</p>
+              ) : null}
+              {student.birthDate ? (
+                <p className="truncate text-xs text-muted-foreground">
+                  Né(e) le {new Date(student.birthDate).toLocaleDateString("fr-FR")}
+                </p>
+              ) : null}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">

@@ -593,6 +593,9 @@ export default function TeachersPage() {
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{row.original.name}</p>
               <p className="text-xs text-muted-foreground">@{row.original.username}</p>
+              {row.original.matricule ? (
+                <p className="truncate text-xs text-muted-foreground">Matricule : {row.original.matricule}</p>
+              ) : null}
             </div>
           </div>
         ),
@@ -842,6 +845,9 @@ export default function TeachersPage() {
                       <p className="truncate text-xs text-muted-foreground">
                         {teacher.subjects.join(", ")}
                       </p>
+                      {teacher.matricule ? (
+                        <p className="truncate text-xs text-muted-foreground">Matricule : {teacher.matricule}</p>
+                      ) : null}
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <Badge

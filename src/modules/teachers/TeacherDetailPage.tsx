@@ -529,6 +529,7 @@ function InfosPanel({ teacherId }: { teacherId: string }) {
             initialValues={{
               firstName: teacher.firstName,
               lastName: teacher.lastName,
+              matricule: teacher.matricule,
               phone: teacher.phone,
               email: teacher.email,
               type: teacher.type,

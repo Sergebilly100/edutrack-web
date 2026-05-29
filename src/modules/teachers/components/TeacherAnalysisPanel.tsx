@@ -162,7 +162,7 @@ export default function TeacherAnalysisPanel() {
                   <SelectItem value="all">Tous les professeurs</SelectItem>
                   {(teachersQuery.data ?? []).map((teacher) => (
                     <SelectItem key={teacher.id} value={teacher.id}>
-                      {teacher.name}
+                      {teacher.matricule ? `${teacher.name} (${teacher.matricule})` : teacher.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -276,6 +276,9 @@ export default function TeacherAnalysisPanel() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <h3 className="truncate text-base font-semibold">{row.teacher_name}</h3>
+                            {row.teacher_matricule ? (
+                              <p className="text-xs text-muted-foreground">Matricule : {row.teacher_matricule}</p>
+                            ) : null}
                             <p className="text-xs text-muted-foreground">{row.teacher_type}</p>
                           </div>
                           <Badge variant="outline" role="status" aria-label={`Taux de présence ${rate.toFixed(0)} pour cent`} className={cn("gap-1", rateTone)}>
@@ -358,6 +361,9 @@ export default function TeacherAnalysisPanel() {
                             <TableCell>
                               <div className="space-y-1">
                                 <p className="font-medium">{row.teacher_name}</p>
+                                {row.teacher_matricule ? (
+                                  <p className="text-xs text-muted-foreground">Matricule : {row.teacher_matricule}</p>
+                                ) : null}
                                 <Badge
                                   variant="outline"
                                   className={cn(

@@ -88,6 +88,8 @@ export default function StudentsPage() {
     classId: "",
     firstName: "",
     lastName: "",
+    matricule: "",
+    birthDate: "",
     parentPhone: "",
     parentPhone2: "",
   })
@@ -97,6 +99,8 @@ export default function StudentsPage() {
       classId: "",
       firstName: "",
       lastName: "",
+      matricule: "",
+      birthDate: "",
       parentPhone: "",
       parentPhone2: "",
     })
@@ -239,7 +243,9 @@ export default function StudentsPage() {
             </Avatar>
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{row.original.name}</p>
-              <p className="text-xs text-muted-foreground">{studentLabels.singular}</p>
+              <p className="text-xs text-muted-foreground">
+                {row.original.matricule ? `Matricule : ${row.original.matricule}` : studentLabels.singular}
+              </p>
             </div>
           </div>
         ),
@@ -461,7 +467,9 @@ export default function StudentsPage() {
                   </Avatar>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{student.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">{student.className}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {student.matricule ? `${student.className} · ${student.matricule}` : student.className}
+                    </p>
                   </div>
                   <div className="min-w-0 flex flex-col items-end gap-1">
                     {canViewAttendance ? (
@@ -545,6 +553,32 @@ export default function StudentsPage() {
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
+                <Label htmlFor="student-matricule">Matricule (optionnel)</Label>
+                <Input
+                  id="student-matricule"
+                  value={newStudent.matricule}
+                  maxLength={50}
+                  placeholder="MAT-2026-001"
+                  onChange={(event) =>
+                    setNewStudent((current) => ({ ...current, matricule: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="student-birth-date">Date de naissance (optionnel)</Label>
+                <Input
+                  id="student-birth-date"
+                  type="date"
+                  value={newStudent.birthDate}
+                  onChange={(event) =>
+                    setNewStudent((current) => ({ ...current, birthDate: event.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
                 <Label htmlFor="student-parent-phone">Téléphone parent 1</Label>
                 <Input
                   id="student-parent-phone"
@@ -590,6 +624,8 @@ export default function StudentsPage() {
                   classId: newStudent.classId,
                   firstName: newStudent.firstName.trim(),
                   lastName: newStudent.lastName.trim(),
+                  matricule: newStudent.matricule.trim() || null,
+                  birthDate: newStudent.birthDate || null,
                   parentPhone: newStudent.parentPhone.trim() || null,
                   parentPhone2: newStudent.parentPhone2.trim() || null,
                 })

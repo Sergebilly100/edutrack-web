@@ -31,7 +31,7 @@ export type BulkStudentsPayload = {
 }
 export type BulkStudentsResponse = { success: boolean }
 
-export type StudentItem = { id: string; full_name: string }
+export type StudentItem = { id: string; full_name: string; matricule: string | null }
 export type RoomItem = { id: string; name: string; qr_token: string }
 export type TeacherAttendancePolicy = {
   allow_teacher_qr_skip: boolean
@@ -199,10 +199,12 @@ const toStudentItem = (row: unknown): StudentItem => {
   const firstName = toString(item.first_name || item.firstName)
   const lastName = toString(item.last_name || item.lastName)
   const fullName = toString(item.full_name || item.fullName).trim()
+  const matricule = item.matricule
 
   return {
     id: toString(item.id),
     full_name: fullName || `${firstName} ${lastName}`.trim(),
+    matricule: typeof matricule === "string" && matricule.length > 0 ? matricule : null,
   }
 }
 
@@ -408,6 +410,7 @@ export const fetchStudents = (classId: string) =>
         lastName?: string
         first_name?: string
         last_name?: string
+        matricule?: string | null
       }>
     }>("/students", { params: { class_id: classId } })
     .then((r) =>
@@ -415,6 +418,7 @@ export const fetchStudents = (classId: string) =>
         id: student.id,
         full_name:
           `${student.firstName ?? student.first_name ?? ""} ${student.lastName ?? student.last_name ?? ""}`.trim(),
+        matricule: student.matricule ?? null,
       }))
     )
 

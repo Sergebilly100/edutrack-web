@@ -55,9 +55,9 @@ const formatTimeRange = (startAt: string, endAt: string) => {
 }
 
 const DEMO_STUDENTS: StudentItem[] = [
-  { id: "demo-student-1", full_name: "Kouadio Amani" },
-  { id: "demo-student-2", full_name: "Traoré Mariam" },
-  { id: "demo-student-3", full_name: "Koné Ibrahim" },
+  { id: "demo-student-1", full_name: "Kouadio Amani", matricule: null },
+  { id: "demo-student-2", full_name: "Traoré Mariam", matricule: null },
+  { id: "demo-student-3", full_name: "Koné Ibrahim", matricule: null },
 ]
 
 const isOfflineQueued = (error: unknown): error is OfflineMutationQueuedError =>

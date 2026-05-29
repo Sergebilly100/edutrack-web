@@ -93,7 +93,14 @@ export default function AttendanceSheet({
                     key={student.id}
                     className="flex items-center justify-between rounded-md border border-border p-2"
                   >
-                    <span className="text-sm font-medium">{fullName}</span>
+                    <div className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{fullName}</span>
+                      {student.matricule ? (
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {student.matricule}
+                        </span>
+                      ) : null}
+                    </div>
                     <Button
                       type="button"
                       size="sm"

@@ -29,6 +29,7 @@ const teacherFormSchema = z
   .object({
     firstName: z.string().trim().min(1, "Le prénom est requis").max(100),
     lastName: z.string().trim().min(1, "Le nom est requis").max(100),
+    matricule: z.string().trim().max(50, "Le matricule ne doit pas dépasser 50 caractères"),
     phone: z.string().trim().refine((value) => !value || PHONE_CI_REGEX.test(value), {
         message: "Le téléphone doit respecter le format 225XXXXXXXXXX",
       }),
@@ -87,6 +88,7 @@ type TeacherFormValues = z.infer<typeof teacherFormSchema>
 export type TeacherFormInitialValues = {
   firstName: string
   lastName: string
+  matricule: string | null
   phone: string | null
   email: string | null
   type: TeacherType
@@ -121,6 +123,7 @@ export default function TeacherForm({
     defaultValues: {
       firstName: initialValues?.firstName ?? "",
       lastName: initialValues?.lastName ?? "",
+      matricule: initialValues?.matricule ?? "",
       phone: initialValues?.phone ?? "",
       email: initialValues?.email ?? "",
       type: initialValues?.type ?? "vacataire",
@@ -144,6 +147,7 @@ export default function TeacherForm({
     await onSubmit({
       firstName: values.firstName.trim(),
       lastName: values.lastName.trim(),
+      matricule: values.matricule.trim() || null,
       phone: values.phone || null,
       email: values.email ? values.email.trim() : null,
       type: values.type,
@@ -185,6 +189,23 @@ export default function TeacherForm({
             )}
           />
         </div>
+
+        <FormField
+          control={form.control}
+          name="matricule"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Matricule (optionnel)</FormLabel>
+              <FormControl>
+                <Input placeholder="MAT-2026-001" {...field} />
+              </FormControl>
+              <p className="text-xs text-muted-foreground">
+                Identifiant interne pour distinguer les professeurs homonymes.
+              </p>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}
