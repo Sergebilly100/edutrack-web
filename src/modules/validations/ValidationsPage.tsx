@@ -296,7 +296,11 @@ export default function ValidationsPage() {
   })
 
   const endScanTeachers = endScanQuery.data ?? []
-  const endScanTotal = endScanTeachers.reduce((sum, t) => sum + t.missingEndScanCount, 0)
+  // Nombre de cours encore à traiter : on exclut les sessions déjà actionnées
+  // (tolérées/sanctionnées et non annulées), comme countEligibleSessions. Garantit
+  // que le badge de l'onglet retombe à 0 et reste cohérent avec le compteur du menu
+  // (countPending côté backend) une fois tous les cas traités.
+  const endScanTotal = endScanTeachers.reduce((sum, t) => sum + countEligibleSessions(t), 0)
 
   const bulkWarnImpact = useMemo(() => {
     if (!bulkWarnTarget) return { teacherCount: 0, eligibleCount: 0, teachers: [] as MissingEndScanTeacher[] }

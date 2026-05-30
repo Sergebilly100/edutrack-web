@@ -80,11 +80,17 @@ export function NotificationButton({ count = 0, className }: NotificationButtonP
     salaryUnpaidAlertsQuery.isLoading ||
     validationCountQuery.isLoading ||
     smsLogQuery.isLoading
+  // Dégradation gracieuse, comme le Dashboard : une source en erreur ne doit pas
+  // masquer les notifications issues des autres sources (chaque source a déjà un
+  // fallback ?? 0 / ?? [] dans buildDirectorDashboardNotifications). On n'affiche
+  // l'erreur globale que si TOUTES les requêtes échouent (auth/réseau), ce qui
+  // évitait jusqu'ici le "Impossible de charger les notifications" déclenché par
+  // une seule requête en échec sur les pages hors Dashboard.
   const isError =
-    historyQuery.isError ||
-    coverageQuery.isError ||
-    salaryUnpaidAlertsQuery.isError ||
-    validationCountQuery.isError ||
+    historyQuery.isError &&
+    coverageQuery.isError &&
+    salaryUnpaidAlertsQuery.isError &&
+    validationCountQuery.isError &&
     smsLogQuery.isError
   const notificationItems = useMemo<NotificationPanelItem[]>(() => {
     return buildDirectorDashboardNotifications({
