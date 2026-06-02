@@ -546,6 +546,10 @@ describe("import-export.api — fetchImportHistory", () => {
       type: "students",
       importedCount: 15,
       updatedCount: 3,
+      importedBy: null,
+      importedByName: null,
+      importedByRole: null,
+      schedulePeriod: null,
     })
     expect(result.total).toBe(1)
     expect(result.page).toBe(1)

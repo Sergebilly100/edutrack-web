@@ -15,6 +15,7 @@ import { SubscriptionsStatsCards } from "@/modules/subscriptions/components/Subs
 import { OverdueReversalBanner } from "@/modules/subscriptions/components/OverdueReversalBanner"
 import { getSubscriptionsRevenueStats } from "@/modules/subscriptions/subscriptions.api"
 import {
+  exportSubscriptionsRevenue,
   getSubscriptionsRevenueHistory,
   getSubscriptionsRevenueDetails,
   getSubscriptionsRevenuePayments,
@@ -22,6 +23,7 @@ import {
   recordCommissionPayment,
 } from "@/modules/subscriptions/subscriptions.api"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { useAuthStore } from "@/shared/store/auth.store"
 import { OfflineGuard} from "@/shared/components"
@@ -52,6 +54,13 @@ export default function SubscriptionRevenuePage() {
   const [exportToMonth, setExportToMonth] = useState(toMonth(new Date()))
 
   const month = useMemo(() => toMonth(monthCursor), [monthCursor])
+
+  const revenueExport = usePdfExportJob({
+    fallbackFileName: "bilan-reversements.pdf",
+    startedMessage: "Le bilan des reversements (PDF) est en cours de génération.",
+    successMessage: "Bilan des reversements téléchargé",
+    errorMessage: "Impossible d'exporter le bilan des reversements.",
+  })
 
   const summaryQuery = useQuery({
     queryKey: ["subscriptions", "revenue", "summary", month],
@@ -350,38 +359,18 @@ export default function SubscriptionRevenuePage() {
             <Button type="button" variant="outline" onClick={() => setExportOpen(false)}>Annuler</Button>
             <Button
               type="button"
+              disabled={revenueExport.isRunning}
               onClick={() => {
-                const rows = history
-                  .filter((item) => item.month >= exportFromMonth && item.month <= exportToMonth)
-                const esc = (value: string) =>
-                  String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-                const win = window.open("", "_blank")
-                if (!win) {
-                  return
-                }
-                const htmlRows = rows
-                  .map(
-                    (item) =>
-                      `<tr><td>${esc(item.month)}</td><td>${item.subscriptions_new_this_month}</td><td>${item.subscriptions_active_count}</td><td>${esc(formatFcfa(item.total_collected_fcfa))}</td><td>${esc(formatFcfa(item.commission_due_fcfa))}</td><td>${esc(formatFcfa(item.commission_paid_fcfa))}</td><td>${esc(formatFcfa(item.commission_remaining_fcfa))}</td><td>${esc(item.payment_status)}</td></tr>`
-                  )
-                  .join("")
-                win.document.write(`
-                  <html><head><title>Bilan reversements</title></head><body>
-                  <h2>Bilan des reversements abonnements</h2>
-                  <p>Période: ${esc(exportFromMonth)} à ${esc(exportToMonth)}</p>
-                  <table border="1" cellspacing="0" cellpadding="6">
-                    <thead><tr><th>Mois</th><th>Nouvelles</th><th>Actives</th><th>Encaissé</th><th>Commission due</th><th>Versé</th><th>Reste</th><th>Statut</th></tr></thead>
-                    <tbody>${htmlRows}</tbody>
-                  </table>
-                  </body></html>
-                `)
-                win.document.close()
-                win.focus()
-                win.print()
                 setExportOpen(false)
+                void revenueExport.launch(() =>
+                  exportSubscriptionsRevenue({
+                    periodFrom: exportFromMonth,
+                    periodTo: exportToMonth,
+                  })
+                )
               }}
             >
-              Exporter
+              {revenueExport.isRunning ? "Génération du PDF..." : "Exporter"}
             </Button>
           </DialogFooter>
         </DialogContent>

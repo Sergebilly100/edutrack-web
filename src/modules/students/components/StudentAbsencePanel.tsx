@@ -26,10 +26,11 @@ import {
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 import StudentAbsenceDetail from "@/modules/students/components/StudentAbsenceDetail"
-import { type StudentAbsenceStat } from "@/modules/students/students.api"
+import { exportStudentAbsences, type StudentAbsenceStat } from "@/modules/students/students.api"
 import { useStudentAbsences } from "@/modules/students/hooks/useStudentAbsences"
 import { EmptyState } from "@/shared/components"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
+import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
 
 const smsConfig: Record<
   "all_sent" | "partial" | "none",
@@ -49,13 +50,8 @@ const smsConfig: Record<
   },
 }
 
-const escapeCsvCell = (value: string | number) => {
-  const raw = String(value ?? "")
-  if (raw.includes('"') || raw.includes(",") || raw.includes("\n")) {
-    return `"${raw.replace(/"/g, '""')}"`
-  }
-  return raw
-}
+const smsBadgeConfig = (summary: StudentAbsenceStat["smsSummary"]) =>
+  smsConfig[summary] ?? smsConfig.none
 
 const formatRate = (value: number | null | undefined) => `${(value ?? 0).toFixed(2)}%`
 
@@ -81,41 +77,17 @@ export default function StudentAbsencePanel() {
 
   const hasRows = (statsQuery.data?.length ?? 0) > 0
 
-  const handleExportCsv = () => {
-    const rows = statsQuery.data ?? []
-    const headers = [
-      studentLabels.singular,
-      "Classe",
-      "Nb absences",
-      "Taux",
-      "Téléphone 1",
-      "Téléphone 2",
-      "État SMS",
-    ]
+  const absencesExport = usePdfExportJob({
+    fallbackFileName: `absences-eleves-${filters.from}-${filters.to}.pdf`,
+    startedMessage: "Le bilan des absences (PDF) est en cours de génération.",
+    successMessage: "Bilan des absences téléchargé",
+    errorMessage: "Impossible d'exporter le bilan des absences.",
+  })
 
-    const csvRows = rows.map((row) =>
-      [
-        row.studentName,
-        row.className,
-        row.absenceCount,
-        `${row.absenceRate ?? 0}%`,
-        row.parentPhone ?? "",
-        row.parentPhone2 ?? "",
-        smsConfig[row.smsSummary].label,
-      ]
-        .map((cell) => escapeCsvCell(cell))
-        .join(",")
+  const handleExportPdf = () =>
+    absencesExport.launch(() =>
+      exportStudentAbsences({ ...filters, student_label: studentLabels.singular })
     )
-
-    const csv = [headers.map((cell) => escapeCsvCell(cell)).join(","), ...csvRows].join("\n")
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = `absences-eleves-${filters.from}-${filters.to}.csv`
-    link.click()
-    URL.revokeObjectURL(url)
-  }
 
   const detailSubject = useMemo(() => filters.subject, [filters.subject])
 
@@ -243,8 +215,13 @@ export default function StudentAbsencePanel() {
           <CardContent className="space-y-4 p-4">
             {hasRows ? (
               <div className="flex justify-end">
-                <Button className="min-h-12" variant="outline" onClick={handleExportCsv}>
-                  Export CSV
+                <Button
+                  className="min-h-12"
+                  variant="outline"
+                  onClick={handleExportPdf}
+                  disabled={absencesExport.isRunning}
+                >
+                  {absencesExport.isRunning ? "Génération du PDF..." : "Export PDF"}
                 </Button>
               </div>
             ) : null}
@@ -320,8 +297,8 @@ export default function StudentAbsencePanel() {
                         </div>
                         <div className="flex items-center justify-between rounded-lg border px-3 py-2">
                           <span className="inline-flex items-center gap-2 text-muted-foreground"><MessageCircle className="h-4 w-4" /> Notification</span>
-                          <Badge variant="outline" role="status" className={smsConfig[row.smsSummary].className}>
-                            {smsConfig[row.smsSummary].label}
+                          <Badge variant="outline" role="status" className={smsBadgeConfig(row.smsSummary).className}>
+                            {smsBadgeConfig(row.smsSummary).label}
                           </Badge>
                         </div>
                       </div>
@@ -400,8 +377,8 @@ export default function StudentAbsencePanel() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className={smsConfig[row.smsSummary].className}>
-                              {smsConfig[row.smsSummary].label}
+                            <Badge variant="outline" className={smsBadgeConfig(row.smsSummary).className}>
+                              {smsBadgeConfig(row.smsSummary).label}
                             </Badge>
                           </TableCell>
                           <TableCell>

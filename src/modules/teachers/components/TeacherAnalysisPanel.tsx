@@ -27,16 +27,11 @@ import { cn } from "@/lib/utils"
 import { EmptyState } from "@/shared/components"
 
 import { useTeacherStats } from "@/modules/teachers/hooks/useTeacherStats"
+import { exportTeacherAttendanceStats } from "@/modules/teachers/teachers.api"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
+import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
 
 const formatHours = (value: number) => `${value.toFixed(2)}h`
-const escapeCsvCell = (value: string | number) => {
-  const raw = String(value ?? "")
-  if (raw.includes('"') || raw.includes(",") || raw.includes("\n")) {
-    return `"${raw.replace(/"/g, '""')}"`
-  }
-  return raw
-}
 
 export default function TeacherAnalysisPanel() {
   const {
@@ -54,42 +49,24 @@ export default function TeacherAnalysisPanel() {
   const location = useLocation()
   const studentLabels = useStudentLabels()
 
-  const handleExportCsv = () => {
-    const headers = [
-      "Professeur",
-      "Type",
-      "Taux présence",
-      "Présences",
-      "Heures effectuées",
-      "Heures prévues",
-      "Retards",
-      "Salle incorrecte",
-      `Pointage ${studentLabels.pluralLower} manquant`,
-    ]
-    const rows = (statsQuery.data ?? []).map((row) =>
-      [
-        row.teacher_name,
-        row.teacher_type,
-        `${row.attendance_rate}%`,
-        `${row.present_count}/${row.total_scheduled}`,
-        `${row.hours_done}h`,
-        `${row.hours_scheduled}h`,
-        row.late_count,
-        row.room_mismatch_count,
-        row.rollcall_missing_count,
-      ]
-        .map((cell) => escapeCsvCell(cell))
-        .join(",")
+  const attendanceExport = usePdfExportJob({
+    fallbackFileName: `presence-profs-${filters.from}-${filters.to}.pdf`,
+    startedMessage: "Le bilan de présence (PDF) est en cours de génération.",
+    successMessage: "Bilan de présence téléchargé",
+    errorMessage: "Impossible d'exporter le bilan de présence.",
+  })
+
+  const handleExportPdf = () =>
+    attendanceExport.launch(() =>
+      exportTeacherAttendanceStats({
+        from: filters.from,
+        to: filters.to,
+        subject: filters.subject,
+        class_id: filters.class_id,
+        teacher_id: filters.teacher_id,
+        status_filter: filters.status_filter,
+      })
     )
-    const csv = [headers.map((cell) => escapeCsvCell(cell)).join(","), ...rows].join("\n")
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = `presence-profs-${filters.from}-${filters.to}.csv`
-    link.click()
-    URL.revokeObjectURL(url)
-  }
 
   return (
     <div className="space-y-4">
@@ -231,8 +208,13 @@ export default function TeacherAnalysisPanel() {
           <CardContent className="space-y-4 p-4">
             {Array.isArray(statsQuery.data) && statsQuery.data.length > 0 ? (
               <div className="flex justify-end">
-                <Button className="min-h-12" variant="outline" onClick={handleExportCsv}>
-                  Export CSV
+                <Button
+                  className="min-h-12"
+                  variant="outline"
+                  onClick={handleExportPdf}
+                  disabled={attendanceExport.isRunning}
+                >
+                  {attendanceExport.isRunning ? "Génération du PDF..." : "Export PDF"}
                 </Button>
               </div>
             ) : null}

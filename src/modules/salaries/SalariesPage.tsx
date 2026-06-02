@@ -33,7 +33,6 @@ import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import {
   computeSalaries,
-  downloadSalaryExportFile,
   formatMonthLabel,
   getCurrentMonth,
   getExportJobStatus,
@@ -46,6 +45,7 @@ import {
   getTeacherSalaryDetails,
   isFutureMonth,
   queueBulkSalaryExport,
+  queuePaymentHistoryExport,
   updateSalaryStatus,
   type SalaryTeacherDetails,
   type SalarySummaryItem,
@@ -97,7 +97,6 @@ export default function SalariesPage() {
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false)
   const [historyTeacherRow, setHistoryTeacherRow] = useState<SalarySummaryItem | null>(null)
   const [historySelectedMonth, setHistorySelectedMonth] = useState(getCurrentMonth)
-  const [historyExporting, setHistoryExporting] = useState(false)
   const [vacatairePage, setVacatairePage] = useState(1)
   const [fixedPage, setFixedPage] = useState(1)
   const lastNotifiedExportJobIdRef = useRef<string | null>(null)
@@ -296,6 +295,26 @@ export default function SalariesPage() {
       toast({
         title: "Erreur",
         description: "Impossible de lancer l'export du bilan.",
+        variant: "destructive",
+      })
+    },
+  })
+
+  const exportPaymentHistoryMutation = useMutation({
+    mutationFn: (input: { teacherId: string; periodFrom: string; periodTo: string }) =>
+      queuePaymentHistoryExport(input),
+    onSuccess: ({ jobId }) => {
+      setExportJobId(jobId)
+      setHistoryDialogOpen(false)
+      toast({
+        title: "Export lancé",
+        description: "L'historique des paiements (PDF) est en cours de génération.",
+      })
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de lancer l'export de l'historique des paiements.",
         variant: "destructive",
       })
     },
@@ -556,15 +575,12 @@ export default function SalariesPage() {
 
     setIsDownloadingExport(true)
     try {
-      const { blob, fileName } = await downloadSalaryExportFile(downloadUrl)
-      const objectUrl = URL.createObjectURL(blob)
       const link = document.createElement("a")
-      link.href = objectUrl
-      link.download = fileName || exportFileName || "export-salaires.pdf"
+      link.href = downloadUrl
+      link.download = exportFileName || "export-salaires.pdf"
       document.body.appendChild(link)
       link.click()
       link.remove()
-      URL.revokeObjectURL(objectUrl)
     } catch {
       toast({
         title: "Erreur",
@@ -1264,53 +1280,22 @@ export default function SalariesPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={async () => {
+                onClick={() => {
                   if (!historyTeacherRow) {
                     return
                   }
-                  setHistoryExporting(true)
                   const schoolYear = getSchoolYearBounds(selectedMonth)
-                  try {
-                    const history = await getTeacherPaymentHistory(historyTeacherRow.teacherId, 2000)
-                    const filtered = history.items.filter(
-                      (item) => item.month >= schoolYear.start && item.month <= schoolYear.end
-                    )
-                    const csvLines = [
-                      ["Mois", "Montant", "Heures payées", "Statut", "Date paiement", "Payé par", "Note"].join(","),
-                      ...filtered.map((item) =>
-                        [
-                          `"${formatMonthLabel(item.month)}"`,
-                          item.amountFcfa,
-                          item.hoursPaid ?? "",
-                          item.status,
-                          item.paidAt ? `"${new Date(item.paidAt).toLocaleString("fr-FR")}"` : "",
-                          `"${item.paidByName ?? ""}"`,
-                          `"${(item.notes ?? "").replace(/"/g, '""')}"`,
-                        ].join(",")
-                      ),
-                    ]
-                    const blob = new Blob([csvLines.join("\n")], { type: "text/csv;charset=utf-8;" })
-                    const url = URL.createObjectURL(blob)
-                    const link = document.createElement("a")
-                    link.href = url
-                    link.download = `historique-paiements-${historyTeacherRow.teacherName}-${schoolYear.label}.csv`
-                    document.body.appendChild(link)
-                    link.click()
-                    link.remove()
-                    URL.revokeObjectURL(url)
-                  } catch {
-                    toast({
-                      title: "Erreur",
-                      description: "Impossible d'exporter l'historique des paiements.",
-                      variant: "destructive",
-                    })
-                  } finally {
-                    setHistoryExporting(false)
-                  }
+                  exportPaymentHistoryMutation.mutate({
+                    teacherId: historyTeacherRow.teacherId,
+                    periodFrom: schoolYear.start,
+                    periodTo: schoolYear.end,
+                  })
                 }}
-                disabled={historyExporting}
+                disabled={exportPaymentHistoryMutation.isPending}
               >
-                {historyExporting ? "Export en cours..." : "Exporter l'historique (année scolaire)"}
+                {exportPaymentHistoryMutation.isPending
+                  ? "Génération du PDF..."
+                  : "Exporter l'historique en PDF (année scolaire)"}
               </Button>
             </DialogFooter>
           ) : null}

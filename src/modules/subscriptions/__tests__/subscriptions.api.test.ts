@@ -12,11 +12,50 @@ vi.mock("@/shared/api/client", () => {
   }
 })
 
-import { getSubscriptionsRevenueStats } from "@/modules/subscriptions/subscriptions.api"
+import {
+  getSubscriptionsRevenueStats,
+  listSubscriptionCreators,
+  listSubscriptionParents,
+} from "@/modules/subscriptions/subscriptions.api"
 
 describe("subscriptions.api", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  describe("listSubscriptionParents", () => {
+    it("transmet created_by quand fourni", async () => {
+      getMock.mockResolvedValueOnce({ data: { data: [], pagination: {} } })
+
+      await listSubscriptionParents({ created_by: "11111111-1111-1111-1111-111111111111" })
+
+      expect(getMock).toHaveBeenCalledWith("/subscriptions/parents", {
+        params: { page: 1, limit: 100, created_by: "11111111-1111-1111-1111-111111111111" },
+      })
+    })
+
+    it("omet created_by quand absent", async () => {
+      getMock.mockResolvedValueOnce({ data: { data: [], pagination: {} } })
+
+      await listSubscriptionParents({})
+
+      expect(getMock).toHaveBeenCalledWith("/subscriptions/parents", {
+        params: { page: 1, limit: 100 },
+      })
+    })
+  })
+
+  describe("listSubscriptionCreators", () => {
+    it("retourne la liste des créateurs depuis data.data", async () => {
+      getMock.mockResolvedValueOnce({
+        data: { data: [{ id: "u-1", name: "Awa" }, { id: "u-2", name: "Brou" }] },
+      })
+
+      const result = await listSubscriptionCreators()
+
+      expect(getMock).toHaveBeenCalledWith("/subscriptions/creators")
+      expect(result).toEqual([{ id: "u-1", name: "Awa" }, { id: "u-2", name: "Brou" }])
+    })
   })
 
   it("requests revenue stats for the selected month and normalizes missing fields", async () => {

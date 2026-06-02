@@ -160,6 +160,8 @@ describe("ValidationsPage", () => {
 
       render(<ValidationsPage />, { wrapper })
 
+      clickTab(/présences suspectes/i)
+
       await waitFor(() => {
         expect(screen.getByText("Aucune présence suspecte")).toBeInTheDocument()
       })
@@ -177,11 +179,16 @@ describe("ValidationsPage", () => {
 
       render(<ValidationsPage />, { wrapper })
 
+      clickTab(/présences suspectes/i)
+
+      // Sous jsdom, les vues mobile (lg:hidden) et desktop (lg:block) sont
+      // rendues toutes les deux : on utilise getAllByText et on vérifie qu'au
+      // moins une occurrence existe.
       await waitFor(() => {
-        expect(screen.getByText("Créneau")).toBeInTheDocument()
-        expect(screen.getByText("Salle")).toBeInTheDocument()
-        expect(screen.getByText("8h-9h")).toBeInTheDocument()
-        expect(screen.getByText("Salle A1")).toBeInTheDocument()
+        expect(screen.getAllByText("Créneau").length).toBeGreaterThan(0)
+        expect(screen.getAllByText("Salle").length).toBeGreaterThan(0)
+        expect(screen.getAllByText("8h-9h").length).toBeGreaterThan(0)
+        expect(screen.getAllByText("Salle A1").length).toBeGreaterThan(0)
       })
     })
 
@@ -193,8 +200,10 @@ describe("ValidationsPage", () => {
       
       render(<ValidationsPage />, { wrapper })
 
-      await waitFor(() => screen.getByText("Valider"))
-      fireEvent.click(screen.getByRole("button", { name: /valider/i }))
+      clickTab(/présences suspectes/i)
+
+      await waitFor(() => screen.getAllByText("Valider"))
+      fireEvent.click(screen.getAllByRole("button", { name: /^valider$/i })[0]!)
 
       expect(screen.getByText(/valider la présence de M\. Koné/i)).toBeInTheDocument()
     })
@@ -207,8 +216,10 @@ describe("ValidationsPage", () => {
       
       render(<ValidationsPage />, { wrapper })
 
-      await waitFor(() => screen.getByText("Absent"))
-      fireEvent.click(screen.getByRole("button", { name: /absent/i }))
+      clickTab(/présences suspectes/i)
+
+      await waitFor(() => screen.getAllByText("Marquer absent"))
+      fireEvent.click(screen.getAllByRole("button", { name: /marquer absent/i })[0]!)
 
       expect(screen.getByText(/refuser la présence de M\. Koné/i)).toBeInTheDocument()
     })
@@ -278,12 +289,12 @@ describe("ValidationsPage", () => {
       render(<ValidationsPage />, { wrapper })
 
       clickTab(/scan de fin/i)
-      await waitFor(() => screen.getByText("M. Diallo"))
-      fireEvent.click(screen.getByText("M. Diallo"))
+      await waitFor(() => screen.getAllByText("M. Diallo"))
+      fireEvent.click(screen.getAllByText("M. Diallo")[0]!)
 
       await waitFor(() => {
-        expect(screen.getByRole("button", { name: /tolérer avec avertissement/i })).toBeInTheDocument()
-        expect(screen.getByRole("button", { name: /sanctionner/i })).toBeInTheDocument()
+        expect(screen.getAllByRole("button", { name: /tolérer avec avertissement/i }).length).toBeGreaterThan(0)
+        expect(screen.getAllByRole("button", { name: /sanctionner/i }).length).toBeGreaterThan(0)
       })
     })
 
@@ -294,14 +305,14 @@ describe("ValidationsPage", () => {
       render(<ValidationsPage />, { wrapper })
 
       clickTab(/scan de fin/i)
-      await waitFor(() => screen.getByText("M. Diallo"))
-      fireEvent.click(screen.getByText("M. Diallo"))
-      await waitFor(() => screen.getByRole("button", { name: /tolérer avec avertissement/i }))
-      fireEvent.click(screen.getByRole("button", { name: /tolérer avec avertissement/i }))
+      await waitFor(() => screen.getAllByText("M. Diallo"))
+      fireEvent.click(screen.getAllByText("M. Diallo")[0]!)
+      await waitFor(() => screen.getAllByRole("button", { name: /tolérer avec avertissement/i }))
+      fireEvent.click(screen.getAllByRole("button", { name: /tolérer avec avertissement/i })[0]!)
 
       await waitFor(() => {
         expect(screen.getByRole("dialog")).toBeInTheDocument()
-        expect(screen.getByText(/salaire.*intact/i)).toBeInTheDocument()
+        expect(screen.getByText(/message d'avertissement sera envoyé/i)).toBeInTheDocument()
       })
     })
 
@@ -312,10 +323,10 @@ describe("ValidationsPage", () => {
       render(<ValidationsPage />, { wrapper })
 
       clickTab(/scan de fin/i)
-      await waitFor(() => screen.getByText("M. Diallo"))
-      fireEvent.click(screen.getByText("M. Diallo"))
-      await waitFor(() => screen.getByRole("button", { name: /sanctionner/i }))
-      fireEvent.click(screen.getByRole("button", { name: /sanctionner/i }))
+      await waitFor(() => screen.getAllByText("M. Diallo"))
+      fireEvent.click(screen.getAllByText("M. Diallo")[0]!)
+      await waitFor(() => screen.getAllByRole("button", { name: /sanctionner/i }))
+      fireEvent.click(screen.getAllByRole("button", { name: /sanctionner/i })[0]!)
 
       await waitFor(() => {
         expect(screen.getByRole("dialog")).toBeInTheDocument()
@@ -347,13 +358,15 @@ describe("ValidationsPage", () => {
       render(<ValidationsPage />, { wrapper })
 
       clickTab(/scan de fin/i)
-      await waitFor(() => screen.getByText("M. Diallo"))
-      fireEvent.click(screen.getByText("M. Diallo"))
+      await waitFor(() => screen.getAllByText("M. Diallo"))
+      fireEvent.click(screen.getAllByText("M. Diallo")[0]!)
 
       await waitFor(() => {
-        expect(screen.getByText("Averti")).toBeInTheDocument()
-        expect(screen.queryByRole("button", { name: /tolérer/i })).not.toBeInTheDocument()
-        expect(screen.queryByRole("button", { name: /sanctionner/i })).not.toBeInTheDocument()
+        expect(screen.getAllByText("Averti").length).toBeGreaterThan(0)
+        // Les boutons d'action par session doivent disparaître (le bouton global
+        // "Tolérer tous les profs…" reste, d'où des matchers stricts ici).
+        expect(screen.queryAllByRole("button", { name: /^tolérer avec avertissement$/i })).toHaveLength(0)
+        expect(screen.queryAllByRole("button", { name: /^sanctionner$/i })).toHaveLength(0)
       })
     })
 
@@ -381,12 +394,12 @@ describe("ValidationsPage", () => {
       render(<ValidationsPage />, { wrapper })
 
       clickTab(/scan de fin/i)
-      await waitFor(() => screen.getByText("M. Diallo"))
-      fireEvent.click(screen.getByText("M. Diallo"))
+      await waitFor(() => screen.getAllByText("M. Diallo"))
+      fireEvent.click(screen.getAllByText("M. Diallo")[0]!)
 
       await waitFor(() => {
-        expect(screen.getByText("Sanctionné")).toBeInTheDocument()
-        expect(screen.getByRole("button", { name: /annuler la sanction/i })).toBeInTheDocument()
+        expect(screen.getAllByText("Sanctionné").length).toBeGreaterThan(0)
+        expect(screen.getAllByRole("button", { name: /annuler la sanction/i }).length).toBeGreaterThan(0)
       })
     })
 
@@ -414,12 +427,12 @@ describe("ValidationsPage", () => {
       render(<ValidationsPage />, { wrapper })
 
       clickTab(/scan de fin/i)
-      await waitFor(() => screen.getByText("M. Diallo"))
-      fireEvent.click(screen.getByText("M. Diallo"))
+      await waitFor(() => screen.getAllByText("M. Diallo"))
+      fireEvent.click(screen.getAllByText("M. Diallo")[0]!)
 
       await waitFor(() => {
-        expect(screen.getByText("Sanction annulée")).toBeInTheDocument()
-        expect(screen.queryByRole("button", { name: /annuler la sanction/i })).not.toBeInTheDocument()
+        expect(screen.getAllByText("Sanction annulée").length).toBeGreaterThan(0)
+        expect(screen.queryAllByRole("button", { name: /annuler la sanction/i })).toHaveLength(0)
       })
     })
   })

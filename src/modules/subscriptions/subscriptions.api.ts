@@ -5,11 +5,30 @@ export type SubscriptionStatus = "active" | "expired" | "cancelled"
 export type PaymentMethod = "cash" | "momo_mtn" | "momo_orange"
 export type DurationMonths = number
 
+// Libellés lisibles des méthodes de paiement, centralisés pour éviter la
+// duplication entre la liste, le dossier détaillé, la page revenus et la modale.
+export const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  cash: "Espèces",
+  momo_mtn: "MoMo MTN",
+  momo_orange: "Orange Money",
+  bank_transfer: "Virement bancaire",
+}
+
+export const formatPaymentMethod = (method: string | null | undefined): string =>
+  method ? PAYMENT_METHOD_LABELS[method] ?? method : "-"
+
+export type SubscriptionCreator = {
+  id: string
+  name: string
+}
+
 export type SubscriptionListItem = {
   parent_id: string
   full_name: string
   phone: string
   email: string | null
+  created_by: string | null
+  created_by_name: string | null
   latest_subscription: {
     id: string
     status: SubscriptionStatus
@@ -21,6 +40,8 @@ export type SubscriptionListItem = {
     monthly_amount_fcfa: number | null
     expires_soon: boolean
     days_remaining: number | null
+    created_by: string | null
+    created_by_name: string | null
   } | null
   students: Array<{ id: string; full_name: string }>
 }
@@ -160,6 +181,7 @@ export const listSubscriptionParents = async (params: {
   search?: string
   status?: SubscriptionStatus
   month?: string
+  created_by?: string
 }): Promise<SubscriptionParentsResponse> => {
   const response = await apiClient.get<SubscriptionParentsResponse>("/subscriptions/parents", {
     params: {
@@ -168,9 +190,15 @@ export const listSubscriptionParents = async (params: {
       ...(params.search ? { search: params.search } : {}),
       ...(params.status ? { status: params.status } : {}),
       ...(params.month ? { month: params.month } : {}),
+      ...(params.created_by ? { created_by: params.created_by } : {}),
     },
   })
   return response.data
+}
+
+export const listSubscriptionCreators = async (): Promise<SubscriptionCreator[]> => {
+  const response = await apiClient.get<{ data: SubscriptionCreator[] }>("/subscriptions/creators")
+  return response.data.data
 }
 
 export const listSubscriptionClasses = async (params?: {
@@ -286,6 +314,7 @@ export const getParentSubscriptionDetails = async (parentId: string) => {
       created_at: string
       cancelled_at: string | null
       cancelled_by_name: string | null
+      created_by_name: string | null
       students: Array<{ id: string; full_name: string; class_name: string | null; registration_number: string | null }>
       payments: Array<{
         id: string
@@ -312,6 +341,23 @@ export const getSubscriptionsRevenueHistory = async (months = 12): Promise<Reven
     params: { months },
   })
   return response.data.months
+}
+
+/**
+ * Lance la génération du bilan PDF des reversements sur une période (job
+ * asynchrone). Remplace l'ancienne impression HTML navigateur ; le frontend
+ * poll ensuite /jobs/:id/status puis télécharge le PDF brandé.
+ */
+export const exportSubscriptionsRevenue = async (input: {
+  periodFrom: string
+  periodTo: string
+}): Promise<{ jobId: string }> => {
+  const response = await apiClient.post("/subscriptions/revenue/export", {
+    periodFrom: input.periodFrom,
+    periodTo: input.periodTo,
+  })
+  const payload = (response.data ?? {}) as { jobId?: string | number }
+  return { jobId: String(payload.jobId ?? "") }
 }
 
 export const getSubscriptionsRevenuePayments = async (month: string): Promise<RevenuePaymentItem[]> => {

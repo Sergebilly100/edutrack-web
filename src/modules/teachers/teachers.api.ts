@@ -489,26 +489,25 @@ export async function getTeacherMonthlyAttendance(
   }
 }
 
-export async function exportTeacherHours(input: ExportTeacherHoursInput): Promise<{
-  blob: Blob
-  filename: string
-}> {
-  const response = await api.get<Blob>("/attendance/history/export", {
-    responseType: "blob",
+/**
+ * Lance la génération du bilan PDF des heures d'un professeur sur une période
+ * (job asynchrone). Remplace l'ancien export Excel synchrone : le serveur enfile
+ * un job et renvoie un jobId, le frontend poll /jobs/:id/status puis télécharge
+ * le PDF brandé.
+ */
+export async function exportTeacherHours(
+  input: ExportTeacherHoursInput
+): Promise<{ jobId: string }> {
+  const response = await api.get("/attendance/history/export", {
     params: {
       teacherId: input.teacherId,
       date_from: input.dateFrom,
       date_to: input.dateTo,
-      format: "xlsx",
     },
   })
 
-  return {
-    blob: response.data,
-    filename:
-      extractFilename(response.headers["content-disposition"]) ??
-      `edutrack-heures-${input.teacherId}.xlsx`,
-  }
+  const payload = (response.data ?? {}) as { jobId?: string | number }
+  return { jobId: String(payload.jobId ?? "") }
 }
 
 export const fetchTeacherAttendanceStats = async (params: {
@@ -526,6 +525,34 @@ export const fetchTeacherAttendanceStats = async (params: {
     : Array.isArray((payload as Record<string, unknown>).data)
       ? ((payload as Record<string, unknown>).data as TeacherAttendanceStats[])
       : []
+}
+
+/**
+ * Lance la génération du bilan PDF de présence des professeurs (job asynchrone).
+ * Remplace l'ancien export CSV navigateur. Les filtres « all » sont omis car le
+ * serveur n'accepte que des filtres concrets.
+ */
+export const exportTeacherAttendanceStats = async (params: {
+  from: string
+  to: string
+  subject?: string
+  class_id?: string
+  teacher_id?: string
+  status_filter?: "all" | "absent" | "room_mismatch" | "rollcall_missing" | "late"
+}): Promise<{ jobId: string }> => {
+  const omitAll = (value?: string) => (value && value !== "all" ? value : undefined)
+  const response = await api.get("/teachers/attendance-stats/export", {
+    params: {
+      from: params.from,
+      to: params.to,
+      subject: omitAll(params.subject),
+      class_id: omitAll(params.class_id),
+      teacher_id: omitAll(params.teacher_id),
+      status_filter: params.status_filter === "all" ? undefined : params.status_filter,
+    },
+  })
+  const payload = (response.data ?? {}) as { jobId?: string | number }
+  return { jobId: String(payload.jobId ?? "") }
 }
 
 export const fetchClasses = async (): Promise<ClassOption[]> => {

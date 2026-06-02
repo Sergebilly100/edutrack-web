@@ -52,6 +52,7 @@ import {
 import { BackIcon, WarningIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
+import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
 import { getCurrentMonth, formatMonthLabel } from "@/shared/utils/month"
 import { computeAbsenceHours, computeRemainingHours, toDisplayedStatus, toSortableTime } from "@/shared/utils/salary-helpers"
 

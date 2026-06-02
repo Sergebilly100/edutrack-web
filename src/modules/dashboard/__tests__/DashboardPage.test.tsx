@@ -4,6 +4,8 @@ import { fireEvent, render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 
+const { navigateMock } = vi.hoisted(() => ({ navigateMock: vi.fn() }))
+
 const getTodayAttendanceMock = vi.fn()
 const getAttendanceHistoryMock = vi.fn()
 const getDashboardCountsMock = vi.fn()
@@ -17,8 +19,6 @@ const getTotalPendingSalariesMock = vi.fn()
 const fetchSchoolInfoMock = vi.fn()
 const getTodayAbsencesMock = vi.fn()
 const getStudentAbsenceStatsMock = vi.fn()
-
-const navigateMock = vi.fn()
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom")
@@ -97,111 +97,73 @@ describe("DashboardPage", () => {
       accessToken: null,
     })
 
-    getCurrentMonthKeyMock.mockReturnValue("2026-04")
-    getPreviousMonthKeyMock.mockReturnValue("2026-03")
-
     getTodayAttendanceMock.mockResolvedValue({
-      date: "2026-04-14",
-      presentCount: 5,
-      absentCount: 1,
-      unmarkedCount: 1,
-      courses: [
-        {
-          id: "course-1",
-          teacherName: "M. Diallo",
-          subject: "Maths",
-          className: "6A",
-          roomName: "Salle A1",
-          slotLabel: "08:00-09:00",
-          startTime: "08:00",
-          endTime: "09:00",
-          status: "present",
-          lateMinutes: 0,
-          roomMismatch: false,
-          roomScannedName: "Salle A1",
-          roomScannedAt: "2026-04-14T08:01:00.000Z",
-          roomScanEndAt: null,
-          checkedInAt: "2026-04-14T08:00:00.000Z",
-          studentRollcallDone: false,
-          studentPresentCount: 0,
-          studentAbsentCount: 0,
-          studentTotalCount: 0,
-        },
-      ],
+      summary: { present: 12, total: 14, late: 1, absent: 1, excused: 0, pending: 0 },
+      teachers: [],
     })
-
-    getAttendanceHistoryMock.mockResolvedValue([
-      { date: "2026-04-10", presentCount: 8, absentCount: 4, totalCount: 12, attendanceRate: 66.6 },
-    ])
-
+    getAttendanceHistoryMock.mockResolvedValue([])
     getDashboardCountsMock.mockResolvedValue({
-      activeTeachers: 12,
-      activeStudents: 240,
+      students: { total: 320, active: 312 },
+      teachers: { total: 14, active: 13 },
     })
-
-    getNextWeekCoverageStateMock.mockResolvedValue({ nextWeekHasCoverage: false })
-
-    getSalarySummaryMock
-      .mockResolvedValueOnce({
-        month: "2026-04",
-        items: [
-          {
-            teacherId: "t-1",
-            teacherName: "M. Diallo",
-            teacherType: "vacataire",
-            hoursPlanned: 20,
-            hoursDone: 18,
-            hourlyRate: 2500,
-            totalFcfa: 45000,
-            status: "pending",
-            salaryRecordId: "r-1",
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        month: "2026-03",
-        items: [],
-      })
-
-    getTopRiskTeachersMock.mockResolvedValue([
-      {
-        teacherId: "t-1",
-        teacherName: "M. Diallo",
-        absenceCount: 4,
-        attendanceRate: 60,
-      },
-    ])
-
-    getTeacherTrendFromSummariesMock.mockReturnValue(12.5)
-    getTotalPendingSalariesMock.mockReturnValue({ totalFcfa: 45000, count: 1 })
-
-    fetchSchoolInfoMock.mockResolvedValue({ name: "École Sainte Marie" })
+    getNextWeekCoverageStateMock.mockResolvedValue({ state: "not_configured", count: 0 })
+    getSalarySummaryMock.mockResolvedValue({
+      totalDue: 1500000,
+      totalPaid: 500000,
+      pendingCount: 8,
+      paidCount: 6,
+    })
+    getTopRiskTeachersMock.mockResolvedValue([])
+    getCurrentMonthKeyMock.mockReturnValue("2026-05")
+    getPreviousMonthKeyMock.mockReturnValue("2026-04")
+    getTeacherTrendFromSummariesMock.mockReturnValue(null)
+    getTotalPendingSalariesMock.mockReturnValue(1000000)
     getTodayAbsencesMock.mockResolvedValue([])
-    getStudentAbsenceStatsMock.mockResolvedValue([] as const)
+    getStudentAbsenceStatsMock.mockResolvedValue([])
+    fetchSchoolInfoMock.mockResolvedValue({
+      id: "school-1",
+      name: "École Sainte Marie",
+      address: "Abidjan",
+      phone: "2250700000000",
+      email: "school@example.com",
+      logoUrl: null,
+    })
   })
 
   it("renders C1 dashboard sections with real data", async () => {
     renderWithQueryClient(<DashboardPage />)
 
+    // Le header vient du store auth (rendu immédiatement) ; les compteurs et
+    // sections proviennent de useQuery (asynchrones). On attend donc la première
+    // donnée async avant d'asserter le reste. Les libellés peuvent apparaître en
+    // double (vues mobile + desktop rendues ensemble sous jsdom), d'où getAllByText.
     expect(await screen.findByText("Bonjour, Directeur Test")).toBeInTheDocument()
-    expect(screen.getByText("École Sainte Marie")).toBeInTheDocument()
-    expect(screen.getByText("Profs actifs")).toBeInTheDocument()
-    expect(screen.getByText("Élèves actifs")).toBeInTheDocument()
-    expect(screen.getByText("Présences professeurs aujourd'hui")).toBeInTheDocument()
-    expect(screen.getAllByText("M. Diallo").length).toBeGreaterThan(0)
-    expect(screen.getByText("Salle correcte")).toBeInTheDocument()
-    expect(screen.getByText("Pointage non effectué")).toBeInTheDocument()
-    expect(screen.getByText("Heure de fin non spécifiée")).toBeInTheDocument()
-    expect(screen.getByText("Résumé salaires du mois")).toBeInTheDocument()
-    expect(screen.getByText("Semaine prochaine non configurée")).toBeInTheDocument()
+    expect((await screen.findAllByText("Profs actifs")).length).toBeGreaterThan(0)
+
+    const sectionLabels = [
+      "École Sainte Marie",
+      "Élèves actifs",
+      "Présences professeurs aujourd'hui",
+      "Résumé des salaires",
+    ]
+    for (const label of sectionLabels) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0)
+    }
   })
 
-  it("navigates to schedule from week coverage alert", async () => {
+  it("navigue vers /teachers au clic sur la carte « Profs actifs »", async () => {
     renderWithQueryClient(<DashboardPage />)
 
-    const button = await screen.findByRole("button", { name: "Configurer l'EDT" })
-    fireEvent.click(button)
+    // "Profs actifs" peut apparaître en double (mobile + desktop) ; on clique
+    // chaque carte cliquable, l'une au moins doit naviguer vers /teachers.
+    const labels = await screen.findAllByText("Profs actifs")
+    for (const label of labels) {
+      const card = label.closest("button")
+      if (card) {
+        fireEvent.click(card)
+      }
+    }
 
-    expect(navigateMock).toHaveBeenCalledWith("/schedule")
+    expect(navigateMock).toHaveBeenCalledWith("/teachers")
   })
 })

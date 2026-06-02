@@ -63,6 +63,7 @@ import {
 } from "@/shared/components/icons"
 import { ConfirmActionDialog, DataTable, EmptyState, OfflineGuard, PageLayout } from "@/shared/components"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
 
@@ -81,17 +82,6 @@ const getLast30DaysPeriod = () => {
   const end = new Date()
   const start = new Date(end.getTime() - THIRTY_DAYS_MS)
   return { dateFrom: toISODate(start), dateTo: toISODate(end) }
-}
-
-const downloadBlob = (blob: Blob, filename: string) => {
-  const url = window.URL.createObjectURL(blob)
-  const anchor = document.createElement("a")
-  anchor.href = url
-  anchor.download = filename
-  document.body.appendChild(anchor)
-  anchor.click()
-  anchor.remove()
-  window.URL.revokeObjectURL(url)
 }
 
 const getApiErrorMessage = (error: unknown, fallback: string) =>
@@ -544,20 +534,11 @@ export default function TeachersPage() {
     },
   })
 
-  const exportMutation = useMutation({
-    mutationFn: exportTeacherHours,
-    onSuccess: (result) => {
-      downloadBlob(result.blob, result.filename)
-      setTeacherForExport(null)
-      toast({ title: "Export généré" })
-    },
-    onError: (error) => {
-      toast({
-        title: "Erreur",
-        description: getApiErrorMessage(error, "Impossible d'exporter les heures."),
-        variant: "destructive",
-      })
-    },
+  const hoursExport = usePdfExportJob({
+    fallbackFileName: "bilan-heures.pdf",
+    startedMessage: "Le bilan des heures (PDF) est en cours de génération.",
+    successMessage: "Bilan des heures téléchargé",
+    errorMessage: "Impossible d'exporter les heures du professeur.",
   })
 
   const tableData = useMemo<TeacherTableRow[]>(
@@ -1008,17 +989,21 @@ export default function TeachersPage() {
               Annuler
             </Button>
             <Button
-              disabled={exportMutation.isPending || !isExportPeriodValid}
+              disabled={hoursExport.isRunning || !isExportPeriodValid}
               onClick={() => {
                 if (!teacherForExport) return
-                void exportMutation.mutateAsync({
-                  teacherId: teacherForExport.id,
-                  dateFrom: exportPeriod.dateFrom,
-                  dateTo: exportPeriod.dateTo,
-                })
+                const teacherId = teacherForExport.id
+                setTeacherForExport(null)
+                void hoursExport.launch(() =>
+                  exportTeacherHours({
+                    teacherId,
+                    dateFrom: exportPeriod.dateFrom,
+                    dateTo: exportPeriod.dateTo,
+                  })
+                )
               }}
             >
-              {exportMutation.isPending ? "Export..." : "Exporter"}
+              {hoursExport.isRunning ? "Génération du PDF..." : "Exporter"}
             </Button>
           </DialogFooter>
         </DialogContent>

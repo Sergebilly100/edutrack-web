@@ -42,8 +42,10 @@ import {
 import {
   cancelSubscription,
   createSubscriptionParent,
+  formatPaymentMethod,
   getParentSubscriptionDetails,
   getSmsFeatureSettings,
+  listSubscriptionCreators,
   listSubscriptionParents,
   renewSubscriptionParent,
   resetParentSubscriptionPassword,
@@ -184,6 +186,7 @@ export default function SubscriptionsPage() {
   const [status, setStatus] = useState<FilterStatus>("all")
   const [search, setSearch] = useState("")
   const [month, setMonth] = useState(toMonth(new Date()))
+  const [createdBy, setCreatedBy] = useState<string>("all")
   const [createOpen, setCreateOpen] = useState(false)
   const [renewTarget, setRenewTarget] = useState<SubscriptionListItem | null>(null)
   const [contactTarget, setContactTarget] = useState<SubscriptionListItem | null>(null)
@@ -204,13 +207,20 @@ export default function SubscriptionsPage() {
     queryFn: getSmsFeatureSettings,
   })
 
+  const creatorsQuery = useQuery({
+    queryKey: ["subscriptions", "creators"],
+    queryFn: listSubscriptionCreators,
+    enabled: featureQuery.data?.is_enabled === true,
+  })
+
   const parentsQuery = useQuery({
-    queryKey: ["subscriptions", "parents", status, search, month],
+    queryKey: ["subscriptions", "parents", status, search, month, createdBy],
     queryFn: () =>
       listSubscriptionParents({
         status: status === "all" ? undefined : status,
         search: search.trim() || undefined,
         month,
+        created_by: createdBy === "all" ? undefined : createdBy,
       }),
     refetchInterval: 0,
     enabled: featureQuery.data?.is_enabled === true,
@@ -323,7 +333,7 @@ export default function SubscriptionsPage() {
       }
     >
       <section className="rounded-lg border bg-card p-3 shadow-sm sm:p-4">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
           <div className="space-y-2">
             <Label>État de l'accès</Label>
             <Select value={status} onValueChange={(value) => setStatus(value as FilterStatus)}>
@@ -348,7 +358,25 @@ export default function SubscriptionsPage() {
               onChange={(event) => setMonth(event.target.value)}
             />
           </div>
-          <div className="space-y-2 md:col-span-2">
+
+          <div className="space-y-2">
+            <Label>Créé par</Label>
+            <Select value={createdBy} onValueChange={setCreatedBy}>
+              <SelectTrigger>
+                <SelectValue placeholder="Tous" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous</SelectItem>
+                {(creatorsQuery.data ?? []).map((creator) => (
+                  <SelectItem key={creator.id} value={creator.id}>
+                    {creator.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2 md:col-span-3">
             <Label>Retrouver un parent</Label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -739,6 +767,7 @@ export default function SubscriptionsPage() {
                       <p>Durée: <span className="font-medium">{subscription.duration_months} mois</span></p>
                       <p>Montant total: <span className="font-medium">{formatFcfa(subscription.total_amount_fcfa)}</span></p>
                       <p>Date de souscription: <span className="font-medium">{formatDate(subscription.created_at.slice(0, 10))}</span></p>
+                      <p>Créé par: <span className="font-medium">{subscription.created_by_name ?? "—"}</span></p>
                       <p>Paiements enregistrés: <span className="font-medium">{subscription.payments.length}</span></p>
                     </div>
                     {subscription.status === "cancelled" ? (
@@ -769,7 +798,7 @@ export default function SubscriptionsPage() {
                             <div key={payment.id} className="rounded-md border border-border p-2 text-xs">
                               <p className="font-medium">{formatFcfa(payment.amount_fcfa)}</p>
                               <p className="text-muted-foreground">
-                                {payment.payment_method} · {new Date(payment.paid_at).toLocaleString("fr-FR")}
+                                {formatPaymentMethod(payment.payment_method)} · {new Date(payment.paid_at).toLocaleString("fr-FR")}
                               </p>
                             </div>
                           ))}

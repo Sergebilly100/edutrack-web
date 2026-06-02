@@ -311,6 +311,29 @@ export const getStudentAbsenceStats = (query: StudentAbsenceStatsQuery) =>
     })
     .then((response) => response.data as StudentAbsenceStat[])
 
+/**
+ * Lance la génération du bilan PDF des absences élèves (job asynchrone).
+ * Remplace l'ancien export CSV navigateur ; le frontend poll ensuite
+ * /jobs/:id/status puis télécharge le PDF brandé.
+ */
+export const exportStudentAbsences = async (
+  query: StudentAbsenceStatsQuery & { student_label?: string }
+): Promise<{ jobId: string }> => {
+  const response = await api.get("/students/absence-stats/export", {
+    params: {
+      from: query.from,
+      to: query.to,
+      class_id: query.classId,
+      subject: query.subject,
+      sms_status: query.smsStatus,
+      min_absences: query.minAbsences ?? 1,
+      student_label: query.student_label,
+    },
+  })
+  const payload = (response.data ?? {}) as { jobId?: string | number }
+  return { jobId: String(payload.jobId ?? "") }
+}
+
 export const getStudentAbsenceRecords = (
   studentId: string,
   query: StudentAbsenceRecordsQuery

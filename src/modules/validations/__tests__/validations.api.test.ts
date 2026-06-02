@@ -134,7 +134,7 @@ describe("validations.api", () => {
 
       const result = await getPendingValidationCount()
 
-      expect(result).toEqual({ gps_suspicious: 3, short_hours: 7, total: 10 })
+      expect(result).toEqual({ gps_suspicious: 3, short_hours: 7, missing_end_scan: 0, total: 10 })
     })
   })
 
