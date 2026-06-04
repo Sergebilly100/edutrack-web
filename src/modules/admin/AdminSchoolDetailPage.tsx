@@ -61,6 +61,15 @@ import {
   type CreatedDirectorCredentials,
 } from "./admin-school-detail.helpers"
 
+// Doit rester aligné sur updateSchoolConfigBodySchema (edutrack-api admin.types.ts).
+const SCHOOL_YEAR_REGEX = /^\d{2}\/\d{4} - \d{2}\/\d{4}$/
+
+const clampInt = (raw: string, min: number, max: number, fallback: number): number => {
+  const parsed = Number.parseInt(raw, 10)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(max, Math.max(min, parsed))
+}
+
 export default function AdminSchoolDetailPage() {
   const user = useAuthStore((state) => state.user)
   const [nowMs] = useState(() => Date.now())
@@ -96,12 +105,17 @@ export default function AdminSchoolDetailPage() {
   })
 
   const [config, setConfig] = useState({
+    name: "",
     plan: "essential" as TenantPlan,
     status: "trial" as TenantStatus,
     city: "",
     teachingType: "secondaire" as TeachingType,
     studentLabel: "Élève",
     directorTitle: "Directeur",
+    activeSchoolYear: "",
+    maxUsers: 50,
+    maxAdminPositions: 1,
+    maxSmsPerMonth: 0,
     canEditSmsTemplate: false,
     canExportData: true,
   })
@@ -138,12 +152,17 @@ export default function AdminSchoolDetailPage() {
     if (!schoolQuery.data) return
     const metadata = schoolQuery.data.metadata
     setConfig({
+      name: metadata.name,
       plan: metadata.plan,
       status: metadata.status,
       city: metadata.city ?? "",
       teachingType: metadata.teachingType ?? "secondaire",
       studentLabel: metadata.studentLabel ?? (metadata.teachingType === "superieur" ? "Étudiant(e)" : "Élève"),
       directorTitle: metadata.directorTitle ?? "Directeur",
+      activeSchoolYear: metadata.activeSchoolYear ?? "",
+      maxUsers: metadata.maxUsers,
+      maxAdminPositions: metadata.maxAdminPositions,
+      maxSmsPerMonth: metadata.maxSmsPerMonth,
       canEditSmsTemplate: metadata.canEditSmsTemplate,
       canExportData: metadata.canExportData,
     })
@@ -161,15 +180,27 @@ export default function AdminSchoolDetailPage() {
     })
   }, [smsFeatureStatsQuery.data])
 
+  const trimmedSchoolYear = config.activeSchoolYear.trim()
+  const isConfigValid =
+    config.name.trim().length >= 2 &&
+    (trimmedSchoolYear === "" || SCHOOL_YEAR_REGEX.test(trimmedSchoolYear))
+
   const updateMutation = useMutation({
     mutationFn: () =>
       updateSchoolConfig(tenantId as string, {
+        name: config.name.trim() || undefined,
         plan: config.plan,
         status: config.status,
         city: config.city,
         teaching_type: config.teachingType,
         student_label: config.studentLabel,
         director_title: config.directorTitle,
+        // Le backend valide le format MM/YYYY - MM/YYYY ; on n'envoie le champ
+        // que s'il est renseigné pour éviter un rejet sur chaîne vide.
+        active_school_year: config.activeSchoolYear.trim() || undefined,
+        max_users: config.maxUsers,
+        max_admin_positions: config.maxAdminPositions,
+        max_sms_per_month: config.maxSmsPerMonth,
         can_edit_sms_template: config.canEditSmsTemplate,
         can_export_data: config.canExportData,
       }),
@@ -406,11 +437,22 @@ export default function AdminSchoolDetailPage() {
               <CardContent className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Nom de l&apos;établissement</Label>
-                  <Input value={school.metadata.name} readOnly />
+                  <Input value={config.name} onChange={(event) => setConfig((prev) => ({ ...prev, name: event.target.value }))} />
                 </div>
                 <div className="space-y-2">
                   <Label>Ville</Label>
                   <Input value={config.city} onChange={(event) => setConfig((prev) => ({ ...prev, city: event.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Année scolaire active</Label>
+                  <Input
+                    placeholder="09/2025 - 06/2026"
+                    value={config.activeSchoolYear}
+                    onChange={(event) => setConfig((prev) => ({ ...prev, activeSchoolYear: event.target.value }))}
+                  />
+                  {config.activeSchoolYear.trim() && !SCHOOL_YEAR_REGEX.test(config.activeSchoolYear.trim()) ? (
+                    <p className="text-xs text-destructive">Format attendu : MM/YYYY - MM/YYYY (ex: 09/2025 - 06/2026)</p>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
                   <Label>Type d&apos;établissement</Label>
@@ -441,12 +483,42 @@ export default function AdminSchoolDetailPage() {
                     <SelectContent>{STATUS_OPTIONS.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label>Comptes utilisateurs max</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={500}
+                    value={config.maxUsers}
+                    onChange={(event) => setConfig((prev) => ({ ...prev, maxUsers: clampInt(event.target.value, 1, 500, prev.maxUsers) }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Postes admin max</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={config.maxAdminPositions}
+                    onChange={(event) => setConfig((prev) => ({ ...prev, maxAdminPositions: clampInt(event.target.value, 1, 50, prev.maxAdminPositions) }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>SMS / mois max</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={200000}
+                    value={config.maxSmsPerMonth}
+                    onChange={(event) => setConfig((prev) => ({ ...prev, maxSmsPerMonth: clampInt(event.target.value, 0, 200000, prev.maxSmsPerMonth) }))}
+                  />
+                </div>
                 <div className="flex items-center gap-2">
                   <Checkbox id="can-export-data" checked={config.canExportData} onCheckedChange={(checked) => setConfig((prev) => ({ ...prev, canExportData: Boolean(checked) }))} />
                   <Label htmlFor="can-export-data">L&apos;école peut exporter ses données</Label>
                 </div>
                 <div className="md:col-span-2">
-                  <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
+                  <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending || !isConfigValid}>
                     Enregistrer la configuration
                   </Button>
                 </div>

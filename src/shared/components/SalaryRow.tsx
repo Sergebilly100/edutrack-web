@@ -7,6 +7,7 @@ import { TableCell, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 import { getAvatarColor, getInitials } from "@/shared/utils/avatar"
 import { formatFcfa } from "@/shared/utils/formatting"
+import { formatDecimalHours } from "@/shared/utils/time"
 
 import type { SalaryStatus } from "@/shared/utils/salary-helpers"
 export type { SalaryStatus } from "@/shared/utils/salary-helpers"
@@ -131,7 +132,7 @@ export function SalaryRow({
       <TableCell className="min-w-[220px] py-3">
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{`${periodSummary.hoursDone}h / ${periodSummary.hoursPlanned}h`}</span>
+            <span>{`${formatDecimalHours(periodSummary.hoursDone)} / ${formatDecimalHours(periodSummary.hoursPlanned)}`}</span>
             <span className="tabular-nums">{Math.round(progressRatio)}%</span>
           </div>
           <div className="h-2 w-full rounded-full bg-muted">

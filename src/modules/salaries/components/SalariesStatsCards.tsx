@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { getSalariesStats } from "../salaries.api"
 import { formatFcfa, formatRate } from "@/shared/utils/formatting"
+import { formatDecimalHours } from "@/shared/utils/time"
 import { cn } from "@/lib/utils"
 
 const QUERY_STALE_TIME = 5 * 60 * 1000 // 5 minutes
@@ -130,9 +131,9 @@ export function SalariesStatsCards({ month }: SalariesStatsCardsProps) {
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="space-y-1 text-sm text-gray-500 cursor-help">
-                <div>Du 1er à aujourd'hui: {stats.economy.plannedHours.toFixed(1)} h</div>
-                <div>Heures effectuées : {stats.economy.completedHours.toFixed(1)} h</div>
-                <div>Heures manquées : {(stats.economy.plannedHours - stats.economy.completedHours).toFixed(1)} h</div>
+                <div>Du 1er à aujourd'hui: {formatDecimalHours(stats.economy.plannedHours)}</div>
+                <div>Heures effectuées : {formatDecimalHours(stats.economy.completedHours)}</div>
+                <div>Heures manquées : {formatDecimalHours(stats.economy.plannedHours - stats.economy.completedHours)}</div>
                 <div className="font-semibold text-amber-700">Économie : {formatFcfa(stats.economy.savedAmount)}</div>
               </div>
             </TooltipTrigger>
@@ -162,11 +163,11 @@ export function SalariesStatsCards({ month }: SalariesStatsCardsProps) {
         <div className="space-y-1 text-sm text-gray-500">
           <div>
             Vacataires : {formatRate(stats.teacherAttendance.partTime.rate)} (
-            {stats.teacherAttendance.partTime.present.toFixed(1)}h/{stats.teacherAttendance.partTime.expected.toFixed(1)}h)
+            {formatDecimalHours(stats.teacherAttendance.partTime.present)}/{formatDecimalHours(stats.teacherAttendance.partTime.expected)})
           </div>
           <div>
             Permanents : {formatRate(stats.teacherAttendance.fullTime.rate)} (
-            {stats.teacherAttendance.fullTime.present.toFixed(1)}h/{stats.teacherAttendance.fullTime.expected.toFixed(1)}h)
+            {formatDecimalHours(stats.teacherAttendance.fullTime.present)}/{formatDecimalHours(stats.teacherAttendance.fullTime.expected)})
           </div>
         </div>
       </Card>

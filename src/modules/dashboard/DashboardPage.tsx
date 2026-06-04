@@ -30,6 +30,7 @@ import {
 } from "@/modules/dashboard/dashboard.api"
 import { getPendingValidationCount } from "@/modules/validations/validations.api"
 import { EmptyState, emptyStateIcons } from "@/shared/components/EmptyState"
+import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { OfflineGuard } from "@/shared/components/OfflineGuard"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { SalaryRow } from "@/shared/components/SalaryRow"
@@ -394,17 +395,11 @@ export default function DashboardPage() {
     enabled: canViewStudents,
   })
 
-  const isInitialLoading =
-    todayQuery.isLoading ||
-    countsQuery.isLoading ||
-    historyQuery.isLoading ||
-    coverageQuery.isLoading ||
-    salarySummaryQuery.isLoading ||
-    previousSalarySummaryQuery.isLoading ||
-    riskTeachersQuery.isLoading ||
-    schoolQuery.isLoading ||
-    todayStudentAbsencesQuery.isLoading ||
-    riskStudentsQuery.isLoading
+  // Seules les données structurantes (en-tête + compteurs globaux) gatent le
+  // skeleton plein écran. Chaque autre bloc gère son propre chargement / erreur
+  // via QueryErrorState : une requête lente ou en échec ne doit pas bloquer
+  // l'affichage des sections déjà prêtes.
+  const isInitialLoading = countsQuery.isLoading || schoolQuery.isLoading
 
   const weeklyAbsenceCount = useMemo(() => {
     return (historyQuery.data ?? []).reduce((acc, row) => acc + row.absentCount, 0)
@@ -677,6 +672,32 @@ export default function DashboardPage() {
     )
   }
 
+  // Les deux requêtes structurantes ont échoué sans donnée en cache : on évite
+  // une page squelette/vide et on propose une relance globale.
+  if (
+    countsQuery.isError &&
+    schoolQuery.isError &&
+    !countsQuery.data &&
+    !schoolQuery.data
+  ) {
+    return (
+      <>
+        <OfflineIndicator />
+        <div className="py-12">
+          <QueryErrorState
+            title="Tableau de bord indisponible"
+            message="Impossible de charger les données du tableau de bord. Vérifiez votre connexion puis réessayez."
+            isRetrying={countsQuery.isFetching || schoolQuery.isFetching}
+            onRetry={() => {
+              void countsQuery.refetch()
+              void schoolQuery.refetch()
+            }}
+          />
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       <OfflineIndicator />
@@ -904,6 +925,11 @@ export default function DashboardPage() {
                     <Skeleton key={index} className="h-12 w-full rounded-lg" />
                   ))}
                 </div>
+              ) : teacherComplianceQuery.isError ? (
+                <QueryErrorState
+                  onRetry={() => void teacherComplianceQuery.refetch()}
+                  isRetrying={teacherComplianceQuery.isFetching}
+                />
               ) : (teacherComplianceQuery.data ?? []).length === 0 ? (
                 <EmptyState
                   icon={emptyStateIcons.noTeachers}
@@ -958,6 +984,11 @@ export default function DashboardPage() {
                     <Skeleton key={index} className="h-12 w-full rounded-lg" />
                   ))}
                 </div>
+              ) : validationCountQuery.isError ? (
+                <QueryErrorState
+                  onRetry={() => void validationCountQuery.refetch()}
+                  isRetrying={validationCountQuery.isFetching}
+                />
               ) : (validationCountQuery.data?.total ?? 0) === 0 ? (
                 <EmptyState
                   icon={emptyStateIcons.allGood}

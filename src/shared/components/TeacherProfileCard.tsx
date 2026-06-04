@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { getAvatarColor, getInitials } from "@/shared/utils/avatar"
+import { formatDecimalHours } from "@/shared/utils/time"
 
 type TeacherProfile = {
   id: string
@@ -32,7 +33,7 @@ type TeacherProfileCardProps = {
 }
 
 
-const formatHours = (value: number) => `${value}h`
+const formatHours = (value: number) => formatDecimalHours(value)
 
 export function TeacherProfileCard({
   teacher,

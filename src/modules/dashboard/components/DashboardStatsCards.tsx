@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { getDashboardStats } from "../dashboard.api"
 import { formatFcfa, formatRate } from "@/shared/utils/formatting"
+import { formatDecimalHours } from "@/shared/utils/time"
 import { cn } from "@/lib/utils"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 
@@ -184,10 +185,10 @@ export function DashboardStatsCards() {
             <div>Déjà payé : {formatFcfa(stats.salaries.totalPaid)}</div>
             <div>
               <p>
-                Heures prévues : {stats.salaries.economy.plannedHours.toFixed(1)} h 
+                Heures prévues : {formatDecimalHours(stats.salaries.economy.plannedHours)}
               </p>
               <p>
-                Heures effectuées : {stats.salaries.economy.completedHours.toFixed(1)} h 
+                Heures effectuées : {formatDecimalHours(stats.salaries.economy.completedHours)}
               </p>
             </div>
             <div className="font-semibold">

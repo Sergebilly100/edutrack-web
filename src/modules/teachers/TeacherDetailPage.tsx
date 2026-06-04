@@ -55,6 +55,7 @@ import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
 import { getCurrentMonth, formatMonthLabel } from "@/shared/utils/month"
 import { computeAbsenceHours, computeRemainingHours, toDisplayedStatus, toSortableTime } from "@/shared/utils/salary-helpers"
+import { formatDecimalHours } from "@/shared/utils/time"
 
 const updateTeacherErrorMessages: Record<string, string> = {
   TEACHER_TYPE_CHANGE_BLOCKED:
@@ -281,7 +282,7 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground">Heures prévues</p>
             <p className="text-lg font-semibold tabular-nums">
-              {data.summary.hoursPlanned.toFixed(1)}h
+              {formatDecimalHours(data.summary.hoursPlanned)}
             </p>
           </CardContent>
         </Card>
@@ -289,7 +290,7 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground">Heures faites</p>
             <p className="text-lg font-semibold tabular-nums">
-              {data.summary.hoursDone.toFixed(1)}h
+              {formatDecimalHours(data.summary.hoursDone)}
             </p>
           </CardContent>
         </Card>
@@ -297,7 +298,7 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground">Heures d'absence</p>
             <p className="text-lg font-semibold tabular-nums text-red-700">
-              {absenceHours.toFixed(1)}h
+              {formatDecimalHours(absenceHours)}
             </p>
           </CardContent>
         </Card>
@@ -305,7 +306,7 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground">Heures restantes</p>
             <p className="text-lg font-semibold tabular-nums text-amber-700">
-              {remainingHours.toFixed(1)}h
+              {formatDecimalHours(remainingHours)}
             </p>
           </CardContent>
         </Card>
@@ -686,19 +687,19 @@ function SyntheseInfos({ teacherId, canViewSalary }: { teacherId: string; canVie
     <div className="grid gap-px bg-border sm:grid-cols-5">
       <div className="bg-background px-4 py-3">
         <p className="text-[11px] font-medium uppercase text-muted-foreground">Heures prévues</p>
-        <p className="mt-1 text-lg font-semibold tabular-nums">{data.summary.hoursPlanned.toFixed(1)}h</p>
+        <p className="mt-1 text-lg font-semibold tabular-nums">{formatDecimalHours(data.summary.hoursPlanned)}</p>
       </div>
       <div className="bg-background px-4 py-3">
         <p className="text-[11px] font-medium uppercase text-muted-foreground">Heures faites</p>
-        <p className="mt-1 text-lg font-semibold tabular-nums">{data.summary.hoursDone.toFixed(1)}h</p>
+        <p className="mt-1 text-lg font-semibold tabular-nums">{formatDecimalHours(data.summary.hoursDone)}</p>
       </div>
       <div className="bg-background px-4 py-3">
         <p className="text-[11px] font-medium uppercase text-muted-foreground">Heures d'absence</p>
-        <p className="mt-1 text-lg font-semibold tabular-nums">{absenceHours.toFixed(1)}h</p>
+        <p className="mt-1 text-lg font-semibold tabular-nums">{formatDecimalHours(absenceHours)}</p>
       </div>
       <div className="bg-background px-4 py-3">
         <p className="text-[11px] font-medium uppercase text-muted-foreground">Heures restantes</p>
-        <p className="mt-1 text-lg font-semibold tabular-nums">{remainingHours.toFixed(1)}h</p>
+        <p className="mt-1 text-lg font-semibold tabular-nums">{formatDecimalHours(remainingHours)}</p>
       </div>
       <div className="bg-background px-4 py-3">
         <p className="text-[11px] font-medium uppercase text-muted-foreground">Statut salaire</p>
