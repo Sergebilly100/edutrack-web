@@ -459,7 +459,24 @@ function DocumentsPanel({ teacherId }: { teacherId: string }) {
   )
 }
 
-function InfosPanel({ teacherId }: { teacherId: string }) {
+function InfoValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/20 p-3">
+      <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-medium">{value}</p>
+    </div>
+  )
+}
+
+function InfosPanel({
+  teacherId,
+  canEditTeacher,
+  canResetTeacherPassword,
+}: {
+  teacherId: string
+  canEditTeacher: boolean
+  canResetTeacherPassword: boolean
+}) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const [resetResult, setResetResult] = useState<{
@@ -538,24 +555,48 @@ function InfosPanel({ teacherId }: { teacherId: string }) {
           <CardTitle className="text-base">Informations du professeur</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <TeacherForm
-            initialValues={{
-              firstName: teacher.firstName,
-              lastName: teacher.lastName,
-              matricule: teacher.matricule,
-              phone: teacher.phone,
-              email: teacher.email,
-              type: teacher.type,
-              subjects: teacher.subjects,
-              hourlyRate: teacher.hourlyRate,
-              monthlySalary: teacher.monthlySalary,
-            }}
-            isPending={updateMutation.isPending}
-            submitLabel="Enregistrer"
-            onSubmit={async (payload) => {
-              await updateMutation.mutateAsync({ teacherId, payload })
-            }}
-          />
+          {canEditTeacher ? (
+            <TeacherForm
+              initialValues={{
+                firstName: teacher.firstName,
+                lastName: teacher.lastName,
+                matricule: teacher.matricule,
+                phone: teacher.phone,
+                email: teacher.email,
+                type: teacher.type,
+                subjects: teacher.subjects,
+                hourlyRate: teacher.hourlyRate,
+                monthlySalary: teacher.monthlySalary,
+              }}
+              isPending={updateMutation.isPending}
+              submitLabel="Enregistrer"
+              onSubmit={async (payload) => {
+                await updateMutation.mutateAsync({ teacherId, payload })
+              }}
+            />
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              <InfoValue label="Prénom" value={teacher.firstName || "-"} />
+              <InfoValue label="Nom" value={teacher.lastName || "-"} />
+              <InfoValue label="Matricule" value={teacher.matricule || "-"} />
+              <InfoValue label="Téléphone" value={teacher.phone || "-"} />
+              <InfoValue label="Email" value={teacher.email || "-"} />
+              <InfoValue label="Type" value={teacher.type} />
+              <InfoValue label="Matières" value={teacher.subjects.length > 0 ? teacher.subjects.join(", ") : "-"} />
+              <InfoValue
+                label={teacher.type === "vacataire" ? "Taux horaire" : "Salaire fixe"}
+                value={
+                  teacher.type === "vacataire"
+                    ? teacher.hourlyRate
+                      ? `${teacher.hourlyRate} FCFA`
+                      : "-"
+                    : teacher.monthlySalary
+                      ? `${teacher.monthlySalary} FCFA`
+                      : "-"
+                }
+              />
+            </div>
+          )}
           {teacher.updatedAt ? (
             <p className="text-xs text-muted-foreground">
               Dernière modification le{" "}
@@ -572,25 +613,27 @@ function InfosPanel({ teacherId }: { teacherId: string }) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Compte</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Génère un nouveau mot de passe temporaire et l'envoie {hasEmail ? `à ${teacher.email}` : "(aucun email renseigné — le mot de passe sera affiché à l'écran)"}.
-            Le professeur devra le changer à sa prochaine connexion.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={resetPasswordMutation.isPending}
-            onClick={() => setResetConfirmOpen(true)}
-          >
-            {resetPasswordMutation.isPending ? "Réinitialisation..." : "Réinitialiser le mot de passe"}
-          </Button>
-        </CardContent>
-      </Card>
+      {canResetTeacherPassword ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Compte</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Génère un nouveau mot de passe temporaire et l'envoie {hasEmail ? `à ${teacher.email}` : "(aucun email renseigné, le mot de passe sera affiché à l'écran)"}.
+              Le professeur devra le changer à sa prochaine connexion.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={resetPasswordMutation.isPending}
+              onClick={() => setResetConfirmOpen(true)}
+            >
+              {resetPasswordMutation.isPending ? "Réinitialisation..." : "Réinitialiser le mot de passe"}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <ConfirmActionDialog
         open={resetConfirmOpen}
@@ -733,7 +776,11 @@ export default function TeacherDetailPage() {
   const [detailTab, setDetailTab] = useState<"presences" | "documents" | "infos">("presences")
   const canManageTeacherDocuments = hasPermission("teachers.documents")
   const canViewSalary = hasPermission("salary.view")
-  const canViewAttendance = hasPermission("attendance.view")
+  const canViewAttendance =
+    hasPermission("teachers.attendance.view") || hasPermission("attendance.view")
+  const canEditTeacher = hasPermission("teachers.edit")
+  const canResetTeacherPassword = hasPermission("teachers.password.reset")
+  const canToggleBlocked = hasPermission("teachers.block")
 
   const teacherQuery = useQuery({
     queryKey: ["teacher", teacherId],
@@ -854,6 +901,7 @@ export default function TeacherDetailPage() {
       onViewDocuments={() => {
         setDetailTab(canManageTeacherDocuments ? "documents" : "presences")
       }}
+      canToggleBlocked={canToggleBlocked}
     />
   )
 
@@ -898,7 +946,7 @@ export default function TeacherDetailPage() {
         </Alert>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-[420px_minmax(0,1fr)]">
+      <div className="mb-3 grid gap-4 lg:grid-cols-[420px_minmax(0,1fr)]">
         {profileSection}
         <WeeklyScheduleCard teacherId={teacher.id} />
       </div>
@@ -926,7 +974,11 @@ export default function TeacherDetailPage() {
             </TabsContent>
           ) : null}
           <TabsContent value="infos">
-            <InfosPanel teacherId={teacher.id} />
+            <InfosPanel
+              teacherId={teacher.id}
+              canEditTeacher={canEditTeacher}
+              canResetTeacherPassword={canResetTeacherPassword}
+            />
           </TabsContent>
         </Tabs>
       </div>

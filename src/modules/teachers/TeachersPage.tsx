@@ -393,6 +393,11 @@ export default function TeachersPage() {
   const { toast } = useToast()
   const canToggleBlocked = hasPermission("teachers.block")
   const canCreateTeacher = hasPermission("teachers.create")
+  const canViewTeacherAnalysis =
+    hasPermission("teachers.attendance.view") || hasPermission("attendance.view")
+  const canViewTeacherRanking =
+    hasPermission("teachers.ranking.view") || hasPermission("attendance.view")
+  const canResetTeacherPassword = hasPermission("teachers.password.reset")
 
   const [typeFilter, setTypeFilter] = useState<"all" | "vacataire" | "permanent">("all")
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all")
@@ -405,7 +410,12 @@ export default function TeachersPage() {
   const [sendCredentialsConfirmOpen, setSendCredentialsConfirmOpen] = useState(false)
   const [exportPeriod, setExportPeriod] = useState(getDefaultExportPeriod)
   const rawTab = searchParams.get("tab")
-  const activeTab = rawTab === "analyse" || rawTab === "classement" ? rawTab : "liste"
+  const activeTab =
+    rawTab === "analyse" && canViewTeacherAnalysis
+      ? rawTab
+      : rawTab === "classement" && canViewTeacherRanking
+        ? rawTab
+        : "liste"
   const isExportPeriodValid =
     exportPeriod.dateFrom.length > 0 &&
     exportPeriod.dateTo.length > 0 &&
@@ -657,25 +667,29 @@ export default function TeachersPage() {
       title={`Professeurs`}
       subtitle="Gestion des profs, blocage et export"
       actions={
-        canCreateTeacher ? (
+        canCreateTeacher || canResetTeacherPassword ? (
           <div className="flex flex-wrap gap-2">
-            <OfflineGuard>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={sendCredentialsMutation.isPending}
-                onClick={() => setSendCredentialsConfirmOpen(true)}
-                title="Envoie un email avec un mot de passe temporaire aux profs qui n'ont jamais reçu leurs identifiants."
-              >
-                {sendCredentialsMutation.isPending ? "Envoi..." : "Envoyer les identifiants"}
-              </Button>
-            </OfflineGuard>
-            <OfflineGuard>
-              <Button type="button" onClick={() => setCreateOpen(true)}>
-                <AddIcon className="mr-2 h-4 w-4" />
-                Ajouter un prof
-              </Button>
-            </OfflineGuard>
+            {canResetTeacherPassword ? (
+              <OfflineGuard>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={sendCredentialsMutation.isPending}
+                  onClick={() => setSendCredentialsConfirmOpen(true)}
+                  title="Envoie un email avec un mot de passe temporaire aux profs qui n'ont jamais reçu leurs identifiants."
+                >
+                  {sendCredentialsMutation.isPending ? "Envoi..." : "Envoyer les identifiants"}
+                </Button>
+              </OfflineGuard>
+            ) : null}
+            {canCreateTeacher ? (
+              <OfflineGuard>
+                <Button type="button" onClick={() => setCreateOpen(true)}>
+                  <AddIcon className="mr-2 h-4 w-4" />
+                  Ajouter un prof
+                </Button>
+              </OfflineGuard>
+            ) : null}
           </div>
         ) : null
       }
@@ -689,10 +703,23 @@ export default function TeachersPage() {
         }}
         className="space-y-4"
       >
-        <TabsList className="grid h-auto w-full grid-cols-3 rounded-xl border border-border bg-muted/50 p-1 sm:w-full md:w-[620px]">
+        <TabsList
+          className={cn(
+            "grid h-auto w-full rounded-xl border border-border bg-muted/50 p-1 sm:w-full",
+            canViewTeacherAnalysis && canViewTeacherRanking
+              ? "grid-cols-3 md:w-[620px]"
+              : canViewTeacherAnalysis || canViewTeacherRanking
+                ? "grid-cols-2 md:w-[420px]"
+                : "grid-cols-1 md:w-[220px]"
+          )}
+        >
           <TabsTrigger value="liste" className="min-h-12 rounded-lg text-sm font-medium">Liste</TabsTrigger>
-          <TabsTrigger value="analyse" className="min-h-12 rounded-lg text-sm font-medium">Analyse présence</TabsTrigger>
-          <TabsTrigger value="classement" className="min-h-12 rounded-lg text-sm font-medium">Classement</TabsTrigger>
+          {canViewTeacherAnalysis ? (
+            <TabsTrigger value="analyse" className="min-h-12 rounded-lg text-sm font-medium">Analyse présence</TabsTrigger>
+          ) : null}
+          {canViewTeacherRanking ? (
+            <TabsTrigger value="classement" className="min-h-12 rounded-lg text-sm font-medium">Classement</TabsTrigger>
+          ) : null}
         </TabsList>
 
         <TabsContent value="liste" className="space-y-6">
@@ -847,13 +874,17 @@ export default function TeachersPage() {
           ) : null}
         </TabsContent>
 
-        <TabsContent value="analyse">
-          <TeacherAnalysisPanel />
-        </TabsContent>
+        {canViewTeacherAnalysis ? (
+          <TabsContent value="analyse">
+            <TeacherAnalysisPanel />
+          </TabsContent>
+        ) : null}
 
-        <TabsContent value="classement">
-          <TeacherRankingPanel teachers={teachers} />
-        </TabsContent>
+        {canViewTeacherRanking ? (
+          <TabsContent value="classement">
+            <TeacherRankingPanel teachers={teachers} />
+          </TabsContent>
+        ) : null}
       </Tabs>
 
       {/* ── Modal : créer un professeur ── */}
@@ -1009,25 +1040,27 @@ export default function TeachersPage() {
         </DialogContent>
       </Dialog>
 
-      <ConfirmActionDialog
-        open={sendCredentialsConfirmOpen}
-        onOpenChange={(open) => {
-          if (!sendCredentialsMutation.isPending) setSendCredentialsConfirmOpen(open)
-        }}
-        title="Envoyer les identifiants aux professeurs"
-        description="Cette action concerne tous les professeurs qui n'ont pas encore reçu leurs identifiants."
-        consequences={[
-          "Un nouveau mot de passe temporaire est généré pour chaque professeur ciblé.",
-          "Un email leur est envoyé avec leurs identifiants.",
-          "Les professeurs sans email renseigné sont ignorés (un récapitulatif est affiché après l'envoi).",
-          "L'éventuel mot de passe précédent de ces comptes est invalidé.",
-          "Le professeur devra changer son mot de passe à sa prochaine connexion.",
-        ]}
-        confirmLabel="Confirmer l'envoi"
-        pendingLabel="Envoi..."
-        isPending={sendCredentialsMutation.isPending}
-        onConfirm={() => sendCredentialsMutation.mutate()}
-      />
+      {canResetTeacherPassword ? (
+        <ConfirmActionDialog
+          open={sendCredentialsConfirmOpen}
+          onOpenChange={(open) => {
+            if (!sendCredentialsMutation.isPending) setSendCredentialsConfirmOpen(open)
+          }}
+          title="Envoyer les identifiants aux professeurs"
+          description="Cette action concerne tous les professeurs qui n'ont pas encore reçu leurs identifiants."
+          consequences={[
+            "Un nouveau mot de passe temporaire est généré pour chaque professeur ciblé.",
+            "Un email leur est envoyé avec leurs identifiants.",
+            "Les professeurs sans email renseigné sont ignorés (un récapitulatif est affiché après l'envoi).",
+            "L'éventuel mot de passe précédent de ces comptes est invalidé.",
+            "Le professeur devra changer son mot de passe à sa prochaine connexion.",
+          ]}
+          confirmLabel="Confirmer l'envoi"
+          pendingLabel="Envoi..."
+          isPending={sendCredentialsMutation.isPending}
+          onConfirm={() => sendCredentialsMutation.mutate()}
+        />
+      ) : null}
     </PageLayout>
   )
 }

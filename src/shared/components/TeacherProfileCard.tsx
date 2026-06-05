@@ -30,6 +30,7 @@ type TeacherProfileCardProps = {
   onBlock: (teacherId: string) => void | Promise<void>
   onUnblock: (teacherId: string) => void | Promise<void>
   onViewDocuments: (teacherId: string) => void
+  canToggleBlocked?: boolean
 }
 
 
@@ -41,6 +42,7 @@ export function TeacherProfileCard({
   onBlock,
   onUnblock,
   onViewDocuments,
+  canToggleBlocked = true,
 }: TeacherProfileCardProps) {
   const [isUnblocking, setIsUnblocking] = useState(false)
   const isBlocked = monthStats.status === "blocked"
@@ -110,38 +112,40 @@ export function TeacherProfileCard({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        {canToggleBlocked ? (
+          <div className="flex flex-wrap gap-2">
           {/* <Button type="button" variant="outline" onClick={() => onViewDocuments(teacher.id)} className="flex-1">
             Voir documents
           </Button> */}
 
-          {isBlocked ? (
-            <Button
-              type="button"
-              className="flex-1 bg-green-600 text-white hover:bg-green-700"
-              disabled={isUnblocking}
-              onClick={async () => {
-                setIsUnblocking(true)
-                try {
-                  await onUnblock(teacher.id)
-                } finally {
-                  setIsUnblocking(false)
-                }
-              }}
-            >
-              {isUnblocking ? "Déblocage..." : "Débloquer"}
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="destructive"
-              className="flex-1"
-              onClick={() => void onBlock(teacher.id)}
-            >
-              Bloquer
-            </Button>
-          )}
-        </div>
+            {isBlocked ? (
+              <Button
+                type="button"
+                className="flex-1 bg-green-600 text-white hover:bg-green-700"
+                disabled={isUnblocking}
+                onClick={async () => {
+                  setIsUnblocking(true)
+                  try {
+                    await onUnblock(teacher.id)
+                  } finally {
+                    setIsUnblocking(false)
+                  }
+                }}
+              >
+                {isUnblocking ? "Déblocage..." : "Débloquer"}
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="destructive"
+                className="flex-1"
+                onClick={() => void onBlock(teacher.id)}
+              >
+                Bloquer
+              </Button>
+            )}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   )
