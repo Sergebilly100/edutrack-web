@@ -1,12 +1,33 @@
 import { fileURLToPath, URL } from "node:url"
-import { defineConfig } from "vite"
+import { defineConfig, loadEnv } from "vite"
 import react from "@vitejs/plugin-react"
 import { VitePWA } from "vite-plugin-pwa"
 import { visualizer } from "rollup-plugin-visualizer"
 
 const isAnalyze = process.env.ANALYZE === "true"
 
-export default defineConfig({
+// Garde-fou build prod : VITE_API_URL est inliné dans le bundle, une valeur
+// manquante/placeholder/localhost produit un package silencieusement inutilisable.
+// On échoue tôt et clairement plutôt que de livrer un build cassé.
+const assertProductionApiUrl = (mode: string): void => {
+  if (mode !== "production") return
+  const env = loadEnv(mode, process.cwd(), "VITE_")
+  const apiUrl = env.VITE_API_URL?.trim() ?? ""
+  const isValid =
+    /^https?:\/\//.test(apiUrl) &&
+    !apiUrl.includes("__SET_VITE_API_URL__") &&
+    !/localhost|127\.0\.0\.1/.test(apiUrl)
+  if (!isValid) {
+    throw new Error(
+      `[build] VITE_API_URL invalide pour la production : "${apiUrl}". ` +
+        `Renseigne l'URL publique de l'API (avec /api/v1) dans .env.production avant de packager.`
+    )
+  }
+}
+
+export default defineConfig(({ mode }) => {
+  assertProductionApiUrl(mode)
+  return {
   plugins: [
     react(),
     ...(isAnalyze
@@ -47,6 +68,16 @@ export default defineConfig({
         // The app bundle can exceed Workbox's default 2 MiB precache limit in CI builds.
         // Keep precaching enabled by raising the threshold.
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+        // Après un nouveau package, l'ancien Service Worker pouvait continuer à servir
+        // un index.html périmé référençant des assets disparus → app à moitié bootée,
+        // login qui "tourne sans fin". Ces trois options garantissent qu'un nouveau
+        // build prend la main immédiatement et purge les caches précédents.
+        cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
+        // Les requêtes /api/ ne doivent jamais retomber sur le fallback SPA (index.html) :
+        // un login renverrait alors du HTML au lieu du JSON attendu → spinner infini.
+        navigateFallbackDenylist: [/^\/api\//],
         // NetworkFirst : on tente le réseau d'abord (timeout court) puis on tombe
         //   sur le cache. C'est ce qu'on veut pour les données dynamiques que le
         //   prof/directeur consulte régulièrement (dashboard, listes).
@@ -264,4 +295,5 @@ export default defineConfig({
     setupFiles: "./src/test/setup.ts",
     exclude: ["e2e/**", "edutrack-api/**", "node_modules/**", "dist/**"],
   },
+  }
 })

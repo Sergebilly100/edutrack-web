@@ -52,6 +52,14 @@ export default function SettingsPage() {
     queryKey: ["settings", "sms-feature"],
     queryFn: getSchoolSmsFeatureSettings,
   })
+  // L'école ne monétise les alertes parents que si EduTrack a activé le service
+  // (is_enabled) ET que l'école a opté pour la monétisation (monetize_parent_alerts).
+  // Toute la surface "abonnements SMS parents" (menus Abonnements/Revenus, colonne
+  // Abonnements de la matrice de rôles, et la section "Service SMS Parents" ci-dessous)
+  // est conditionnée à ce booléen : si l'école ne monétise pas, rien ne s'affiche.
+  const parentSmsMonetized =
+    smsFeatureQuery.data?.is_enabled === true &&
+    smsFeatureQuery.data?.monetize_parent_alerts === true
 
   const smsPriceForm = useForm<SmsPriceFormValues>({
     resolver: zodResolver(smsPriceSchema),
@@ -110,7 +118,7 @@ export default function SettingsPage() {
     ? "Chargement"
     : smsFeatureQuery.isError
       ? "Erreur"
-      : smsFeatureQuery.data?.is_enabled
+      : parentSmsMonetized
         ? "Activé"
         : "Non activé"
 
@@ -131,16 +139,20 @@ export default function SettingsPage() {
           <div className="space-y-1">
             <p className="text-sm font-semibold">Centre de configuration</p>
             <p className="text-xs text-muted-foreground">
-              Les accès, le service SMS Parents et les templates sont visibles au même endroit.
+              {parentSmsMonetized
+                ? "Les accès, le service SMS Parents et les templates sont visibles au même endroit."
+                : "Les accès et les templates sont visibles au même endroit."}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Badge variant={schoolConfigQuery.isError ? "destructive" : "secondary"} className="rounded-md px-2.5 py-1">
               École: {schoolConfigState}
             </Badge>
-            <Badge variant={smsFeatureQuery.data?.is_enabled ? "default" : "outline"} className="rounded-md px-2.5 py-1">
-              SMS: {smsFeatureState}
-            </Badge>
+            {parentSmsMonetized ? (
+              <Badge variant="default" className="rounded-md px-2.5 py-1">
+                SMS: {smsFeatureState}
+              </Badge>
+            ) : null}
           </div>
         </div>
         <div className="grid gap-px bg-border sm:grid-cols-3">
@@ -150,12 +162,14 @@ export default function SettingsPage() {
               {schoolConfigQuery.data?.school.name ?? "Configuration école"}
             </p>
           </div>
-          <div className="bg-background px-4 py-3">
-            <p className="text-[11px] font-medium uppercase text-muted-foreground">Tarif SMS</p>
-            <p className="mt-1 text-lg font-semibold tabular-nums">
-              {smsFeatureQuery.data?.sms_unit_price_fcfa ? `${smsFeatureQuery.data.sms_unit_price_fcfa} FCFA` : "-"}
-            </p>
-          </div>
+          {parentSmsMonetized ? (
+            <div className="bg-background px-4 py-3">
+              <p className="text-[11px] font-medium uppercase text-muted-foreground">Tarif SMS</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums">
+                {smsFeatureQuery.data?.sms_unit_price_fcfa ? `${smsFeatureQuery.data.sms_unit_price_fcfa} FCFA` : "-"}
+              </p>
+            </div>
+          ) : null}
           <div className="bg-background px-4 py-3">
             <p className="text-[11px] font-medium uppercase text-muted-foreground">Templates</p>
             <p className="mt-1 truncate text-sm font-medium">
@@ -274,14 +288,11 @@ export default function SettingsPage() {
           <SmsTemplatePanel />
         </OfflineDisabledFieldset>
       ) : null}
-      {canManageSchoolSettings ? (
-        <section
-          className={
-            smsFeatureQuery.data?.is_enabled
-              ? "space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/70 dark:bg-emerald-950/20"
-              : "space-y-3 rounded-lg border border-dashed border-border bg-muted/40 p-4 opacity-90"
-          }
-        >
+      {/* Section masquée tant que l'école ne monétise pas les alertes parents :
+          le tarif/abonnement parent n'a aucun sens sans monétisation (cohérent avec les
+          menus Abonnements/Revenus et la colonne Abonnements de la matrice de rôles). */}
+      {canManageSchoolSettings && parentSmsMonetized ? (
+        <section className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/70 dark:bg-emerald-950/20">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold">Service SMS Parents</h2>
@@ -289,9 +300,7 @@ export default function SettingsPage() {
                 Paramétrage de la souscription parent pour les notifications SMS.
               </p>
             </div>
-            <Badge variant={smsFeatureQuery.data?.is_enabled ? "default" : "outline"}>
-              {smsFeatureQuery.data?.is_enabled ? "Activé" : "Non activé"}
-            </Badge>
+            <Badge variant="default">Activé</Badge>
           </div>
 
           {smsFeatureQuery.data?.is_enabled ? (

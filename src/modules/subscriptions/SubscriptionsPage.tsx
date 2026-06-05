@@ -206,11 +206,16 @@ export default function SubscriptionsPage() {
     queryKey: ["subscriptions", "feature-settings"],
     queryFn: getSmsFeatureSettings,
   })
+  // La page Abonnements n'est pertinente que si l'école monétise les alertes parents
+  // (même règle que le menu qui y mène et la section Paramètres "Service SMS Parents").
+  const subscriptionsMonetized =
+    featureQuery.data?.is_enabled === true &&
+    featureQuery.data?.monetize_parent_alerts === true
 
   const creatorsQuery = useQuery({
     queryKey: ["subscriptions", "creators"],
     queryFn: listSubscriptionCreators,
-    enabled: featureQuery.data?.is_enabled === true,
+    enabled: subscriptionsMonetized,
   })
 
   const parentsQuery = useQuery({
@@ -223,7 +228,7 @@ export default function SubscriptionsPage() {
         created_by: createdBy === "all" ? undefined : createdBy,
       }),
     refetchInterval: 0,
-    enabled: featureQuery.data?.is_enabled === true,
+    enabled: subscriptionsMonetized,
   })
   const detailsQuery = useQuery({
     queryKey: ["subscriptions", "details", detailsTarget?.parent_id],
@@ -307,12 +312,12 @@ export default function SubscriptionsPage() {
     return <PageLayout title="Abonnements parents">Chargement…</PageLayout>
   }
 
-  if (!featureQuery.data?.is_enabled) {
+  if (!subscriptionsMonetized) {
     return (
       <PageLayout title="Abonnements parents">
         <EmptyState
           title="Fonctionnalité non activée"
-          message="Le suivi des abonnements parents dépend du service SMS Parents. Demandez l'activation à EduTrack, puis définissez le tarif dans Paramètres école."
+          message="Le suivi des abonnements parents dépend de la monétisation des alertes SMS Parents. Demandez l'activation à EduTrack, puis définissez le tarif dans Paramètres école."
         />
       </PageLayout>
     )
@@ -573,7 +578,7 @@ export default function SubscriptionsPage() {
       <CreateSubscriptionModal
         open={createOpen}
         onOpenChange={setCreateOpen}
-        smsUnitPriceFcfa={featureQuery.data.sms_unit_price_fcfa}
+        smsUnitPriceFcfa={featureQuery.data?.sms_unit_price_fcfa ?? 0}
         existingPhones={items.map((item) => item.phone)}
         onSubmit={async (payload) => createMutation.mutateAsync(payload)}
       />
@@ -588,7 +593,7 @@ export default function SubscriptionsPage() {
         parentFullName={renewTarget?.full_name ?? ""}
         studentsCount={renewTarget?.students.length ?? 0}
         currentEndsAt={renewTarget?.latest_subscription?.ends_at ?? todayInBusinessTimezone()}
-        unitPriceFcfa={featureQuery.data.sms_unit_price_fcfa ?? 0}
+        unitPriceFcfa={featureQuery.data?.sms_unit_price_fcfa ?? 0}
         isSubmitting={renewMutation.isPending}
         onSubmit={async (payload) => {
           if (!renewTarget) {
