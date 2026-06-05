@@ -77,6 +77,7 @@ export default function SalariesPage() {
   const canComputeSalaries = hasPermission("salary.compute")
   const canMarkSalaryAsPaid = hasPermission("salary.mark_paid")
   const canExportSalaries = hasPermission("salary.export")
+  const canViewValidations = hasPermission("validations.view")
 
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth)
   const [computeDialogOpen, setComputeDialogOpen] = useState(false)
@@ -124,7 +125,7 @@ export default function SalariesPage() {
     staleTime: STALE_TIME,
   })
 
-  const validationCountQuery = usePendingValidationCount()
+  const validationCountQuery = usePendingValidationCount({ enabled: canViewValidations })
 
   const exportJobQuery = useQuery({
     queryKey: ["salaries", "export-job", exportJobId],
@@ -720,7 +721,7 @@ export default function SalariesPage() {
 
         <SalariesStatsCards month={selectedMonth} />
 
-        {(validationCountQuery.data?.total ?? 0) > 0 ? (
+        {canViewValidations && (validationCountQuery.data?.total ?? 0) > 0 ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">

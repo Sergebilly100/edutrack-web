@@ -67,8 +67,10 @@ export type PermissionKey =
   | "settings.sms_templates"
   | "subscriptions.view"
   | "subscriptions.create"
+  | "subscriptions.edit"
   | "subscriptions.renew"
   | "subscriptions.cancel"
+  | "subscriptions.password.reset"
   | "subscriptions.revenue"
 
 type AuthState = {

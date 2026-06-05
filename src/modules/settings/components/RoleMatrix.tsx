@@ -104,8 +104,10 @@ const SUBSCRIPTIONS_PERMISSION_COLUMN = {
   permissions: [
     "subscriptions.view",
     "subscriptions.create",
+    "subscriptions.edit",
     "subscriptions.renew",
     "subscriptions.cancel",
+    "subscriptions.password.reset",
     "subscriptions.revenue",
   ],
 } as const
@@ -146,6 +148,7 @@ const CATEGORY_VIEW_PERMISSION: Readonly<Record<string, string>> = {
   validations: "validations.view",
   rooms: "rooms.view",
   schedule: "schedule.view",
+  subscriptions: "subscriptions.view",
 }
 
 const ACTION_KEYS_REQUIRING_VIEW = new Set([

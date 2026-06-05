@@ -73,9 +73,10 @@ const monthLabel = (month: string) => {
 
 type SubscriptionActionsProps = {
   item: SubscriptionListItem
-  canCreate: boolean
+  canEdit: boolean
   canRenew: boolean
   canCancel: boolean
+  canResetPassword: boolean
   resetPasswordPending: boolean
   onDetails: (item: SubscriptionListItem) => void
   onRenew: (item: SubscriptionListItem) => void
@@ -87,9 +88,10 @@ type SubscriptionActionsProps = {
 
 function SubscriptionActions({
   item,
-  canCreate,
+  canEdit,
   canRenew,
   canCancel,
+  canResetPassword,
   resetPasswordPending,
   onDetails,
   onRenew,
@@ -101,8 +103,8 @@ function SubscriptionActions({
   const latest = item.latest_subscription
   const canShowRenew = canRenew && Boolean(latest)
   const canShowCancel = canCancel && latest?.status === "active"
-  const canEditContact = canCreate && latest?.status === "active"
-  const hasMenuActions = canCreate || canShowCancel || (compact && canShowRenew)
+  const canEditContact = canEdit && latest?.status === "active"
+  const hasMenuActions = canResetPassword || canEditContact || canShowCancel || (compact && canShowRenew)
 
   return (
     <div className={compact ? "grid grid-cols-[1fr_auto] gap-2" : "inline-flex items-center gap-2"}>
@@ -140,7 +142,7 @@ function SubscriptionActions({
                 </DropdownMenuItem>
               </OfflineGuard>
             ) : null}
-            {canCreate ? (
+            {canResetPassword ? (
               <OfflineGuard>
                 <DropdownMenuItem
                   onClick={() => onResetPassword(item)}
@@ -159,7 +161,7 @@ function SubscriptionActions({
             ) : null}
             {canShowCancel ? (
               <>
-                {(compact && canShowRenew) || canCreate || canEditContact ? <DropdownMenuSeparator /> : null}
+                {(compact && canShowRenew) || canResetPassword || canEditContact ? <DropdownMenuSeparator /> : null}
                 <OfflineGuard>
                   <DropdownMenuItem
                     onClick={() => onCancel(item)}
@@ -199,8 +201,10 @@ export default function SubscriptionsPage() {
   const [credentialsCopied, setCredentialsCopied] = useState(false)
 
   const canCreate = hasPermission("subscriptions.create")
+  const canEdit = hasPermission("subscriptions.edit")
   const canRenew = hasPermission("subscriptions.renew")
   const canCancel = hasPermission("subscriptions.cancel")
+  const canResetPassword = hasPermission("subscriptions.password.reset")
 
   const featureQuery = useQuery({
     queryKey: ["subscriptions", "feature-settings"],
@@ -439,9 +443,10 @@ export default function SubscriptionsPage() {
                 <p className="text-xs text-muted-foreground">{`${item.students.length} ${studentLabels.pluralLower}`}</p>
                 <SubscriptionActions
                   item={item}
-                  canCreate={canCreate}
+                  canEdit={canEdit}
                   canRenew={canRenew}
                   canCancel={canCancel}
+                  canResetPassword={canResetPassword}
                   resetPasswordPending={resetPasswordMutation.isPending}
                   onDetails={setDetailsTarget}
                   onRenew={setRenewTarget}
@@ -503,9 +508,10 @@ export default function SubscriptionsPage() {
                   <td className="px-3 py-2.5 text-right">
                     <SubscriptionActions
                       item={item}
-                      canCreate={canCreate}
+                      canEdit={canEdit}
                       canRenew={canRenew}
                       canCancel={canCancel}
+                      canResetPassword={canResetPassword}
                       resetPasswordPending={resetPasswordMutation.isPending}
                       onDetails={setDetailsTarget}
                       onRenew={setRenewTarget}
