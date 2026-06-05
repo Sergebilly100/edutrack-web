@@ -2,6 +2,7 @@ import { useEffect } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
+  GraduationCap,
   LogOut,
   Menu,
   Monitor,
@@ -151,7 +152,19 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
   return (
     <div className="flex h-full flex-col gap-1 p-2">
       <div className={cn("flex items-center min-h-[52px] mb-1", collapsed ? "justify-center flex-col gap-1" : "justify-between px-1")}>
-        {!collapsed && <span className="text-sm font-semibold tracking-tight">IvoirEdu</span>}
+        {!collapsed && (
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-emerald-500 shadow-sm">
+              <GraduationCap className="h-4 w-4 text-white" strokeWidth={2} />
+            </div>
+            <span className="truncate text-sm font-bold tracking-tight text-foreground">IvoirEdu</span>
+          </div>
+        )}
+        {collapsed && (
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-emerald-500 shadow-sm">
+            <GraduationCap className="h-4 w-4 text-white" strokeWidth={2} />
+          </div>
+        )}
         <div className="flex items-center gap-1">
           {!collapsed && (
             <button
