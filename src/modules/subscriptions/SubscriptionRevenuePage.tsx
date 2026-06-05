@@ -153,7 +153,7 @@ export default function SubscriptionRevenuePage() {
         <section className="space-y-3 rounded-lg border p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold">Commission EduTrack</h2>
+              <h2 className="text-sm font-semibold">Commission IvoirEdu</h2>
               <p className="text-sm text-muted-foreground">
                 Commission de {summary.commission_pct}% sur les revenus de ce mois.
               </p>
@@ -169,7 +169,7 @@ export default function SubscriptionRevenuePage() {
             <AlertBanner
               type="warning"
               title="Reversement en attente"
-              message={`Il reste ${formatFcfa(summary.commission_remaining_fcfa)} à reverser à EduTrack pour ${monthLabel(month)}.`}
+              message={`Il reste ${formatFcfa(summary.commission_remaining_fcfa)} à reverser à IvoirEdu pour ${monthLabel(month)}.`}
             />
           ) : null}
         </section>

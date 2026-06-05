@@ -75,7 +75,7 @@ export function AppShell({ children }: AppShellProps) {
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--surface-base)]">
           <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-[var(--surface-chrome)] px-4 backdrop-blur lg:hidden">
             <MobileMenuButton />
-            <span className="truncate text-sm font-semibold">EduTrack CI</span>
+            <span className="truncate text-sm font-semibold">IvoirEdu</span>
             <div className="ml-auto flex items-center gap-2">
               <OfflineQueueBadge />
               <NotificationButton count={isDashboardRoute ? mobileAlertsCount : 0} />

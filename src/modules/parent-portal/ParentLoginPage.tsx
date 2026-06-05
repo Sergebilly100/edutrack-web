@@ -60,7 +60,7 @@ export default function ParentLoginPage() {
             <BookOpenCheck className="h-7 w-7" /> 
           </div>
           <div>
-            <p className="text-xl font-bold">EduTrack CI</p>
+            <p className="text-xl font-bold">IvoirEdu</p>
             <p className="text-sm text-muted-foreground">{schoolInfoQuery.data?.name ?? "Votre école"}</p>
           </div>
         </CardHeader>

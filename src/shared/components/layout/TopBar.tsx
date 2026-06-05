@@ -21,7 +21,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-[11px] font-semibold text-primary">
             ET
           </span>
-          <span className="text-sm font-semibold">EduTrack CI</span>
+          <span className="text-sm font-semibold">IvoirEdu</span>
         </div>
 
         <div className="flex items-center justify-end gap-1">

@@ -53,7 +53,7 @@ const user = useAuthStore((state) => state.user)
   const platformAuditQuery = useQuery({ queryKey: ["admin", "sms", "platform-audit"], queryFn: () => getSmsPlatformAudit(40) })
   const [provider, setProvider] = useState<SmsProvider>("mock")
   const [apiBaseUrl, setApiBaseUrl] = useState("")
-  const [senderId, setSenderId] = useState("EduTrack")
+  const [senderId, setSenderId] = useState("IvoirEdu")
   const [fallbackSenderId, setFallbackSenderId] = useState("")
   const [defaultCountryCode, setDefaultCountryCode] = useState("+225")
   const [alertQuotaThresholdPct, setAlertQuotaThresholdPct] = useState("80")
@@ -424,7 +424,7 @@ const user = useAuthStore((state) => state.user)
                   <ShieldCheck className="h-4 w-4 text-emerald-600" />
                   Configuration SMS plateforme
                 </CardTitle>
-                <CardDescription>Paramètres globaux EduTrack: fournisseur, clé API, sender, alertes, maintenance.</CardDescription>
+                <CardDescription>Paramètres globaux IvoirEdu: fournisseur, clé API, sender, alertes, maintenance.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-3 rounded-md border p-3">
@@ -471,7 +471,7 @@ const user = useAuthStore((state) => state.user)
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label>Sender ID principal</Label>
-                      <Input value={senderId} onChange={(event) => setSenderId(event.target.value)} placeholder="EduTrack" />
+                      <Input value={senderId} onChange={(event) => setSenderId(event.target.value)} placeholder="IvoirEdu" />
                     </div>
                     <div className="space-y-2">
                       <Label>Sender ID secondaire</Label>
@@ -509,7 +509,7 @@ const user = useAuthStore((state) => state.user)
                   </div>
                   <div className="space-y-2">
                     <Label>Email alertes</Label>
-                    <Input value={alertEmail} onChange={(event) => setAlertEmail(event.target.value)} placeholder="ops@edutrack.ci" />
+                    <Input value={alertEmail} onChange={(event) => setAlertEmail(event.target.value)} placeholder="ops@ivoiredu.ci" />
                   </div>
                 </div>
 

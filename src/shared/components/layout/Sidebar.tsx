@@ -151,7 +151,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
   return (
     <div className="flex h-full flex-col gap-1 p-2">
       <div className={cn("flex items-center min-h-[52px] mb-1", collapsed ? "justify-center flex-col gap-1" : "justify-between px-1")}>
-        {!collapsed && <span className="text-sm font-semibold tracking-tight">EduTrack CI</span>}
+        {!collapsed && <span className="text-sm font-semibold tracking-tight">IvoirEdu</span>}
         <div className="flex items-center gap-1">
           {!collapsed && (
             <button

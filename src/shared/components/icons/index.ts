@@ -1,4 +1,4 @@
-// Source de vérité des icônes du projet EduTrack CI.
+// Source de vérité des icônes du projet IvoirEdu.
 // Les pages/composants applicatifs importent ici plutôt que depuis `lucide-react`.
 
 export { AppIcon } from "./AppIcon"

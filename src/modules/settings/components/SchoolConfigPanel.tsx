@@ -594,7 +594,7 @@ export default function SchoolConfigPanel() {
                 <div className="grid grid-cols-1 gap-3 text-xs text-muted-foreground sm:grid-cols-3">
                   <p>Plan actif: <span className="font-medium text-foreground">{planLabel}</span></p>
                   <p>Utilisateurs administratifs: <span className="font-medium text-foreground">{school ? `${school.adminUsersCount}` : "-"}</span></p>
-                  <p>Gestion: centralisée par EduTrack CI</p>
+                  <p>Gestion: centralisée par IvoirEdu</p>
                 </div>
               </div>
 

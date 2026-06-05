@@ -28,7 +28,7 @@ export function OverdueReversalBanner({ overdueMonths }: OverdueReversalBannerPr
   const totalOverdue = overdueMonths.reduce((sum, m) => sum + m.amount, 0)
 
   const buildSummaryText = () => {
-    let text = "EDUTRACK - Reversements en retard\n\n"
+    let text = "IVOIREDU - Reversements en retard\n\n"
     overdueMonths.forEach((month) => {
       text += `• ${month.month} : ${formatFcfa(month.amount)} (dû le ${new Date(month.dueDate).toLocaleDateString(
         "fr-FR"
@@ -73,7 +73,7 @@ export function OverdueReversalBanner({ overdueMonths }: OverdueReversalBannerPr
                 onClick={() => setContactModalOpen(true)}
                 className="border-red-300 bg-white hover:bg-red-50"
               >
-                Contacter EduTrack
+                Contacter IvoirEdu
               </Button>
             </div>
           </div>
@@ -83,7 +83,7 @@ export function OverdueReversalBanner({ overdueMonths }: OverdueReversalBannerPr
       <Dialog open={contactModalOpen} onOpenChange={setContactModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Contacter EduTrack</DialogTitle>
+            <DialogTitle>Contacter IvoirEdu</DialogTitle>
             <DialogDescription>
               Pour procéder au reversement ou obtenir plus d'informations
             </DialogDescription>
@@ -96,10 +96,10 @@ export function OverdueReversalBanner({ overdueMonths }: OverdueReversalBannerPr
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">Email de support</p>
                   <a
-                    href="mailto:support@edutrack.ci"
+                    href="mailto:support@ivoiredu.ci"
                     className="text-sm text-blue-600 hover:underline"
                   >
-                    support@edutrack.ci
+                    support@ivoiredu.ci
                   </a>
                 </div>
               </div>

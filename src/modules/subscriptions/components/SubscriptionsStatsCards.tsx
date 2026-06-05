@@ -106,14 +106,14 @@ export function SubscriptionsStatsCards({ month }: SubscriptionsStatsCardsProps)
             <Building2 className="h-5 w-5 text-blue-600" />
           </div>
         </div>
-        <p className="text-sm text-gray-500">Net après commission EduTrack ({formatRate(stats.commissionRate)})</p>
+        <p className="text-sm text-gray-500">Net après commission IvoirEdu ({formatRate(stats.commissionRate)})</p>
       </Card>
 
-      {/* CARD 3: Commission EduTrack */}
+      {/* CARD 3: Commission IvoirEdu */}
       <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
-            <p className="text-sm text-gray-500 mb-1">Commission EduTrack</p>
+            <p className="text-sm text-gray-500 mb-1">Commission IvoirEdu</p>
             <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatFcfa(stats.edutrackCommission)}</p>
           </div>
           <div className="h-10 w-10 rounded-xl bg-purple-50 flex items-center justify-center">
@@ -125,11 +125,11 @@ export function SubscriptionsStatsCards({ month }: SubscriptionsStatsCardsProps)
         </p>
       </Card>
 
-      {/* CARD 4: Reste à reverser à EduTrack */}
+      {/* CARD 4: Reste à reverser à IvoirEdu */}
       <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
-            <p className="text-sm text-gray-500 mb-1">Reste à reverser à EduTrack</p>
+            <p className="text-sm text-gray-500 mb-1">Reste à reverser à IvoirEdu</p>
             <p className={cn("text-2xl font-bold", reverseColor)}>{formatFcfa(stats.remainingToReverse)}</p>
           </div>
           <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center", reverseBgColor)}>

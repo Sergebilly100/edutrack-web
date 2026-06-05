@@ -72,7 +72,7 @@ export default function SmsTemplatePanel() {
   const sourceLabel = useMemo(() => {
     const source = templateQuery.data?.source
     if (source === "school") return "Personnalisé (école)"
-    if (source === "global") return "Modèle global EduTrack"
+    if (source === "global") return "Modèle global IvoirEdu"
     return "Modèle par défaut système"
   }, [templateQuery.data?.source])
 

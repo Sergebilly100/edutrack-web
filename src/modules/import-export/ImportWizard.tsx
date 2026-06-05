@@ -227,7 +227,7 @@ function ImportTypeTabs({
         <TabsContent key={type} value={type} className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
             <p className="text-sm text-muted-foreground">
-              Téléchargez le modèle {tabConfig[type].label.toLowerCase()} conforme au format EduTrack puis importez votre fichier. <br /> 
+              Téléchargez le modèle {tabConfig[type].label.toLowerCase()} conforme au format IvoirEdu puis importez votre fichier. <br /> 
               {type === "schedule" ? <span className="text-xs font-bold">NB : Les professeurs et les classes de votre fichier doivent être ajoutés au préalable dans le système</span> : ""}
             </p>
             <Button

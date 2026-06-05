@@ -317,7 +317,7 @@ export default function SubscriptionsPage() {
       <PageLayout title="Abonnements parents">
         <EmptyState
           title="Fonctionnalité non activée"
-          message="Le suivi des abonnements parents dépend de la monétisation des alertes SMS Parents. Demandez l'activation à EduTrack, puis définissez le tarif dans Paramètres école."
+          message="Le suivi des abonnements parents dépend de la monétisation des alertes SMS Parents. Demandez l'activation à IvoirEdu, puis définissez le tarif dans Paramètres école."
         />
       </PageLayout>
     )

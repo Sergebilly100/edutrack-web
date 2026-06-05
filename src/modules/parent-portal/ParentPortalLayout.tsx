@@ -56,7 +56,7 @@ export default function ParentPortalLayout() {
               <BookOpenCheck className="h-7 w-7" />
             </div>
             <div>
-              <p className="text-lg font-semibold leading-tight">EduTrack CI</p>
+              <p className="text-lg font-semibold leading-tight">IvoirEdu</p>
               <p className="text-xs text-muted-foreground leading-tight">{schoolInfoQuery.data?.name ?? "Votre école"}</p>
             </div>
           </div>

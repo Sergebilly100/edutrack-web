@@ -173,7 +173,7 @@ export default function AdminPage() {
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">
-            {isSchoolsView ? "Écoles" : "Console EduTrack"}
+            {isSchoolsView ? "Écoles" : "Console IvoirEdu"}
           </h1>
           <p className="text-sm text-muted-foreground">
             {isSchoolsView

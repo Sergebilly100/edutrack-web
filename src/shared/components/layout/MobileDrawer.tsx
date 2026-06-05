@@ -48,7 +48,7 @@ export function MobileDrawer({ open, onClose, variant = "default" }: MobileDrawe
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
               ET
             </span>
-            <span className="ml-2 text-sm font-semibold">EduTrack CI</span>
+            <span className="ml-2 text-sm font-semibold">IvoirEdu</span>
           </div>
 
           <nav className="flex-1 overflow-y-auto px-3 pb-2">

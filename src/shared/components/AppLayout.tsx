@@ -66,7 +66,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     })
   }, [user, layoutItems])
 
-  const activeLabel = routeLabels[location.pathname] ?? "EduTrack"
+  const activeLabel = routeLabels[location.pathname] ?? "IvoirEdu"
 
   useEffect(() => {
     setMobileSidebarOpen(false)
@@ -90,7 +90,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       >
         <div className="flex items-center justify-between">
           <NavLink to="/dashboard" className="text-base font-semibold tracking-tight">
-            EduTrack CI
+            IvoirEdu
           </NavLink>
           <Button
             type="button"

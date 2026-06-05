@@ -52,7 +52,7 @@ export default function SettingsPage() {
     queryKey: ["settings", "sms-feature"],
     queryFn: getSchoolSmsFeatureSettings,
   })
-  // L'école ne monétise les alertes parents que si EduTrack a activé le service
+  // L'école ne monétise les alertes parents que si IvoirEdu a activé le service
   // (is_enabled) ET que l'école a opté pour la monétisation (monetize_parent_alerts).
   // Toute la surface "abonnements SMS parents" (menus Abonnements/Revenus, colonne
   // Abonnements de la matrice de rôles, et la section "Service SMS Parents" ci-dessous)
@@ -256,7 +256,7 @@ export default function SettingsPage() {
             </Form>
           ) : (
             <ContextualHelp title="Heures réelles désactivées" tone="warning">
-              La valeur de tolérance existe en base mais elle est ignorée tant que les heures réelles ne sont pas activées par EduTrack.
+              La valeur de tolérance existe en base mais elle est ignorée tant que les heures réelles ne sont pas activées par IvoirEdu.
             </ContextualHelp>
           )}
         </section>
@@ -352,15 +352,15 @@ export default function SettingsPage() {
                     </OfflineGuard>
                   )}
                   <p className="text-sm text-muted-foreground">
-                    Commission EduTrack : <strong>{smsFeatureQuery.data.commission_pct}%</strong> (défini par
-                    EduTrack)
+                    Commission IvoirEdu : <strong>{smsFeatureQuery.data.commission_pct}%</strong> (défini par
+                    IvoirEdu)
                   </p>
                 </div>
               </form>
             </Form>
           ) : (
             <ContextualHelp title="Activation requise" tone="warning">
-              Le portail d&apos;abonnement parent et les notifications SMS restent masqués tant que le service SMS Parents n&apos;est pas activé par EduTrack.
+              Le portail d&apos;abonnement parent et les notifications SMS restent masqués tant que le service SMS Parents n&apos;est pas activé par IvoirEdu.
             </ContextualHelp>
           )}
         </section>

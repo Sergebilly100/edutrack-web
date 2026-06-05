@@ -27,7 +27,7 @@ export default function RevenueOverviewCard({ summary, loading = false }: Revenu
         loading={loading}
       />
       <StatCard
-        title="Commission EduTrack"
+        title="Commission IvoirEdu"
         value={formatFcfa(summary.commission_due_fcfa)}
         icon={<Coins className="h-4 w-4" />}
         variant={summary.commission_due_fcfa > 0 ? "warning" : "default"}
