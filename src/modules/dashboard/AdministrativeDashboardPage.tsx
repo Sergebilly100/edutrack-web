@@ -13,7 +13,7 @@ export default function AdministrativeDashboardPage() {
   const quickLinks = getNavItemsByRole(user?.role, permissions, studentLabels.plural).filter((item) => item.href !== "/dashboard")
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in py-4">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Bienvenue {user?.name ?? ""}</h1>
         <p className="text-sm text-muted-foreground">

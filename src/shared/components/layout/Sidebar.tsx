@@ -160,11 +160,6 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
             <span className="truncate text-sm font-bold tracking-tight text-foreground">IvoirEdu</span>
           </div>
         )}
-        {collapsed && (
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-emerald-500 shadow-sm">
-            <GraduationCap className="h-4 w-4 text-white" strokeWidth={2} />
-          </div>
-        )}
         <div className="flex items-center gap-1">
           {!collapsed && (
             <button

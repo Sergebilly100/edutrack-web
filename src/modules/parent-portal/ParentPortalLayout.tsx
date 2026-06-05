@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
-import { Bell, BookOpenCheck, CalendarDays, CalendarX2, Home, LogOut, Moon, Sun, UserCircle2 } from "lucide-react"
+import { Bell, CalendarDays, CalendarX2, GraduationCap, Home, LogOut, Moon, Sun, UserCircle2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -51,12 +51,12 @@ export default function ParentPortalLayout() {
     <div className="min-h-screen bg-background text-base">
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur-sm">
         <div className="mx-auto flex h-20 w-full max-w-3xl items-center justify-between px-4 lg:max-w-5xl">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
-              <BookOpenCheck className="h-7 w-7" />
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-emerald-500 shadow-sm">
+              <GraduationCap className="h-4 w-4 text-white" strokeWidth={2} />
             </div>
             <div>
-              <p className="text-lg font-semibold leading-tight">IvoirEdu</p>
+              <p className="text-sm font-bold leading-tight tracking-tight">IvoirEdu</p>
               <p className="text-xs text-muted-foreground leading-tight">{schoolInfoQuery.data?.name ?? "Votre école"}</p>
             </div>
           </div>
@@ -82,9 +82,7 @@ export default function ParentPortalLayout() {
               <Sun className="h-4 w-4 rotate-0 scale-100 transition-transform dark:-rotate-90 dark:scale-0" />
               <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
             </Button>
-            <div className="hidden h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary sm:flex">
-              {user.phone?.slice(-2) ?? "PA"}
-            </div>
+            
             <Button
               type="button"
               variant="ghost"
@@ -106,7 +104,7 @@ export default function ParentPortalLayout() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl px-4 py-4 pb-28 lg:max-w-5xl lg:pb-8">
+      <main className="mx-auto w-full max-w-3xl px-4 pb-28 lg:max-w-5xl lg:pb-8">
         <Outlet />
       </main>
 
