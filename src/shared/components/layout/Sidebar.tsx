@@ -154,10 +154,10 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
       <div className={cn("flex items-center min-h-[52px] mb-1", collapsed ? "justify-center flex-col gap-1" : "justify-between px-1")}>
         {!collapsed && (
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-emerald-500 shadow-sm">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#1a56db] shadow-sm">
               <GraduationCap className="h-4 w-4 text-white" strokeWidth={2} />
             </div>
-            <span className="truncate text-sm font-bold tracking-tight text-foreground">IvoirEdu</span>
+            <span className="truncate text-lg font-bold tracking-tight text-foreground">IvoirEdu</span>
           </div>
         )}
         <div className="flex items-center gap-1">

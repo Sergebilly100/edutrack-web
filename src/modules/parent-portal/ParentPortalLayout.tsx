@@ -52,7 +52,7 @@ export default function ParentPortalLayout() {
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur-sm">
         <div className="mx-auto flex h-20 w-full max-w-3xl items-center justify-between px-4 lg:max-w-5xl">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-emerald-500 shadow-sm">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#1a56db] shadow-sm">
               <GraduationCap className="h-4 w-4 text-white" strokeWidth={2} />
             </div>
             <div>

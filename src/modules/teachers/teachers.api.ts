@@ -446,7 +446,7 @@ export async function getTeacherMonthlyAttendance(
   teacherId: string,
   month: string
 ): Promise<TeacherMonthlyAttendanceDetails> {
-  const response = await api.get(`/billing/salary/${teacherId}`, {
+  const response = await api.get(`/attendance/teachers/${teacherId}/monthly`, {
     params: { month },
   })
 

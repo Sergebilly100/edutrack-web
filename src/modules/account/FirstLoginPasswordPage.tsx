@@ -89,7 +89,7 @@ export default function FirstLoginPasswordPage() {
     <div className="mx-auto mt-6 w-full max-w-md px-4">
       {/* En-tête */}
       <div className="mb-6 flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-emerald-500 shadow-sm">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#1a56db] shadow-sm">
           <KeyRound className="h-5 w-5 text-white" strokeWidth={1.75} />
         </div>
         <div>

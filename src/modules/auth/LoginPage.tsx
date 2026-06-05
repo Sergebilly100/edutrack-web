@@ -142,7 +142,7 @@ export default function LoginPage() {
         <div className="w-full max-w-[420px]">
           {/* Logo + marque */}
           <div className="mb-8 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-emerald-500 shadow-[0_0_40px_rgba(37,99,235,0.3)] dark:shadow-[0_0_40px_rgba(26,86,219,0.4)]">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#1a56db] shadow-[0_0_40px_rgba(26,86,219,0.3)] dark:shadow-[0_0_40px_rgba(26,86,219,0.4)]">
               <GraduationCap className="h-8 w-8 text-white" strokeWidth={1.5} />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">

@@ -194,7 +194,7 @@ function WeeklyScheduleCard({ teacherId }: { teacherId: string }) {
   )
 }
 
-function AttendancePanel({ teacherId }: { teacherId: string }) {
+function AttendancePanel({ teacherId, canViewAttendance }: { teacherId: string; canViewAttendance: boolean }) {
   const [month, setMonth] = useState(getCurrentMonth())
   const [page, setPage] = useState(1)
   const pageSize = 12
@@ -204,6 +204,7 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
   const monthlyQuery = useQuery({
     queryKey: ["teacher", teacherId, "monthly-attendance", month],
     queryFn: () => getTeacherMonthlyAttendance(teacherId, month),
+    enabled: canViewAttendance,
   })
 
   useEffect(() => {
@@ -220,10 +221,20 @@ function AttendancePanel({ teacherId }: { teacherId: string }) {
     )
   }
 
+  if (!canViewAttendance) {
+    return (
+      <Alert>
+        <AlertDescription>
+          Vous n'avez pas la permission de consulter les présences de ce professeur.
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
   if (monthlyQuery.isError || !monthlyQuery.data) {
     const errorMessage = monthlyQuery.error && isAxiosError(monthlyQuery.error) && monthlyQuery.error.response?.status === 404
       ? "Aucune donnée de présence disponible pour ce mois."
-      : "Impossible de charger les présences du mois. Vérifiez votre connexion."
+      : "Impossible de charger les présences du mois."
     return <p className="text-sm text-red-600">{errorMessage}</p>
   }
 
@@ -722,6 +733,7 @@ export default function TeacherDetailPage() {
   const [detailTab, setDetailTab] = useState<"presences" | "documents" | "infos">("presences")
   const canManageTeacherDocuments = hasPermission("teachers.documents")
   const canViewSalary = hasPermission("salary.view")
+  const canViewAttendance = hasPermission("attendance.view")
 
   const teacherQuery = useQuery({
     queryKey: ["teacher", teacherId],
@@ -733,7 +745,7 @@ export default function TeacherDetailPage() {
   const currentMonthAttendanceQuery = useQuery({
     queryKey: ["teacher", teacherId, "monthly-attendance", currentMonth],
     queryFn: () => getTeacherMonthlyAttendance(teacherId, currentMonth),
-    enabled: teacherId.trim().length > 0,
+    enabled: teacherId.trim().length > 0 && canViewAttendance,
   })
 
   const closeBlockDialog = () => {
@@ -906,7 +918,7 @@ export default function TeacherDetailPage() {
           </TabsList>
 
           <TabsContent value="presences">
-            <AttendancePanel teacherId={teacher.id} />
+            <AttendancePanel teacherId={teacher.id} canViewAttendance={canViewAttendance} />
           </TabsContent>
           {canManageTeacherDocuments ? (
             <TabsContent value="documents">
