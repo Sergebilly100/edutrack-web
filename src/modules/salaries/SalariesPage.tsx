@@ -76,6 +76,7 @@ export default function SalariesPage() {
   const { isOnline } = useNetworkStatus()
   const canComputeSalaries = hasPermission("salary.compute")
   const canMarkSalaryAsPaid = hasPermission("salary.mark_paid")
+  const canExportSalaries = hasPermission("salary.export")
 
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth)
   const [computeDialogOpen, setComputeDialogOpen] = useState(false)
@@ -682,21 +683,23 @@ export default function SalariesPage() {
                 </div>
               ) : null}
 
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setBulkExportTarget("all")
-                  setBulkPeriodFrom(selectedMonth)
-                  setBulkPeriodTo(selectedMonth)
-                  setBulkExportDialogOpen(true)
-                }}
-                disabled={exportBulkMutation.isPending || !isOnline}
-                title={!isOnline ? OFFLINE_ACTION_TITLE : undefined}
-                data-testid="salaries-export-school-button"
-              >
-                Export bilan PDF
-              </Button>
+              {canExportSalaries ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setBulkExportTarget("all")
+                    setBulkPeriodFrom(selectedMonth)
+                    setBulkPeriodTo(selectedMonth)
+                    setBulkExportDialogOpen(true)
+                  }}
+                  disabled={exportBulkMutation.isPending || !isOnline}
+                  title={!isOnline ? OFFLINE_ACTION_TITLE : undefined}
+                  data-testid="salaries-export-school-button"
+                >
+                  Export bilan PDF
+                </Button>
+              ) : null}
             </div>
           </div>
 
@@ -1275,7 +1278,7 @@ export default function SalariesPage() {
           ) : (
             <p className="text-sm text-muted-foreground">Aucune donnée disponible.</p>
           )}
-          {paymentHistoryMutation.data ? (
+          {paymentHistoryMutation.data && canExportSalaries ? (
             <DialogFooter>
               <Button
                 type="button"
@@ -1543,6 +1546,7 @@ export default function SalariesPage() {
         </DialogContent>
       </Dialog>
 
+      {canExportSalaries ? (
       <Dialog open={bulkExportDialogOpen} onOpenChange={setBulkExportDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -1635,6 +1639,7 @@ export default function SalariesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      ) : null}
     </>
   )
 }

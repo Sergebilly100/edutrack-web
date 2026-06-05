@@ -74,8 +74,9 @@ export default function StudentsPage() {
   const user = useAuthStore((state) => state.user)
   const { hasPermission } = usePermissions()
   const studentLabels = useStudentLabels()
+  const canViewStudents = hasPermission("students.view")
   const canViewAttendance = hasPermission("attendance.view")
-  const activeTab = canViewAttendance && searchParams.get("tab") === "absences" ? "absences" : "liste"
+  const activeTab = canViewAttendance && (!canViewStudents || searchParams.get("tab") === "absences") ? "absences" : "liste"
   const classFilter = searchParams.get("list_class") ?? "all"
   const rawStatus = searchParams.get("list_status")
   const statusFilter: "all" | "active" | "inactive" =
@@ -131,6 +132,7 @@ export default function StudentsPage() {
       }
       return Array.from(unique.entries()).map(([id, name]) => ({ id, name }))
     },
+    enabled: canViewStudents || canCreateStudent,
   })
 
   const studentsQuery = useQuery({
@@ -143,6 +145,7 @@ export default function StudentsPage() {
         isActive: statusFilter === "all" ? undefined : statusFilter === "active",
         search: searchTerm.trim() || undefined,
       }),
+    enabled: canViewStudents,
   })
 
   const createStudentMutation = useMutation({
@@ -326,13 +329,16 @@ export default function StudentsPage() {
         }}
         className="space-y-4"
       >
-        <TabsList className={cn("grid h-auto w-full rounded-xl border border-border bg-muted/50 p-1 sm:w-full", canViewAttendance ? "grid-cols-2 md:w-[420px]" : "grid-cols-1 md:w-[220px]")}>
-          <TabsTrigger value="liste" className="min-h-12 rounded-lg text-sm font-medium">Liste</TabsTrigger>
+        <TabsList className={cn("grid h-auto w-full rounded-xl border border-border bg-muted/50 p-1 sm:w-full", canViewStudents && canViewAttendance ? "grid-cols-2 md:w-[420px]" : "grid-cols-1 md:w-[220px]")}>
+          {canViewStudents ? (
+            <TabsTrigger value="liste" className="min-h-12 rounded-lg text-sm font-medium">Liste</TabsTrigger>
+          ) : null}
           {canViewAttendance ? (
             <TabsTrigger value="absences" className="min-h-12 rounded-lg text-sm font-medium">Absences</TabsTrigger>
           ) : null}
         </TabsList>
 
+        {canViewStudents ? (
         <TabsContent value="liste" className="space-y-4">
           <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
             <div className="flex flex-col gap-4 bg-[var(--surface-chrome)] px-4 py-4 md:flex-row md:items-center md:justify-between">
@@ -485,6 +491,7 @@ export default function StudentsPage() {
             />
           ) : null}
         </TabsContent>
+        ) : null}
 
         {canViewAttendance ? (
           <TabsContent value="absences">

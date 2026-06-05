@@ -9,6 +9,7 @@ import {
   type StudentAbsenceStat,
   type StudentAbsenceStatsQuery,
 } from "@/modules/students/students.api"
+import { usePermissions } from "@/shared/hooks/usePermissions"
 
 const toISODate = (date: Date) => date.toISOString().slice(0, 10)
 
@@ -57,6 +58,7 @@ const toFormFromSearch = (searchParams: URLSearchParams): StudentAbsenceFormValu
 
 export const useStudentAbsences = () => {
   const [searchParams, setSearchParams] = useSearchParams()
+  const { hasPermission } = usePermissions()
   const [formValues, setFormValues] = useState<StudentAbsenceFormValues>(() =>
     toFormFromSearch(searchParams)
   )
@@ -78,6 +80,7 @@ export const useStudentAbsences = () => {
   const teachersQuery = useQuery({
     queryKey: ["students", "absence", "teachers"],
     queryFn: fetchTeacherOptions,
+    enabled: hasPermission("teachers.view"),
     staleTime: 1000 * 60 * 5,
   })
 

@@ -73,6 +73,7 @@ export default function StudentDetailPage() {
   const studentLabels = useStudentLabels()
   const { hasPermission } = usePermissions()
   const canManageStudentDocuments = hasPermission("students.documents")
+  const canEditStudent = hasPermission("students.edit")
 
   const [parentName, setParentName] = useState("")
   const [parentPhone, setParentPhone] = useState("")
@@ -179,7 +180,7 @@ export default function StudentDetailPage() {
   }, [studentQuery.data])
 
   useEffect(() => {
-    if (!studentId || !hydratedRef.current) {
+    if (!canEditStudent || !studentId || !hydratedRef.current) {
       return
     }
 
@@ -192,7 +193,7 @@ export default function StudentDetailPage() {
 
     setNoteStatus("saving")
     void saveNoteMutation.mutateAsync(debouncedNote)
-  }, [debouncedNote, noteStatus, saveNoteMutation, studentId])
+  }, [canEditStudent, debouncedNote, noteStatus, saveNoteMutation, studentId])
 
   const estimatedPresentDays = useMemo(() => {
     const schoolDaysEstimate = 22
@@ -531,7 +532,13 @@ export default function StudentDetailPage() {
               <div className="grid gap-2 md:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="student-parent-name">Nom parent 1</Label>
-                  <Input id="student-parent-name" value={parentName} onChange={(event) => setParentName(event.target.value)} placeholder="Nom parent 1" />
+                  <Input
+                    id="student-parent-name"
+                    value={parentName}
+                    onChange={(event) => setParentName(event.target.value)}
+                    placeholder="Nom parent 1"
+                    disabled={!canEditStudent}
+                  />
                 </div>
                 <div className="flex gap-2">
                   <div className="min-w-0 flex-1 space-y-1.5">
@@ -543,6 +550,7 @@ export default function StudentDetailPage() {
                       inputMode="tel"
                       maxLength={13}
                       placeholder="2250701234567"
+                      disabled={!canEditStudent}
                     />
                   </div>
                   <Button type="button" variant="outline" asChild disabled={!parentPhone.trim()}>
@@ -562,6 +570,7 @@ export default function StudentDetailPage() {
                   onChange={(event) => setParentEmail(event.target.value)}
                   inputMode="email"
                   placeholder="parent@exemple.com"
+                  disabled={!canEditStudent}
                 />
                 {parentEmail.trim() && !isValidOptionalEmail(parentEmail) ? (
                   <p className="text-xs text-destructive">Format email invalide</p>
@@ -571,7 +580,13 @@ export default function StudentDetailPage() {
               <div className="grid gap-2 md:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="student-parent-name-2">Nom parent 2</Label>
-                  <Input id="student-parent-name-2" value={parentName2} onChange={(event) => setParentName2(event.target.value)} placeholder="Nom parent 2" />
+                  <Input
+                    id="student-parent-name-2"
+                    value={parentName2}
+                    onChange={(event) => setParentName2(event.target.value)}
+                    placeholder="Nom parent 2"
+                    disabled={!canEditStudent}
+                  />
                 </div>
                 <div className="flex gap-2">
                   <div className="min-w-0 flex-1 space-y-1.5">
@@ -583,6 +598,7 @@ export default function StudentDetailPage() {
                       inputMode="tel"
                       maxLength={13}
                       placeholder="2250701234567"
+                      disabled={!canEditStudent}
                     />
                   </div>
                   <Button type="button" variant="outline" asChild disabled={!parentPhone2.trim()}>
@@ -598,9 +614,11 @@ export default function StudentDetailPage() {
                 </Alert>
               ) : null}
 
-              <Button type="button" onClick={() => saveContactsMutation.mutate()} disabled={saveContactsMutation.isPending || !areContactsValid}>
-                {saveContactsMutation.isPending ? "Enregistrement..." : "Modifier les contacts"}
-              </Button>
+              {canEditStudent ? (
+                <Button type="button" onClick={() => saveContactsMutation.mutate()} disabled={saveContactsMutation.isPending || !areContactsValid}>
+                  {saveContactsMutation.isPending ? "Enregistrement..." : "Modifier les contacts"}
+                </Button>
+              ) : null}
             </CardContent>
           </Card>
 
@@ -614,6 +632,7 @@ export default function StudentDetailPage() {
                 onChange={(event) => setNote(event.target.value)}
                 rows={6}
                 placeholder={`Ajouter une note sur cet ${studentLabels.singularLower}...`}
+                disabled={!canEditStudent}
                 className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
               <p className="text-xs text-muted-foreground">

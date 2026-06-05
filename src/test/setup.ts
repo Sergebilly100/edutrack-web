@@ -4,6 +4,18 @@ import { afterAll, afterEach, beforeAll, vi } from "vitest"
 
 import { server } from "@/test/msw/server"
 
+const idbKeyvalStore = vi.hoisted(() => new Map<string, unknown>())
+
+vi.mock("idb-keyval", () => ({
+  get: vi.fn(async (key: string) => idbKeyvalStore.get(key)),
+  set: vi.fn(async (key: string, value: unknown) => {
+    idbKeyvalStore.set(key, value)
+  }),
+  del: vi.fn(async (key: string) => {
+    idbKeyvalStore.delete(key)
+  }),
+}))
+
 vi.mock("@/shared/hooks/useStudentLabel", () => {
   const defaultLabels = {
     singular: "Élève",

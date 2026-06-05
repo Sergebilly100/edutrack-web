@@ -92,10 +92,10 @@ describe("StudentAbsencePanel", () => {
     expect(screen.getAllByText("Non notifié").length).toBeGreaterThan(0)
   })
 
-  it("affiche le bouton Export CSV quand il y a des résultats", () => {
+  it("affiche le bouton Export PDF quand il y a des résultats", () => {
     render(<StudentAbsencePanel />, { wrapper })
 
-    expect(screen.getByRole("button", { name: "Export CSV" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Export PDF" })).toBeInTheDocument()
   })
 
   it("affiche le taux d'absence avec formatage", () => {

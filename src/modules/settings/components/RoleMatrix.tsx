@@ -33,7 +33,14 @@ const buildBasePermissionColumns = (labels: StudentLabels) => [
   {
     key: "students",
     label: labels.plural,
-    permissions: ["students.view", "students.create", "students.edit", "students.documents", "students.excuse"],
+    permissions: [
+      "students.view",
+      "students.create",
+      "students.edit",
+      "students.documents",
+      "attendance.view",
+      "students.excuse",
+    ],
   },
   {
     key: "schedule",
@@ -212,6 +219,10 @@ const resolvePermissionKey = (
   column: PermissionColumn,
   actionKey: string
 ) => {
+  if (column.key === "students" && actionKey === "attendance.view") {
+    return column.permissions.includes("attendance.view") ? "attendance.view" : null
+  }
+
   if (actionKey.startsWith("subscriptions_")) {
     if (column.key !== "subscriptions") {
       return null
