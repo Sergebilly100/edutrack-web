@@ -1,51 +1,11 @@
 import { expect, test } from "@playwright/test"
 
-import { loginAsDirectorUI } from "./helpers"
+import { loginAsDirectorUI, mockDirectorAuth } from "./helpers"
 
 const ROOM_ID = "room-e2e-mgmt-1"
 const ROOM_TOKEN = "a".repeat(64)
 
 const mockRoomsApis = async (page: import("@playwright/test").Page) => {
-  await page.route("**/api/v1/auth/refresh*", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ accessToken: "director-e2e-token" }),
-    })
-  })
-
-  await page.route("**/api/v1/auth/me*", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        user: {
-          id: "director-e2e-user",
-          role: "director",
-          name: "Directeur E2E",
-          phone: null,
-          email: "directeur@sainte-marie.ci",
-          profilePhotoUrl: null,
-        },
-      }),
-    })
-  })
-
-  await page.route("**/api/v1/permissions/me*", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        permissions: [
-          "rooms.view",
-          "rooms.create",
-          "rooms.edit",
-          "rooms.delete",
-        ],
-      }),
-    })
-  })
-
   await page.route("**/api/v1/rooms", async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({
@@ -93,8 +53,12 @@ const mockRoomsApis = async (page: import("@playwright/test").Page) => {
 }
 
 test.describe("Gestion des salles — directeur", () => {
-  test("la liste des salles s'affiche avec le QR disponible", async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
+    await mockDirectorAuth(page)
     await mockRoomsApis(page)
+  })
+
+  test("la liste des salles s'affiche avec le QR disponible", async ({ page }) => {
     await loginAsDirectorUI(page)
 
     await page.goto("/rooms")
@@ -103,7 +67,6 @@ test.describe("Gestion des salles — directeur", () => {
   })
 
   test("cliquer sur QR ouvre le dialog avec le QRCodeGenerator", async ({ page }) => {
-    await mockRoomsApis(page)
     await loginAsDirectorUI(page)
 
     await page.goto("/rooms")
@@ -118,7 +81,6 @@ test.describe("Gestion des salles — directeur", () => {
   })
 
   test("créer une salle → succès toast 'Salle ajoutée'", async ({ page }) => {
-    await mockRoomsApis(page)
     await loginAsDirectorUI(page)
 
     await page.goto("/rooms")

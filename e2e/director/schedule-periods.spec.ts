@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-import { loginAsDirectorUI } from "./helpers"
+import { loginAsDirectorUI, mockDirectorAuth } from "./helpers"
 
 const PERIOD_ID = "period-e2e-1"
 
@@ -17,41 +17,6 @@ const mockScheduleApis = async (
         is_active: true,
       }
     : null
-
-  await page.route("**/api/v1/auth/refresh*", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ accessToken: "director-e2e-token" }),
-    })
-  })
-
-  await page.route("**/api/v1/auth/me*", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        user: {
-          id: "director-e2e-user",
-          role: "director",
-          name: "Directeur E2E",
-          phone: null,
-          email: "directeur@sainte-marie.ci",
-          profilePhotoUrl: null,
-        },
-      }),
-    })
-  })
-
-  await page.route("**/api/v1/permissions/me*", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        permissions: ["schedule.view", "schedule.edit"],
-      }),
-    })
-  })
 
   await page.route("**/api/v1/schedule/weekly*", async (route) => {
     await route.fulfill({
@@ -126,6 +91,10 @@ const mockScheduleApis = async (
 }
 
 test.describe("Périodes EDT — directeur", () => {
+  test.beforeEach(async ({ page }) => {
+    await mockDirectorAuth(page)
+  })
+
   test("affiche l'alerte quand aucune période n'est active", async ({ page }) => {
     await mockScheduleApis(page, false)
     // Forcer le mode liste (défaut mobile) pour que l'alerte soit visible

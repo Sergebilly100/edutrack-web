@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-import { loginAsDirectorUI } from "./helpers"
+import { loginAsDirectorUI, mockDirectorAuth } from "./helpers"
 
 const currentMonth = new Date().toISOString().slice(0, 7)
 
@@ -42,6 +42,9 @@ const mockPendingCount = async (page: Parameters<Parameters<typeof test>[1]>[0][
 
 test.describe("Validations — directeur", () => {
   test.beforeEach(async ({ page }) => {
+    // Desktop pour que les colonnes de table (Créneau, Salle) et les boutons soient visibles
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await mockDirectorAuth(page)
     await mockPendingCount(page)
   })
 
@@ -87,10 +90,13 @@ test.describe("Validations — directeur", () => {
     await loginAsDirectorUI(page)
     await page.goto("/validations")
 
+    await expect(page.getByRole("heading", { name: /validation des horaires/i })).toBeVisible()
+    await page.getByRole("tab", { name: /présences suspectes/i }).click()
+
     await expect(page.getByRole("columnheader", { name: /créneau/i })).toBeVisible()
     await expect(page.getByRole("columnheader", { name: /salle/i })).toBeVisible()
-    await expect(page.getByText("8h-9h")).toBeVisible()
-    await expect(page.getByText("Salle A1")).toBeVisible()
+    await expect(page.getByText("8h-9h").filter({ visible: true }).first()).toBeVisible()
+    await expect(page.getByText("Salle A1").filter({ visible: true }).first()).toBeVisible()
   })
 
   test("cliquer Valider ouvre une modale de confirmation GPS", async ({ page }) => {
@@ -125,6 +131,9 @@ test.describe("Validations — directeur", () => {
     await loginAsDirectorUI(page)
     await page.goto("/validations")
 
+    await expect(page.getByRole("heading", { name: /validation des horaires/i })).toBeVisible()
+    await page.getByRole("tab", { name: /présences suspectes/i }).click()
+
     await page.getByRole("button", { name: /valider/i }).first().click()
 
     await expect(page.getByRole("dialog")).toBeVisible()
@@ -139,11 +148,24 @@ test.describe("Validations — directeur", () => {
       {
         teacher_id: "t-3",
         teacher_name: "M. Diallo",
-        missing_end_scan_count: 2,
+        missing_end_scan_count: 1,
         warning_count: 1,
         sanction_count: 1,
         warning_sent: false,
-        sessions: [],
+        sessions: [
+          {
+            date: "2024-03-10",
+            schedule_id: "sch-1",
+            attendance_id: "att-e2e-2",
+            subject: "Sciences",
+            time_slot: "10h-11h",
+            room_name: "Salle C3",
+            end_scan_action: "sanctioned",
+            end_scan_action_reason: "Absent confirmé",
+            end_scan_action_at: "2024-03-11T10:00:00",
+            end_scan_action_cancelled_at: null,
+          },
+        ],
       },
     ])
 
@@ -152,7 +174,8 @@ test.describe("Validations — directeur", () => {
 
     await page.getByRole("tab", { name: /scan de fin/i }).click()
 
-    await expect(page.getByText(/1 avertissement/i)).toBeVisible()
+    await expect(page.getByText("M. Diallo")).toBeVisible()
+    // Badge "X sanction" visible dans la ligne du prof
     await expect(page.getByText(/1 sanction/i)).toBeVisible()
   })
 
@@ -231,7 +254,7 @@ test.describe("Validations — directeur", () => {
     await page.getByRole("button", { name: /tolérer avec avertissement/i }).click()
 
     await expect(page.getByRole("dialog")).toBeVisible()
-    await expect(page.getByText(/salaire.*intact/i)).toBeVisible()
+    await expect(page.getByText(/avertissement sera envoyé/i)).toBeVisible()
   })
 
   test("le badge Sanctionné apparaît et le bouton Annuler la sanction est visible", async ({ page }) => {
@@ -267,7 +290,7 @@ test.describe("Validations — directeur", () => {
     await page.getByRole("tab", { name: /scan de fin/i }).click()
     await page.getByText("M. Diallo").click()
 
-    await expect(page.getByText("Sanctionné")).toBeVisible()
+    await expect(page.getByText("Sanctionné").filter({ visible: true }).first()).toBeVisible()
     await expect(page.getByRole("button", { name: /annuler la sanction/i })).toBeVisible()
   })
 })

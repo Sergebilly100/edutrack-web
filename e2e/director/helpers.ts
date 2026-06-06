@@ -1,5 +1,68 @@
 import { expect, type Page, type PlaywrightTestArgs } from "@playwright/test"
 
+export const mockDirectorAuth = async (page: Page) => {
+  await page.route("**/api/v1/auth/refresh*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ accessToken: "director-e2e-token" }),
+    })
+  })
+  await page.route("**/api/v1/auth/me*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        user: {
+          id: "director-e2e-user",
+          role: "director",
+          name: "Directeur E2E",
+          phone: null,
+          email: "directeur@sainte-marie.ci",
+          profilePhotoUrl: null,
+          mustChangePassword: false,
+        },
+        tenant: { id: "tenant-e2e", status: "active", trialEndsAt: null },
+      }),
+    })
+  })
+  await page.route("**/api/v1/permissions/me*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        permissions: [
+          "teachers.view", "teachers.edit", "teachers.block", "teachers.documents",
+          "students.view",
+          "schedule.view", "schedule.edit",
+          "attendance.view",
+          "salary.view", "salary.mark_paid", "salary.export",
+          "validations.view",
+          "rooms.view", "rooms.create", "rooms.edit", "rooms.delete",
+          "import.students", "import.teachers", "import.schedule",
+          "settings.school", "settings.positions", "settings.sms_templates",
+          "subscriptions.view", "subscriptions.revenue",
+        ],
+      }),
+    })
+  })
+  await page.route("**/api/v1/school/info*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ onboarding_completed: true }),
+    })
+  })
+  // Badge validations (sidebar)
+  await page.route("**/api/v1/validations/pending/count*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ total: 0, gps_suspicious: 0, short_hours: 0, missing_end_scan: 0 }),
+    })
+  })
+}
+
 type LoginPayload = {
   accessToken: string
 }

@@ -778,16 +778,16 @@ export default function DashboardPage() {
                     </>
                   )}
                 </Button>
-                {/* Annonce l'état de l'actualisation aux lecteurs d'écran sans
-                    voler le focus ni perturber l'affichage visuel. */}
-                <span className="sr-only" role="status" aria-live="polite">
-                  {isRefreshing
-                    ? "Mise à jour des données en cours"
-                    : refreshSuccess
-                      ? "Données à jour"
-                      : ""}
-                </span>
               </OfflineGuard>
+              {/* Annonce l'état de l'actualisation aux lecteurs d'écran sans
+                  voler le focus ni perturber l'affichage visuel. */}
+              <span className="sr-only" role="status" aria-live="polite">
+                {isRefreshing
+                  ? "Mise à jour des données en cours"
+                  : refreshSuccess
+                    ? "Données à jour"
+                    : ""}
+              </span>
             </div>
           </div>
         </header>

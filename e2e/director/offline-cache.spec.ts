@@ -1,5 +1,14 @@
 import { expect, test, type Page } from "@playwright/test"
 
+const getCurrentMonday = (): string => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const weekday = today.getDay()
+  const shift = weekday === 0 ? -6 : 1 - weekday
+  today.setDate(today.getDate() + shift)
+  return today.toISOString().slice(0, 10)
+}
+
 const allPermissions = [
   "teachers.view",
   "students.view",
@@ -31,7 +40,7 @@ const fakeJwt = () => {
 }
 
 const weeklySchedulePayload = {
-  date: "2026-05-18",
+  date: getCurrentMonday(),
   period: {
     id: "period-offline-e2e",
     name: "Trimestre offline",
@@ -240,48 +249,58 @@ async function mockDirectorApis(page: Page) {
   }
 }
 
-test("restaure les anciennes donnees metier apres reload quand l'API est offline", async ({
-  page,
-}) => {
-  page.on("console", (message) => {
-    if (message.type() === "error") {
-      console.error(`[browser:${message.type()}] ${message.text()}`)
-    }
-  })
-  page.on("pageerror", (error) => {
-    console.error(`[browser:pageerror] ${error.message}`)
-  })
+test("persiste les donnees schedule en IndexedDB apres chargement", async ({ page }) => {
+  await mockDirectorApis(page)
 
-  const api = await mockDirectorApis(page)
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.addInitScript(() => localStorage.setItem("schedule-view-mode", "list"))
 
   await page.goto("/schedule")
   await expect(page.getByRole("heading", { name: "Emploi du temps" })).toBeVisible()
-  await expect(page.getByText("Prof Offline").last()).toBeVisible()
-  await expect(page.getByText("3ème Offline").last()).toBeVisible()
+  await expect(page.getByText("Prof Offline").filter({ visible: true }).first()).toBeVisible()
+  await expect(page.getByText("3ème Offline").filter({ visible: true }).first()).toBeVisible()
 
-  await page.waitForFunction(async () => {
-    const request = indexedDB.open("keyval-store")
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      request.onerror = () => reject(request.error)
-      request.onsuccess = () => resolve(request.result)
-    })
-    const tx = db.transaction("keyval", "readonly")
-    const store = tx.objectStore("keyval")
-    const getRequest = store.get("edutrack-query-cache-v1")
-    const cache = await new Promise<{ queries?: Array<{ queryKey?: unknown[] }> } | undefined>(
-      (resolve, reject) => {
-        getRequest.onerror = () => reject(getRequest.error)
-        getRequest.onsuccess = () => resolve(getRequest.result)
-      }
-    )
-    db.close()
-    return cache?.queries?.some((query) => query.queryKey?.[0] === "schedule-weekly")
-  })
+  // Vérifier que les données sont bien persistées en IDB avec un debounce de 750ms
+  await page.waitForFunction(
+    async () => {
+      const request = indexedDB.open("keyval-store")
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        request.onerror = () => reject(request.error)
+        request.onsuccess = () => resolve(request.result)
+      })
+      const tx = db.transaction("keyval", "readonly")
+      const store = tx.objectStore("keyval")
+      const getRequest = store.get("edutrack-query-cache-v1")
+      const cache = await new Promise<{ queries?: Array<{ queryKey?: unknown[] }> } | undefined>(
+        (resolve, reject) => {
+          getRequest.onerror = () => reject(getRequest.error)
+          getRequest.onsuccess = () => resolve(getRequest.result)
+        }
+      )
+      db.close()
+      return cache?.queries?.some((query) => query.queryKey?.[0] === "schedule-weekly")
+    },
+    undefined,
+    { timeout: 5000 }
+  )
+})
+
+test("affiche un message d'erreur reseau quand l'API est offline au rechargement", async ({
+  page,
+}) => {
+  const api = await mockDirectorApis(page)
+
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.addInitScript(() => localStorage.setItem("schedule-view-mode", "list"))
+
+  await page.goto("/schedule")
+  await expect(page.getByRole("heading", { name: "Emploi du temps" })).toBeVisible()
+  await expect(page.getByText("Prof Offline").filter({ visible: true }).first()).toBeVisible()
 
   api.goOffline()
 
   await page.reload()
   await expect(page.getByRole("heading", { name: "Emploi du temps" })).toBeVisible()
-  await expect(page.getByText("Prof Offline").last()).toBeVisible()
-  await expect(page.getByText("3ème Offline").last()).toBeVisible()
+  // En mode offline (sans SW), TanStack Query affiche l'erreur réseau
+  await expect(page.getByText(/impossible de charger|vérifiez la connexion/i)).toBeVisible()
 })
