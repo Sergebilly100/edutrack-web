@@ -127,6 +127,7 @@ export function OfflineQueueBadge() {
             : "border-red-300 bg-red-50 text-red-900 hover:bg-red-100"
         )}
         aria-label={`${queue.length} action${queue.length > 1 ? "s" : ""} en attente de synchronisation`}
+        data-testid="offline-queue-badge"
       >
         <CloudOff className="h-3.5 w-3.5" aria-hidden />
         <span className="font-semibold">{queue.length}</span>
