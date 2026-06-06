@@ -34,6 +34,7 @@ export default function FirstLoginPasswordPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const setUser = useAuthStore((state) => state.setUser)
+  const setAccessToken = useAuthStore((state) => state.setAccessToken)
   const { refreshPermissions } = usePermissions()
 
   const [currentPassword, setCurrentPassword] = useState("")
@@ -46,7 +47,11 @@ export default function FirstLoginPasswordPage() {
 
   const mutation = useMutation({
     mutationFn: () => changePassword({ currentPassword, newPassword }),
-    onSuccess: async () => {
+    onSuccess: async ({ accessToken }) => {
+      // Remplacer le token AVANT tout autre appel : l'ancien vient d'être révoqué
+      // côté serveur, refreshPermissions() et les queries de la home échoueraient
+      // sinon (bug "Impossible de charger..." juste après le 1er changement de mdp).
+      if (accessToken) setAccessToken(accessToken)
       if (user) setUser({ ...user, mustChangePassword: false })
       await refreshPermissions()
       navigate(resolveHomeForRole(user?.role), { replace: true })

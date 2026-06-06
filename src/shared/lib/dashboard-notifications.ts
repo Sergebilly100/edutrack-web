@@ -67,6 +67,24 @@ export const formatDashboardNotificationTime = (value: string | null): string =>
   })
 }
 
+/**
+ * Capacités (permissions) du destinataire. Chaque notification n'est ajoutée
+ * que si le droit correspondant à son domaine ET à sa page cible est accordé.
+ * Le directeur a toutes ces capacités à true. Pour un staff, elles reflètent
+ * ses permissions réelles afin qu'il ne voie jamais une notification renvoyant
+ * vers une page qui lui est interdite.
+ */
+export type DashboardNotificationCapabilities = {
+  canViewSchedule: boolean
+  canViewTeachers: boolean
+  canViewValidations: boolean
+  canViewSalary: boolean
+  /** SMS log : réservé au directeur (information sensible). */
+  canViewSmsLog: boolean
+  /** Page élèves : cible de retry des SMS parents échoués. */
+  canViewStudents: boolean
+}
+
 export const buildDirectorDashboardNotifications = ({
   nextWeekHasCoverage,
   weeklyAbsenceCount,
@@ -74,6 +92,7 @@ export const buildDirectorDashboardNotifications = ({
   salaryUnpaidTotalFcfa,
   pendingValidationCount,
   smsLog,
+  capabilities,
 }: {
   nextWeekHasCoverage: boolean | undefined
   weeklyAbsenceCount: number
@@ -81,10 +100,11 @@ export const buildDirectorDashboardNotifications = ({
   salaryUnpaidTotalFcfa: number
   pendingValidationCount: number
   smsLog: DashboardSmsItem[]
+  capabilities: DashboardNotificationCapabilities
 }): NotificationPanelItem[] => {
   const items: NotificationPanelItem[] = []
 
-  if (nextWeekHasCoverage === false) {
+  if (capabilities.canViewSchedule && nextWeekHasCoverage === false) {
     items.push({
       id: "coverage-next-week",
       title: "Semaine prochaine à compléter",
@@ -96,7 +116,7 @@ export const buildDirectorDashboardNotifications = ({
     })
   }
 
-  if (weeklyAbsenceCount > 3) {
+  if (capabilities.canViewTeachers && weeklyAbsenceCount > 3) {
     items.push({
       id: "teacher-absences-week",
       title: "Absences professeurs à surveiller",
@@ -108,7 +128,7 @@ export const buildDirectorDashboardNotifications = ({
     })
   }
 
-  if (pendingValidationCount > 0) {
+  if (capabilities.canViewValidations && pendingValidationCount > 0) {
     items.push({
       id: "validations-pending-hours",
       title: "Validations horaires en attente",
@@ -120,7 +140,7 @@ export const buildDirectorDashboardNotifications = ({
     })
   }
 
-  if (salaryUnpaidCount > 0) {
+  if (capabilities.canViewSalary && salaryUnpaidCount > 0) {
     items.push({
       id: "salary-unpaid-alerts",
       title: "Paiements salaires à terminer",
@@ -139,6 +159,8 @@ export const buildDirectorDashboardNotifications = ({
     // Pour les SMS destinés au directeur : on garde failed + queued (information utile).
     // Pour les autres : uniquement failed avec page de retry disponible.
     if (!isDirectorSms) {
+      // La cible de retry est la page élèves : nécessite le droit students.view.
+      if (!capabilities.canViewStudents) continue
       if (!isFailed) continue
       const retry = RETRYABLE_FROM_PAGE[sms.type]
       if (!retry) continue
@@ -155,6 +177,8 @@ export const buildDirectorDashboardNotifications = ({
       continue
     }
 
+    // SMS « directeur » : information sensible réservée au directeur.
+    if (!capabilities.canViewSmsLog) continue
     if (!isFailed) continue
 
     items.push({

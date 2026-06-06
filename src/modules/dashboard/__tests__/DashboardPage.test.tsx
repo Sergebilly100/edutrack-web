@@ -1,24 +1,31 @@
 import { type ReactNode } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
+
+import type { PermissionKey } from "@/shared/store/auth.store"
 
 const { navigateMock } = vi.hoisted(() => ({ navigateMock: vi.fn() }))
 
 const getTodayAttendanceMock = vi.fn()
 const getAttendanceHistoryMock = vi.fn()
 const getDashboardCountsMock = vi.fn()
+const getSMSLogMock = vi.fn()
 const getNextWeekCoverageStateMock = vi.fn()
 const getSalarySummaryMock = vi.fn()
 const getTopRiskTeachersMock = vi.fn()
+const getTeacherComplianceMock = vi.fn()
 const getCurrentMonthKeyMock = vi.fn()
 const getPreviousMonthKeyMock = vi.fn()
 const getTeacherTrendFromSummariesMock = vi.fn()
 const getTotalPendingSalariesMock = vi.fn()
+const getDashboardStatsMock = vi.fn()
 const fetchSchoolInfoMock = vi.fn()
 const getTodayAbsencesMock = vi.fn()
 const getStudentAbsenceStatsMock = vi.fn()
+const getSalaryUnpaidAlertsMock = vi.fn()
+const getPendingValidationCountMock = vi.fn()
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom")
@@ -33,9 +40,12 @@ vi.mock("@/modules/dashboard/dashboard.api", () => {
     getTodayAttendance: () => getTodayAttendanceMock(),
     getAttendanceHistory: (days: number) => getAttendanceHistoryMock(days),
     getDashboardCounts: () => getDashboardCountsMock(),
+    getDashboardStats: () => getDashboardStatsMock(),
+    getSMSLog: (limit: number) => getSMSLogMock(limit),
     getNextWeekCoverageState: () => getNextWeekCoverageStateMock(),
     getSalarySummary: (month: string) => getSalarySummaryMock(month),
     getTopRiskTeachers: (month: string) => getTopRiskTeachersMock(month),
+    getTeacherCompliance: (month: string) => getTeacherComplianceMock(month),
     getCurrentMonthKey: () => getCurrentMonthKeyMock(),
     getPreviousMonthKey: () => getPreviousMonthKeyMock(),
     getTeacherTrendFromSummaries: (current: unknown, previous: unknown) =>
@@ -54,6 +64,18 @@ vi.mock("@/modules/students/students.api", () => {
   return {
     getTodayAbsences: () => getTodayAbsencesMock(),
     getStudentAbsenceStats: () => getStudentAbsenceStatsMock(),
+  }
+})
+
+vi.mock("@/modules/salaries/salaries.api", () => {
+  return {
+    getSalaryUnpaidAlerts: (month: string) => getSalaryUnpaidAlertsMock(month),
+  }
+})
+
+vi.mock("@/modules/validations/validations.api", () => {
+  return {
+    getPendingValidationCount: () => getPendingValidationCountMock(),
   }
 })
 
@@ -77,49 +99,83 @@ function renderWithQueryClient(ui: ReactNode) {
   )
 }
 
+function setAuth(role: "director" | "staff", permissions: PermissionKey[] = []) {
+  useAuthStore.setState({
+    user: {
+      id: "user-1",
+      name: role === "director" ? "Directeur Test" : "Staff Test",
+      role,
+      phone: null,
+      email: "user@example.com",
+      profilePhotoUrl: null,
+      mustChangePassword: false,
+      tenantId: "tenant-1",
+      schemaName: "school_sainte_marie",
+      plan: "standard",
+    },
+    permissions,
+    accessToken: null,
+  })
+}
+
+const SALARY_SECTION = "Résumé salaires du mois"
+const VALIDATIONS_SECTION = "Validations en attente"
+const TEACHER_PRESENCE_SECTION = "Présences professeurs aujourd'hui"
+
 describe("DashboardPage", () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    useAuthStore.setState({
-      user: {
-        id: "user-1",
-        name: "Directeur Test",
-        role: "director",
-        phone: null,
-        email: "director@example.com",
-        profilePhotoUrl: null,
-        mustChangePassword: false,
-        tenantId: "tenant-1",
-        schemaName: "school_sainte_marie",
-        plan: "standard",
-      },
-      accessToken: null,
-    })
+    setAuth("director")
 
     getTodayAttendanceMock.mockResolvedValue({
-      summary: { present: 12, total: 14, late: 1, absent: 1, excused: 0, pending: 0 },
-      teachers: [],
+      date: "2026-05-12",
+      presentCount: 12,
+      courses: [],
     })
     getAttendanceHistoryMock.mockResolvedValue([])
     getDashboardCountsMock.mockResolvedValue({
       students: { total: 320, active: 312 },
       teachers: { total: 14, active: 13 },
     })
-    getNextWeekCoverageStateMock.mockResolvedValue({ state: "not_configured", count: 0 })
-    getSalarySummaryMock.mockResolvedValue({
-      totalDue: 1500000,
-      totalPaid: 500000,
-      pendingCount: 8,
-      paidCount: 6,
+    getDashboardStatsMock.mockResolvedValue({
+      teacherAttendance: {
+        globalRate: 90,
+        partTime: { rate: 88, present: 10, expected: 12 },
+        fullTime: { rate: 92, present: 11, expected: 12 },
+      },
+      studentAttendance: { rate: 95, present: 300, absent: 12, total: 320, notMarked: 8 },
+      salaries: {
+        remainingToPay: 1000000,
+        totalPaid: 500000,
+        economy: { plannedHours: 100, completedHours: 95, savedAmount: 50000 },
+      },
+      subscriptions: {
+        isEnabled: false,
+        collectedAmount: 0,
+        activeSubscribers: 0,
+        collectionRate: 0,
+        expectedAmount: 0,
+      },
     })
+    getSMSLogMock.mockResolvedValue([])
+    getNextWeekCoverageStateMock.mockResolvedValue({ nextWeekHasCoverage: true })
+    getSalarySummaryMock.mockResolvedValue({ items: [] })
     getTopRiskTeachersMock.mockResolvedValue([])
+    getTeacherComplianceMock.mockResolvedValue([])
     getCurrentMonthKeyMock.mockReturnValue("2026-05")
     getPreviousMonthKeyMock.mockReturnValue("2026-04")
     getTeacherTrendFromSummariesMock.mockReturnValue(null)
-    getTotalPendingSalariesMock.mockReturnValue(1000000)
+    getTotalPendingSalariesMock.mockReturnValue({ totalFcfa: 1000000, count: 8 })
     getTodayAbsencesMock.mockResolvedValue([])
     getStudentAbsenceStatsMock.mockResolvedValue([])
+    getSalaryUnpaidAlertsMock.mockResolvedValue({ count: 0, totalRemainingFcfa: 0 })
+    getPendingValidationCountMock.mockResolvedValue({
+      total: 0,
+      gps_suspicious: 0,
+      short_hours: 0,
+      missing_end_scan: 0,
+    })
     fetchSchoolInfoMock.mockResolvedValue({
       id: "school-1",
       name: "École Sainte Marie",
@@ -130,40 +186,44 @@ describe("DashboardPage", () => {
     })
   })
 
-  it("renders C1 dashboard sections with real data", async () => {
+  it("affiche toutes les sections pour un directeur", async () => {
     renderWithQueryClient(<DashboardPage />)
 
-    // Le header vient du store auth (rendu immédiatement) ; les compteurs et
-    // sections proviennent de useQuery (asynchrones). On attend donc la première
-    // donnée async avant d'asserter le reste. Les libellés peuvent apparaître en
-    // double (vues mobile + desktop rendues ensemble sous jsdom), d'où getAllByText.
     expect(await screen.findByText("Bonjour, Directeur Test")).toBeInTheDocument()
-    expect((await screen.findAllByText("Profs actifs")).length).toBeGreaterThan(0)
-
-    const sectionLabels = [
-      "École Sainte Marie",
-      "Élèves actifs",
-      "Présences professeurs aujourd'hui",
-      "Résumé des salaires",
-    ]
-    for (const label of sectionLabels) {
-      expect(screen.getAllByText(label).length).toBeGreaterThan(0)
-    }
+    // Le directeur voit toutes les sections sensibles.
+    expect(await screen.findByText(TEACHER_PRESENCE_SECTION)).toBeInTheDocument()
+    expect(await screen.findByText(VALIDATIONS_SECTION)).toBeInTheDocument()
+    expect(await screen.findByText(SALARY_SECTION)).toBeInTheDocument()
   })
 
-  it("navigue vers /teachers au clic sur la carte « Profs actifs »", async () => {
+  it("masque les sections non autorisées pour un staff (validations seulement)", async () => {
+    setAuth("staff", ["validations.view"])
     renderWithQueryClient(<DashboardPage />)
 
-    // "Profs actifs" peut apparaître en double (mobile + desktop) ; on clique
-    // chaque carte cliquable, l'une au moins doit naviguer vers /teachers.
-    const labels = await screen.findAllByText("Profs actifs")
-    for (const label of labels) {
-      const card = label.closest("button")
-      if (card) {
-        fireEvent.click(card)
-      }
-    }
+    expect(await screen.findByText("Bonjour, Staff Test")).toBeInTheDocument()
+    // Section autorisée présente…
+    expect(await screen.findByText(VALIDATIONS_SECTION)).toBeInTheDocument()
+    // …et les sections sensibles non autorisées sont absentes.
+    expect(screen.queryByText(SALARY_SECTION)).not.toBeInTheDocument()
+    expect(screen.queryByText(TEACHER_PRESENCE_SECTION)).not.toBeInTheDocument()
+  })
 
-    expect(navigateMock).toHaveBeenCalledWith("/teachers")
+  it("affiche le résumé salaires pour un staff avec salary.view", async () => {
+    setAuth("staff", ["salary.view"])
+    renderWithQueryClient(<DashboardPage />)
+
+    expect(await screen.findByText(SALARY_SECTION)).toBeInTheDocument()
+    // Sans validations.view, la section validations reste masquée.
+    expect(screen.queryByText(VALIDATIONS_SECTION)).not.toBeInTheDocument()
+  })
+
+  it("ne déclenche pas la requête salaires pour un staff sans salary.view", async () => {
+    setAuth("staff", ["validations.view"])
+    renderWithQueryClient(<DashboardPage />)
+
+    await screen.findByText(VALIDATIONS_SECTION)
+    // La requête salaire est gardée par enabled:canViewSalary → jamais appelée.
+    expect(getSalarySummaryMock).not.toHaveBeenCalled()
+    expect(getSalaryUnpaidAlertsMock).not.toHaveBeenCalled()
   })
 })

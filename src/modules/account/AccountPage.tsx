@@ -53,6 +53,7 @@ export default function AccountPage() {
   const { toast } = useToast()
   const user = useAuthStore((state) => state.user)
   const setUser = useAuthStore((state) => state.setUser)
+  const setAccessToken = useAuthStore((state) => state.setAccessToken)
   const [photoPreview, setPhotoPreview] = useState(user?.profilePhotoUrl ?? "")
   const [passwordFeedback, setPasswordFeedback] = useState<{
     type: "success" | "error"
@@ -112,7 +113,10 @@ export default function AccountPage() {
         currentPassword: values.currentPassword,
         newPassword: values.newPassword,
       }),
-    onSuccess: () => {
+    onSuccess: ({ accessToken }) => {
+      // Le backend a révoqué l'ancien token : on adopte le nouveau pour que la
+      // session courante reste valide après le changement de mot de passe.
+      if (accessToken) setAccessToken(accessToken)
       passwordForm.reset()
       setPasswordFeedback({ type: "success", message: "Mot de passe mis à jour" })
       toast({ title: "Mot de passe modifié" })

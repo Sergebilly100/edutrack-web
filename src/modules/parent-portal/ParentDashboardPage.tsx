@@ -212,7 +212,13 @@ export default function ParentDashboardPage() {
         {(studentsQuery.data?.length ?? 0) > 1 ? (
           <div className="rounded-xl border bg-card p-2 shadow-card">
             <p className="mb-2 text-sm text-muted-foreground">Enfant sélectionné</p>
-            <div className="flex gap-2 overflow-x-auto [-webkit-overflow-scrolling:touch] justify-center">
+            {/* justify-start (et non center) : avec overflow-x, center rend le 1er/dernier
+                enfant inaccessibles au scroll. snap-x + scroll-px ajoutent l'affordance tactile. */}
+            <div
+              className="flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-px-2 [-webkit-overflow-scrolling:touch] sm:flex-wrap sm:justify-center"
+              role="radiogroup"
+              aria-label="Sélectionner un enfant"
+            >
               {(studentsQuery.data ?? []).map((student) => {
                 const active = selectedStudentId === student.id
                 return (
@@ -220,8 +226,10 @@ export default function ParentDashboardPage() {
                     key={student.id}
                     type="button"
                     variant="ghost"
+                    role="radio"
+                    aria-checked={active}
                     className={cn(
-                      "h-auto min-w-[8.75rem] flex-shrink-0 justify-start gap-2.5 rounded-lg border px-3 py-2.5 text-left",
+                      "h-auto min-w-[8.75rem] flex-shrink-0 snap-start justify-start gap-2.5 rounded-lg border px-3 py-2.5 text-left",
                       active ? "border-primary bg-primary text-primary-foreground shadow-sm hover:bg-primary" : "border-transparent bg-muted/50"
                     )}
                     onClick={() => handleSelectStudent(student.id)}
@@ -300,7 +308,7 @@ export default function ParentDashboardPage() {
                       <p className="truncate text-sm font-semibold leading-tight sm:text-base">{slot.subject}</p>
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">{slot.teacher} <span className="mx-1">·</span> {slot.room}</p>
                     </div>
-                    <span className={cn("inline-flex justify-center items-center gap-1 rounded-md bg-red-100 px-0.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/40 dark:text-red-300", meta.pillClassName)}>
+                    <span className={cn("inline-flex items-center justify-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium", meta.pillClassName)}>
                       {meta.label}
                     </span>
                   </div>

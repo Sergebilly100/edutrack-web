@@ -48,6 +48,7 @@ import { useAuthStore } from "@/shared/store/auth.store"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { getInitials } from "@/shared/utils/avatar"
 import { formatFcfa } from "@/shared/utils/formatting"
+import { statusToneBadge } from "@/shared/utils/status-tone"
 
 import {
   QUERY_STALE_TIME,
@@ -266,6 +267,14 @@ export default function DashboardPage() {
   const isDirector = user?.role === "director"
   const canViewSalary = isDirector || permissions.includes("salary.view")
   const canViewStudents = isDirector || permissions.includes("students.view")
+  const canViewTeachers = isDirector || permissions.includes("teachers.view")
+  const canViewAttendance = isDirector || permissions.includes("attendance.view")
+  const canViewValidations = isDirector || permissions.includes("validations.view")
+  const canViewSchedule = isDirector || permissions.includes("schedule.view")
+  const canViewSubscriptions =
+    isDirector ||
+    permissions.includes("subscriptions.view") ||
+    permissions.includes("subscriptions.revenue")
 
   const todayQuery = useQuery({
     queryKey: ["dashboard", "today-v3"],
@@ -273,7 +282,7 @@ export default function DashboardPage() {
     staleTime: QUERY_STALE_TIME,
     refetchInterval: TODAY_REFETCH_INTERVAL,
     retry: false,
-    enabled: isDirector,
+    enabled: canViewAttendance,
   })
 
   const countsQuery = useQuery({
@@ -288,7 +297,7 @@ export default function DashboardPage() {
     queryFn: () => getAttendanceHistory(7),
     staleTime: QUERY_STALE_TIME,
     retry: false,
-    enabled: isDirector,
+    enabled: canViewAttendance,
   })
 
   const coverageQuery = useQuery({
@@ -335,7 +344,7 @@ export default function DashboardPage() {
     queryFn: () => getTopRiskTeachers(currentMonth),
     staleTime: QUERY_STALE_TIME,
     retry: false,
-    enabled: canViewSalary,
+    enabled: canViewTeachers,
   })
 
   const schoolQuery = useQuery({
@@ -350,7 +359,7 @@ export default function DashboardPage() {
     queryFn: () => getTeacherCompliance(currentMonth),
     staleTime: QUERY_STALE_TIME,
     retry: false,
-    enabled: isDirector,
+    enabled: canViewTeachers,
   })
 
   const validationCountQuery = useQuery({
@@ -359,7 +368,7 @@ export default function DashboardPage() {
     staleTime: QUERY_STALE_TIME,
     refetchInterval: 5 * 60_000,
     retry: false,
-    enabled: isDirector,
+    enabled: canViewValidations,
   })
 
   const todayStudentAbsencesQuery = useQuery({
@@ -368,7 +377,7 @@ export default function DashboardPage() {
     staleTime: QUERY_STALE_TIME,
     refetchInterval: TODAY_REFETCH_INTERVAL,
     retry: false,
-    enabled: isDirector,
+    enabled: canViewStudents,
   })
 
   const currentMonthRange = useMemo(() => {
@@ -497,6 +506,15 @@ export default function DashboardPage() {
       salaryUnpaidTotalFcfa: salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0,
       pendingValidationCount: validationCountQuery.data?.total ?? 0,
       smsLog: smsLogQuery.data ?? [],
+      capabilities: {
+        canViewSchedule,
+        canViewTeachers,
+        canViewValidations,
+        canViewSalary,
+        // Le log SMS est chargé uniquement pour le directeur (enabled: isDirector).
+        canViewSmsLog: isDirector,
+        canViewStudents,
+      },
     })
   }, [
     coverageQuery.data?.nextWeekHasCoverage,
@@ -505,6 +523,12 @@ export default function DashboardPage() {
     smsLogQuery.data,
     validationCountQuery.data?.total,
     weeklyAbsenceCount,
+    canViewSchedule,
+    canViewTeachers,
+    canViewValidations,
+    canViewSalary,
+    canViewStudents,
+    isDirector,
   ])
   const visibleNotifications = useMemo(
     () => notificationItems.filter((item) => !dismissedNotificationIds.has(item.id)),
@@ -634,7 +658,7 @@ export default function DashboardPage() {
           onClick: () => navigate("/teachers"),
           onDismiss: () => dismissNotification("teacher-absences-week"),
           icon: Users,
-          className: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100",
+          className: statusToneBadge.warning,
         }
       : null,
     (salaryUnpaidAlertsQuery.data?.count ?? 0) > 0 && visibleNotificationIds.has("salary-unpaid-alerts")
@@ -646,10 +670,10 @@ export default function DashboardPage() {
           onClick: () => navigate("/salaries"),
           onDismiss: () => dismissNotification("salary-unpaid-alerts"),
           icon: Wallet,
-          className: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100",
+          className: statusToneBadge.warning,
         }
       : null,
-    (validationCountQuery.data?.total ?? 0) > 0
+    canViewValidations && (validationCountQuery.data?.total ?? 0) > 0
       ? {
           id: "validations",
           title: "Validations en attente",
@@ -658,7 +682,7 @@ export default function DashboardPage() {
           onClick: () => navigate("/validations"),
           onDismiss: null,
           icon: ClipboardCheck,
-          className: "border-sky-200 bg-sky-50 text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-100",
+          className: statusToneBadge.info,
         }
       : null,
   ].filter((item): item is NonNullable<typeof item> => item !== null)
@@ -706,7 +730,7 @@ export default function DashboardPage() {
         <header className="-mx-4 border-b bg-background px-4 py-4 md:sticky md:top-0 md:z-30 md:-mx-6 md:px-6">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
-              <h1 className="text-2xl font-semibold tracking-tight">Bonjour, {user?.name ?? "Directeur"}</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">Bonjour, {user?.name ?? ""}</h1>
               <p className="text-sm text-muted-foreground">{formatToday(new Date())}</p>
               <Badge variant="outline" className="mt-1">{schoolName}</Badge>
             </div>
@@ -754,6 +778,15 @@ export default function DashboardPage() {
                     </>
                   )}
                 </Button>
+                {/* Annonce l'état de l'actualisation aux lecteurs d'écran sans
+                    voler le focus ni perturber l'affichage visuel. */}
+                <span className="sr-only" role="status" aria-live="polite">
+                  {isRefreshing
+                    ? "Mise à jour des données en cours"
+                    : refreshSuccess
+                      ? "Données à jour"
+                      : ""}
+                </span>
               </OfflineGuard>
             </div>
           </div>
@@ -833,10 +866,23 @@ export default function DashboardPage() {
           ) : null }
         </section>
 
-        <DashboardStatsCards />
+        <DashboardStatsCards
+          showTeacherCard={canViewAttendance || canViewTeachers}
+          showStudentCard={canViewStudents}
+          showSalaryCard={canViewSalary}
+          showSubscriptionCard={canViewSubscriptions}
+        />
 
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <Card className="xl:col-span-2">
+        {canViewAttendance || canViewTeachers ? (
+        <section
+          className={
+            canViewAttendance && canViewTeachers
+              ? "grid grid-cols-1 gap-4 xl:grid-cols-3"
+              : "grid grid-cols-1 gap-4"
+          }
+        >
+          {canViewAttendance ? (
+          <Card className={canViewAttendance && canViewTeachers ? "xl:col-span-2" : undefined}>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
             <CardTitle className="text-lg font-semibold">Présences professeurs aujourd'hui</CardTitle>
               {canToggleTodayPresence ? (
@@ -859,7 +905,9 @@ export default function DashboardPage() {
               />
             </CardContent>
           </Card>
+          ) : null}
 
+          {canViewTeachers ? (
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg font-semibold">Profs à risque</CardTitle>
@@ -908,9 +956,19 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
+          ) : null}
         </section>
+        ) : null}
 
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        {canViewTeachers || canViewValidations ? (
+        <section
+          className={
+            canViewTeachers && canViewValidations
+              ? "grid grid-cols-1 gap-4 xl:grid-cols-2"
+              : "grid grid-cols-1 gap-4"
+          }
+        >
+          {canViewTeachers ? (
           <Card className="order-2">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg font-semibold">Conformité profs ce mois</CardTitle>
@@ -955,10 +1013,10 @@ export default function DashboardPage() {
                         variant="outline"
                         className={
                           teacher.complianceRate >= 80
-                            ? "border-green-200 bg-green-50 text-green-700"
+                            ? statusToneBadge.success
                             : teacher.complianceRate < 30
-                              ? "border-amber-200 bg-amber-50 text-amber-700"
-                              : "border-slate-200 bg-slate-50 text-slate-700"
+                              ? statusToneBadge.warning
+                              : statusToneBadge.neutral
                         }
                       >
                         {Math.round(teacher.complianceRate)}%
@@ -969,7 +1027,9 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
+          ) : null}
 
+          {canViewValidations ? (
           <Card className="order-1">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg font-semibold">Validations en attente</CardTitle>
@@ -1017,8 +1077,11 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
+          ) : null}
         </section>
+        ) : null}
 
+        {canViewStudents ? (
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -1096,7 +1159,9 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </section>
+        ) : null}
 
+        {canViewSalary ? (
         <section>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -1164,6 +1229,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </section>
+        ) : null}
       </div>
     </>
   )

@@ -8,19 +8,37 @@ import { formatFcfa, formatRate } from "@/shared/utils/formatting"
 import { formatDecimalHours } from "@/shared/utils/time"
 import { cn } from "@/lib/utils"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
+import { attendanceTone, statusToneIconBg, statusToneText } from "@/shared/utils/status-tone"
 
 const QUERY_STALE_TIME = 5 * 60 * 1000 // 5 minutes
 
-function getAttendanceColor(rate: number): string {
-  if (rate >= 85) return "text-green-600"
-  if (rate >= 60) return "text-amber-600"
-  return "text-red-600"
-}
+const getAttendanceColor = (rate: number): string => statusToneText[attendanceTone(rate)]
+const getAttendanceBgColor = (rate: number): string => statusToneIconBg[attendanceTone(rate)]
 
-function getAttendanceBgColor(rate: number): string {
-  if (rate >= 85) return "bg-green-50"
-  if (rate >= 60) return "bg-amber-50"
-  return "bg-red-50"
+/**
+ * Classe de grille responsive cohérente quel que soit le nombre de cartes
+ * visibles (1 à 4). Utilisée pour le skeleton, l'état d'erreur ET l'état chargé
+ * afin d'éviter tout décalage de disposition entre ces états.
+ *
+ * Le nombre de colonnes au plus large breakpoint suit EXACTEMENT le nombre de
+ * cartes visibles : chaque carte vaut 1fr et remplit toute la ligne — pas de
+ * colonne vide quand une carte est masquée (ex. staff sans droit salaire).
+ * - 1 carte  : 1 col à toutes tailles
+ * - 2 cartes : 1 col (mobile) → 2 col (≥sm)
+ * - 3 cartes : 1 col (mobile) → 3 col (≥sm)
+ * - 4 cartes : 2 col (mobile) → 4 col (≥lg)
+ */
+function statsGridClassName(count: number): string {
+  switch (count) {
+    case 1:
+      return "grid grid-cols-1 gap-4"
+    case 2:
+      return "grid grid-cols-1 gap-4 sm:grid-cols-2"
+    case 3:
+      return "grid grid-cols-1 gap-4 sm:grid-cols-3"
+    default:
+      return "grid grid-cols-2 gap-4 lg:grid-cols-4"
+  }
 }
 
 function StatCardSkeleton() {
@@ -43,7 +61,27 @@ function StatCardSkeleton() {
   )
 }
 
-export function DashboardStatsCards() {
+type DashboardStatsCardsProps = {
+  /** Carte « Présence professeurs » (défaut visible — directeur). */
+  showTeacherCard?: boolean
+  /** Carte « Présence élèves » (défaut visible — directeur). */
+  showStudentCard?: boolean
+  /** Carte « Salaire à payer ce mois » (défaut visible — directeur). */
+  showSalaryCard?: boolean
+  /**
+   * Carte « Revenus abonnements » (défaut visible — directeur).
+   * Dépend AUSSI de stats.subscriptions.isEnabled. Le droit côté staff est
+   * `subscriptions.view` / `subscriptions.revenue`, distinct du droit salaire.
+   */
+  showSubscriptionCard?: boolean
+}
+
+export function DashboardStatsCards({
+  showTeacherCard = true,
+  showStudentCard = true,
+  showSalaryCard = true,
+  showSubscriptionCard = true,
+}: DashboardStatsCardsProps = {}) {
   const studentLabels = useStudentLabels()
   const { data: stats, isLoading, error } = useQuery({
     queryKey: ["dashboard-stats"],
@@ -52,21 +90,31 @@ export function DashboardStatsCards() {
     refetchOnWindowFocus: true,
   })
 
+  // Nombre de cartes potentiellement visibles avant chargement des données.
+  // La carte « revenus abonnements » dépend de stats.subscriptions.isEnabled,
+  // on ne la compte donc pas ici (skeleton/erreur).
+  const baseVisibleCount =
+    Number(showTeacherCard) + Number(showStudentCard) + Number(showSalaryCard)
+  const placeholderGridClassName = statsGridClassName(baseVisibleCount)
+
+  if (baseVisibleCount === 0) {
+    return null
+  }
+
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCardSkeleton />
-        <StatCardSkeleton />
-        <StatCardSkeleton />
-        <StatCardSkeleton />
+      <div className={placeholderGridClassName}>
+        {Array.from({ length: baseVisibleCount }).map((_, index) => (
+          <StatCardSkeleton key={index} />
+        ))}
       </div>
     )
   }
 
   if (error || !stats) {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[1, 2, 3, 4].map((i) => (
+      <div className={placeholderGridClassName}>
+        {Array.from({ length: baseVisibleCount }, (_, index) => index + 1).map((i) => (
           <Card key={i} className="border border-gray-100 rounded-2xl shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-gray-500">
@@ -83,14 +131,24 @@ export function DashboardStatsCards() {
   const teacherRate = stats.teacherAttendance.globalRate
   const studentRate = stats.studentAttendance.rate
   const collectionRate = stats.subscriptions.collectionRate
-  const showSubscriptionRevenue = stats.subscriptions.isEnabled
-  const gridClassName = showSubscriptionRevenue
-    ? "grid grid-cols-2 gap-4 lg:grid-cols-4"
-    : "grid grid-cols-1 gap-4 sm:grid-cols-3"
+  // La carte revenus suit la fonctionnalité abonnements (isEnabled) ET le droit
+  // d'accès abonnements du staff (subscriptions.view / .revenue), pas le salaire.
+  const showSubscriptionRevenue = stats.subscriptions.isEnabled && showSubscriptionCard
+  const visibleCount =
+    Number(showTeacherCard) +
+    Number(showStudentCard) +
+    Number(showSalaryCard) +
+    Number(showSubscriptionRevenue)
+  const gridClassName = statsGridClassName(visibleCount)
+
+  if (visibleCount === 0) {
+    return null
+  }
 
   return (
     <div className={gridClassName}>
       {/* CARD 1: Taux de présence professeurs */}
+      {showTeacherCard ? (
       <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
@@ -131,8 +189,10 @@ export function DashboardStatsCards() {
           </div>
         </div>
       </Card>
+      ) : null}
 
       {/* CARD 2: Taux de présence élèves */}
+      {showStudentCard ? (
       <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
@@ -162,8 +222,10 @@ export function DashboardStatsCards() {
           <div>Pointages restants : {stats.studentAttendance.notMarked}</div>
         </div>
       </Card>
+      ) : null}
 
       {/* CARD 3: Salaire à payer ce mois / Économie actuelle */}
+      {showSalaryCard ? (
       <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
@@ -177,7 +239,7 @@ export function DashboardStatsCards() {
           </div>
         </div>
 
-        <div className="rounded-lg bg-amber-50 px-3 py-2 mt-3 border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40">
+        <div className="rounded-lg px-3 py-2 mt-3 border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40">
           <p className="text-xs font-medium text-amber-900 mb-1 dark:text-amber-100">
             Du 1er au {new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
           </p>
@@ -197,6 +259,7 @@ export function DashboardStatsCards() {
           </div>
         </div>
       </Card>
+      ) : null}
 
       {showSubscriptionRevenue ? (
         <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">

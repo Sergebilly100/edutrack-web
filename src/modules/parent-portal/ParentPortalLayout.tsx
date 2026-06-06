@@ -1,7 +1,7 @@
 import { useEffect } from "react"
-import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
+import { NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
-import { Bell, CalendarDays, CalendarX2, GraduationCap, Home, LogOut, Moon, Sun, UserCircle2 } from "lucide-react"
+import { CalendarDays, CalendarX2, GraduationCap, Home, LogOut, Moon, Sun, UserCircle2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -50,10 +50,10 @@ export default function ParentPortalLayout() {
   return (
     <div className="min-h-screen bg-background text-base">
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur-sm">
-        <div className="mx-auto flex h-20 w-full max-w-3xl items-center justify-between px-4 lg:max-w-5xl">
+        <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-4 lg:max-w-5xl">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#1a56db] shadow-sm">
-              <GraduationCap className="h-4 w-4 text-white" strokeWidth={2} />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary shadow-sm">
+              <GraduationCap className="h-4 w-4 text-primary-foreground" strokeWidth={2} />
             </div>
             <div>
               <p className="text-sm font-bold leading-tight tracking-tight">IvoirEdu</p>
@@ -61,16 +61,6 @@ export default function ParentPortalLayout() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="relative h-11 w-11 rounded-full"
-              aria-label="Notifications"
-            >
-              <Bell className="h-5 w-5" />
-              <span className="absolute right-2.5 top-2.5 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-background" />
-            </Button> */}
             <Button
               type="button"
               variant="ghost"
@@ -108,23 +98,31 @@ export default function ParentPortalLayout() {
         <Outlet />
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur-sm lg:static lg:bg-background">
+      <nav
+        aria-label="Navigation principale"
+        className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur-sm lg:static lg:bg-background"
+      >
         <div className="mx-auto grid h-14 w-full max-w-3xl grid-cols-4 px-2 lg:max-w-5xl">
           {tabs.map((tab) => {
-            const active = location.pathname === tab.href
             const Icon = tab.icon
             return (
-              <Link
+              <NavLink
                 key={tab.href}
                 to={tab.href}
-                className={cn(
-                  "flex flex-col items-center text-center justify-center gap-0.5 rounded-xl py-1.5 transition-colors",
-                  active ? "text-primary" : "text-muted-foreground hover:text-foreground"
-                )}
+                className={({ isActive }) =>
+                  cn(
+                    "flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                  )
+                }
               >
-                <Icon className={cn("h-5 w-5", active && "fill-primary/10")} />
-                <span className="text-xs">{tab.label}</span>
-              </Link>
+                {({ isActive }) => (
+                  <>
+                    <Icon className={cn("h-5 w-5", isActive && "fill-primary/10")} />
+                    <span className="text-xs">{tab.label}</span>
+                  </>
+                )}
+              </NavLink>
             )
           })}
         </div>

@@ -25,7 +25,6 @@ const AdminSmsPage = lazy(() => import("@/modules/admin/AdminSmsPage"))
 const AccountPage = lazy(() => import("@/modules/account/AccountPage"))
 const FirstLoginPasswordPage = lazy(() => import("@/modules/account/FirstLoginPasswordPage"))
 const AttendancePage = lazy(() => import("@/modules/attendance/AttendancePage"))
-const AdministrativeDashboardPage = lazy(() => import("@/modules/dashboard/AdministrativeDashboardPage"))
 const DashboardPage = lazy(() => import("@/modules/dashboard/DashboardPage"))
 const TeacherDashboardPage = lazy(() => import("@/modules/dashboard/TeacherDashboardPage"))
 const ImportPage = lazy(() => import("@/modules/import-export/ImportPage"))
@@ -141,10 +140,10 @@ function DashboardRoute() {
   if (user?.role === "teacher") {
     return <TeacherDashboardPage />
   }
-  if (isStaffRole(user?.role)) {
-    return <AdministrativeDashboardPage />
-  }
 
+  // Directeur et staff partagent le même tableau de bord riche : DashboardPage
+  // masque/affiche chaque carte et section selon les permissions du staff
+  // (le directeur voit tout). Voir les capacités canView* dans DashboardPage.
   return <DashboardPage />
 }
 

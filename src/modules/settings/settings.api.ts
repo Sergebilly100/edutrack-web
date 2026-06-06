@@ -389,11 +389,17 @@ export const resetAdministrativeUserPassword = async (
   })
 }
 
-export const changePassword = async (payload: ChangePasswordInput): Promise<void> => {
-  await apiClient.post("/auth/change-password", {
+// Le backend révoque toutes les sessions au changement de mot de passe puis
+// réémet un accessToken frais pour la session courante (+ nouveau refresh cookie).
+// On le retourne pour que l'appelant remplace le token invalidé en mémoire.
+export const changePassword = async (
+  payload: ChangePasswordInput
+): Promise<{ accessToken?: string }> => {
+  const response = await apiClient.post<{ accessToken?: string }>("/auth/change-password", {
     current_password: payload.currentPassword,
     new_password: payload.newPassword,
   })
+  return { accessToken: response.data?.accessToken }
 }
 
 export const createPosition = async (payload: {

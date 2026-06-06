@@ -64,6 +64,7 @@ import {
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { OFFLINE_QUEUE_KEYS } from "@/shared/store/offline-processors"
 import { formatFcfa } from "@/shared/utils/formatting"
+import { formatDecimalHours } from "@/shared/utils/time"
 
 // Tooltip pour les actions qui restent online-only (exports, paiement
 // permanent qui nécessite un GET intermédiaire pour récupérer le salaryRecordId).
@@ -887,7 +888,7 @@ export default function SalariesPage() {
                     <TableRow key={row.teacherId}>
                       <TableCell className="font-medium">{row.teacherName}</TableCell>
                       <TableCell className="font-normal">
-                        {formatHours(row.hoursDone)} / {formatHours(row.hoursPlanned)}
+                        {formatDecimalHours(row.hoursDone)} / {formatDecimalHours(row.hoursPlanned)}
                       </TableCell>
                       <TableCell className="font-semibold">{formatFcfa(row.totalFcfa ?? 0)}</TableCell>
                       <TableCell>
@@ -996,19 +997,19 @@ export default function SalariesPage() {
                     <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
                       <p className="text-xs text-blue-700">Heures prévues (mois)</p>
                       <p className="text-lg font-semibold text-blue-900">
-                        {formatHours(detailsMutation.data.summary.hoursPlanned)}
+                        {formatDecimalHours(detailsMutation.data.summary.hoursPlanned)}
                       </p>
                     </div>
                     <div className="rounded-lg border border-green-200 bg-green-50 p-3">
                       <p className="text-xs text-green-700">Heures effectuées</p>
                       <p className="text-lg font-semibold text-green-900">
-                        {formatHours(detailsMutation.data.summary.hoursDone)}
+                        {formatDecimalHours(detailsMutation.data.summary.hoursDone)}
                       </p>
                     </div>
                     <div className="rounded-lg border border-red-200 bg-red-50 p-3">
                       <p className="text-xs text-red-700">Heures manquées</p>
                       <p className="text-lg font-semibold text-red-900">
-                        {formatHours(detailsMutation.data.summary.absenceHours)}
+                        {formatDecimalHours(detailsMutation.data.summary.absenceHours)}
                       </p>
                     </div>
                   </div>
@@ -1038,7 +1039,7 @@ export default function SalariesPage() {
                     <p>
                       Heures restantes prévues:{" "}
                       <span className="font-semibold">
-                        {formatHours(detailsMutation.data.summary.remainingPlannedHours)}
+                        {formatDecimalHours(detailsMutation.data.summary.remainingPlannedHours)}
                       </span>
                     </p>
                     <p>
@@ -1071,19 +1072,19 @@ export default function SalariesPage() {
                     <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
                       <p className="text-xs text-blue-700">Heures totales prévues (mois)</p>
                       <p className="text-lg font-semibold text-blue-900">
-                        {formatHours(detailsMutation.data.summary.hoursPlanned)}
+                        {formatDecimalHours(detailsMutation.data.summary.hoursPlanned)}
                       </p>
                     </div>
                     <div className="rounded-lg border border-green-200 bg-green-50 p-3">
                       <p className="text-xs text-green-700">Heures effectuées (hors absences)</p>
                       <p className="text-lg font-semibold text-green-900">
-                        {formatHours(detailsMutation.data.summary.hoursDone)}
+                        {formatDecimalHours(detailsMutation.data.summary.hoursDone)}
                       </p>
                     </div>
                     <div className="rounded-lg border border-red-200 bg-red-50 p-3">
                       <p className="text-xs text-red-700">Heure d'absences constatées</p>
                       <p className="text-lg font-semibold text-red-900">
-                        {formatHours(detailsMutation.data.summary.absenceHours)}
+                        {formatDecimalHours(detailsMutation.data.summary.absenceHours)}
                       </p>
                     </div>
                     {/* <div className="rounded-lg border border-border bg-card p-3">
@@ -1133,7 +1134,7 @@ export default function SalariesPage() {
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Heures restantes prévues (à faire):{" "}
-                    {formatHours(detailsMutation.data.summary.remainingPlannedHours)}
+                    {formatDecimalHours(detailsMutation.data.summary.remainingPlannedHours)}
                   </p>
                   {detailsMutation.data.payment.paidAt ? (
                     <p className="text-xs text-muted-foreground">
@@ -1268,7 +1269,7 @@ export default function SalariesPage() {
                           {item.paidByName ? ` • ${item.paidByName}${item.paidByRole ? ` (${item.paidByRole})` : ""}` : ""}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
-                          {(item.hoursPaid !== null ? `${formatHours(item.hoursPaid)} • ` : "") + (item.notes ?? "-")}
+                          {(item.hoursPaid !== null ? `${formatDecimalHours(item.hoursPaid)} • ` : "") + (item.notes ?? "-")}
                         </TableCell>
                       </TableRow>
                     ))
@@ -1406,29 +1407,29 @@ export default function SalariesPage() {
               <div className="space-y-2 rounded-lg border border-border bg-muted/10 p-3 text-sm">
                 <p>
                   Nombre d'heure prévue ce mois :{" "}
-                  <span className="font-semibold">{formatHours(payDialogDetails.summary.hoursPlanned)}</span>
+                  <span className="font-semibold">{formatDecimalHours(payDialogDetails.summary.hoursPlanned)}</span>
                 </p>
                 <p>
                   Nombre d'heure effectué :{" "}
-                  <span className="font-semibold">{formatHours(payDialogDetails.summary.hoursDone)}</span>
+                  <span className="font-semibold">{formatDecimalHours(payDialogDetails.summary.hoursDone)}</span>
                 </p>
                 <p>
-                  Nombre d'heure déjà payé : <span className="font-semibold">{formatHours(payHoursAlreadyPaid)}</span>
+                  Nombre d'heure déjà payé : <span className="font-semibold">{formatDecimalHours(payHoursAlreadyPaid)}</span>
                 </p>
                 <p>
                   Nombre d'heure restant à payer :{" "}
-                  <span className="font-semibold text-red-700">{formatHours(payHoursRemaining)}</span>
+                  <span className="font-semibold text-red-700">{formatHours(payHoursRemaining)} ({formatDecimalHours(payHoursRemaining)})</span>
                 </p>
                 {/* <p>
                   Reste sur heures déjà effectuées :{" "}
                   <span className="font-semibold">
-                    {formatHours(payHoursRemainingFromAlreadyDone)} ({formatFcfa(payAmountRemainingFromAlreadyDone)})
+                    {formatDecimalHours(payHoursRemainingFromAlreadyDone)} ({formatFcfa(payAmountRemainingFromAlreadyDone)})
                   </span>
                 </p>
                 <p>
                   Nouvelles heures depuis dernier paiement :{" "}
                   <span className="font-semibold">
-                    {formatHours(payHoursRemainingFromNew)} ({formatFcfa(payAmountRemainingFromNew)})
+                    {formatDecimalHours(payHoursRemainingFromNew)} ({formatFcfa(payAmountRemainingFromNew)})
                   </span>
                 </p> */}
                 <p>
@@ -1445,7 +1446,7 @@ export default function SalariesPage() {
                 <Input
                   id="hours-to-pay"
                   inputMode="decimal"
-                  placeholder="Ex: 5"
+                  placeholder="Ex: 10.5"
                   value={hoursToPayInput}
                   onChange={(event) => setHoursToPayInput(event.target.value)}
                 />

@@ -100,6 +100,16 @@ export function NotificationButton({ count = 0, className }: NotificationButtonP
       salaryUnpaidTotalFcfa: salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0,
       pendingValidationCount: validationCountQuery.data?.total ?? 0,
       smsLog: smsLogQuery.data ?? [],
+      // Ce bouton est réservé au directeur (queryEnabled + early return) :
+      // toutes les capacités sont accordées.
+      capabilities: {
+        canViewSchedule: true,
+        canViewTeachers: true,
+        canViewValidations: true,
+        canViewSalary: true,
+        canViewSmsLog: true,
+        canViewStudents: true,
+      },
     })
   }, [
     coverageQuery.data?.nextWeekHasCoverage,
