@@ -48,6 +48,7 @@ const TeacherDetailPage = lazy(() => import("@/modules/teachers/TeacherDetailPag
 const TeachersPage = lazy(() => import("@/modules/teachers/TeachersPage"))
 const ValidationsPage = lazy(() => import("@/modules/validations/ValidationsPage"))
 const LoginPage = lazy(() => import("./modules/auth/LoginPage"))
+const AdminLoginPage = lazy(() => import("./modules/auth/AdminLoginPage"))
 const MaintenancePage = lazy(() => import("./modules/auth/MaintenancePage"))
 
 function DashboardRoute() {
@@ -183,6 +184,14 @@ function LoginRoute() {
   }
 
   return <LoginPage />
+}
+
+function AdminLoginRoute() {
+  const user = useAuthStore((state) => state.user)
+  if (user?.role === "super_admin") {
+    return <Navigate to="/admin" replace />
+  }
+  return <AdminLoginPage />
 }
 
 function ParentLoginRoute() {
@@ -371,6 +380,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LoginRoute />} />
         <Route path="/login" element={<LoginRoute />} />
+        <Route path="/admin/login" element={<AdminLoginRoute />} />
         <Route path="/parent/login" element={<ParentLoginRoute />} />
         <Route path="/maintenance" element={<MaintenancePage />} />
         <Route path="/attendance" element={<AttendanceRoute />} />

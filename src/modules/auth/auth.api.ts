@@ -47,6 +47,14 @@ export const login = async (
   return response.data;
 };
 
+export const loginAdmin = async (
+  identifier: string,
+  password: string,
+): Promise<LoginResponse> => {
+  const response = await api.post<LoginResponse>('/auth/login/admin', { identifier, password });
+  return response.data;
+};
+
 export const logout = async (): Promise<void> => {
   await api.post("/auth/logout");
 };

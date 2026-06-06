@@ -124,12 +124,11 @@ export default function LoginPage() {
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-sky-50 via-white to-blue-50 dark:from-[#0a0f1e] dark:via-[#0c1220] dark:to-[#0a0f1e]">
       {/* Blobs décoratifs — s'adaptent au thème */}
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-32 -top-32 h-[500px] w-[500px] rounded-full bg-blue-400/20 blur-[100px] dark:bg-[#1a56db]/20" />
-        <div className="absolute -bottom-24 right-0 h-[400px] w-[600px] rounded-full bg-emerald-300/15 blur-[120px] dark:bg-[#0d9f6e]/15" />
-        <div className="absolute left-1/2 top-1/3 h-[300px] w-[400px] -translate-x-1/2 rounded-full bg-amber-200/20 blur-[90px] dark:bg-amber-500/10" />
+        <div className="absolute -left-32 -top-32 h-[500px] w-[500px] rounded-full bg-blue-400/20 blur-[100px] dark:bg-[#1a56db]/8" />
+
         {/* Grille subtile */}
         <div
-          className="absolute inset-0 opacity-[0.025] dark:opacity-[0.04]"
+          className="absolute inset-0 opacity-[0.025] dark:opacity-[0.02]"
           style={{
             backgroundImage:
               'linear-gradient(to right, currentColor 1px, transparent 1px), linear-gradient(to bottom, currentColor 1px, transparent 1px)',
