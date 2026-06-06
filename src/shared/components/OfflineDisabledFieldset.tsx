@@ -32,7 +32,7 @@ export function OfflineDisabledFieldset({
       aria-describedby={isBlocked && showNotice ? noticeId : undefined}
       className={cn(
         "min-w-0 border-0 p-0",
-        // disabled:opacity ne s'applique pas aux fieldsets natifs — on le force.
+        // disabled:opacity ne s'applique pas aux fieldsets natifs - on le force.
         isBlocked && "opacity-70",
         className,
       )}

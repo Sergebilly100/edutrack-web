@@ -59,7 +59,7 @@ const setApiOnline = async (page: Page) => {
 
 const pause = (page: Page, ms: number) => page.waitForTimeout(ms)
 
-test.describe("Workflow attendance prof — offline → online", () => {
+test.describe("Workflow attendance prof - offline → online", () => {
   test("check-in + skip QR offline → badge apparaît → sync auto au retour online", async ({
     page,
   }) => {
@@ -94,7 +94,7 @@ test.describe("Workflow attendance prof — offline → online", () => {
     await page.getByTestId("teacher-checkin-submit").click()
     await pause(page, 1200)
 
-    // Étape 2 : on est dans le scan QR — on clique "Valider sans QR"
+    // Étape 2 : on est dans le scan QR - on clique "Valider sans QR"
     await expect(page.getByTestId("teacher-checkin-step-2")).toBeVisible({ timeout: 5000 })
     const skipBtn = page.getByTestId("teacher-checkin-skip-qr")
     await expect(skipBtn).toBeVisible({ timeout: 3000 })
@@ -125,7 +125,7 @@ test.describe("Workflow attendance prof — offline → online", () => {
     await expect(dialog).toBeVisible({ timeout: 3000 })
     await pause(page, 1500)
 
-    // 5) Rétablir le réseau — le bouton "Synchroniser maintenant" doit être enabled
+    // 5) Rétablir le réseau - le bouton "Synchroniser maintenant" doit être enabled
     await setApiOnline(page)
     await pause(page, 800)
 

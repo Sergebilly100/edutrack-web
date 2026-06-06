@@ -25,7 +25,7 @@ const STUDENT = {
 async function setupStudentsPage(page: import("@playwright/test").Page, students: unknown[] = [STUDENT]) {
   await page.setViewportSize({ width: 1280, height: 900 })
 
-  // Un seul catch-all qui gère toutes les routes par path — pas de conflits de priorité
+  // Un seul catch-all qui gère toutes les routes par path - pas de conflits de priorité
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url())
     const path = url.pathname
@@ -66,7 +66,7 @@ async function setupStudentsPage(page: import("@playwright/test").Page, students
       return route.fulfill({ status: 200, contentType: "application/json",
         body: JSON.stringify({ total: 0, gps_suspicious: 0, short_hours: 0, missing_end_scan: 0 }) })
     }
-    // Liste élèves — chemin exact /students (avec ou sans query params)
+    // Liste élèves - chemin exact /students (avec ou sans query params)
     if (/\/students$/.test(path) && method === "GET") {
       return route.fulfill({ status: 200, contentType: "application/json",
         body: JSON.stringify({
@@ -128,7 +128,7 @@ async function setupStudentsPage(page: import("@playwright/test").Page, students
   await expect(page).toHaveURL(/\/students/)
 }
 
-test.describe("Gestion élèves — directeur", () => {
+test.describe("Gestion élèves - directeur", () => {
   test("la page élèves s'affiche avec le titre", async ({ page }) => {
     await setupStudentsPage(page)
     await expect(page.getByRole("heading", { name: /élèves/i })).toBeVisible({ timeout: 10000 })

@@ -50,7 +50,7 @@ export const queryClient = new QueryClient({
       gcTime: 24 * 60 * 60_000,
       // offlineFirst : la query part toujours, même si onlineManager dit
       // offline. Si elle échoue, Workbox/cache TanStack persiste la réponse
-      // précédente — donc l'UI continue à montrer les dernières données
+      // précédente - donc l'UI continue à montrer les dernières données
       // chargées. Sans ça, en offline les queries restent en `pending` ad
       // vitam et affichent un état vide même si le cache contient les data.
       networkMode: "offlineFirst",

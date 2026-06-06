@@ -77,9 +77,9 @@ export function OfflineQueueBadge() {
       const count = await syncOfflineQueue()
       // On ne fait PAS persist.rehydrate() ici : ça réécraserait la queue
       // mémoire (déjà à jour via removeFromQueue) avec l'état IndexedDB
-      // qui est en retard à cause de la persistance async — ramenant les
+      // qui est en retard à cause de la persistance async - ramenant les
       // items supprimés ("badge fantôme").
-      // Si la sync a aboutit, on rafraîchit les vues actives — sans ça, le
+      // Si la sync a aboutit, on rafraîchit les vues actives - sans ça, le
       // pointage élève reste affiché comme "en attente" alors qu'il vient
       // d'être envoyé (le processor onSync n'est appelé qu'au niveau global,
       // les composants montés peuvent rater l'invalidation).

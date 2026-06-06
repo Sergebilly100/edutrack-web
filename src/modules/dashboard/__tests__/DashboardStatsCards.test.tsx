@@ -21,7 +21,7 @@ function renderWithClient(ui: ReactNode) {
 const SUBSCRIPTION_LABEL = "abonnements encaissé"
 const SALARY_LABEL = "Salaire à payer ce mois"
 
-describe("DashboardStatsCards — carte abonnements", () => {
+describe("DashboardStatsCards - carte abonnements", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getDashboardStatsMock.mockResolvedValue({

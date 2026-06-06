@@ -55,6 +55,6 @@ test.describe("Appel élèves", () => {
     await markAllStudentsPresent(page)
     await page.getByTestId("teacher-students-submit").click()
 
-    await expect(page.getByText(/Appel enregistré — 0 absent\(s\)/i).first()).toBeVisible()
+    await expect(page.getByText(/Appel enregistré - 0 absent\(s\)/i).first()).toBeVisible()
   })
 })

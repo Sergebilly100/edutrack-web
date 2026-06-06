@@ -637,7 +637,7 @@ export default function SchoolConfigPanel() {
                       }}
                     />
                     <p className="text-xs text-muted-foreground">
-                      PNG, JPEG, WEBP ou SVG — max 500 KB. Stocké sur CDN.
+                      PNG, JPEG, WEBP ou SVG - max 500 KB. Stocké sur CDN.
                     </p>
                     <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                       Ou saisir une URL

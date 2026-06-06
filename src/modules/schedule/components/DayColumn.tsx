@@ -50,7 +50,7 @@ export default function DayColumn({
   const gridStartMinutes = gridStartHour * 60
 
   /**
-   * FIX BUG 2 — Calcul de la disposition des slots en collision.
+   * FIX BUG 2 - Calcul de la disposition des slots en collision.
    * Pour chaque slot chevauchant un autre sur le même créneau horaire,
    * on attribue une sous-colonne (columnIndex / columnCount) afin de
    * les afficher côte à côte plutôt que superposés.
@@ -96,7 +96,7 @@ export default function DayColumn({
           const columnIndex = layout?.columnIndex ?? 0
 
           /**
-           * FIX BUG 2 — Positionnement en sous-colonnes.
+           * FIX BUG 2 - Positionnement en sous-colonnes.
            *
            * Chaque slot occupe une fraction de la largeur de la cellule.
            * On utilise des pourcentages pour rester fluide quelle que soit

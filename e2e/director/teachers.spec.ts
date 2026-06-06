@@ -21,7 +21,7 @@ const TEACHER_DETAIL = {
 }
 
 const mockTeachersApis = async (page: import("@playwright/test").Page) => {
-  // Route liste teachers — regex pour éviter de matcher les routes avec ID
+  // Route liste teachers - regex pour éviter de matcher les routes avec ID
   await page.route(/\/api\/v1\/teachers(\?|$)/, async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({

@@ -120,7 +120,7 @@ export function SalariesStatsCards({ month }: SalariesStatsCardsProps) {
       <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
-            <p className="text-sm text-gray-500 mb-1">Économie du mois</p>
+            <p className="text-sm text-gray-500 mb-1">Économie du mois (vacataire)</p>
             <p className="text-2xl font-bold text-amber-600  dark:text-white">{formatFcfa(stats.economy.savedAmount)}</p>
           </div>
           <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center">

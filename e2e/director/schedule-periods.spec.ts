@@ -90,7 +90,7 @@ const mockScheduleApis = async (
   })
 }
 
-test.describe("Périodes EDT — directeur", () => {
+test.describe("Périodes EDT - directeur", () => {
   test.beforeEach(async ({ page }) => {
     await mockDirectorAuth(page)
   })
@@ -109,7 +109,7 @@ test.describe("Périodes EDT — directeur", () => {
 
   test("affiche le nom de la période active dans l'en-tête", async ({ page }) => {
     await mockScheduleApis(page, true)
-    // La période est dans le CardDescription desktop (hidden md:block) — forcer viewport desktop
+    // La période est dans le CardDescription desktop (hidden md:block) - forcer viewport desktop
     await page.setViewportSize({ width: 1280, height: 900 })
     await page.addInitScript(() => localStorage.setItem("schedule-view-mode", "list"))
     await loginAsDirectorUI(page)
@@ -145,7 +145,7 @@ test.describe("Périodes EDT — directeur", () => {
       }
       await expect(page.getByText(/trimestre 2|dupliqué|copié/i)).toBeVisible({ timeout: 5000 })
     } else {
-      // La feature de duplication est backend-only pour l'instant — vérifier juste l'affichage
+      // La feature de duplication est backend-only pour l'instant - vérifier juste l'affichage
       test.skip(true, "Bouton de duplication non présent dans l'UI actuelle")
     }
   })

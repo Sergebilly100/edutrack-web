@@ -72,9 +72,9 @@ const isNetworkUnavailable = (error: unknown): boolean => {
  * refresh_token posé par le backend.
  *
  * Séquence :
- *   1. POST /auth/refresh  — withCredentials envoie le cookie automatiquement
+ *   1. POST /auth/refresh  - withCredentials envoie le cookie automatiquement
  *   2. Décoder le JWT pour extraire schemaName (lecture client-side, sans vérif signature)
- *   3. GET  /auth/me       — récupérer le profil utilisateur avec le nouveau token
+ *   3. GET  /auth/me       - récupérer le profil utilisateur avec le nouveau token
  *   4. Hydrater user + accessToken dans le store
  *   5. Dans tous les cas → marquer isSessionRestored = true
  *
@@ -101,7 +101,7 @@ export function useRestoreSession(): void {
 
     const restoreSession = async (): Promise<void> => {
       try {
-        // Étape 1 — Obtenir un nouveau accessToken via le cookie refresh HttpOnly
+        // Étape 1 - Obtenir un nouveau accessToken via le cookie refresh HttpOnly
         const refreshResponse = await axios.post<RefreshResponse>(
           "/auth/refresh",
           {},
@@ -113,7 +113,7 @@ export function useRestoreSession(): void {
 
         const newAccessToken = refreshResponse.data.accessToken
 
-        // Étape 2 — Extraire claims du JWT (non-sensible, public dans le payload)
+        // Étape 2 - Extraire claims du JWT (non-sensible, public dans le payload)
         const jwtClaims = decodeJwtPayload(newAccessToken)
         const schemaName = jwtClaims.schemaName ?? "unknown"
         const role = jwtClaims.role
@@ -134,7 +134,7 @@ export function useRestoreSession(): void {
 
         setAccessToken(newAccessToken)
 
-        // Étape 3 — Récupérer le profil complet
+        // Étape 3 - Récupérer le profil complet
         const meResponse = await axios.get<MeResponse>("/auth/me", {
           baseURL: import.meta.env.VITE_API_URL,
           withCredentials: true,
@@ -145,7 +145,7 @@ export function useRestoreSession(): void {
 
         const { user, tenant } = meResponse.data
 
-        // Étape 4 — Hydrater le store
+        // Étape 4 - Hydrater le store
         setUser({
           id: user.id,
           name: user.name,

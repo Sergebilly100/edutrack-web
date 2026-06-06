@@ -318,7 +318,7 @@ export default function OnboardingWizard() {
 
         {currentStep === 1 ? (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Étape 1 — Infos école</h2>
+            <h2 className="text-lg font-semibold">Étape 1 - Infos école</h2>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="school-name">Nom de l'école</Label>
@@ -375,7 +375,7 @@ export default function OnboardingWizard() {
 
         {currentStep === 2 ? (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Étape 2 — Professeurs</h2>
+            <h2 className="text-lg font-semibold">Étape 2 - Professeurs</h2>
             <Alert>
               <AlertDescription>
                 Importez vos profs (type teachers) ou ajoutez-en un manuellement. Minimum requis: 1 professeur.
@@ -463,7 +463,7 @@ export default function OnboardingWizard() {
 
         {currentStep === 3 ? (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">{`Étape 3 — ${studentLabels.plural}`}</h2>
+            <h2 className="text-lg font-semibold">{`Étape 3 - ${studentLabels.plural}`}</h2>
             <Alert>
               <AlertDescription>
                 {`Importez vos ${studentLabels.pluralLower} (type students) ou ajoutez-en un manuellement. Vous pouvez passer cette étape.`}
@@ -530,7 +530,7 @@ export default function OnboardingWizard() {
 
         {currentStep === 4 ? (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Étape 4 — Emploi du temps</h2>
+            <h2 className="text-lg font-semibold">Étape 4 - Emploi du temps</h2>
             <Alert>
               <AlertDescription>
                 Importez l'emploi du temps (type schedule) ou ajoutez un créneau manuellement.

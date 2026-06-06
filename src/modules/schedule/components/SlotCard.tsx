@@ -7,7 +7,7 @@ import { WarningIcon } from "@/shared/components/icons"
 interface SlotCardProps {
   slot: ScheduleRow
   height: number
-  /** Nombre de sous-colonnes du groupe de collision — détermine la densité d'info affichée */
+  /** Nombre de sous-colonnes du groupe de collision - détermine la densité d'info affichée */
   columnCount?: number
   onClick: () => void
   isBlockedTeacher?: boolean
@@ -25,7 +25,7 @@ export default function SlotCard({
   style,
 }: SlotCardProps) {
   /**
-   * FIX BUG 2 — Règles d'affichage adaptatif selon la densité :
+   * FIX BUG 2 - Règles d'affichage adaptatif selon la densité :
    *
    * - compact  : height < 40 ou columnCount ≥ 4 → sujet seul
    * - reduced  : height < 56 ou columnCount ≥ 3 → sujet + classe (pas de prof)

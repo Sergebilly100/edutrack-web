@@ -118,7 +118,7 @@ apiClient.interceptors.response.use(
         | { code?: string; error?: string; redirect?: string }
         | undefined
       if (payload?.code === "TENANT_SUSPENDED") {
-        redirectToMaintenance(payload.error ?? "Abonnement suspendu — contactez l'administration")
+        redirectToMaintenance(payload.error ?? "Abonnement suspendu - contactez l'administration")
         return Promise.reject(error)
       }
     }

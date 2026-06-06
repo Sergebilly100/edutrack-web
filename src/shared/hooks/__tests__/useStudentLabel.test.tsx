@@ -27,7 +27,7 @@ function LabelConsumer() {
   )
 }
 
-describe("useStudentLabels — custom label override", () => {
+describe("useStudentLabels - custom label override", () => {
   it("propage le label personnalisé d'un tenant supérieur dans une page", () => {
     render(<LabelConsumer />)
     expect(screen.getByRole("heading", { name: "Étudiants" })).toBeInTheDocument()

@@ -37,7 +37,7 @@ export type StartScanContext = {
   qrToken: string | null
   /** room_id résolu via IndexedDB ou cache React Query, null si saut QR */
   roomId: string | null
-  /** Timestamp du scan début — utile pour debug + tri */
+  /** Timestamp du scan début - utile pour debug + tri */
   scannedAt: number
 }
 

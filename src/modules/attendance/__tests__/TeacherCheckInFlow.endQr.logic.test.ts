@@ -5,13 +5,13 @@ import { useRollCallStore } from "@/shared/store/rollCall.store"
 /**
  * Vérifie la garde locale "QR fin == QR début" injectée dans
  * TeacherCheckInFlow.handleEndQrDetected. La fonction de matching n'est pas
- * exportée — on teste donc via les helpers du store qui constituent la source
+ * exportée - on teste donc via les helpers du store qui constituent la source
  * de vérité de la comparaison.
  */
 const SCHEDULE_ID = "schedule-1"
 const DATE = "2026-05-26"
 
-describe("rollCall.store — startScanContext (validation QR fin offline)", () => {
+describe("rollCall.store - startScanContext (validation QR fin offline)", () => {
   beforeEach(() => {
     useRollCallStore.setState({ flows: {}, startScans: {} })
   })
@@ -90,7 +90,7 @@ describe("rollCall.store — startScanContext (validation QR fin offline)", () =
   })
 })
 
-describe("matchEndQrAgainstStart — règle métier", () => {
+describe("matchEndQrAgainstStart - règle métier", () => {
   // Reproduit la logique de comparaison locale telle qu'implémentée dans
   // handleEndQrDetected : si un token start est connu, le token end DOIT
   // matcher exactement ; sinon (skipQr, scan absent), on délègue au backend.

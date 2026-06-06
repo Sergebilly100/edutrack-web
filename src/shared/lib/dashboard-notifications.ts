@@ -3,7 +3,7 @@ import type { NotificationPanelItem } from "@/shared/components/layout/Notificat
 
 export const DASHBOARD_DISMISSED_NOTIFICATIONS_KEY = "edutrack:dashboard:dismissed-notifications"
 
-// SMS destinés au directeur — peuvent rester affichés même quand 'sent' (info utile pour lui).
+// SMS destinés au directeur - peuvent rester affichés même quand 'sent' (info utile pour lui).
 // Les autres types (parents/profs) ne s'affichent que si retry possible (status='failed').
 const DIRECTOR_SMS_TYPES = new Set([
   "teacher_late_director",
@@ -79,6 +79,7 @@ export type DashboardNotificationCapabilities = {
   canViewTeachers: boolean
   canViewValidations: boolean
   canViewSalary: boolean
+  canViewSubscriptionRevenue: boolean
   /** SMS log : réservé au directeur (information sensible). */
   canViewSmsLog: boolean
   /** Page élèves : cible de retry des SMS parents échoués. */
@@ -90,6 +91,8 @@ export const buildDirectorDashboardNotifications = ({
   weeklyAbsenceCount,
   salaryUnpaidCount,
   salaryUnpaidTotalFcfa,
+  commissionOverdueCount,
+  commissionOverdueTotalFcfa,
   pendingValidationCount,
   smsLog,
   capabilities,
@@ -98,6 +101,8 @@ export const buildDirectorDashboardNotifications = ({
   weeklyAbsenceCount: number
   salaryUnpaidCount: number
   salaryUnpaidTotalFcfa: number
+  commissionOverdueCount: number
+  commissionOverdueTotalFcfa: number
   pendingValidationCount: number
   smsLog: DashboardSmsItem[]
   capabilities: DashboardNotificationCapabilities
@@ -149,6 +154,18 @@ export const buildDirectorDashboardNotifications = ({
       tone: "warning",
       targetHref: "/salaries",
       actionLabel: "Ouvrir les salaires",
+    })
+  }
+
+  if (capabilities.canViewSubscriptionRevenue && commissionOverdueCount > 0) {
+    items.push({
+      id: "commission-overdue-alerts",
+      title: "Reversement commission en retard",
+      message: `${commissionOverdueCount} mois non soldé(s) - ${new Intl.NumberFormat("fr-FR").format(commissionOverdueTotalFcfa)} FCFA à reverser à IvoirEdu.`,
+      meta: "Action requise: ouvrir les revenus abonnements",
+      tone: "danger",
+      targetHref: "/subscription-revenue",
+      actionLabel: "Ouvrir les revenus",
     })
   }
 

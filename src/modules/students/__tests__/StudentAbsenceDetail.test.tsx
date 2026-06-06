@@ -66,7 +66,7 @@ describe("StudentAbsenceDetail", () => {
       { wrapper }
     )
 
-    await screen.findByText("05/05/2026 — Maths")
+    await screen.findByText("05/05/2026 - Maths")
     expect(screen.getByText("07:30–09:00")).toBeInTheDocument()
   })
 
@@ -88,7 +88,7 @@ describe("StudentAbsenceDetail", () => {
       { wrapper }
     )
 
-    await screen.findByText("05/05/2026 — Maths")
+    await screen.findByText("05/05/2026 - Maths")
     expect(screen.getByText("Notifié")).toBeInTheDocument()
   })
 
@@ -169,7 +169,7 @@ describe("StudentAbsenceDetail", () => {
       { wrapper }
     )
 
-    await screen.findByText("05/05/2026 — Maths")
+    await screen.findByText("05/05/2026 - Maths")
     expect(screen.getByText("Absent")).toBeInTheDocument()
   })
 
@@ -191,7 +191,7 @@ describe("StudentAbsenceDetail", () => {
       { wrapper }
     )
 
-    await screen.findByText("05/05/2026 — Maths")
+    await screen.findByText("05/05/2026 - Maths")
     expect(screen.getByText("Excusé")).toBeInTheDocument()
     expect(screen.getByText("Motif : Maladie")).toBeInTheDocument()
   })
@@ -215,7 +215,7 @@ describe("StudentAbsenceDetail", () => {
       { wrapper }
     )
 
-    await screen.findByText("05/05/2026 — Maths")
+    await screen.findByText("05/05/2026 - Maths")
     expect(screen.queryByRole("button", { name: "Excuser" })).not.toBeInTheDocument()
   })
 
@@ -241,7 +241,7 @@ describe("StudentAbsenceDetail", () => {
       { wrapper }
     )
 
-    await screen.findByText("05/05/2026 — Maths")
+    await screen.findByText("05/05/2026 - Maths")
     expect(screen.getByRole("button", { name: "Excuser" })).toBeInTheDocument()
   })
 
@@ -267,7 +267,7 @@ describe("StudentAbsenceDetail", () => {
       { wrapper }
     )
 
-    await screen.findByText("05/05/2026 — Maths")
+    await screen.findByText("05/05/2026 - Maths")
     expect(screen.queryByRole("button", { name: "Excuser" })).not.toBeInTheDocument()
   })
 

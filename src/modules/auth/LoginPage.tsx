@@ -122,7 +122,7 @@ export default function LoginPage() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-sky-50 via-white to-blue-50 dark:from-[#0a0f1e] dark:via-[#0c1220] dark:to-[#0a0f1e]">
-      {/* Blobs décoratifs — s'adaptent au thème */}
+      {/* Blobs décoratifs - s'adaptent au thème */}
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -left-32 -top-32 h-[500px] w-[500px] rounded-full bg-blue-400/20 blur-[100px] dark:bg-[#1a56db]/8" />
 

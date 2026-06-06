@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { fetchSchoolInfo } from "@/modules/onboarding/onboarding.api"
 import { getStudentAbsenceStats, getTodayAbsences, type StudentAbsenceStat } from "@/modules/students/students.api"
 import { getSalaryUnpaidAlerts } from "@/modules/salaries/salaries.api"
+import { getCommissionOverdueAlerts } from "@/modules/subscriptions/subscriptions.api"
 import {
   getAttendanceHistory,
   getCurrentMonthKey,
@@ -323,6 +324,14 @@ export default function DashboardPage() {
     enabled: canViewSalary,
   })
 
+  const commissionOverdueAlertsQuery = useQuery({
+    queryKey: ["dashboard", "commission-overdue-alerts"],
+    queryFn: getCommissionOverdueAlerts,
+    staleTime: QUERY_STALE_TIME,
+    retry: false,
+    enabled: isDirector,
+  })
+
   const smsLogQuery = useQuery({
     queryKey: ["dashboard", "sms-log", "notifications"],
     queryFn: () => getSMSLog(8),
@@ -504,6 +513,8 @@ export default function DashboardPage() {
       weeklyAbsenceCount,
       salaryUnpaidCount: salaryUnpaidAlertsQuery.data?.count ?? 0,
       salaryUnpaidTotalFcfa: salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0,
+      commissionOverdueCount: commissionOverdueAlertsQuery.data?.count ?? 0,
+      commissionOverdueTotalFcfa: commissionOverdueAlertsQuery.data?.totalRemainingFcfa ?? 0,
       pendingValidationCount: validationCountQuery.data?.total ?? 0,
       smsLog: smsLogQuery.data ?? [],
       capabilities: {
@@ -511,7 +522,7 @@ export default function DashboardPage() {
         canViewTeachers,
         canViewValidations,
         canViewSalary,
-        // Le log SMS est chargé uniquement pour le directeur (enabled: isDirector).
+        canViewSubscriptionRevenue: isDirector,
         canViewSmsLog: isDirector,
         canViewStudents,
       },
@@ -520,6 +531,8 @@ export default function DashboardPage() {
     coverageQuery.data?.nextWeekHasCoverage,
     salaryUnpaidAlertsQuery.data?.count,
     salaryUnpaidAlertsQuery.data?.totalRemainingFcfa,
+    commissionOverdueAlertsQuery.data?.count,
+    commissionOverdueAlertsQuery.data?.totalRemainingFcfa,
     smsLogQuery.data,
     validationCountQuery.data?.total,
     weeklyAbsenceCount,
@@ -683,6 +696,18 @@ export default function DashboardPage() {
           onDismiss: null,
           icon: ClipboardCheck,
           className: statusToneBadge.info,
+        }
+      : null,
+    isDirector && (commissionOverdueAlertsQuery.data?.count ?? 0) > 0 && visibleNotificationIds.has("commission-overdue-alerts")
+      ? {
+          id: "commission-overdue-alerts",
+          title: "Reversement commission en retard",
+          message: `${commissionOverdueAlertsQuery.data?.count ?? 0} mois non soldé(s) - ${new Intl.NumberFormat("fr-FR").format(commissionOverdueAlertsQuery.data?.totalRemainingFcfa ?? 0)} FCFA à reverser à IvoirEdu.`,
+          actionLabel: "Ouvrir les revenus",
+          onClick: () => navigate("/subscriptions/revenue"),
+          onDismiss: () => dismissNotification("commission-overdue-alerts"),
+          icon: Wallet,
+          className: statusToneBadge.danger,
         }
       : null,
   ].filter((item): item is NonNullable<typeof item> => item !== null)

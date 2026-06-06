@@ -494,7 +494,7 @@ export default function StudentDetailPage() {
 
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs text-muted-foreground">
-                      {filteredAbsences.length} absence{filteredAbsences.length > 1 ? "s" : ""} — page {recentAbsencesPage} / {recentAbsencesTotalPages}
+                      {filteredAbsences.length} absence{filteredAbsences.length > 1 ? "s" : ""} - page {recentAbsencesPage} / {recentAbsencesTotalPages}
                     </p>
                     <div className="flex items-center gap-2">
                       <Button
@@ -619,27 +619,6 @@ export default function StudentDetailPage() {
                   {saveContactsMutation.isPending ? "Enregistrement..." : "Modifier les contacts"}
                 </Button>
               ) : null}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Note libre</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <textarea
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                rows={6}
-                placeholder={`Ajouter une note sur cet ${studentLabels.singularLower}...`}
-                disabled={!canEditStudent}
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
-              <p className="text-xs text-muted-foreground">
-                {noteStatus === "saving" ? "Sauvegarde..." : ""}
-                {noteStatus === "saved" ? "Sauvegardé" : ""}
-                {noteStatus === "error" ? "Erreur de sauvegarde" : ""}
-              </p>
             </CardContent>
           </Card>
         </TabsContent>

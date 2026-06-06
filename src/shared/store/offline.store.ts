@@ -35,7 +35,7 @@ const globalProcessors = new Map<string, OfflineQueueProcessor>()
 const resolveProcessor = (queueKey: string): OfflineQueueProcessor | undefined =>
   localProcessors.get(queueKey) ?? globalProcessors.get(queueKey)
 
-// Module-level Promise lock — prevents concurrent sync runs regardless of render cycles.
+// Module-level Promise lock - prevents concurrent sync runs regardless of render cycles.
 // Zustand state (isSyncing) is async and can be read stale by two callers before either
 // has called markSyncing(true), causing double-sends. A plain Promise ref is synchronous.
 let syncLock: Promise<number> | null = null
@@ -191,7 +191,7 @@ export async function syncOfflineQueue(): Promise<number> {
           // L'item ne sera traité que si la page qui détient son processor est
           // remontée. Pour les actions critiques, utiliser registerGlobalOfflineProcessor.
           console.warn(
-            `[offline-sync] No processor registered for queueKey="${item.queueKey}" — item ${item.id} skipped this round.`
+            `[offline-sync] No processor registered for queueKey="${item.queueKey}" - item ${item.id} skipped this round.`
           )
           continue
         }

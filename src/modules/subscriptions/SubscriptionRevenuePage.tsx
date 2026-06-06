@@ -13,9 +13,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { SubscriptionsStatsCards } from "@/modules/subscriptions/components/SubscriptionsStatsCards"
 import { OverdueReversalBanner } from "@/modules/subscriptions/components/OverdueReversalBanner"
-import { getSubscriptionsRevenueStats } from "@/modules/subscriptions/subscriptions.api"
 import {
   exportSubscriptionsRevenue,
+  getCommissionOverdueAlerts,
   getSubscriptionsRevenueHistory,
   getSubscriptionsRevenueDetails,
   getSubscriptionsRevenuePayments,
@@ -67,13 +67,6 @@ export default function SubscriptionRevenuePage() {
     queryFn: () => getSubscriptionsRevenueSummary(month),
   })
 
-  const statsQuery = useQuery({
-    queryKey: ["subscriptions", "revenue", "stats", month],
-    queryFn: () => getSubscriptionsRevenueStats(month),
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: true,
-  })
-
   const historyQuery = useQuery({
     queryKey: ["subscriptions", "revenue", "history"],
     queryFn: () => getSubscriptionsRevenueHistory(12),
@@ -85,6 +78,12 @@ export default function SubscriptionRevenuePage() {
   const paymentsQuery = useQuery({
     queryKey: ["subscriptions", "revenue", "payments", month],
     queryFn: () => getSubscriptionsRevenuePayments(month),
+  })
+
+  const commissionOverdueQuery = useQuery({
+    queryKey: ["subscriptions", "revenue", "commission-overdue"],
+    queryFn: getCommissionOverdueAlerts,
+    staleTime: 5 * 60 * 1000,
   })
 
   const paymentMutation = useMutation({
@@ -143,8 +142,13 @@ export default function SubscriptionRevenuePage() {
         </div>
       }
     >
-      {statsQuery.data?.isReverseOverdue ? (
-        <OverdueReversalBanner overdueMonths={statsQuery.data.overdueMonths} />
+      {(commissionOverdueQuery.data?.count ?? 0) > 0 ? (
+        <OverdueReversalBanner overdueMonths={(commissionOverdueQuery.data?.months ?? []).map((m) => ({
+          month: monthLabel(m.month),
+          amount: m.remainingFcfa,
+          dueDate: `${m.month}-15`,
+          daysPastDue: 0,
+        }))} />
       ) : null}
 
       <SubscriptionsStatsCards month={month} />

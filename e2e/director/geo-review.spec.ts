@@ -48,7 +48,7 @@ const mockValidationsApis = async (
   })
 }
 
-test.describe("Revue GPS — page validations (onglet Présences suspectes)", () => {
+test.describe("Revue GPS - page validations (onglet Présences suspectes)", () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 })
     await mockDirectorAuth(page)
@@ -101,7 +101,7 @@ test.describe("Revue GPS — page validations (onglet Présences suspectes)", ()
     await expect(page.getByText(/valider la présence de M\. Koné GPS/i)).toBeVisible()
   })
 
-  test("marquer une présence GPS comme absente — la modale de confirmation s'ouvre", async ({ page }) => {
+  test("marquer une présence GPS comme absente - la modale de confirmation s'ouvre", async ({ page }) => {
     await mockValidationsApis(page)
     await page.route("**/api/v1/validations/att-gps-e2e-1/reject*", async (route) => {
       await route.fulfill({
@@ -152,7 +152,7 @@ test.describe("Revue GPS — page validations (onglet Présences suspectes)", ()
       page.getByRole("heading", { name: /validation des horaires/i })
     ).toBeVisible({ timeout: 10000 })
 
-    // Aucune ligne de présence GPS — le tableau est vide ou un message "aucun" s'affiche
+    // Aucune ligne de présence GPS - le tableau est vide ou un message "aucun" s'affiche
     await expect(page.getByRole("button", { name: /valider/i })).toHaveCount(0)
   })
 })

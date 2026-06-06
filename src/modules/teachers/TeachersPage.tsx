@@ -522,7 +522,7 @@ export default function TeachersPage() {
     setBlockReasonInput("")
   }
 
-  // Mutation de blocage — cible teachers.is_blocked via blockTeacher/unblockTeacher
+  // Mutation de blocage - cible teachers.is_blocked via blockTeacher/unblockTeacher
   // toggleBlockMutation gère à la fois le blocage et le déblocage des professeurs en fonction de leur statut actuel, ce qui simplifie la logique de gestion du statut 
   // et évite la nécessité de créer deux mutations distinctes pour ces actions.
   const toggleBlockMutation = useMutation({

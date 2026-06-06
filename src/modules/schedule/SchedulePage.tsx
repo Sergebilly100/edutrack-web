@@ -141,13 +141,13 @@ const buildListStructure = (
   //
   // Stratégie en deux passes pour éviter tout faux positif :
   //
-  // Passe 1 — correspondance exacte :
+  // Passe 1 - correspondance exacte :
   //   Si schedule.startTime === slot.startTime, c'est la bonne ligne sans ambiguïté.
   //   Ex : créneau "17:00" → ligne "17:00–17:30" ✓
   //   Cela évite qu'un créneau dont le startTime coïncide avec le endTime d'une
   //   ligne précédente (ex : "17:00" dans "16:30–17:00") soit mal affecté.
   //
-  // Passe 2 — containment par plage stricte :
+  // Passe 2 - containment par plage stricte :
   //   slot.startTime < schedule.startTime < slot.endTime
   //   (les deux bornes sont STRICTES pour ne pas capturer les égalités
   //    qui appartiennent à la passe 1)
@@ -378,7 +378,7 @@ export default function SchedulePage() {
   }
 
   // Détermine si on demande à l'utilisateur la portée de la modification.
-  // Un créneau one-shot (endDate non nul) n'a qu'une occurrence — édition directe avec scope='this'.
+  // Un créneau one-shot (endDate non nul) n'a qu'une occurrence - édition directe avec scope='this'.
   const requestEditFor = (schedule: ScheduleRow) => {
     const isOneShot = schedule.endDate !== null
     if (isOneShot) {
@@ -404,7 +404,7 @@ export default function SchedulePage() {
   // upsertMutation.onMutate ci-dessous. On enregistre juste un processor qui
   // rejouera la requête à la reconnexion (registry global, voir
   // offline-processors.ts). Le create reste online-only : l'id serveur est
-  // attribué à la création — on ne peut pas le rejouer en aveugle.
+  // attribué à la création - on ne peut pas le rejouer en aveugle.
   const offlineUpdateMutation = useOfflineMutation<
     { id: string },
     ScheduleUpdateOfflinePayload

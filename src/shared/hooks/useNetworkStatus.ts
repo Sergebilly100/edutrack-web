@@ -11,7 +11,7 @@ export type NetworkStatus = {
  *
  * On évite délibérément un ping HTTP au boot. Le backend peut être
  * hébergé sur une origine différente (ex: localhost:3000 vs
- * 127.0.0.1:4173) et bloquer les requêtes par CORS — l'app croit
+ * 127.0.0.1:4173) et bloquer les requêtes par CORS - l'app croit
  * alors être offline en permanence, le bandeau orange reste affiché
  * et la sync auto ne se déclenche jamais.
  *

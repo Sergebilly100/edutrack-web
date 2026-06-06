@@ -40,7 +40,7 @@ const mockPendingCount = async (page: Parameters<Parameters<typeof test>[1]>[0][
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-test.describe("Validations — directeur", () => {
+test.describe("Validations - directeur", () => {
   test.beforeEach(async ({ page }) => {
     // Desktop pour que les colonnes de table (Créneau, Salle) et les boutons soient visibles
     await page.setViewportSize({ width: 1280, height: 900 })

@@ -17,6 +17,8 @@ type OverdueReversalBannerProps = {
   overdueMonths: OverdueMonth[]
 }
 
+const SUPPORT_EMAIL = import.meta.env.VITE_SUPPORT_EMAIL ?? "support@ivoiredu.ci"
+
 export function OverdueReversalBanner({ overdueMonths }: OverdueReversalBannerProps) {
   const [contactModalOpen, setContactModalOpen] = useState(false)
   const { toast } = useToast()
@@ -56,7 +58,7 @@ export function OverdueReversalBanner({ overdueMonths }: OverdueReversalBannerPr
           <AlertTriangle className="h-5 w-5 animate-pulse mt-0.5" />
           <div className="flex-1 space-y-2">
             <AlertTitle className="text-base font-semibold">
-              Reversement en retard — Action requise
+              Reversement en retard - Action requise
             </AlertTitle>
             <AlertDescription className="space-y-1">
               {overdueMonths.map((month) => (
@@ -96,10 +98,10 @@ export function OverdueReversalBanner({ overdueMonths }: OverdueReversalBannerPr
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">Email de support</p>
                   <a
-                    href="mailto:support@ivoiredu.ci"
+                    href={`mailto:${SUPPORT_EMAIL}`}
                     className="text-sm text-blue-600 hover:underline"
                   >
-                    support@ivoiredu.ci
+                    {SUPPORT_EMAIL}
                   </a>
                 </div>
               </div>

@@ -13,7 +13,7 @@ const SYNC_RETRY_DELAY_MS = 15_000
  * 'online'/'offline'. On n'utilise pas useNetworkStatus ici parce que son
  * ping HTTP peut rester bloqué (CORS, latence, captive portal) et nous
  * faire croire à tort qu'on est offline alors que le navigateur est en
- * ligne — ce qui empêchait la sync auto de se déclencher.
+ * ligne - ce qui empêchait la sync auto de se déclencher.
  */
 function useBrowserOnline(): boolean {
   const [online, setOnline] = useState(() =>

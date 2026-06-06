@@ -59,7 +59,7 @@ const mockOnboardingApis = async (page: import("@playwright/test").Page) => {
     }
   })
 
-  // Route completeOnboarding — PATCH /school/onboarding-complete
+  // Route completeOnboarding - PATCH /school/onboarding-complete
   await page.route("**/api/v1/school/onboarding-complete*", async (route) => {
     await route.fulfill({
       status: 200,
@@ -104,7 +104,7 @@ const mockOnboardingApis = async (page: import("@playwright/test").Page) => {
   })
 }
 
-test.describe("Onboarding wizard — directeur", () => {
+test.describe("Onboarding wizard - directeur", () => {
   test.beforeEach(async ({ page }) => {
     await mockDirectorAuth(page)
     await mockOnboardingApis(page)
@@ -117,7 +117,7 @@ test.describe("Onboarding wizard — directeur", () => {
     await expect(page.getByText("Onboarding directeur")).toBeVisible({ timeout: 10000 })
   })
 
-  test("l'étape 1 affiche 'Étape 1 — Infos école'", async ({ page }) => {
+  test("l'étape 1 affiche 'Étape 1 - Infos école'", async ({ page }) => {
     await loginAndGoToOnboarding(page)
     await expect(page).toHaveURL(/\/onboarding/)
     await expect(page.getByRole("heading", { name: /étape 1.*infos école/i })).toBeVisible({ timeout: 10000 })
@@ -128,7 +128,7 @@ test.describe("Onboarding wizard — directeur", () => {
     await expect(page).toHaveURL(/\/onboarding/)
     await expect(page.getByText("Onboarding directeur")).toBeVisible({ timeout: 10000 })
 
-    // Les badges s'affichent sous la forme "N. Label" — on vérifie le texte "Étape N/5" dans le sous-titre
+    // Les badges s'affichent sous la forme "N. Label" - on vérifie le texte "Étape N/5" dans le sous-titre
     await expect(page.getByText(/étape 1\/5/i)).toBeVisible({ timeout: 10000 })
 
     // Vérifier les labels de badges via regex partielle

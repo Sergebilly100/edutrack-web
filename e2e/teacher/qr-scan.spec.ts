@@ -2,29 +2,29 @@ import { expect, test } from "@playwright/test"
 
 import { loginAsTeacherUI, mockTeacherFlowApis } from "./helpers"
 
-test.describe("QR Scan — flux complet professeur", () => {
+test.describe("QR Scan - flux complet professeur", () => {
   test("flux complet : login → EDT → check-in → scan QR → appel", async ({ page, context }) => {
     const { slot } = await mockTeacherFlowApis(page)
     await context.grantPermissions(["camera"])
 
     await loginAsTeacherUI(page)
 
-    // Étape 1 — EDT du jour visible
+    // Étape 1 - EDT du jour visible
     await expect(page.getByTestId("teacher-schedule-page")).toBeVisible()
     await expect(page.getByTestId(`teacher-course-card-${slot.id}`)).toBeVisible()
 
-    // Étape 2 — Démarrer le cours → check-in
+    // Étape 2 - Démarrer le cours → check-in
     await page.getByTestId(`teacher-start-course-${slot.id}`).click()
     await expect(page.getByTestId("teacher-checkin-step-1")).toBeVisible()
     await page.getByTestId("teacher-checkin-submit").click()
     await expect(page.getByTestId("teacher-checkin-step-2")).toBeVisible()
 
-    // Étape 3 — Ignorer le scan QR (allowed by school config)
+    // Étape 3 - Ignorer le scan QR (allowed by school config)
     await page.getByTestId("teacher-checkin-skip-qr").click()
     await expect(page.getByRole("dialog")).toBeVisible()
     await page.getByRole("button", { name: "Faire l'appel maintenant" }).click()
 
-    // Étape 4 — Appel élèves
+    // Étape 4 - Appel élèves
     await expect(page.getByTestId("teacher-checkin-step-3")).toBeVisible()
     await expect(page.getByText(/à marquer/i)).toBeVisible()
   })
@@ -62,7 +62,7 @@ test.describe("QR Scan — flux complet professeur", () => {
       })
     })
 
-    // La page doit rester en étape 2 (scan QR) — l'erreur est gérée UI
+    // La page doit rester en étape 2 (scan QR) - l'erreur est gérée UI
     await expect(page.getByTestId("teacher-checkin-step-2")).toBeVisible()
   })
 

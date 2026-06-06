@@ -16,7 +16,7 @@ export type TeacherListItem = {
   hourlyRate: number | null
   monthlySalary: number | null
   isActive: boolean
-  // Blocage métier — champ dédié sur la table teachers
+  // Blocage métier - champ dédié sur la table teachers
   isBlocked: boolean
   blockReason: string | null
   blockedAt: string | null

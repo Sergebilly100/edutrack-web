@@ -255,7 +255,7 @@ export const getInitialViewMode = (): ViewMode => {
   return window.matchMedia("(min-width: 768px)").matches ? "grid" : "list"
 }
 
-// buildListStructure stays in SchedulePage.tsx — its containment algorithm
+// buildListStructure stays in SchedulePage.tsx - its containment algorithm
 // is the most subtle part of the page and is currently covered by component
 // tests, so it is safer to keep it co-located until those tests can guard a
 // move.

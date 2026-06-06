@@ -643,10 +643,10 @@ function InfosPanel({
         title="Réinitialiser le mot de passe"
         description={`Cette action va générer un nouveau mot de passe temporaire pour ${teacher.firstName} ${teacher.lastName}.`}
         consequences={[
-          "L'ancien mot de passe est immédiatement invalidé — le professeur ne pourra plus se connecter avec.",
+          "L'ancien mot de passe est immédiatement invalidé - le professeur ne pourra plus se connecter avec.",
           hasEmail
             ? `Un email est envoyé à ${teacher.email} avec le nouveau mot de passe.`
-            : "Aucun email renseigné — le nouveau mot de passe vous sera affiché à l'écran pour transmission manuelle.",
+            : "Aucun email renseigné - le nouveau mot de passe vous sera affiché à l'écran pour transmission manuelle.",
           "Le professeur devra changer ce mot de passe à sa prochaine connexion.",
         ]}
         confirmLabel="Confirmer la réinitialisation"
@@ -673,7 +673,7 @@ function InfosPanel({
               <p className="text-xs uppercase tracking-wide">Mot de passe temporaire</p>
               <p className="mt-1 font-mono text-lg font-semibold">{resetResult.plainPassword}</p>
               <p className="mt-2 text-xs">
-                Notez-le immédiatement — il ne sera plus affiché après fermeture.
+                Notez-le immédiatement - il ne sera plus affiché après fermeture.
               </p>
             </div>
           ) : null}

@@ -2,7 +2,7 @@ import { apiClient as api } from "@/shared/api/client"
 
 export type GeoPayload = { latitude?: number; longitude?: number; accuracy?: number }
 // `client_timestamp` (ISO 8601) : heure réelle de l'action côté utilisateur.
-// Critique pour les actions offline rejouées plus tard — sans ce champ le backend
+// Critique pour les actions offline rejouées plus tard - sans ce champ le backend
 // enregistrerait l'action à l'heure de la synchronisation, ce qui fausserait
 // retards / absences / heures réelles.
 export type ClientTimestampPayload = { client_timestamp?: string }

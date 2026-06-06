@@ -98,6 +98,8 @@ export function NotificationButton({ count = 0, className }: NotificationButtonP
       weeklyAbsenceCount,
       salaryUnpaidCount: salaryUnpaidAlertsQuery.data?.count ?? 0,
       salaryUnpaidTotalFcfa: salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0,
+      commissionOverdueCount: 0,
+      commissionOverdueTotalFcfa: 0,
       pendingValidationCount: validationCountQuery.data?.total ?? 0,
       smsLog: smsLogQuery.data ?? [],
       // Ce bouton est réservé au directeur (queryEnabled + early return) :
@@ -107,6 +109,7 @@ export function NotificationButton({ count = 0, className }: NotificationButtonP
         canViewTeachers: true,
         canViewValidations: true,
         canViewSalary: true,
+        canViewSubscriptionRevenue: true,
         canViewSmsLog: true,
         canViewStudents: true,
       },

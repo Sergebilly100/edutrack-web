@@ -1,5 +1,5 @@
 /**
- * Time utilities — source unique de vérité pour normalisation
+ * Time utilities - source unique de vérité pour normalisation
  *
  * QUALITÉ FIX : Élimine duplication entre schedule.api.ts et autres modules
  */

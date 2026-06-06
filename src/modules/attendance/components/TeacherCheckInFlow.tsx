@@ -131,7 +131,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
   const [step, setStep] = useState<1 | 2 | 3 | 4>(initialStep)
 
   /**
-   * Point 4 — La présence n'est confirmée qu'après l'étape 2 (QR).
+   * Point 4 - La présence n'est confirmée qu'après l'étape 2 (QR).
    * On stocke les données de check-in localement jusqu'à la validation QR.
    * checkInScheduled = true signifie que le prof a cliqué "Je suis présent(e)"
    * mais que la mutation n'a pas encore été envoyée au backend.
@@ -225,7 +225,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
     }
   }, [studentsQuery.data])
 
-  // ── Étape 1 — Le prof indique sa présence (local uniquement) ─────────────
+  // ── Étape 1 - Le prof indique sa présence (local uniquement) ─────────────
   /**
    * Point 4 : on ne fait PAS encore la mutation vers le backend ici.
    * On marque juste l'intention localement → passage à l'étape 2.
@@ -241,13 +241,13 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
     setStep(2)
   }
 
-  // ── Étape 2 — Scan QR + envoi checkIn vers backend ───────────────────────
+  // ── Étape 2 - Scan QR + envoi checkIn vers backend ───────────────────────
   /**
    * Point 4 : c'est ici que la présence est réellement confirmée.
    * On chaîne : checkIn (backend) → qrScan (backend) → résultat.
    *
    * On enregistre aussi `startScanContext` (token + roomId résolu via cache)
-   * — c'est la source de vérité locale pour valider le QR de fin **hors ligne**.
+   * - c'est la source de vérité locale pour valider le QR de fin **hors ligne**.
    */
   const handleQrSubmit = async (token: string) => {
     const qrToken = token.trim()
@@ -299,7 +299,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
       // ── 3. Mémoriser le contexte du scan début pour valider le scan fin ──
       // On résout `roomId` via IndexedDB (cache à jour grâce à fetchRooms /
       // cacheRooms dans TeacherFlow). En cas d'échec, on garde au moins le
-      // token brut — la comparaison string suffira à détecter un mismatch.
+      // token brut - la comparaison string suffira à détecter un mismatch.
       let resolvedRoomId: string | null = null
       try {
         const cachedRoom = await getRoomByToken(qrToken)
@@ -433,7 +433,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
   }
 
   /**
-   * Point 5 — Fermeture du sheet AVANT la fin du process.
+   * Point 5 - Fermeture du sheet AVANT la fin du process.
    * On marque "checkin_qr_done" uniquement si l'enseignant est déjà entré
    * dans l'étape d'appel (étape 3) puis ferme le sheet sans terminer.
    * CourseCard affichera "Poursuivre le pointage".
@@ -451,7 +451,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
     onClose()
   }
 
-  // ── Étape 3 — Appel élèves ────────────────────────────────────────────────
+  // ── Étape 3 - Appel élèves ────────────────────────────────────────────────
 
   const markStudent = (studentId: string, status: StudentRollCallStatus) => {
     setStudentStatuses((prev) => {
@@ -463,7 +463,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
 
   const handleSubmitStudents = async () => {
     /**
-     * Point 3 — Impossible d'envoyer si des élèves sont encore "unmarked".
+     * Point 3 - Impossible d'envoyer si des élèves sont encore "unmarked".
      * Le bouton est désactivé si unmarkedCount > 0, mais on double-vérifie ici.
      */
     if (unmarkedCount > 0) {
@@ -497,8 +497,8 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
       rollCallStore.markReadyToFinish(slot.id, attendanceDate)
       toast({
         title: queued
-          ? `Appel en attente — ${absentCount} absent(s)`
-          : `Appel enregistré — ${absentCount} absent(s)`,
+          ? `Appel en attente - ${absentCount} absent(s)`
+          : `Appel enregistré - ${absentCount} absent(s)`,
         description: queued
           ? "La liste sera envoyée dès le retour de la connexion. Vous pouvez terminer le cours normalement."
           : "Terminez le cours à la fin pour confirmer les heures effectuées.",
@@ -615,7 +615,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
         client_timestamp: new Date().toISOString(),
       })
     } catch {
-      // skip silencieux — le checkout reste possible
+      // skip silencieux - le checkout reste possible
     }
     setEndQrScanned(true)
   }
@@ -703,7 +703,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
             </SheetDescription>
           </SheetHeader>
 
-          {/* Indicateur d'étapes — masqué en mode reprise */}
+          {/* Indicateur d'étapes - masqué en mode reprise */}
           {!isResuming ? (
             <div className="flex items-center justify-between gap-2 py-1">
               {stepIndex.map((item) => {
@@ -731,7 +731,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
             </div>
           ) : null}
 
-          {/* ── Step 1 — Déclaration de présence (local) ────────────────── */}
+          {/* ── Step 1 - Déclaration de présence (local) ────────────────── */}
           {step === 1 ? (
             <section
               className="space-y-4 rounded-xl border p-2"
@@ -768,7 +768,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
             </section>
           ) : null}
 
-          {/* ── Step 2 — Scan QR + confirmation présence ────────────────── */}
+          {/* ── Step 2 - Scan QR + confirmation présence ────────────────── */}
           {step === 2 ? (
             <section
               className="space-y-4 rounded-xl border p-2"
@@ -822,7 +822,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
               {qrValidated ? (
                 <Badge className="bg-green-600 text-white hover:bg-green-600">
                   {lateMinutes && lateMinutes > 0
-                    ? `Présence confirmée — retard ${lateMinutes}min`
+                    ? `Présence confirmée - retard ${lateMinutes}min`
                     : "Présence confirmée"}
                 </Badge>
               ) : null}
@@ -842,7 +842,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
             </section>
           ) : null}
 
-          {/* ── Step 3 — Appel élèves ────────────────────────────────────── */}
+          {/* ── Step 3 - Appel élèves ────────────────────────────────────── */}
           {step === 3 ? (
             <section
               className="space-y-4 rounded-xl border p-2"
@@ -961,7 +961,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                 {motivationalByStep[3]}
               </p>
 
-              {/* Point 3 — Bouton désactivé tant que tous les élèves ne sont pas marqués */}
+              {/* Point 3 - Bouton désactivé tant que tous les élèves ne sont pas marqués */}
               <Button
                 type="button"
                 size="lg"
@@ -974,12 +974,12 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                   ? "Envoi en cours..."
                   : !allStudentsMarked
                     ? `Marquer encore ${unmarkedCount} ${unmarkedCount > 1 ? studentLabels.pluralLower : studentLabels.singularLower}`
-                    : `Valider l'appel — ${absentCount} absent${absentCount > 1 ? "s" : ""}`}
+                    : `Valider l'appel - ${absentCount} absent${absentCount > 1 ? "s" : ""}`}
               </Button>
             </section>
           ) : null}
 
-          {/* ── Step 4 — Fin du cours + scan QR de fin ────────────────────────── */}
+          {/* ── Step 4 - Fin du cours + scan QR de fin ────────────────────────── */}
           {step === 4 ? (
             <section className="space-y-4 rounded-xl border p-2" data-testid="teacher-checkin-step-4">
               <div className="space-y-2 rounded-lg border border-green-200 bg-green-50 px-3 py-3">

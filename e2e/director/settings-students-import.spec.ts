@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test"
 import { loginAsDirectorUI, mockDirectorAuth } from "./helpers"
 
 const mockNavigationApis = async (page: import("@playwright/test").Page) => {
-  // Page élèves — liste des élèves
+  // Page élèves - liste des élèves
   await page.route("**/api/v1/students*", async (route) => {
     await route.fulfill({
       status: 200,
@@ -15,7 +15,7 @@ const mockNavigationApis = async (page: import("@playwright/test").Page) => {
     })
   })
 
-  // Page élèves — classes (via schedule/weekly ou classes)
+  // Page élèves - classes (via schedule/weekly ou classes)
   await page.route("**/api/v1/schedule/weekly*", async (route) => {
     await route.fulfill({
       status: 200,
@@ -32,7 +32,7 @@ const mockNavigationApis = async (page: import("@playwright/test").Page) => {
     })
   })
 
-  // Page settings — config école
+  // Page settings - config école
   await page.route("**/api/v1/permissions/config*", async (route) => {
     await route.fulfill({
       status: 200,
@@ -72,7 +72,7 @@ const mockNavigationApis = async (page: import("@playwright/test").Page) => {
     })
   })
 
-  // Page import — historique
+  // Page import - historique
   await page.route("**/api/v1/import/history*", async (route) => {
     await route.fulfill({
       status: 200,

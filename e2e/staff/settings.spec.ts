@@ -14,7 +14,7 @@ import { loginAsStaffUI } from "./helpers"
  * Si ce n'est pas le cas, les tests de restriction ne seront pas représentatifs.
  */
 
-test.describe("Staff — accès aux paramètres", () => {
+test.describe("Staff - accès aux paramètres", () => {
   test("le menu de navigation ne contient pas le lien 'Paramètres' pour un staff sans permission", async ({
     page,
   }) => {
@@ -43,7 +43,7 @@ test.describe("Staff — accès aux paramètres", () => {
   }) => {
     await loginAsStaffUI(page)
     // Ce test est pertinent si le staff a accès à /settings mais sans settings.positions
-    // Si la redirection a lieu, le test est trivial — on vérifie l'absence du bouton
+    // Si la redirection a lieu, le test est trivial - on vérifie l'absence du bouton
     await page.goto("/settings")
     // Attendre que la page se stabilise (redirection ou affichage)
     await page.waitForTimeout(500)

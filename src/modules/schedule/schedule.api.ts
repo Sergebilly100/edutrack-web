@@ -314,7 +314,7 @@ export const fetchWeeklySchedule = async (date?: unknown): Promise<WeeklySchedul
   })
   const parsed = WeeklyScheduleResponseSchema.parse(response.data)
 
-  // Normaliser tous les temps en "HH:MM" — source unique de vérité pour les clés de lookup
+  // Normaliser tous les temps en "HH:MM" - source unique de vérité pour les clés de lookup
   const normalizedTimeSlots: TimeSlotCatalogItem[] = parsed.time_slots.map((slot) => ({
     id: slot.id,
     label: slot.label,

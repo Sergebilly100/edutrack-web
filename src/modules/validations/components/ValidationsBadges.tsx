@@ -16,7 +16,7 @@ const KIND_LABEL: Record<ValidationKind, string> = {
 
 export function KindBadges({ kinds }: { kinds: ValidationKind[] | undefined | null }) {
   // Défensif : si la donnée provient d'un cache stale ou d'une réponse API
-  // mal formée, on ne casse pas le rendu — on omet juste les badges.
+  // mal formée, on ne casse pas le rendu - on omet juste les badges.
   if (!Array.isArray(kinds) || kinds.length === 0) return null
   const hasShortHours = kinds.includes("short_hours")
   const hasGpsSuspicious = kinds.includes("gps_suspicious")

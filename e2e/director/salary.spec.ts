@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test"
 
 import { loginAsDirectorUI, mockDirectorAuth, selectSalaryMonth, formatMonthLabel } from "./helpers"
 
-// Mois hardcodé — pas d'appel API réel
+// Mois hardcodé - pas d'appel API réel
 const PAYABLE_MONTH = "2026-06"
 const TEACHER_VACATAIRE_ID = "teacher-vacataire-e2e-1"
 
@@ -78,7 +78,7 @@ const mockSalaryApis = async (
     })
   })
 
-  // queueSchoolSalaryExport — utilisé dans un ancien bouton (maintenant c'est export/bulk)
+  // queueSchoolSalaryExport - utilisé dans un ancien bouton (maintenant c'est export/bulk)
   await page.route("**/api/v1/billing/salary/export/school*", async (route) => {
     await route.fulfill({
       status: 200,
@@ -86,7 +86,7 @@ const mockSalaryApis = async (
       body: JSON.stringify({ jobId: "export-job-e2e-1" }),
     })
   })
-  // queueBulkSalaryExport — utilisé par le bouton "Export bilan PDF" → dialog "Exporter le bilan"
+  // queueBulkSalaryExport - utilisé par le bouton "Export bilan PDF" → dialog "Exporter le bilan"
   await page.route("**/api/v1/billing/salary/export/bulk*", async (route) => {
     await route.fulfill({
       status: 200,
@@ -104,7 +104,7 @@ const mockSalaryApis = async (
     })
   })
 
-  // getTeacherSalaryDetails — chargé à l'ouverture du dialog "Marquer comme payé"
+  // getTeacherSalaryDetails - chargé à l'ouverture du dialog "Marquer comme payé"
   await page.route(`**/api/v1/billing/salary/${TEACHER_VACATAIRE_ID}*`, async (route) => {
     await route.fulfill({
       status: 200,
@@ -204,7 +204,7 @@ test.describe("Page salaires", () => {
 
     await markPaidButton.click()
 
-    // Le dialog de paiement s'ouvre — saisir un montant et confirmer
+    // Le dialog de paiement s'ouvre - saisir un montant et confirmer
     await page.getByLabel("Saisissez le nombre d'heure que vous souhaitez payer").fill("18")
     await expect(page.getByRole("button", { name: "Confirmer le paiement" })).toBeEnabled()
     await page.getByRole("button", { name: "Confirmer le paiement" }).click()
@@ -217,7 +217,7 @@ test.describe("Page salaires", () => {
   test("l'export PDF est queué (bouton télécharger apparaît)", async ({ page }) => {
     const JOB_ID = "export-job-e2e-1"
 
-    // Mock export bulk — retourne un jobId (cliqué via "Export bilan PDF" → dialog)
+    // Mock export bulk - retourne un jobId (cliqué via "Export bilan PDF" → dialog)
     await page.route("**/api/v1/billing/salary/export/bulk*", async (route) => {
       await route.fulfill({
         status: 200,
@@ -226,7 +226,7 @@ test.describe("Page salaires", () => {
       })
     })
 
-    // Mock poll status du job — retourne "completed" avec downloadUrl
+    // Mock poll status du job - retourne "completed" avec downloadUrl
     await page.route(`**/api/v1/jobs/${JOB_ID}/status*`, async (route) => {
       await route.fulfill({
         status: 200,
@@ -241,7 +241,7 @@ test.describe("Page salaires", () => {
       })
     })
 
-    // Cliquer le bouton "Export bilan PDF" — ouvre le dialog "Exporter le bilan"
+    // Cliquer le bouton "Export bilan PDF" - ouvre le dialog "Exporter le bilan"
     await page.getByTestId("salaries-export-school-button").click()
     // Le dialog pré-remplit les périodes avec selectedMonth → bouton Générer actif
     await page.getByRole("dialog", { name: "Exporter le bilan" }).getByRole("button", { name: "Générer" }).click()

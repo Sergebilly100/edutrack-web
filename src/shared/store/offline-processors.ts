@@ -3,7 +3,7 @@
 // Pourquoi ce fichier existe : useOfflineMutation enregistre son processor via
 // useEffect côté composant. Si l'utilisateur quitte la page entre la mise en
 // file et le retour réseau, le processor est désinscrit et l'item reste en
-// queue sans pouvoir être rejoué (voir offline.store.ts:134 — warning).
+// queue sans pouvoir être rejoué (voir offline.store.ts:134 - warning).
 //
 // Pour les actions critiques (paiements, planning), on enregistre les
 // processors au démarrage de l'app, indépendamment de la vie des composants.
@@ -55,7 +55,7 @@ export const OFFLINE_QUEUE_KEYS = {
   // Attendance : les 3 étapes prof. Les composants TeacherFlow et
   // TeacherCheckInFlow utilisent ces queueKey mais avec des wrappers
   // d'API parfois différents (teacherScheduleApi.* vs fonctions
-  // standalone) — heureusement, ils visent les mêmes endpoints HTTP,
+  // standalone) - heureusement, ils visent les mêmes endpoints HTTP,
   // donc rejouer avec la version standalone est sûr.
   attendanceCheckin: "attendance-checkin",
   attendanceQrScan: "attendance-qr-scan",

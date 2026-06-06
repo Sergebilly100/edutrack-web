@@ -792,7 +792,7 @@ export default function ValidationsPage() {
                           setApproveShortHoursTarget({
                             item,
                             validatedHours: undefined,
-                            label: `${formatMinutes(item.scheduleDurationMinutes)}${plannedAmount !== null ? ` — ${formatFcfa(plannedAmount)}` : ""}`,
+                            label: `${formatMinutes(item.scheduleDurationMinutes)}${plannedAmount !== null ? ` - ${formatFcfa(plannedAmount)}` : ""}`,
                           })
                         }
                       >
@@ -809,7 +809,7 @@ export default function ValidationsPage() {
                           setApproveShortHoursTarget({
                             item,
                             validatedHours: Math.round(actualHours * 100) / 100,
-                            label: `${formatMinutes(item.actualMinutes)}${actualAmount !== null ? ` — ${formatFcfa(actualAmount)}` : ""}`,
+                            label: `${formatMinutes(item.actualMinutes)}${actualAmount !== null ? ` - ${formatFcfa(actualAmount)}` : ""}`,
                           })
                         }
                       >
@@ -1367,7 +1367,7 @@ export default function ValidationsPage() {
                 : "Sanctionner l'enseignant"}
             </DialogTitle>
             <DialogDescription>
-              {endScanActionTarget?.teacher.teacherName} — {endScanActionTarget?.session.subject} du{" "}
+              {endScanActionTarget?.teacher.teacherName} - {endScanActionTarget?.session.subject} du{" "}
               {endScanActionTarget ? formatDate(endScanActionTarget.session.date) : ""}
             </DialogDescription>
           </DialogHeader>
@@ -1434,7 +1434,7 @@ export default function ValidationsPage() {
                                   {estimatedAmount ? ` · ${estimatedAmount}` : ""}
                                 </span>
                                 <span className="block text-xs text-muted-foreground mt-0.5">
-                                  Recommandé — durée max possible jusqu'à l'heure de fin prévue.
+                                  Recommandé - durée max possible jusqu'à l'heure de fin prévue.
                                 </span>
                               </span>
                             </label>
@@ -1514,9 +1514,9 @@ export default function ValidationsPage() {
                   reason:
                     endScanActionTarget.action === "warned"
                       ? validatedHours !== undefined
-                        ? `Scan de fin manquant — toléré, heures estimées créditées (${formatMinutes(session.estimatedDurationMinutes)})`
-                        : "Scan de fin manquant — toléré avec avertissement"
-                      : "Scan de fin manquant — sanctionné",
+                        ? `Scan de fin manquant - toléré, heures estimées créditées (${formatMinutes(session.estimatedDurationMinutes)})`
+                        : "Scan de fin manquant - toléré avec avertissement"
+                      : "Scan de fin manquant - sanctionné",
                   validatedHours,
                 })
               }}
@@ -1545,7 +1545,7 @@ export default function ValidationsPage() {
           <DialogHeader>
             <DialogTitle>Annuler la sanction</DialogTitle>
             <DialogDescription>
-              {cancelSanctionTarget?.teacher.teacherName} — {cancelSanctionTarget?.session.subject} du{" "}
+              {cancelSanctionTarget?.teacher.teacherName} - {cancelSanctionTarget?.session.subject} du{" "}
               {cancelSanctionTarget ? formatDate(cancelSanctionTarget.session.date) : ""}
             </DialogDescription>
           </DialogHeader>

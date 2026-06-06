@@ -65,7 +65,7 @@ const mockSettingsApis = async (page: import("@playwright/test").Page) => {
   })
 }
 
-test.describe("Directeur — module paramètres", () => {
+test.describe("Directeur - module paramètres", () => {
   test.beforeEach(async ({ page }) => {
     await mockDirectorAuth(page)
     await mockSettingsApis(page)

@@ -21,7 +21,7 @@ const getAttendanceBgColor = (rate: number): string => statusToneIconBg[attendan
  * afin d'éviter tout décalage de disposition entre ces états.
  *
  * Le nombre de colonnes au plus large breakpoint suit EXACTEMENT le nombre de
- * cartes visibles : chaque carte vaut 1fr et remplit toute la ligne — pas de
+ * cartes visibles : chaque carte vaut 1fr et remplit toute la ligne - pas de
  * colonne vide quand une carte est masquée (ex. staff sans droit salaire).
  * - 1 carte  : 1 col à toutes tailles
  * - 2 cartes : 1 col (mobile) → 2 col (≥sm)
@@ -62,14 +62,14 @@ function StatCardSkeleton() {
 }
 
 type DashboardStatsCardsProps = {
-  /** Carte « Présence professeurs » (défaut visible — directeur). */
+  /** Carte « Présence professeurs » (défaut visible - directeur). */
   showTeacherCard?: boolean
-  /** Carte « Présence élèves » (défaut visible — directeur). */
+  /** Carte « Présence élèves » (défaut visible - directeur). */
   showStudentCard?: boolean
-  /** Carte « Salaire à payer ce mois » (défaut visible — directeur). */
+  /** Carte « Salaire à payer ce mois » (défaut visible - directeur). */
   showSalaryCard?: boolean
   /**
-   * Carte « Revenus abonnements » (défaut visible — directeur).
+   * Carte « Revenus abonnements » (défaut visible - directeur).
    * Dépend AUSSI de stats.subscriptions.isEnabled. Le droit côté staff est
    * `subscriptions.view` / `subscriptions.revenue`, distinct du droit salaire.
    */

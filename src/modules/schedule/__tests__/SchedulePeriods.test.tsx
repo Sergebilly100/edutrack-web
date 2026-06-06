@@ -131,7 +131,7 @@ describe("SchedulePeriods", () => {
 
     renderSchedulePage()
 
-    // La page charge sans erreur — les périodes seront accessibles via le formulaire
+    // La page charge sans erreur - les périodes seront accessibles via le formulaire
     await waitFor(() => {
       expect(fetchWeeklyScheduleMock).toHaveBeenCalled()
     })

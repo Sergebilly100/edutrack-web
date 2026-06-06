@@ -36,10 +36,10 @@ const createWrapper = () => {
 // Tests squelette d'origine (4/5 cassés sur main) : ils n'attrapent pas le
 // reject `OfflineMutationQueuedError` que `mutateAsync` lève en offline, et
 // testent une API "dedupe" qui n'existe pas. La couverture réelle est dans
-// offline-hooks.test.tsx (queue, sync, retry, concurrence) — ce describe est
+// offline-hooks.test.tsx (queue, sync, retry, concurrence) - ce describe est
 // gardé `skip` pour ne pas masquer une régression future, mais ne contribue
 // pas activement au CI tant que les assertions ne reflètent pas l'API réelle.
-describe.skip("useOfflineMutation (legacy skeleton — see offline-hooks.test.tsx)", () => {
+describe.skip("useOfflineMutation (legacy skeleton - see offline-hooks.test.tsx)", () => {
   beforeEach(async () => {
     idbMemory.clear()
     useOfflineStore.setState({ queue: [], _hasHydrated: true })

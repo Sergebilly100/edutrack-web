@@ -68,7 +68,7 @@ import { formatDecimalHours } from "@/shared/utils/time"
 
 // Tooltip pour les actions qui restent online-only (exports, paiement
 // permanent qui nécessite un GET intermédiaire pour récupérer le salaryRecordId).
-const OFFLINE_ACTION_TITLE = "Indisponible hors ligne — réessayer une fois reconnecté."
+const OFFLINE_ACTION_TITLE = "Indisponible hors ligne - réessayer une fois reconnecté."
 
 export default function SalariesPage() {
   const queryClient = useQueryClient()

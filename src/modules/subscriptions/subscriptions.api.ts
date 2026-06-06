@@ -468,3 +468,45 @@ export const getSubscriptionsRevenueStats = async (month?: string): Promise<Subs
   })
   return normalizeSubscriptionsRevenueStats(response.data)
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMMISSION OVERDUE ALERTS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+export type CommissionOverdueMonth = {
+  month: string
+  remainingFcfa: number
+  collectedFcfa: number
+  paymentStatus: "paid" | "partial" | "pending"
+}
+
+export type CommissionOverdueAlertsResponse = {
+  count: number
+  totalRemainingFcfa: number
+  months: CommissionOverdueMonth[]
+}
+
+const normalizeCommissionOverdueAlerts = (payload: unknown): CommissionOverdueAlertsResponse => {
+  const data = isRecord(payload) ? payload : {}
+  const months = Array.isArray(data.months)
+    ? data.months.map((m: unknown) => {
+        const item = isRecord(m) ? m : {}
+        return {
+          month: typeof item.month === "string" ? item.month : "",
+          remainingFcfa: asNumber(item.remainingFcfa, 0),
+          collectedFcfa: asNumber(item.collectedFcfa, 0),
+          paymentStatus: (item.paymentStatus === "paid" || item.paymentStatus === "partial" ? item.paymentStatus : "pending") as CommissionOverdueMonth["paymentStatus"],
+        }
+      })
+    : []
+  return {
+    count: asNumber(data.count, 0),
+    totalRemainingFcfa: asNumber(data.totalRemainingFcfa, 0),
+    months,
+  }
+}
+
+export const getCommissionOverdueAlerts = async (): Promise<CommissionOverdueAlertsResponse> => {
+  const response = await apiClient.get("/subscriptions/revenue/commission/overdue-alerts")
+  return normalizeCommissionOverdueAlerts(response.data)
+}

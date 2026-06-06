@@ -52,7 +52,7 @@ const mockRoomsApis = async (page: import("@playwright/test").Page) => {
   })
 }
 
-test.describe("Gestion des salles — directeur", () => {
+test.describe("Gestion des salles - directeur", () => {
   test.beforeEach(async ({ page }) => {
     await mockDirectorAuth(page)
     await mockRoomsApis(page)

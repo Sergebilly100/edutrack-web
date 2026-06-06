@@ -150,10 +150,10 @@ function dropFile(file: File) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 1 — Upload & type selection
+// Step 1 - Upload & type selection
 // ---------------------------------------------------------------------------
 
-describe("ImportWizard — step 1 (upload)", () => {
+describe("ImportWizard - step 1 (upload)", () => {
   beforeEach(() => {
     server.use(
       http.get("*/import/students/template", () =>
@@ -216,15 +216,15 @@ describe("ImportWizard — step 1 (upload)", () => {
 })
 
 // ---------------------------------------------------------------------------
-// Step 2 — Dry-run validation results
+// Step 2 - Dry-run validation results
 // ---------------------------------------------------------------------------
 
-describe("ImportWizard — step 2 (validation)", () => {
+describe("ImportWizard - step 2 (validation)", () => {
   it("advances to step 2 after dry-run call", async () => {
     mockDryRunOk()
     renderWizard()
 
-    // We need to select a file — mock the input
+    // We need to select a file - mock the input
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
     if (fileInput) {
       Object.defineProperty(fileInput, "files", {
@@ -377,10 +377,10 @@ describe("ImportWizard — step 2 (validation)", () => {
 })
 
 // ---------------------------------------------------------------------------
-// Step 3 — Confirm import results
+// Step 3 - Confirm import results
 // ---------------------------------------------------------------------------
 
-describe("ImportWizard — step 3 (confirmation)", () => {
+describe("ImportWizard - step 3 (confirmation)", () => {
   const goToStep3 = async () => {
     mockDryRunOk()
     mockConfirmOk()
@@ -512,10 +512,10 @@ describe("ImportWizard — step 3 (confirmation)", () => {
 })
 
 // ---------------------------------------------------------------------------
-// API layer — import-export.api.ts
+// API layer - import-export.api.ts
 // ---------------------------------------------------------------------------
 
-describe("import-export.api — fetchImportHistory", () => {
+describe("import-export.api - fetchImportHistory", () => {
   it("parses history items correctly", async () => {
     server.use(
       http.get("*/import/history", () =>
@@ -567,7 +567,7 @@ describe("import-export.api — fetchImportHistory", () => {
   })
 })
 
-describe("import-export.api — dryRun", () => {
+describe("import-export.api - dryRun", () => {
   it("normalizes severity from 'level' field to error/warning", async () => {
     server.use(
       http.post("*/import/students/dry-run", () =>
@@ -596,7 +596,7 @@ describe("import-export.api — dryRun", () => {
 
   it("passes schedulePeriod params for schedule type", async () => {
     // Verify the FormData is constructed correctly by checking the URL used
-    // (MSW intercepts the request; week_start/week_end are form fields — not query params)
+    // (MSW intercepts the request; week_start/week_end are form fields - not query params)
     server.use(
       http.post("*/import/schedule/dry-run", () =>
         HttpResponse.json({ ...DRY_RUN_OK, conflicts: [] })
@@ -605,7 +605,7 @@ describe("import-export.api — dryRun", () => {
 
     const { dryRun } = await import("../import-export.api")
     const file = makeXlsxFile("schedule.xlsx")
-    // If week_start/week_end were missing, the backend would 400 — here we just
+    // If week_start/week_end were missing, the backend would 400 - here we just
     // assert it resolves without throwing (API layer builds FormData correctly)
     const result = await dryRun("schedule", file, {
       schedulePeriod: { weekStart: "2026-06-01", weekEnd: "2026-06-08" },
@@ -614,7 +614,7 @@ describe("import-export.api — dryRun", () => {
   })
 })
 
-describe("import-export.api — confirmImport", () => {
+describe("import-export.api - confirmImport", () => {
   it("passes conflictAcknowledged=true in FormData and resolves", async () => {
     server.use(
       http.post("*/import/schedule/confirm", () => HttpResponse.json(CONFIRM_OK))
@@ -622,7 +622,7 @@ describe("import-export.api — confirmImport", () => {
 
     const { confirmImport } = await import("../import-export.api")
     const file = makeXlsxFile("schedule.xlsx")
-    // If conflict_acknowledged were absent, backend returns 400 — here we assert it resolves
+    // If conflict_acknowledged were absent, backend returns 400 - here we assert it resolves
     const result = await confirmImport("schedule", file, {
       schedulePeriod: { weekStart: "2026-07-07", weekEnd: "2026-07-14" },
       conflictAcknowledged: true,

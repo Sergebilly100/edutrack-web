@@ -23,7 +23,7 @@ const mockAccountApis = async (page: import("@playwright/test").Page) => {
   })
 }
 
-test.describe("Page compte — directeur", () => {
+test.describe("Page compte - directeur", () => {
   test.beforeEach(async ({ page }) => {
     await mockDirectorAuth(page)
     await mockAccountApis(page)

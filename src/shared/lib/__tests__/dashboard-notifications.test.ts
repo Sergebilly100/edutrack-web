@@ -11,6 +11,7 @@ const ALL_CAPS: DashboardNotificationCapabilities = {
   canViewTeachers: true,
   canViewValidations: true,
   canViewSalary: true,
+  canViewSubscriptionRevenue: true,
   canViewSmsLog: true,
   canViewStudents: true,
 }
@@ -20,6 +21,7 @@ const NO_CAPS: DashboardNotificationCapabilities = {
   canViewTeachers: false,
   canViewValidations: false,
   canViewSalary: false,
+  canViewSubscriptionRevenue: false,
   canViewSmsLog: false,
   canViewStudents: false,
 }
@@ -49,6 +51,8 @@ const baseInput = {
   weeklyAbsenceCount: 5,
   salaryUnpaidCount: 3,
   salaryUnpaidTotalFcfa: 150000,
+  commissionOverdueCount: 0,
+  commissionOverdueTotalFcfa: 0,
   pendingValidationCount: 2,
   smsLog: [failedParentSms, failedDirectorSms],
 }
@@ -93,5 +97,16 @@ describe("buildDirectorDashboardNotifications", () => {
 
   it("le SMS directeur échoué nécessite canViewSmsLog", () => {
     expect(idsOf({ ...NO_CAPS, canViewSmsLog: true })).toEqual(["sms-sms-dir-1"])
+  })
+
+  it("la commission en retard nécessite canViewSubscriptionRevenue et commissionOverdueCount > 0", () => {
+    const inputWithOverdue = { ...baseInput, commissionOverdueCount: 2, commissionOverdueTotalFcfa: 12000 }
+    const ids = buildDirectorDashboardNotifications({ ...inputWithOverdue, capabilities: { ...NO_CAPS, canViewSubscriptionRevenue: true } }).map((n) => n.id)
+    expect(ids).toEqual(["commission-overdue-alerts"])
+  })
+
+  it("sans canViewSubscriptionRevenue la commission en retard n'apparaît pas", () => {
+    const inputWithOverdue = { ...baseInput, commissionOverdueCount: 2, commissionOverdueTotalFcfa: 12000 }
+    expect(buildDirectorDashboardNotifications({ ...inputWithOverdue, capabilities: NO_CAPS })).toHaveLength(0)
   })
 })

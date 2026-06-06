@@ -74,7 +74,7 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
   // ── Règles d'affichage des boutons ────────────────────────────────────────
 
   /**
-   * Point 1 — "Démarrer le cours" uniquement quand le cours EST EN COURS.
+   * Point 1 - "Démarrer le cours" uniquement quand le cours EST EN COURS.
    * Suppression de la fenêtre de 30 min avant : pas de bouton en "upcoming".
    * Conditions : cours actif (status === "now") + pas encore pointé
    *              + aucun flow en cours (pas de "Poursuivre")
@@ -87,20 +87,20 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
     !readyToFinish
 
   /**
-   * Point 5 — "Poursuivre le pointage" : étapes 1+2 faites, sheet fermé sans finir.
+   * Point 5 - "Poursuivre le pointage" : étapes 1+2 faites, sheet fermé sans finir.
    * Le prof a pointé + scanné la salle mais a fermé le sheet avant l'appel.
    * Le flow n'est ni explicitement "plus tard" (rollcall_pending), ni terminé.
    */
   const canResume = checkinQrDone && rollCallStillOpen
 
   /**
-   * Point 2 — "Faire le pointage des élèves" : appel différé explicitement.
+   * Point 2 - "Faire le pointage des élèves" : appel différé explicitement.
    * Le prof a choisi "Non, plus tard" dans la modale.
    */
   const canDoRollCall = rollCallPending && rollCallStillOpen
 
   // Après un refresh, le store Zustand est vide mais room_scan_end_at indique
-  // que le scan a été validé — on s'appuie dessus pour garder le bouton.
+  // que le scan a été validé - on s'appuie dessus pour garder le bouton.
   const endQrDone = readyToFinish || !!attendance?.room_scan_end_at
   const canFinishCourse =
     endQrDone &&

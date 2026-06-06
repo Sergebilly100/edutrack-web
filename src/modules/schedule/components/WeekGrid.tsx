@@ -209,7 +209,7 @@ export default function WeekGrid({
 
   return (
     <div className="space-y-3 rounded-lg border bg-card p-3">
-      {/* État de chargement — skeleton overlay léger */}
+      {/* État de chargement - skeleton overlay léger */}
       {isLoading ? (
         <div className="flex h-24 items-center justify-center rounded-md border bg-muted/30">
           <p className="text-sm text-muted-foreground">Chargement de la semaine...</p>

@@ -10,9 +10,9 @@ type SchoolInfoResponse = {
 export type StudentLabels = {
   singular: string
   plural: string
-  /** Lowercased singular — useful inside sentences ("Liste des {singularLower}s") */
+  /** Lowercased singular - useful inside sentences ("Liste des {singularLower}s") */
   singularLower: string
-  /** Lowercased plural — useful inside sentences */
+  /** Lowercased plural - useful inside sentences */
   pluralLower: string
 }
 
@@ -31,7 +31,7 @@ const DEFAULT_LABELS: StudentLabels = labelsFromSingular("Élève")
 
 /**
  * Returns the active student label (singular only).
- * Legacy callers keep using this — new code should prefer `useStudentLabels()`.
+ * Legacy callers keep using this - new code should prefer `useStudentLabels()`.
  */
 export function useStudentLabel(): string {
   return useStudentLabels().singular

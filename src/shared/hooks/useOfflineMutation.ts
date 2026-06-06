@@ -17,7 +17,7 @@ export class OfflineMutationQueuedError extends Error {
   }
 }
 
-// Détecte les erreurs où la requête n'a JAMAIS atteint le serveur — donc
+// Détecte les erreurs où la requête n'a JAMAIS atteint le serveur - donc
 // safe à requeue. On exclut les vraies erreurs HTTP (4xx/5xx) où le serveur
 // a répondu : requeue les rejouerait inutilement.
 const isNetworkLevelError = (error: unknown): boolean => {

@@ -90,18 +90,18 @@ test.describe("Teacher Flow - Offline to Online Sync", () => {
 
     await page.getByTestId(`teacher-start-course-${slot.id}`).click()
 
-    // Étape 1 — check-in (local)
+    // Étape 1 - check-in (local)
     await page.getByTestId("teacher-checkin-submit").click()
     await expect(page.getByTestId("teacher-checkin-step-2")).toBeVisible({ timeout: 8000 })
 
-    // Étape 2 — skip QR (check-in + qr-skip → queués)
+    // Étape 2 - skip QR (check-in + qr-skip → queués)
     await page.getByTestId("teacher-checkin-skip-qr").click()
     const dialog = page.getByRole("dialog")
     await expect(dialog).toBeVisible()
     await page.getByRole("button", { name: "Faire l'appel maintenant" }).click()
     await expect(page.getByTestId("teacher-checkin-step-3")).toBeVisible({ timeout: 8000 })
 
-    // Étape 3 — appel élèves (students/bulk → queued)
+    // Étape 3 - appel élèves (students/bulk → queued)
     const presentButtons = page.locator('[data-testid^="teacher-student-present-"]')
     const count = await presentButtons.count()
     for (let i = 0; i < count; i++) {
@@ -250,7 +250,7 @@ test.describe("Teacher Flow - Offline to Online Sync", () => {
     }
   })
 
-  test("QR scan — étape 2 s'affiche après le check-in (nouveau contexte navigateur)", async ({
+  test("QR scan - étape 2 s'affiche après le check-in (nouveau contexte navigateur)", async ({
     page,
     context,
   }) => {

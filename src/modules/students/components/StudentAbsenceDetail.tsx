@@ -149,7 +149,7 @@ export default function StudentAbsenceDetail({
       setExcuseDialogId(null)
       setExcuseReason("")
     } catch (error) {
-      // Offline path: mutation was queued — close the dialog so the user sees the optimistic state
+      // Offline path: mutation was queued - close the dialog so the user sees the optimistic state
       if (error instanceof OfflineMutationQueuedError) {
         setExcuseDialogId(null)
         setExcuseReason("")
@@ -197,7 +197,7 @@ export default function StudentAbsenceDetail({
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium">
-                          {formatDate(record.date)} — {record.subject}
+                          {formatDate(record.date)} - {record.subject}
                         </span>
                         <Badge
                           variant="outline"
