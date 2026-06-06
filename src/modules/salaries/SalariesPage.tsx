@@ -342,6 +342,19 @@ export default function SalariesPage() {
     () => items.filter((item) => item.teacherType === "permanent"),
     [items]
   )
+  const toPayVacataire = useMemo(
+    () => vacataireRows
+      .filter((item) => item.status !== "nothing_to_pay" && item.totalFcfa !== null)
+      .reduce((sum, item) => sum + (item.totalFcfa ?? 0) - item.amountAlreadyPaid, 0),
+    [vacataireRows]
+  )
+  const toPayPermanent = useMemo(
+    () => permanentRows
+      .filter((item) => item.status !== "nothing_to_pay" && item.totalFcfa !== null)
+      .reduce((sum, item) => sum + (item.totalFcfa ?? 0) - item.amountAlreadyPaid, 0),
+    [permanentRows]
+  )
+
   const vacataireTotalPages = Math.max(1, Math.ceil(vacataireRows.length / pageSize))
   const fixedTotalPages = Math.max(1, Math.ceil(permanentRows.length / pageSize))
   const vacataireCurrentPage = Math.min(vacatairePage, vacataireTotalPages)
@@ -720,7 +733,11 @@ export default function SalariesPage() {
           />
         </header>
 
-        <SalariesStatsCards month={selectedMonth} />
+        <SalariesStatsCards
+          month={selectedMonth}
+          toPayVacataire={salarySummaryQuery.isSuccess ? toPayVacataire : undefined}
+          toPayPermanent={salarySummaryQuery.isSuccess ? toPayPermanent : undefined}
+        />
 
         {canViewValidations && (validationCountQuery.data?.total ?? 0) > 0 ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">

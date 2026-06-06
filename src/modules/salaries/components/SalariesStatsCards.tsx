@@ -13,6 +13,8 @@ const QUERY_STALE_TIME = 5 * 60 * 1000 // 5 minutes
 
 type SalariesStatsCardsProps = {
   month?: string
+  toPayVacataire?: number
+  toPayPermanent?: number
 }
 
 function getAttendanceColor(rate: number): string {
@@ -44,7 +46,7 @@ function StatCardSkeleton() {
   )
 }
 
-export function SalariesStatsCards({ month }: SalariesStatsCardsProps) {
+export function SalariesStatsCards({ month, toPayVacataire, toPayPermanent }: SalariesStatsCardsProps) {
   const { data: stats, isLoading, error } = useQuery({
     queryKey: ["salaries-stats", month ?? "current"],
     queryFn: () => getSalariesStats(month),
@@ -92,9 +94,19 @@ export function SalariesStatsCards({ month }: SalariesStatsCardsProps) {
             <Receipt className="h-5 w-5 text-blue-600" />
           </div>
         </div>
-        <p className="text-sm text-gray-500">
-          Masse salariale du mois : {formatFcfa(stats.totalPayroll)}
-        </p>
+        <div className="space-y-0.5 text-sm text-gray-500">
+          <p>Masse salariale du mois : {formatFcfa(stats.totalPayroll)}</p>
+          {(toPayVacataire !== undefined && toPayVacataire > 0) || (toPayPermanent !== undefined && toPayPermanent > 0) ? (
+            <div className="pt-1 space-y-0.5 border-t border-gray-100 mt-1">
+              {toPayVacataire !== undefined && toPayVacataire > 0 && (
+                <p>Vacataires : <span className="font-medium text-gray-700">{formatFcfa(toPayVacataire)}</span></p>
+              )}
+              {toPayPermanent !== undefined && toPayPermanent > 0 && (
+                <p>Permanents : <span className="font-medium text-gray-700">{formatFcfa(toPayPermanent)}</span></p>
+              )}
+            </div>
+          ) : null}
+        </div>
       </Card>
 
       {/* CARD 2: Total déjà payé */}
