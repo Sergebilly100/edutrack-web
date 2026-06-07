@@ -11,6 +11,16 @@ import {
 } from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -27,6 +37,7 @@ import { DropZone } from "@/shared/components/DropZone"
 import { Spinner } from "@/shared/components/Spinner"
 import { useStudentLabels, type StudentLabels } from "@/shared/hooks/useStudentLabel"
 import { ImportLoadingOverlay } from "./ImportLoadingOverlay"
+import { useImportDraft } from "./hooks/useImportDraft"
 
 type WizardStep = 1 | 2 | 3
 
@@ -285,6 +296,16 @@ export default function ImportWizard({
   const dryRunMutation = useDryRun()
   const confirmMutation = useConfirmImport()
 
+  // Draft recovery
+  const {
+    draft,
+    isLoading: isDraftLoading,
+    hasDraft,
+    saveDraft,
+    deleteDraft,
+  } = useImportDraft(importType)
+  const [showRestoreModal, setShowRestoreModal] = useState(false)
+
   const dryRunReport = dryRunMutation.data
   const confirmReport = confirmMutation.data
   const hasConflicts = (dryRunReport?.conflicts?.length ?? 0) > 0
@@ -331,12 +352,60 @@ export default function ImportWizard({
     }
   }, [availableTypes, importType, onImportTypeChange])
 
+  // Afficher modal de reprise si un draft existe
+  useEffect(() => {
+    if (hasDraft && !isDraftLoading && !file) {
+      setShowRestoreModal(true)
+    }
+  }, [hasDraft, isDraftLoading, file])
+
   const resetAfterUploadChange = () => {
     setTemplateError(null)
     setPeriodError(null)
     setConflictAcknowledged(false)
     dryRunMutation.reset()
     confirmMutation.reset()
+  }
+
+  const restoreDraftState = async () => {
+    if (!draft) return
+
+    try {
+      // Restaurer fichier
+      const restoredFile = new File([draft.fileData], draft.fileName, {
+        type: draft.fileMime,
+      })
+      setFile(restoredFile)
+
+      // Restaurer step
+      setStep(draft.step)
+
+      // Restaurer dry-run report si step >= 2
+      if (draft.step >= 2 && draft.dryRunReport) {
+        // Simuler le résultat de la mutation dry-run
+        dryRunMutation.reset()
+        // Note: On ne peut pas vraiment restaurer l'état de la mutation TanStack Query
+        // On va juste restaurer le step et laisser l'utilisateur ré-analyser si nécessaire
+      }
+
+      // Restaurer mode si défini
+      if (draft.mode) {
+        setImportMode(draft.mode)
+      }
+
+      toast({
+        title: "Import repris",
+        description: `Vous êtes à l'étape ${draft.step}/3. Fichier : ${draft.fileName}`,
+      })
+    } catch (error) {
+      console.error("Failed to restore draft:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de restaurer le brouillon. Recommencez l'import.",
+        variant: "destructive",
+      })
+      await deleteDraft()
+    }
   }
 
   const isMonday = (value: string) => {
@@ -383,9 +452,24 @@ export default function ImportWizard({
     resetAfterUploadChange()
   }
 
-  const handleFileSelected = (selectedFile: File) => {
+  const handleFileSelected = async (selectedFile: File) => {
     setFile(selectedFile)
     resetAfterUploadChange()
+
+    // Sauvegarder draft
+    try {
+      const arrayBuffer = await selectedFile.arrayBuffer()
+      await saveDraft({
+        step: 1,
+        fileName: selectedFile.name,
+        fileData: arrayBuffer,
+        fileSize: selectedFile.size,
+        fileMime: selectedFile.type,
+      })
+    } catch (error) {
+      console.error("Failed to save draft:", error)
+      // Non-bloquant, continuer l'import
+    }
   }
 
   const handleTemplateDownload = async (type: ImportType) => {
@@ -422,7 +506,29 @@ export default function ImportWizard({
             : undefined,
       },
       {
-        onSuccess: () => setStep(2),
+        onSuccess: async (data) => {
+          setStep(2)
+
+          // Sauvegarder draft avec rapport dry-run
+          try {
+            await saveDraft({
+              step: 2,
+              mode: importMode,
+              dryRunReport: {
+                previewData: data.preview ?? [],
+                issues: data.errors ?? [],
+                summary: {
+                  totalRows: data.preview?.length ?? 0,
+                  validRows: (data.preview?.length ?? 0) - (data.errors?.filter((e) => e.severity === "error").length ?? 0),
+                  errorRows: data.errors?.filter((e) => e.severity === "error").length ?? 0,
+                  warningRows: data.errors?.filter((e) => e.severity === "warning").length ?? 0,
+                },
+              },
+            })
+          } catch (error) {
+            console.error("Failed to save draft after dry-run:", error)
+          }
+        },
         onError: (error) => {
           toast({
             variant: "destructive",
@@ -451,13 +557,20 @@ export default function ImportWizard({
         conflictAcknowledged,
       },
       {
-        onSuccess: (data) => {
+        onSuccess: async (data) => {
           toast({
             title: data.errors.length
               ? `Import partiel : ${data.imported + data.updated} importés`
               : `✓ ${data.imported + data.updated} enregistrements importés`,
             duration: 3000,
           })
+
+          // Supprimer draft après import réussi
+          try {
+            await deleteDraft()
+          } catch (error) {
+            console.error("Failed to delete draft after import:", error)
+          }
         },
         onError: (error) => {
           toast({
@@ -497,14 +610,54 @@ export default function ImportWizard({
   const hasPartialErrors = (confirmReport?.errors.length ?? 0) > 0
 
   return (
-    <Card className="w-full">
-      <CardHeader className="space-y-4">
-        <CardTitle>Assistant d'import Excel</CardTitle>
-        <CardDescription>Upload → Validation → Confirmation</CardDescription>
-        <ImportStepper step={step} />
-      </CardHeader>
+    <>
+      {/* Modal reprendre import */}
+      <AlertDialog open={showRestoreModal} onOpenChange={setShowRestoreModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Import en cours trouvé</AlertDialogTitle>
+            <AlertDialogDescription>
+              Vous avez un import de <strong>{tabConfig[importType].label}</strong> commencé le{" "}
+              <strong>{new Date(draft?.createdAt ?? 0).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}</strong>{" "}
+              (étape {draft?.step}/3).
+              <br />
+              <br />
+              Voulez-vous le reprendre ou recommencer ?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={async () => {
+                await deleteDraft()
+                setShowRestoreModal(false)
+                toast({
+                  title: "Brouillon supprimé",
+                  description: "Vous pouvez commencer un nouvel import.",
+                })
+              }}
+            >
+              Recommencer
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                await restoreDraftState()
+                setShowRestoreModal(false)
+              }}
+            >
+              Reprendre
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-      <CardContent className="space-y-6">
+      <Card className="w-full">
+        <CardHeader className="space-y-4">
+          <CardTitle>Assistant d'import Excel</CardTitle>
+          <CardDescription>Upload → Validation → Confirmation</CardDescription>
+          <ImportStepper step={step} />
+        </CardHeader>
+
+        <CardContent className="space-y-6">
         {templateError ? (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
@@ -615,7 +768,31 @@ export default function ImportWizard({
               </div>
             ) : null}
 
-            <div className="flex justify-end">
+            <div className="flex justify-between">
+              {file ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={async () => {
+                    if (confirm("Annuler l'import en cours ? Le brouillon sera supprimé.")) {
+                      await deleteDraft()
+                      setFile(null)
+                      resetAfterUploadChange()
+                      toast({
+                        title: "Import annulé",
+                        description: "Vous pouvez recommencer.",
+                      })
+                    }
+                  }}
+                  disabled={dryRunMutation.isPending}
+                  className={cn(touchFeedbackClass, "min-h-[48px]")}
+                >
+                  Annuler
+                </Button>
+              ) : (
+                <div />
+              )}
+
               <Button
                 type="button"
                 onClick={handleGoToValidation}
@@ -716,7 +893,7 @@ export default function ImportWizard({
 
                     {warningIssues.length ? (
                       <div className="space-y-2">
-                        <p className="text-sm font-medium text-amber-700">Avertissements</p>
+                        <p className="text-sm font-medium text-amber-900">Avertissements</p>
                         <ErrorList issues={warningIssues} />
                       </div>
                     ) : null}
@@ -794,14 +971,37 @@ export default function ImportWizard({
             ) : null}
 
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setStep(1)}
-                className={cn(touchFeedbackClass, "min-h-[48px]")}
-              >
-                ← Corriger le fichier
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setStep(1)}
+                  className={cn(touchFeedbackClass, "min-h-[48px]")}
+                >
+                  ← Corriger le fichier
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={async () => {
+                    if (confirm("Annuler l'import en cours ? Le brouillon sera supprimé.")) {
+                      await deleteDraft()
+                      setStep(1)
+                      setFile(null)
+                      resetAfterUploadChange()
+                      toast({
+                        title: "Import annulé",
+                        description: "Vous pouvez recommencer.",
+                      })
+                    }
+                  }}
+                  disabled={confirmMutation.isPending}
+                  className={cn(touchFeedbackClass, "min-h-[48px]")}
+                >
+                  Annuler
+                </Button>
+              </div>
 
               <Button
                 type="button"
@@ -888,5 +1088,6 @@ export default function ImportWizard({
         ) : null}
       </CardContent>
     </Card>
+    </>
   )
 }
