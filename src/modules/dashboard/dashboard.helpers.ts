@@ -71,7 +71,7 @@ export const courseStatusMeta: Record<string, { label: string; className: string
   late: {
     label: "Retard",
     className:
-      "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200",
+      "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200",
   },
   absent: {
     label: "Absent",
@@ -108,7 +108,7 @@ export const toDashboardSalaryRow = (
       ...item,
       salaryRowStatus: item.status === "pending" ? "pending" : "paid",
       salaryStatusLabel: "Payé partiellement",
-      salaryStatusClassName: "border-amber-200 bg-amber-50 text-amber-700",
+      salaryStatusClassName: "border-amber-200 bg-amber-50 text-amber-900",
     }
   }
 

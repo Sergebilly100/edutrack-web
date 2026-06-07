@@ -10,7 +10,7 @@ type AttendanceSummaryCardProps = {
 const toneStyles: Record<AttendanceSummaryCardProps["tone"], string> = {
   present: "border-green-200 bg-green-50 text-green-700",
   absent: "border-red-200 bg-red-50 text-red-700",
-  unmarked: "border-amber-200 bg-amber-50 text-amber-700",
+  unmarked: "border-amber-200 bg-amber-50 text-amber-900",
 }
 
 export default function AttendanceSummaryCard({ label, value, tone }: AttendanceSummaryCardProps) {

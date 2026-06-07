@@ -37,7 +37,7 @@ export default function PresenceChart({ data }: PresenceChartProps) {
         {data.length === 0 ? (
           <p className="text-sm text-muted-foreground">Aucune donnée disponible.</p>
         ) : (
-          <div className="h-72 w-full">
+          <div className="h-72 w-full min-h-[288px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, left: 0, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" />

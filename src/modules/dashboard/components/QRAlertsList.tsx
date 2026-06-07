@@ -41,7 +41,7 @@ const typeMeta: Record<DashboardQRAlertItem["type"], { label: string; className:
   },
   teacher_qr_missing_scan: {
     label: "Scan manquant",
-    className: "bg-amber-100 text-amber-700 border-amber-200",
+    className: "bg-amber-100 text-amber-900 border-amber-200",
   },
   teacher_qr_scan_out_of_time: {
     label: "Hors horaire",
@@ -50,7 +50,7 @@ const typeMeta: Record<DashboardQRAlertItem["type"], { label: string; className:
 }
 
 const statusMeta: Record<DashboardQRAlertItem["status"], { label: string; className: string }> = {
-  queued: { label: "En file", className: "bg-amber-100 text-amber-700 border-amber-200" },
+  queued: { label: "En file", className: "bg-amber-100 text-amber-900 border-amber-200" },
   sent: { label: "Envoyé", className: "bg-green-100 text-green-700 border-green-200" },
   delivered: { label: "Livré", className: "bg-green-100 text-green-700 border-green-200" },
   failed: { label: "Échec", className: "bg-red-100 text-red-700 border-red-200" },

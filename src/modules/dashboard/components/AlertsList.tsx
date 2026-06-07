@@ -26,7 +26,7 @@ const formatDateTime = (value: string | null) => {
 }
 
 const statusMeta: Record<DashboardSmsItem["status"], { label: string; className: string }> = {
-  queued: { label: "En file", className: "bg-amber-100 text-amber-700 border-amber-200" },
+  queued: { label: "En file", className: "bg-amber-100 text-amber-900 border-amber-200" },
   sent: { label: "Envoyé", className: "bg-green-100 text-green-700 border-green-200" },
   delivered: { label: "Livré", className: "bg-green-100 text-green-700 border-green-200" },
   failed: { label: "Échec", className: "bg-red-100 text-red-700 border-red-200" },

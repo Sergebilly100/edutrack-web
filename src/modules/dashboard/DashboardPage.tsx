@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Bell, CheckCircle2, ChevronRight, CircleX, ClipboardCheck, Flag, GraduationCap, MapPin, RefreshCw, Users, Wallet } from "lucide-react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { fetchSchoolInfo } from "@/modules/onboarding/onboarding.api"
 import { getStudentAbsenceStats, getTodayAbsences, type StudentAbsenceStat } from "@/modules/students/students.api"
 import { getSalaryUnpaidAlerts } from "@/modules/salaries/salaries.api"
@@ -48,6 +49,17 @@ import {
 import { useAuthStore } from "@/shared/store/auth.store"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { getInitials } from "@/shared/utils/avatar"
+import { DashboardTabSkeleton } from "@/modules/dashboard/tabs/DashboardTabSkeleton"
+
+const OverviewTab = lazy(() =>
+  import("@/modules/dashboard/tabs/OverviewTab").then(m => ({ default: m.OverviewTab }))
+)
+const AttendanceTab = lazy(() =>
+  import("@/modules/dashboard/tabs/AttendanceTab").then(m => ({ default: m.AttendanceTab }))
+)
+const SalariesTab = lazy(() =>
+  import("@/modules/dashboard/tabs/SalariesTab").then(m => ({ default: m.SalariesTab }))
+)
 import { formatFcfa } from "@/shared/utils/formatting"
 import { statusToneBadge } from "@/shared/utils/status-tone"
 
@@ -85,7 +97,7 @@ function DashboardSkeleton() {
   )
 }
 
-function TodayPresenceList({
+export function TodayPresenceList({
   courses,
   expanded,
   date,
@@ -125,7 +137,7 @@ function TodayPresenceList({
           : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200"
         const pointageStatusClassName = course.studentRollcallDone
           ? "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/40 dark:text-sky-200"
-          : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200"
+          : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200"
         const endTimeStatusClassName = course.roomScanEndAt
           ? "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/50 dark:bg-violet-950/40 dark:text-violet-200"
           : "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
@@ -172,7 +184,7 @@ function TodayPresenceList({
   )
 }
 
-type TodayStudentAbsenceItem = {
+export type TodayStudentAbsenceItem = {
   studentId: string
   studentName: string
   className: string
@@ -180,7 +192,7 @@ type TodayStudentAbsenceItem = {
   smsStatus: "queued" | "sent" | "failed" | "delivered" | null
 }
 
-function TodayStudentAbsenceList({
+export function TodayStudentAbsenceList({
   items,
   onOpenStudent,
   expanded,
@@ -207,7 +219,7 @@ function TodayStudentAbsenceList({
       return "border-green-200 bg-green-50 text-green-700"
     }
     if (status === "failed") {
-      return "border-amber-200 bg-amber-50 text-amber-700"
+      return "border-amber-200 bg-amber-50 text-amber-900"
     }
     return "border-red-200 bg-red-50 text-red-700"
   }
@@ -259,6 +271,7 @@ export default function DashboardPage() {
   const [showAllTodayStudentAbsences, setShowAllTodayStudentAbsences] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<Set<string>>(readDashboardDismissedNotificationIds)
+  const [activeTab, setActiveTab] = useState<"overview" | "attendance" | "salaries">("overview")
   const user = useAuthStore((state) => state.user)
   const permissions = useAuthStore((state) => state.permissions)
   const studentLabels = useStudentLabels()
@@ -283,7 +296,7 @@ export default function DashboardPage() {
     staleTime: QUERY_STALE_TIME,
     refetchInterval: TODAY_REFETCH_INTERVAL,
     retry: false,
-    enabled: canViewAttendance,
+    enabled: canViewAttendance && (activeTab === "overview" || activeTab === "attendance"),
   })
 
   const countsQuery = useQuery({
@@ -298,7 +311,7 @@ export default function DashboardPage() {
     queryFn: () => getAttendanceHistory(7),
     staleTime: QUERY_STALE_TIME,
     retry: false,
-    enabled: canViewAttendance,
+    enabled: canViewAttendance && activeTab === "overview",
   })
 
   const coverageQuery = useQuery({
@@ -313,7 +326,7 @@ export default function DashboardPage() {
     queryFn: () => getSalarySummary(currentMonth),
     staleTime: QUERY_STALE_TIME,
     retry: false,
-    enabled: canViewSalary,
+    enabled: canViewSalary && (activeTab === "overview" || activeTab === "salaries"),
   })
 
   const salaryUnpaidAlertsQuery = useQuery({
@@ -321,7 +334,7 @@ export default function DashboardPage() {
     queryFn: () => getSalaryUnpaidAlerts(currentMonth),
     staleTime: QUERY_STALE_TIME,
     retry: false,
-    enabled: canViewSalary,
+    enabled: canViewSalary && (activeTab === "overview" || activeTab === "salaries"),
   })
 
   const commissionOverdueAlertsQuery = useQuery({
@@ -345,7 +358,7 @@ export default function DashboardPage() {
     queryFn: () => getSalarySummary(previousMonth),
     staleTime: QUERY_STALE_TIME,
     retry: false,
-    enabled: canViewSalary,
+    enabled: canViewSalary && activeTab === "overview",
   })
 
   const riskTeachersQuery = useQuery({
@@ -353,7 +366,7 @@ export default function DashboardPage() {
     queryFn: () => getTopRiskTeachers(currentMonth),
     staleTime: QUERY_STALE_TIME,
     retry: false,
-    enabled: canViewTeachers,
+    enabled: canViewTeachers && activeTab === "attendance",
   })
 
   const schoolQuery = useQuery({
@@ -368,7 +381,7 @@ export default function DashboardPage() {
     queryFn: () => getTeacherCompliance(currentMonth),
     staleTime: QUERY_STALE_TIME,
     retry: false,
-    enabled: canViewTeachers,
+    enabled: canViewTeachers && activeTab === "attendance",
   })
 
   const validationCountQuery = useQuery({
@@ -377,7 +390,7 @@ export default function DashboardPage() {
     staleTime: QUERY_STALE_TIME,
     refetchInterval: 5 * 60_000,
     retry: false,
-    enabled: canViewValidations,
+    enabled: canViewValidations && (activeTab === "overview" || activeTab === "salaries"),
   })
 
   const todayStudentAbsencesQuery = useQuery({
@@ -386,7 +399,7 @@ export default function DashboardPage() {
     staleTime: QUERY_STALE_TIME,
     refetchInterval: TODAY_REFETCH_INTERVAL,
     retry: false,
-    enabled: canViewStudents,
+    enabled: canViewStudents && activeTab === "attendance",
   })
 
   const currentMonthRange = useMemo(() => {
@@ -410,7 +423,7 @@ export default function DashboardPage() {
     staleTime: QUERY_STALE_TIME,
     refetchInterval: TODAY_REFETCH_INTERVAL,
     retry: false,
-    enabled: canViewStudents,
+    enabled: canViewStudents && activeTab === "attendance",
   })
 
   // Seules les données structurantes (en-tête + compteurs globaux) gatent le
@@ -835,427 +848,128 @@ export default function DashboardPage() {
             nextWeekHasCoverage={coverageQuery.data?.nextWeekHasCoverage ?? true}
             onNavigateToSchedule={() => navigate("/schedule")}
           />
+        </section>
 
-          {priorityActions.length !== 0 ? (
+        {/* Priorités du jour */}
+        <section className="space-y-3">
+          {priorityActions.length > 0 ? (
             <div className="rounded-xl border bg-card p-4 shadow-sm">
-              
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-base font-semibold">Priorités du jour</h2>
-                  <p className="text-sm text-muted-foreground">Les décisions qui changent la journée ou la paie.</p>
-                </div>
-                {priorityActions.length === 0 ? (
-                  <Badge variant="outline" className="w-fit border-green-200 bg-green-50 text-green-700">
-                    <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                    Aucun blocage
-                  </Badge>
-                ) : null}
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold">
+                  🔴 Priorités du jour ({priorityActions.length})
+                </h2>
+                <Badge variant="outline" className="hidden md:flex">
+                  Urgent
+                </Badge>
               </div>
 
-              {priorityActions.length > 0 ? (
-                <div className="mt-4 grid gap-3 lg:grid-cols-3">
-                  {priorityActions.map((item) => {
-                    const Icon = item.icon
-                    return (
-                      <article key={item.id} className={`rounded-lg border p-3 ${item.className}`}>
-                        <div className="flex items-start gap-3">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background/70">
-                            <Icon className="h-4 w-4" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <h3 className="text-sm font-semibold">{item.title}</h3>
-                            <p className="mt-1 text-sm opacity-90">{item.message}</p>
-                          </div>
-                          {item.onDismiss ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-9 w-9 shrink-0 hover:bg-background/70 hover:translate-y-0"
-                              aria-label={`Masquer ${item.title}`}
-                              onClick={item.onDismiss}
-                            >
-                              <CircleX className="h-4 w-4" />
-                            </Button>
-                          ) : null}
-                        </div>
-                        <Button type="button" variant="outline" className="mt-3 w-full bg-background/80" onClick={item.onClick}>
-                          {item.actionLabel}
-                        </Button>
-                      </article>
-                    )
-                  })}
-                </div>
-              ) : null}
-            </div>
-          ) : null }
-        </section>
-
-        <DashboardStatsCards
-          showTeacherCard={canViewAttendance || canViewTeachers}
-          showStudentCard={canViewStudents}
-          showSalaryCard={canViewSalary}
-          showSubscriptionCard={canViewSubscriptions}
-        />
-
-        {canViewAttendance || canViewTeachers ? (
-        <section
-          className={
-            canViewAttendance && canViewTeachers
-              ? "grid grid-cols-1 gap-4 xl:grid-cols-3"
-              : "grid grid-cols-1 gap-4"
-          }
-        >
-          {canViewAttendance ? (
-          <Card className={canViewAttendance && canViewTeachers ? "xl:col-span-2" : undefined}>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-lg font-semibold">Présences professeurs aujourd'hui</CardTitle>
-              {canToggleTodayPresence ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="min-h-10"
-                  onClick={() => setShowAllTodayPresence((current) => !current)}
-                >
-                  {showAllTodayPresence ? "Afficher moins" : "Afficher tout"}
-                </Button>
-              ) : null}
-            </CardHeader>
-            <CardContent>
-              <TodayPresenceList
-                courses={todayQuery.data?.courses ?? []}
-                expanded={showAllTodayPresence}
-                date={todayQuery.data?.date ?? new Date().toISOString().slice(0, 10)}
-              />
-            </CardContent>
-          </Card>
-          ) : null}
-
-          {canViewTeachers ? (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-lg font-semibold">Profs à risque</CardTitle>
-              <Button asChild variant="outline" size="sm" className="min-h-10">
-                <Link to={riskTeachersLink} data-testid="dashboard-risk-see-all">Voir tous</Link>
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {(riskTeachersQuery.data ?? []).length === 0 ? (
-                <EmptyState
-                  icon={emptyStateIcons.allGood}
-                  title="Aucun profil à risque"
-                  message="Aucun professeur ne dépasse le seuil d'alerte ce mois-ci."
-                />
-              ) : (
-                <div className="space-y-2">
-                  {(riskTeachersQuery.data ?? []).map((teacher) => (
-                    <Button
-                      key={teacher.teacherId}
-                      type="button"
-                      variant="ghost"
-                      className="h-auto w-full justify-start rounded-lg border border-border p-3"
-                      onClick={() =>
-                        navigate(
-                          `/teachers/${teacher.teacherId}?returnTo=${encodeURIComponent(location.pathname + location.search)}`
-                        )
-                      }
+              <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                {priorityActions.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <article
+                      key={item.id}
+                      className={`rounded-lg border p-3 ${item.className}`}
                     >
-                      <div className="animate-fade-in flex w-full items-center justify-between">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <Avatar className="h-9 w-9">
-                            <AvatarFallback className="text-xs font-semibold">{getInitials(teacher.teacherName)}</AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0 text-left">
-                            <p className="truncate text-sm font-medium">{teacher.teacherName}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {teacher.absenceCount} absence(s) • {Math.round(teacher.attendanceRate)}% présence
-                            </p>
-                          </div>
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background/70">
+                          <Icon className="h-4 w-4" />
                         </div>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-sm font-semibold">{item.title}</h3>
+                          <p className="mt-1 text-sm opacity-90">{item.message}</p>
+                        </div>
+                        {item.onDismiss ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 shrink-0 hover:bg-background/70"
+                            aria-label={`Masquer ${item.title}`}
+                            onClick={item.onDismiss}
+                          >
+                            <CircleX className="h-4 w-4" />
+                          </Button>
+                        ) : null}
                       </div>
-                    </Button>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          ) : null}
-        </section>
-        ) : null}
-
-        {canViewTeachers || canViewValidations ? (
-        <section
-          className={
-            canViewTeachers && canViewValidations
-              ? "grid grid-cols-1 gap-4 xl:grid-cols-2"
-              : "grid grid-cols-1 gap-4"
-          }
-        >
-          {canViewTeachers ? (
-          <Card className="order-2">
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-lg font-semibold">Conformité profs ce mois</CardTitle>
-              <Button asChild variant="outline" size="sm" className="min-h-10">
-                <Link to="/teachers?tab=classement">Voir le classement complet</Link>
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {teacherComplianceQuery.isLoading ? (
-                <div className="space-y-2">
-                  {Array.from({ length: 4 }).map((_, index) => (
-                    <Skeleton key={index} className="h-12 w-full rounded-lg" />
-                  ))}
-                </div>
-              ) : teacherComplianceQuery.isError ? (
-                <QueryErrorState
-                  onRetry={() => void teacherComplianceQuery.refetch()}
-                  isRetrying={teacherComplianceQuery.isFetching}
-                />
-              ) : (teacherComplianceQuery.data ?? []).length === 0 ? (
-                <EmptyState
-                  icon={emptyStateIcons.noTeachers}
-                  title="Aucun scan de fin"
-                  message="Les taux apparaîtront dès que les cours seront terminés."
-                />
-              ) : (
-                <div className="space-y-2">
-                  {(teacherComplianceQuery.data ?? []).slice(0, 3).map((teacher) => (
-                    <div
-                      key={teacher.teacherId}
-                      className="flex min-h-[48px] items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">
-                          {teacher.rank}. {teacher.teacherName}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {teacher.totalCheckouts}/{teacher.totalCheckins} cours
-                        </p>
-                      </div>
-                      <Badge
+                      <Button
+                        type="button"
                         variant="outline"
-                        className={
-                          teacher.complianceRate >= 80
-                            ? statusToneBadge.success
-                            : teacher.complianceRate < 30
-                              ? statusToneBadge.warning
-                              : statusToneBadge.neutral
-                        }
+                        className="mt-3 w-full bg-background/80"
+                        onClick={item.onClick}
                       >
-                        {Math.round(teacher.complianceRate)}%
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          ) : null}
-
-          {canViewValidations ? (
-          <Card className="order-1">
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-lg font-semibold">Validations en attente</CardTitle>
-              <Button asChild variant="outline" size="sm" className="min-h-10">
-                <Link to="/validations">Aller aux validations</Link>
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {validationCountQuery.isLoading ? (
-                <div className="space-y-2">
-                  {Array.from({ length: 3 }).map((_, index) => (
-                    <Skeleton key={index} className="h-12 w-full rounded-lg" />
-                  ))}
-                </div>
-              ) : validationCountQuery.isError ? (
-                <QueryErrorState
-                  onRetry={() => void validationCountQuery.refetch()}
-                  isRetrying={validationCountQuery.isFetching}
-                />
-              ) : (validationCountQuery.data?.total ?? 0) === 0 ? (
-                <EmptyState
-                  icon={emptyStateIcons.allGood}
-                  title="Aucune validation en attente"
-                  message="Les présences GPS suspectes, les heures courtes et les scans de fin manquants apparaîtront ici."
-                />
-              ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <div className="rounded-lg border border-border p-3">
-                    <p className="text-xs text-muted-foreground">GPS suspects</p>
-                    <p className="mt-1 text-3xl font-bold">{validationCountQuery.data?.gps_suspicious ?? 0}</p>
-                  </div>
-                  <div className="rounded-lg border border-border p-3">
-                    <p className="text-xs text-muted-foreground">Heures courtes</p>
-                    <p className="mt-1 text-3xl font-bold">{validationCountQuery.data?.short_hours ?? 0}</p>
-                  </div>
-                  <div className="rounded-lg border border-border p-3">
-                    <p className="text-xs text-muted-foreground">Scan de fin</p>
-                    <p className="mt-1 text-3xl font-bold">{validationCountQuery.data?.missing_end_scan ?? 0}</p>
-                  </div>
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
-                    <p className="text-xs">Total</p>
-                    <p className="mt-1 text-3xl font-bold">{validationCountQuery.data?.total ?? 0}</p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          ) : null}
-        </section>
-        ) : null}
-
-        {canViewStudents ? (
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-lg font-semibold">{`Absences ${studentLabels.pluralLower} aujourd'hui`}</CardTitle>
-              {canToggleTodayStudentAbsences ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="min-h-10"
-                  onClick={() => setShowAllTodayStudentAbsences((current) => !current)}
-                >
-                  {showAllTodayStudentAbsences ? "Afficher moins" : "Afficher tout"}
-                </Button>
-              ) : null}
-            </CardHeader>
-            <CardContent>
-              <TodayStudentAbsenceList
-                items={todayStudentAbsenceItems}
-                onOpenStudent={(studentId) =>
-                  navigate(
-                    `/students/${studentId}?returnTo=${encodeURIComponent(
-                      `${location.pathname}${location.search}`
-                    )}`
+                        {item.actionLabel}
+                      </Button>
+                    </article>
                   )
-                }
-                expanded={showAllTodayStudentAbsences}
+                })}
+              </div>
+            </div>
+          ) : null}
+        </section>
+
+        {/* Tabs - STICKY */}
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as typeof activeTab)}
+          className="w-full"
+        >
+          <div className="sticky top-[64px] z-30 -mx-4 border-b bg-background px-4 py-3 shadow-sm md:top-[72px] md:-mx-6 md:px-6">
+            <TabsList className="grid w-full grid-cols-3 gap-1 md:inline-flex md:w-auto">
+            <TabsTrigger value="overview">
+              Vue d'ensemble
+            </TabsTrigger>
+            <TabsTrigger value="attendance">
+              Présences
+              {todayQuery.data && todayQuery.data.absentCount > 0 ? (
+                <Badge variant="destructive" className="ml-1 h-4 px-1 text-[10px]">
+                  {todayQuery.data.absentCount}
+                </Badge>
+              ) : null}
+            </TabsTrigger>
+            <TabsTrigger value="salaries">
+              Salaires
+              {pendingSalaries.count > 0 ? (
+                <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px]">
+                  {pendingSalaries.count}
+                </Badge>
+              ) : null}
+            </TabsTrigger>
+          </TabsList>
+          </div>
+
+          <TabsContent value="overview" className="mt-6 space-y-6">
+            <Suspense fallback={<DashboardTabSkeleton />}>
+              <OverviewTab
+                canViewAttendance={canViewAttendance}
+                canViewTeachers={canViewTeachers}
+                canViewSalary={canViewSalary}
+                canViewSubscriptions={canViewSubscriptions}
+                weeklyAbsenceCount={weeklyAbsenceCount}
+                nextWeekHasCoverage={coverageQuery.data?.nextWeekHasCoverage}
+                historyData={historyQuery.data ?? []}
               />
-            </CardContent>
-          </Card>
+            </Suspense>
+          </TabsContent>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-lg font-semibold">{`${studentLabels.plural} à risque`}</CardTitle>
-              <Button asChild variant="outline" size="sm" className="min-h-10">
-                <Link to={riskStudentsLink}>Voir tous</Link>
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {topRiskStudents.length === 0 ? (
-                <EmptyState
-                  icon={emptyStateIcons.allGood}
-                  title={`Aucun ${studentLabels.singularLower} à risque`}
-                  message={`Aucun ${studentLabels.singularLower} ne dépasse le seuil d'alerte ce mois-ci.`}
-                />
-              ) : (
-                <div className="space-y-2">
-                  {topRiskStudents.map((student) => (
-                    <Button
-                      key={student.studentId}
-                      type="button"
-                      variant="ghost"
-                      className="h-auto w-full justify-start rounded-lg border border-border p-3"
-                      onClick={() =>
-                        navigate(
-                          `/students/${student.studentId}?returnTo=${encodeURIComponent(
-                            `${location.pathname}${location.search}`
-                          )}`
-                        )
-                      }
-                    >
-                      <div className="flex w-full items-center justify-between">
-                        <div className="min-w-0 text-left">
-                          <p className="truncate text-sm font-medium">{student.studentName}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {student.className} • {student.absenceCount} absence(s) • {(student.absenceRate ?? 0).toFixed(2)}%
-                          </p>
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                    </Button>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </section>
-        ) : null}
+          <TabsContent value="attendance" className="mt-6 space-y-6">
+            <Suspense fallback={<DashboardTabSkeleton />}>
+              <AttendanceTab
+                canViewAttendance={canViewAttendance}
+                canViewTeachers={canViewTeachers}
+                canViewStudents={canViewStudents}
+              />
+            </Suspense>
+          </TabsContent>
 
-        {canViewSalary ? (
-        <section>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-lg font-semibold">Résumé salaires du mois</CardTitle>
-              <Button asChild variant="outline" size="sm" className="min-h-10">
-                <Link to="/salaries">Voir tous les salaires</Link>
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {/* // Affichage d'un résumé des heures planifiées vs effectuées si l'école utilise les heures réelles pour le calcul de la paie
-              {schoolQuery.data?.use_real_hours === true ? (
-                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
-                  Ce mois : {salaryRealHoursTotals.planned.toFixed(1)}h planifiées, {salaryRealHoursTotals.done.toFixed(1)}h réellement effectuées.
-                  Écart : {(salaryRealHoursTotals.done - salaryRealHoursTotals.planned).toFixed(1)}h, impact estimé : {formatFcfa(salaryRealHoursTotals.impact)}.
-                </div>
-              ) : null} */}
-              {salaryRows.length === 0 ? (
-                <EmptyState
-                  icon={emptyStateIcons.noTeachers}
-                  title="Aucune fiche salaire"
-                  message="Aucune ligne de salaire n'est disponible pour ce mois. Les fiches apparaîtront ici dès que des heures seront enregistrées."
-                />
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Professeur</TableHead>
-                        <TableHead>Progression</TableHead>
-                        <TableHead>Total</TableHead>
-                        <TableHead>Statut</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {salaryRows.map((row) => (
-                        <SalaryRow
-                          key={row.teacherId}
-                          teacher={{
-                            id: row.teacherId,
-                            name: row.teacherName,
-                            type: row.teacherType,
-                          }}
-                          periodSummary={{
-                            hoursDone: row.hoursDone,
-                            hoursPlanned: row.hoursPlanned,
-                            amountFcfa: row.totalFcfa ?? 0,
-                            status: row.salaryRowStatus,
-                            statusLabel: row.salaryStatusLabel,
-                            statusClassName: row.salaryStatusClassName,
-                            canMarkPaid:
-                              Boolean(row.salaryRecordId) &&
-                              row.hoursDone > 0 &&
-                              (row.totalFcfa ?? 0) > 0 &&
-                              (row.status === "pending" || (row.status === "paid" && row.isPartiallyPaid)),
-                          }}
-                          onMarkPaid={() => navigate("/salaries")}
-                          onDetails={() => navigate("/salaries")}
-                        />
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </section>
-        ) : null}
+          <TabsContent value="salaries" className="mt-6 space-y-6">
+            <Suspense fallback={<DashboardTabSkeleton />}>
+              <SalariesTab salarySummaryQuery={salarySummaryQuery} />
+            </Suspense>
+          </TabsContent>
+        </Tabs>
       </div>
     </>
   )
 }
+
