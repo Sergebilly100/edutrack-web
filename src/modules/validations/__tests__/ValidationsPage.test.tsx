@@ -21,6 +21,7 @@ vi.mock("../validations.api", () => ({
   applyEndScanAction: (input: unknown) => applyEndScanActionMock(input),
   cancelEndScanSanction: (input: unknown) => cancelEndScanSanctionMock(input),
   bulkWarnEndScans: (ids: unknown, month: unknown) => bulkWarnEndScansMock(ids, month),
+  bulkValidate: vi.fn(async () => ({ approved: 0, rejected: 0, skipped: 0, results: [] })),
   invalidateSession: vi.fn(),
 }))
 

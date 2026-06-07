@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Download, TriangleAlert } from "lucide-react
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -47,10 +48,12 @@ import {
   queueBulkSalaryExport,
   queuePaymentHistoryExport,
   updateSalaryStatus,
+  bulkMarkSalariesPaid,
   type SalaryTeacherDetails,
   type SalarySummaryItem,
   type UpdateSalaryStatusInput,
 } from "@/modules/salaries/salaries.api"
+import { useBulkSelection } from "@/shared/hooks/useBulkSelection"
 import { usePendingValidationCount } from "@/shared/hooks/usePendingValidationCount"
 import { SalarySummaryCards } from "@/modules/salaries/components/SalarySummaryCards"
 import { SalariesStatsCards } from "@/modules/salaries/components/SalariesStatsCards"
@@ -80,6 +83,19 @@ export default function SalariesPage() {
   const canExportSalaries = hasPermission("salary.export")
   const canViewValidations = hasPermission("validations.view")
 
+  const bulkSelection = useBulkSelection<string>()
+  const [bulkPayDialogOpen, setBulkPayDialogOpen] = useState(false)
+
+  // Escape annule la sélection bulk active
+  useEffect(() => {
+    if (bulkSelection.selectedCount === 0) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { bulkSelection.clearSelection(); setBulkPayDialogOpen(false) }
+    }
+    document.addEventListener("keydown", handler)
+    return () => document.removeEventListener("keydown", handler)
+  }, [bulkSelection])
+
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth)
   const [computeDialogOpen, setComputeDialogOpen] = useState(false)
   const [payDialogOpen, setPayDialogOpen] = useState(false)
@@ -102,6 +118,11 @@ export default function SalariesPage() {
   const [historySelectedMonth, setHistorySelectedMonth] = useState(getCurrentMonth)
   const [vacatairePage, setVacatairePage] = useState(1)
   const [fixedPage, setFixedPage] = useState(1)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [typeFilter, setTypeFilter] = useState<"all" | "vacataire" | "permanent">("all")
+  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "pending" | "partial">("all")
+  const [sortBy, setSortBy] = useState<"name" | "hours" | "amount">("name")
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
   const lastNotifiedExportJobIdRef = useRef<string | null>(null)
   const pageSize = 10
 
@@ -183,6 +204,32 @@ export default function SalariesPage() {
       queueKey: OFFLINE_QUEUE_KEYS.salaryMarkPaid,
     }
   )
+
+  const bulkMarkPaidMutation = useMutation({
+    mutationFn: (items: { recordId: string; hoursToPay: number }[]) =>
+      bulkMarkSalariesPaid({ items }),
+    onSuccess: async (result) => {
+      setBulkPayDialogOpen(false)
+      bulkSelection.clearSelection()
+      await queryClient.invalidateQueries({ queryKey: ["salaries", "summary", selectedMonth] })
+      await queryClient.invalidateQueries({ queryKey: ["salaries-stats", selectedMonth] })
+      if (result.skipped > 0) {
+        toast({
+          title: `${result.paid} paiement(s) enregistré(s)`,
+          description: `${result.skipped} ligne(s) ignorée(s) (déjà payée ou erreur).`,
+        })
+      } else {
+        toast({ title: `${result.paid} salaire(s) marqué(s) comme payés` })
+      }
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible d'effectuer les paiements groupés.",
+        variant: "destructive",
+      })
+    },
+  })
 
   const closePayDialog = () => {
     setPayDialogOpen(false)
@@ -333,14 +380,77 @@ export default function SalariesPage() {
 
   const items = salarySummaryQuery.data?.items ?? []
 
+  // Filtrage et tri
+  const filteredAndSortedItems = useMemo(() => {
+    let filtered = items
+
+    // Filtre par recherche (nom du professeur)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter((item) =>
+        item.teacherName.toLowerCase().includes(query)
+      )
+    }
+
+    // Filtre par type
+    if (typeFilter !== "all") {
+      filtered = filtered.filter((item) => item.teacherType === typeFilter)
+    }
+
+    // Filtre par statut
+    if (statusFilter !== "all") {
+      if (statusFilter === "paid") {
+        filtered = filtered.filter((item) => item.status === "paid" && !item.isPartiallyPaid)
+      } else if (statusFilter === "pending") {
+        filtered = filtered.filter((item) => item.status === "pending")
+      } else if (statusFilter === "partial") {
+        filtered = filtered.filter((item) => item.isPartiallyPaid)
+      }
+    }
+
+    // Tri
+    filtered.sort((a, b) => {
+      let comparison = 0
+      if (sortBy === "name") {
+        comparison = a.teacherName.localeCompare(b.teacherName)
+      } else if (sortBy === "hours") {
+        comparison = (a.hoursDone ?? 0) - (b.hoursDone ?? 0)
+      } else if (sortBy === "amount") {
+        comparison = (a.totalFcfa ?? 0) - (b.totalFcfa ?? 0)
+      }
+      return sortOrder === "asc" ? comparison : -comparison
+    })
+
+    return filtered
+  }, [items, searchQuery, typeFilter, statusFilter, sortBy, sortOrder])
+
   const vacataireRows = useMemo(
-    () => items.filter((item) => item.teacherType === "vacataire"),
-    [items]
+    () => filteredAndSortedItems.filter((item) => item.teacherType === "vacataire"),
+    [filteredAndSortedItems]
+  )
+
+  // Lignes éligibles à la sélection bulk : vacataires avec fiche, heures restantes et non entièrement payés
+  const bulkSelectableRows = useMemo(
+    () =>
+      vacataireRows.filter(
+        (row) =>
+          canMarkSalaryAsPaid &&
+          row.salaryRecordId &&
+          row.hoursDone > 0 &&
+          (row.totalFcfa ?? 0) > 0 &&
+          row.status !== "paid" &&
+          row.status !== "nothing_to_pay"
+      ),
+    [vacataireRows, canMarkSalaryAsPaid]
+  )
+  const bulkSelectableIds = useMemo(
+    () => bulkSelectableRows.map((row) => row.salaryRecordId as string),
+    [bulkSelectableRows]
   )
 
   const permanentRows = useMemo(
-    () => items.filter((item) => item.teacherType === "permanent"),
-    [items]
+    () => filteredAndSortedItems.filter((item) => item.teacherType === "permanent"),
+    [filteredAndSortedItems]
   )
   const toPayVacataire = useMemo(
     () => vacataireRows
@@ -719,8 +829,58 @@ export default function SalariesPage() {
           </div>
 
           {isSelectedMonthFuture ? (
-            <p className="text-sm text-amber-700">Le calcul est désactivé pour un mois futur.</p>
+            <p className="text-sm text-amber-900">Le calcul est désactivé pour un mois futur.</p>
           ) : null}
+
+          {/* Search et filtres */}
+          <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex-1">
+              <Input
+                type="text"
+                placeholder="Rechercher un professeur..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="max-w-sm"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous types</SelectItem>
+                  <SelectItem value="vacataire">Vacataires</SelectItem>
+                  <SelectItem value="permanent">Permanents</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous statuts</SelectItem>
+                  <SelectItem value="pending">En attente</SelectItem>
+                  <SelectItem value="paid">Payés</SelectItem>
+                  <SelectItem value="partial">Partiels</SelectItem>
+                </SelectContent>
+              </Select>
+              {searchQuery || typeFilter !== "all" || statusFilter !== "all" ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearchQuery("")
+                    setTypeFilter("all")
+                    setStatusFilter("all")
+                  }}
+                >
+                  Réinitialiser
+                </Button>
+              ) : null}
+            </div>
+          </div>
 
           <SalaryExportSection
             exportJobId={exportJobId}
@@ -804,6 +964,15 @@ export default function SalariesPage() {
               <Table data-testid="salaries-vacataire-table">
                 <TableHeader>
                   <TableRow>
+                    {canMarkSalaryAsPaid && bulkSelectableIds.length > 0 ? (
+                      <TableHead className="w-10">
+                        <Checkbox
+                          checked={bulkSelection.isAllSelected(bulkSelectableIds)}
+                          onCheckedChange={() => bulkSelection.toggleAll(bulkSelectableIds)}
+                          aria-label="Tout sélectionner"
+                        />
+                      </TableHead>
+                    ) : null}
                     <TableHead>Professeur</TableHead>
                     <TableHead>Progression</TableHead>
                     <TableHead>Total</TableHead>
@@ -817,11 +986,32 @@ export default function SalariesPage() {
                     if (!status) {
                       return null
                     }
+                    const isSelectable =
+                      canMarkSalaryAsPaid &&
+                      !!row.salaryRecordId &&
+                      row.hoursDone > 0 &&
+                      (row.totalFcfa ?? 0) > 0 &&
+                      row.status !== "paid" &&
+                      row.status !== "nothing_to_pay"
+
+                    const checkboxCell =
+                      canMarkSalaryAsPaid && bulkSelectableIds.length > 0 ? (
+                        <TableCell className="w-10">
+                          {isSelectable ? (
+                            <Checkbox
+                              checked={bulkSelection.isSelected(row.salaryRecordId!)}
+                              onCheckedChange={() => bulkSelection.toggleSelection(row.salaryRecordId!)}
+                              aria-label={`Sélectionner ${row.teacherName}`}
+                            />
+                          ) : null}
+                        </TableCell>
+                      ) : undefined
 
                     return (
                       <SalaryRow
                         key={row.teacherId}
                         dataTestIdPrefix="salary-vacataire"
+                        leadingCell={checkboxCell}
                         teacher={{
                           id: row.teacherId,
                           name: row.teacherName,
@@ -834,7 +1024,7 @@ export default function SalariesPage() {
                           status,
                           isPartiallyPaid: row.isPartiallyPaid,
                           statusLabel: row.isPartiallyPaid ? "Payé partiellement" : undefined,
-                          statusClassName: row.isPartiallyPaid ? "border-amber-200 bg-amber-50 text-amber-700" : undefined,
+                          statusClassName: row.isPartiallyPaid ? "border-amber-200 bg-amber-50 text-amber-900" : undefined,
                           canMarkPaid:
                             canMarkSalaryAsPaid &&
                             Boolean(row.salaryRecordId) &&
@@ -1043,7 +1233,7 @@ export default function SalariesPage() {
                       </p>
                     </div>
                     <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                      <p className="text-xs text-amber-700">Montant fixe mensuel</p>
+                      <p className="text-xs text-amber-900">Montant fixe mensuel</p>
                       <p className="text-base font-semibold text-amber-900">
                         {detailsMutation.data.teacher.monthlySalary !== null
                           ? formatFcfa(detailsMutation.data.teacher.monthlySalary)
@@ -1659,6 +1849,74 @@ export default function SalariesPage() {
         </DialogContent>
       </Dialog>
       ) : null}
+
+      {/* Barre flottante de paiement groupé */}
+      {bulkSelection.selectedCount > 0 ? (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 md:left-[calc(50%+8rem)]">
+          <div className="flex items-center gap-3 rounded-2xl border border-border bg-background px-5 py-3 shadow-2xl ring-1 ring-black/5">
+            <span className="text-sm font-medium text-foreground">
+              {bulkSelection.selectedCount} sélectionné{bulkSelection.selectedCount > 1 ? "s" : ""}
+            </span>
+            <div className="h-4 w-px bg-border" />
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground"
+              onClick={() => bulkSelection.clearSelection()}
+            >
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="bg-green-600 text-white hover:bg-green-700"
+              onClick={() => setBulkPayDialogOpen(true)}
+              disabled={!isOnline}
+              title={!isOnline ? OFFLINE_ACTION_TITLE : undefined}
+            >
+              Marquer payés
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Dialog confirmation paiement groupé */}
+      <Dialog open={bulkPayDialogOpen} onOpenChange={setBulkPayDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirmer le paiement groupé</DialogTitle>
+            <DialogDescription>
+              {bulkSelection.selectedCount} vacataire{bulkSelection.selectedCount > 1 ? "s" : ""} vont être marqué
+              {bulkSelection.selectedCount > 1 ? "s" : ""} comme payé{bulkSelection.selectedCount > 1 ? "s" : ""} pour{" "}
+              <strong>{formatMonthLabel(selectedMonth)}</strong>. Les heures restantes à payer seront automatiquement soldées.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setBulkPayDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              className="bg-green-600 text-white hover:bg-green-700"
+              disabled={bulkMarkPaidMutation.isPending}
+              onClick={() => {
+                const items = bulkSelectableRows
+                  .filter((row) => row.salaryRecordId && bulkSelection.isSelected(row.salaryRecordId))
+                  .map((row) => {
+                    const rate = row.hourlyRate ?? 1
+                    const hoursAlreadyPaid = Math.round((row.amountAlreadyPaid / rate) * 100) / 100
+                    const hoursToPay = Math.max(0.01, Math.round((row.hoursDone - hoursAlreadyPaid) * 100) / 100)
+                    return { recordId: row.salaryRecordId!, hoursToPay }
+                  })
+                bulkMarkPaidMutation.mutate(items)
+              }}
+            >
+              {bulkMarkPaidMutation.isPending ? "En cours…" : "Confirmer le paiement"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

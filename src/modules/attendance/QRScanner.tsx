@@ -10,11 +10,14 @@ type QRScannerProps = {
   onTokenDetected?: (token: string) => void
   scheduleId: string
   scanType: "start" | "end"
+  /** Affiche l'option saisie manuelle même si la caméra fonctionne */
+  showManualFallback?: boolean
 }
 
-export default function QRScanner({ onTokenDetected, scheduleId, scanType }: QRScannerProps) {
+export default function QRScanner({ onTokenDetected, scheduleId, scanType, showManualFallback }: QRScannerProps) {
   const [manualCode, setManualCode] = useState("")
   const [manualError, setManualError] = useState<string | null>(null)
+  const [manualOpen, setManualOpen] = useState(false)
 
   const { startScan, stopScan, isScanning, lastResult, error, hasPermission } = useQRScanner({
     scheduleId,
@@ -30,6 +33,8 @@ export default function QRScanner({ onTokenDetected, scheduleId, scanType }: QRS
   })
 
   const shouldShowManualFallback =
+    showManualFallback ||
+    manualOpen ||
     hasPermission === false ||
     error === "Aucune caméra disponible sur cet appareil" ||
     error === "Autorisez l'accès à la caméra dans les paramètres de votre navigateur"
@@ -113,6 +118,16 @@ export default function QRScanner({ onTokenDetected, scheduleId, scanType }: QRS
         <p className="break-all text-sm text-green-700">QR lu: {lastResult}</p>
       ) : null}
 
+      {!shouldShowManualFallback ? (
+        <button
+          type="button"
+          className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline transition-colors"
+          onClick={() => setManualOpen(true)}
+        >
+          QR illisible ? Saisir le code manuellement
+        </button>
+      ) : null}
+
       {shouldShowManualFallback ? (
         <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
           <p className="text-sm font-medium text-amber-800">Saisir le code manuellement</p>
@@ -121,7 +136,9 @@ export default function QRScanner({ onTokenDetected, scheduleId, scanType }: QRS
               data-testid="teacher-qr-manual-input"
               value={manualCode}
               onChange={(event) => setManualCode(event.target.value)}
-              placeholder="Saisir le code manuellement"
+              onKeyDown={(e) => { if (e.key === "Enter") handleManualSubmit() }}
+              placeholder="Code QR de la salle..."
+              autoFocus={manualOpen}
             />
             <Button
               type="button"
@@ -134,6 +151,15 @@ export default function QRScanner({ onTokenDetected, scheduleId, scanType }: QRS
             </Button>
           </div>
           {manualError ? <p className="text-xs text-red-600">{manualError}</p> : null}
+          {manualOpen && !showManualFallback ? (
+            <button
+              type="button"
+              className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+              onClick={() => { setManualOpen(false); setManualCode(""); setManualError(null) }}
+            >
+              ← Revenir au scan caméra
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>

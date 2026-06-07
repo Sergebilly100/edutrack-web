@@ -99,6 +99,42 @@ export const getPendingValidations = async (): Promise<PendingValidationGroups> 
   }
 }
 
+export type BulkValidateAction = "approve" | "reject"
+
+export type BulkValidateItem = {
+  attendanceId: string
+  validatedHours?: number
+}
+
+export type BulkValidateResult = {
+  success: number
+  failed: number
+  errors: Array<{ attendanceId: string; error: string }>
+}
+
+export const bulkValidate = async (input: {
+  action: BulkValidateAction
+  items: BulkValidateItem[]
+  reason?: string
+}): Promise<BulkValidateResult> => {
+  const response = await api.post<unknown>("/validations/bulk", {
+    action: input.action,
+    items: input.items.map((i) => ({
+      attendance_id: i.attendanceId,
+      ...(i.validatedHours !== undefined ? { validated_hours: i.validatedHours } : {}),
+    })),
+    ...(input.reason ? { reason: input.reason } : {}),
+  })
+  const data = isRecord(response.data) ? response.data : {}
+  return {
+    success: asNumber(data.success),
+    failed: asNumber(data.failed),
+    errors: Array.isArray(data.errors)
+      ? (data.errors as Array<{ attendanceId: string; error: string }>)
+      : [],
+  }
+}
+
 export const getPendingValidationCount = async (): Promise<PendingValidationCount> => {
   const response = await api.get<unknown>("/validations/pending/count")
   const payload = isRecord(response.data) ? response.data : {}

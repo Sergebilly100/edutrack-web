@@ -1,6 +1,13 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, CircleX, Clock, History, Info, Send, TriangleAlert } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { useBulkSelection } from "@/shared/hooks/useBulkSelection"
+import { BulkActionsBar, type BulkValidateAction as BulkBarAction } from "./components/BulkActionsBar"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { validationsTourSteps } from "@/shared/lib/tour-steps"
+import { useAuthStore } from "@/shared/store/auth.store"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -28,6 +35,7 @@ import { getCurrentMonth, getRecentMonthOptions, formatMonthLabel } from "@/shar
 import {
   applyEndScanAction,
   approveValidation,
+  bulkValidate,
   bulkWarnEndScans,
   cancelEndScanSanction,
   fetchMissingEndScans,
@@ -101,6 +109,24 @@ export default function ValidationsPage() {
   const [rejectTarget, setRejectTarget] = useState<PendingValidationItem | null>(null)
   const [rejectReason, setRejectReason] = useState("")
 
+  // Tour guidé
+  const validationsUser = useAuthStore((s) => s.user)
+  const isDirectorValidations = validationsUser?.role === "director"
+  const tour = useTourGuide("validations", isDirectorValidations)
+
+  // Bulk selection state (Heures courtes tab)
+  const bulkSelection = useBulkSelection<string>()
+
+  // Escape annule la sélection bulk active
+  useEffect(() => {
+    if (bulkSelection.selectedCount === 0) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") bulkSelection.clearSelection()
+    }
+    document.addEventListener("keydown", handler)
+    return () => document.removeEventListener("keydown", handler)
+  }, [bulkSelection])
+
   // End-scan tab state
   const [endScanMonth, setEndScanMonth] = useState(() => getCurrentMonth())
   const [expandedTeacher, setExpandedTeacher] = useState<string | null>(null)
@@ -165,6 +191,26 @@ export default function ValidationsPage() {
       },
     }
   )
+
+  const bulkMutation = useMutation({
+    mutationFn: bulkValidate,
+    onSuccess: async (data) => {
+      bulkSelection.clearSelection()
+      await invalidateQueries()
+      if (data.failed === 0) {
+        toast({
+          title: `${data.success} présence(s) validée(s)`,
+          description: "Les salaires ont été recalculés.",
+        })
+      } else {
+        toast({
+          title: `${data.success} réussi(es), ${data.failed} échec(s)`,
+          description: "Certaines présences n'ont pas pu être traitées.",
+          variant: "destructive",
+        })
+      }
+    },
+  })
 
   const runApprove = async (variables: { attendanceId: string; validatedHours?: number }) => {
     try {
@@ -350,6 +396,29 @@ export default function ValidationsPage() {
         : "planned"
     )
     setEndScanActionTarget({ session, teacher, action })
+  }
+
+  const openBulkAction = (action: BulkBarAction) => {
+    const shortHoursItems = groups.short_hours
+    const selectedItems = shortHoursItems.filter((i) =>
+      bulkSelection.selectedIds.has(i.attendanceId)
+    )
+    if (action === "approve_planned") {
+      bulkMutation.mutate({
+        action: "approve",
+        items: selectedItems.map((i) => ({ attendanceId: i.attendanceId })),
+      })
+    } else {
+      bulkMutation.mutate({
+        action: "approve",
+        items: selectedItems.map((i) => ({
+          attendanceId: i.attendanceId,
+          validatedHours: i.actualMinutes !== null
+            ? Math.round((i.actualMinutes / 60) * 100) / 100
+            : undefined,
+        })),
+      })
+    }
   }
 
   const resetHistoryPage = () => setHistoryPage(1)
@@ -565,6 +634,8 @@ export default function ValidationsPage() {
       return <EmptyState icon={emptyStateIcons.allGood} title="Aucune présence suspecte" message="Les scans GPS hors périmètre apparaîtront ici." />
     }
 
+    const isBusy = approveMutation.isPending || rejectMutation.isPending
+
     return (
       <>
       <div className="space-y-3 lg:hidden">
@@ -592,20 +663,11 @@ export default function ValidationsPage() {
               </div>
             </dl>
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <Button
-                type="button"
-                disabled={approveMutation.isPending || rejectMutation.isPending}
-                onClick={() => setApproveTarget(item)}
-              >
+              <Button type="button" disabled={isBusy} onClick={() => setApproveTarget(item)}>
                 <CheckCircle2 className="h-4 w-4" />
                 Valider
               </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={approveMutation.isPending || rejectMutation.isPending}
-                onClick={() => setRejectTarget(item)}
-              >
+              <Button type="button" variant="destructive" disabled={isBusy} onClick={() => setRejectTarget(item)}>
                 <CircleX className="h-4 w-4" />
                 Marquer absent
               </Button>
@@ -640,30 +702,17 @@ export default function ValidationsPage() {
                 <TableCell>{item.roomName ?? "-"}</TableCell>
                 <TableCell>{formatTime(item.checkedInAt)}</TableCell>
                 <TableCell>
-                  <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                  <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-900">
                     {item.checkinDistance === null ? "Non mesuré" : `+${Math.round(item.checkinDistance)}m`}
                   </Badge>
                 </TableCell>
                 <TableCell>
                   <div className="flex justify-end gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="min-h-[48px]"
-                      disabled={approveMutation.isPending || rejectMutation.isPending}
-                      onClick={() => setApproveTarget(item)}
-                    >
+                    <Button type="button" size="sm" className="min-h-[48px]" disabled={isBusy} onClick={() => setApproveTarget(item)}>
                       <CheckCircle2 className="mr-2 h-4 w-4" />
                       Valider
                     </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      className="min-h-[48px]"
-                      disabled={approveMutation.isPending || rejectMutation.isPending}
-                      onClick={() => setRejectTarget(item)}
-                    >
+                    <Button type="button" size="sm" variant="destructive" className="min-h-[48px]" disabled={isBusy} onClick={() => setRejectTarget(item)}>
                       <CircleX className="mr-2 h-4 w-4" />
                       Marquer absent
                     </Button>
@@ -684,6 +733,13 @@ export default function ValidationsPage() {
       return <EmptyState icon={emptyStateIcons.allGood} title="Aucune heure courte" message="Les cours terminés trop tôt apparaîtront ici." />
     }
 
+    const allIds = items.map((i) => i.attendanceId)
+    const isAllChecked = bulkSelection.isAllSelected(allIds)
+    const isBusy = approveMutation.isPending || bulkMutation.isPending
+    const allSelectedHaveActual = items
+      .filter((i) => bulkSelection.selectedIds.has(i.attendanceId))
+      .every((i) => i.actualMinutes !== null)
+
     return (
       <>
       <div className="space-y-3 lg:hidden">
@@ -694,11 +750,22 @@ export default function ValidationsPage() {
           const actualAmount = item.hourlyRate === null ? null : item.hourlyRate * actualHours
 
           return (
-            <article key={item.attendanceId} className="rounded-xl border bg-card p-4 shadow-sm">
+            <article
+              key={item.attendanceId}
+              className={`rounded-xl border bg-card p-4 shadow-sm transition ${bulkSelection.isSelected(item.attendanceId) ? "ring-2 ring-primary" : ""}`}
+            >
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="truncate text-base font-semibold">{item.teacherName}</h3>
-                  <p className="text-sm text-muted-foreground">{item.courseName} • {item.className}</p>
+                <div className="flex min-w-0 items-start gap-3">
+                  <Checkbox
+                    checked={bulkSelection.isSelected(item.attendanceId)}
+                    onCheckedChange={() => bulkSelection.toggleSelection(item.attendanceId)}
+                    aria-label={`Sélectionner ${item.teacherName}`}
+                    className="mt-0.5"
+                  />
+                  <div className="min-w-0">
+                    <h3 className="truncate text-base font-semibold">{item.teacherName}</h3>
+                    <p className="text-sm text-muted-foreground">{item.courseName} • {item.className}</p>
+                  </div>
                 </div>
                 <KindBadges kinds={safeKinds(item)} />
               </div>
@@ -719,7 +786,7 @@ export default function ValidationsPage() {
               <div className="mt-4 grid gap-2">
                 <Button
                   type="button"
-                  disabled={approveMutation.isPending}
+                  disabled={isBusy}
                   onClick={() =>
                     setApproveShortHoursTarget({
                       item,
@@ -733,7 +800,7 @@ export default function ValidationsPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={approveMutation.isPending || item.actualMinutes === null}
+                  disabled={isBusy || item.actualMinutes === null}
                   onClick={() =>
                     setApproveShortHoursTarget({
                       item,
@@ -754,6 +821,13 @@ export default function ValidationsPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10" data-tour="validations-bulk-checkbox">
+                <Checkbox
+                  checked={isAllChecked}
+                  onCheckedChange={() => bulkSelection.toggleAll(allIds)}
+                  aria-label="Tout sélectionner"
+                />
+              </TableHead>
               <TableHead>Enseignant</TableHead>
               <TableHead>Cours</TableHead>
               <TableHead>Critères</TableHead>
@@ -772,7 +846,17 @@ export default function ValidationsPage() {
               const plannedAmount = item.hourlyRate === null ? null : item.hourlyRate * plannedHours
               const actualAmount = item.hourlyRate === null ? null : item.hourlyRate * actualHours
               return (
-                <TableRow key={item.attendanceId}>
+                <TableRow
+                  key={item.attendanceId}
+                  className={bulkSelection.isSelected(item.attendanceId) ? "bg-muted/40" : ""}
+                >
+                  <TableCell>
+                    <Checkbox
+                      checked={bulkSelection.isSelected(item.attendanceId)}
+                      onCheckedChange={() => bulkSelection.toggleSelection(item.attendanceId)}
+                      aria-label={`Sélectionner ${item.teacherName}`}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">{item.teacherName}</TableCell>
                   <TableCell>{item.courseName} • {item.className}</TableCell>
                   <TableCell><KindBadges kinds={safeKinds(item)} /></TableCell>
@@ -787,7 +871,7 @@ export default function ValidationsPage() {
                         type="button"
                         size="sm"
                         className="min-h-[48px]"
-                        disabled={approveMutation.isPending}
+                        disabled={isBusy}
                         onClick={() =>
                           setApproveShortHoursTarget({
                             item,
@@ -804,7 +888,7 @@ export default function ValidationsPage() {
                         size="sm"
                         variant="outline"
                         className="min-h-[48px]"
-                        disabled={approveMutation.isPending || item.actualMinutes === null}
+                        disabled={isBusy || item.actualMinutes === null}
                         onClick={() =>
                           setApproveShortHoursTarget({
                             item,
@@ -824,6 +908,14 @@ export default function ValidationsPage() {
           </TableBody>
         </Table>
       </div>
+
+      <BulkActionsBar
+        selectedCount={bulkSelection.selectedCount}
+        onClearSelection={bulkSelection.clearSelection}
+        onBulkAction={openBulkAction}
+        isLoading={bulkMutation.isPending}
+        hasActualMinutes={allSelectedHaveActual}
+      />
       </>
     )
   }
@@ -891,7 +983,7 @@ export default function ValidationsPage() {
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     )}
                     <span className="font-medium">{teacher.teacherName}</span>
-                    <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                    <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-900">
                       {teacher.missingEndScanCount} cours
                     </Badge>
                     {teacher.warningCount > 0 ? (
@@ -909,7 +1001,7 @@ export default function ValidationsPage() {
                     type="button"
                     size="sm"
                     variant="outline"
-                    className="w-full border-amber-200 text-amber-700 hover:bg-amber-50 sm:w-auto"
+                    className="w-full border-amber-200 text-amber-900 hover:bg-amber-50 sm:w-auto"
                     disabled={warnMutation.isPending}
                     onClick={() =>
                       setBulkWarnTarget({
@@ -974,7 +1066,7 @@ export default function ValidationsPage() {
                               <Button
                                 type="button"
                                 variant="outline"
-                                className="border-amber-200 text-amber-700 hover:bg-amber-50"
+                                className="border-amber-200 text-amber-900 hover:bg-amber-50"
                                 disabled={endScanActionMutation.isPending}
                                 onClick={() =>
                                   openEndScanAction(session, teacher, "warned")
@@ -1069,7 +1161,7 @@ export default function ValidationsPage() {
                                       type="button"
                                       size="sm"
                                       variant="outline"
-                                      className="min-h-10 text-amber-700 border-amber-200 hover:bg-amber-50"
+                                      className="min-h-10 text-amber-900 border-amber-200 hover:bg-amber-50"
                                       disabled={endScanActionMutation.isPending}
                                       onClick={() =>
                                         openEndScanAction(session, teacher, "warned")
@@ -1110,15 +1202,30 @@ export default function ValidationsPage() {
   return (
     <>
       <OfflineIndicator offlineCapable />
+      <TourGuide
+        steps={validationsTourSteps}
+        run={tour.run}
+        stepIndex={tour.stepIndex}
+        onStepChange={tour.setStepIndex}
+        onFinish={tour.markDone}
+      />
       <div className="space-y-6 animate-in fade-in duration-200 mt-3">
-        <header className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight">Validation des horaires</h1>
-          <p className="text-sm text-muted-foreground">Présence(s) en attente de décision.</p>
+        <header className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold tracking-tight">Validation des horaires</h1>
+            <p className="text-sm text-muted-foreground">Présence(s) en attente de décision.</p>
+          </div>
+          {isDirectorValidations ? (
+            <Button type="button" variant="ghost" size="sm" className="text-muted-foreground shrink-0" onClick={() => tour.restart()}>
+              <Info className="mr-1.5 h-4 w-4" />
+              Guide
+            </Button>
+          ) : null}
         </header>
 
         <Tabs defaultValue="hours" className="space-y-4">
-          <TabsList className="grid h-auto w-full grid-cols-1 gap-1 rounded-xl border border-border bg-muted/50 p-1 sm:grid-cols-3">
-            <TabsTrigger value="hours">Heures à valider ({groups.short_hours.length})</TabsTrigger>
+          <TabsList className="grid h-auto w-full grid-cols-1 gap-1 rounded-xl border border-border bg-muted/50 p-1 sm:grid-cols-3" data-tour="validations-tabs">
+            <TabsTrigger value="hours" data-tour="validations-short-hours">Heures à valider ({groups.short_hours.length})</TabsTrigger>
             <TabsTrigger value="end-scan">
               <AlertTriangle className="mr-1 h-3.5 w-3.5" />
               Scan de fin ({endScanTotal})
@@ -1130,7 +1237,7 @@ export default function ValidationsPage() {
               <InfoBox>Ces enseignants ont terminé leur cours avant l'heure prévue. Choisissez les heures à accorder.</InfoBox>
               {renderShortHoursTable(groups.short_hours)}
             </div>
-            <div className="space-y-4 border-t border-border pt-6">
+            <div className="space-y-4 border-t border-border pt-6" data-tour="validations-history">
               <div className="flex items-center gap-2">
                 <History className="h-4 w-4 text-muted-foreground" />
                 <h2 className="text-base font-medium">Historique des heures à valider</h2>
@@ -1655,6 +1762,7 @@ export default function ValidationsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </>
   )
 }

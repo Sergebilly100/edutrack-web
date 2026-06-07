@@ -29,7 +29,7 @@ export type BulkStudentsPayload = {
   date: string
   absent_student_ids: string[]
 }
-export type BulkStudentsResponse = { success: boolean }
+export type BulkStudentsResponse = { success: boolean; notifSendAfter: number; isLocked: boolean }
 
 export type StudentItem = { id: string; full_name: string; matricule: string | null }
 export type RoomItem = { id: string; name: string; qr_token: string }
@@ -392,13 +392,15 @@ export const qrSkip = (payload: QrSkipPayload) =>
 
 export const bulkStudents = (payload: BulkStudentsPayload) =>
   api
-    .post<{ data?: { upsertedCount?: number } }>("/attendance/students/bulk", {
+    .post<{ data?: { upsertedCount?: number; notifSendAfter?: number; isLocked?: boolean } }>("/attendance/students/bulk", {
       schedule_id: payload.schedule_id,
       date: payload.date,
       absent_student_ids: payload.absent_student_ids,
     })
     .then((r) => ({
       success: (r.data?.data?.upsertedCount ?? 0) >= 0,
+      notifSendAfter: r.data?.data?.notifSendAfter ?? 0,
+      isLocked: r.data?.data?.isLocked ?? false,
     }))
 
 export const fetchStudents = (classId: string) =>

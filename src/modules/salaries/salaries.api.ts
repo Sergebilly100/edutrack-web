@@ -341,6 +341,30 @@ export const updateSalaryStatus = async (input: UpdateSalaryStatusInput): Promis
   })
 }
 
+export type BulkMarkPaidItem = { recordId: string; hoursToPay: number }
+
+export type BulkMarkPaidResult = {
+  paid: number
+  skipped: number
+  results: { recordId: string; status: "ok" | "skipped"; reason?: string }[]
+}
+
+export const bulkMarkSalariesPaid = async (input: {
+  items: BulkMarkPaidItem[]
+  notes?: string
+}): Promise<BulkMarkPaidResult> => {
+  const response = await api.post("/billing/salary/bulk-mark-paid", {
+    items: input.items,
+    notes: input.notes?.trim() || undefined,
+  })
+  const payload = isRecord(response.data) ? response.data : {}
+  return {
+    paid: asNumber(payload.paid, 0),
+    skipped: asNumber(payload.skipped, 0),
+    results: Array.isArray(payload.results) ? payload.results as BulkMarkPaidResult["results"] : [],
+  }
+}
+
 const parseSalaryHistoryStatus = (value: unknown): "pending" | "paid" | "disputed" | "nothing_to_pay" => {
   if (
     value === "pending" ||

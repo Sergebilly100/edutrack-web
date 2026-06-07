@@ -1,3 +1,4 @@
+import type React from "react"
 import { CheckCircle2, Clock3, FileText, History, WalletCards } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -36,6 +37,7 @@ export interface SalaryRowProps {
   onDetails: (teacherId: string) => void
   onHistory?: (teacherId: string) => void
   dataTestIdPrefix?: string
+  leadingCell?: React.ReactNode
 }
 
 const teacherTypeMeta: Record<SalaryRowTeacher["type"], { label: string; className: string }> = {
@@ -54,7 +56,7 @@ const statusMeta: Record<SalaryStatus, { label: string; className: string; icon:
   pending: {
     label: "En attente",
     className:
-      "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200",
+      "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200",
     icon: Clock3,
   },
   paid: {
@@ -92,6 +94,7 @@ export function SalaryRow({
   onDetails,
   onHistory,
   dataTestIdPrefix,
+  leadingCell,
 }: SalaryRowProps) {
   const progressRatio =
     periodSummary.hoursPlanned > 0
@@ -110,6 +113,7 @@ export function SalaryRow({
       )}
       data-testid={dataTestIdPrefix ? `${dataTestIdPrefix}-row-${teacher.id}` : undefined}
     >
+      {leadingCell !== undefined ? leadingCell : null}
       <TableCell className="min-w-[220px] py-3">
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9 border border-border/60">
