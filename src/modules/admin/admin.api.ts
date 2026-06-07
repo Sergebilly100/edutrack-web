@@ -112,6 +112,7 @@ export type SchoolDetailsResponse = {
     studentsCount: number
     attendanceRecords30d: number
     mrrFcfa: number
+    planMonthlyPriceFcfa: number
     subscriptionStartedAt: string | null
     currentPeriodStart: string | null
     currentPeriodEnd: string | null
@@ -201,12 +202,17 @@ export type RevenueSummaryResponse = {
   cards: {
     mrrTotalFcfa: number
     arrFcfa: number
+    totalCollectedThisYearFcfa: number
+    totalCollectedThisMonthFcfa: number
+    schoolsWithOverdue: number
+    totalOverdueFcfa: number
     newSubscriptionsThisMonth: number
     churnThisMonth: number
   }
   monthly: Array<{
     month: string
     mrr_fcfa: number
+    collected_fcfa: number
     new_fcfa: number
     churn_fcfa: number
   }>
@@ -215,8 +221,14 @@ export type RevenueSummaryResponse = {
     school: string
     plan: TenantPlan
     status: TenantStatus
-    amountPerMonth: number
-    lastDueDate: string | null
+    mrrFcfa: number
+    planPriceFcfa: number
+    effectiveMrr: number
+    collectedThisYearFcfa: number
+    overdueMonths: number
+    overdueFcfa: number
+    lastPaymentDate: string | null
+    lastPaymentAmount: number
     paymentMode: string | null
   }>
 }
@@ -309,6 +321,8 @@ export type SchoolPaymentItem = {
   provider: string
   reference: string | null
   status: string
+  periodFrom: string | null
+  periodTo: string | null
 }
 
 export type SchoolSmsFeatureConfig = {
@@ -347,8 +361,13 @@ export type SmsFeatureGlobalStatsItem = {
   tenant_id: string
   subscriptions_active: number
   total_collected_fcfa: number
-  sms_sent_this_month: number
+  commission_pct: number
+  commission_due_fcfa: number
+  commission_paid_fcfa: number
   commission_remaining_fcfa: number
+  collected_ytd_fcfa: number
+  commission_ytd_fcfa: number
+  sms_sent_this_month: number
   is_overdue: boolean
   last_payment_at: string | null
 }
@@ -553,6 +572,12 @@ export const getAllRecentPayments = (tenantId?: string) =>
 
 export const addSchoolPayment = (tenantId: string, payload: AddSchoolPaymentPayload) =>
   api.post<{ success: boolean }>(`/admin/schools/${tenantId}/payments`, payload).then((response) => response.data)
+
+export const updateSchoolSubscription = (
+  tenantId: string,
+  payload: { mrr_fcfa?: number; billing_cycle?: "monthly" | "annual" }
+) =>
+  api.patch<{ success: boolean }>(`/admin/schools/${tenantId}/subscription`, payload).then((response) => response.data)
 
 export const sendSchoolPaymentReminder = (tenantId: string) =>
   api.post<SchoolPaymentReminderResponse>(`/admin/schools/${tenantId}/payments/reminder`).then((response) => response.data)

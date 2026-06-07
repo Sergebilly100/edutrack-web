@@ -54,7 +54,7 @@ const smsConfig: Record<
   },
   failed: {
     label: "Échec",
-    className: "border-amber-200 bg-amber-100 text-amber-700",
+    className: "border-amber-200 bg-amber-100 text-amber-900",
   },
   not_sent: {
     label: "Non notifié",

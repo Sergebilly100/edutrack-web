@@ -21,7 +21,7 @@ const statusStyles = {
   },
   late: {
     label: "Retard",
-    className: "bg-amber-100 text-amber-700 border-amber-200",
+    className: "bg-amber-100 text-amber-900 border-amber-200",
     Icon: LateIcon
   }
 } as const

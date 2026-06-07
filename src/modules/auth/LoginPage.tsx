@@ -121,27 +121,13 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-sky-50 via-white to-blue-50 dark:from-[#0a0f1e] dark:via-[#0c1220] dark:to-[#0a0f1e]">
-      {/* Blobs décoratifs - s'adaptent au thème */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-32 -top-32 h-[500px] w-[500px] rounded-full bg-blue-400/20 blur-[100px] dark:bg-[#1a56db]/8" />
-
-        {/* Grille subtile */}
-        <div
-          className="absolute inset-0 opacity-[0.025] dark:opacity-[0.02]"
-          style={{
-            backgroundImage:
-              'linear-gradient(to right, currentColor 1px, transparent 1px), linear-gradient(to bottom, currentColor 1px, transparent 1px)',
-            backgroundSize: '40px 40px',
-          }}
-        />
-      </div>
+    <div className="relative min-h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
 
       <div className="relative flex min-h-screen items-center justify-center px-4 py-12">
         <div className="w-full max-w-[420px]">
           {/* Logo + marque */}
           <div className="mb-8 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#1a56db] shadow-[0_0_40px_rgba(26,86,219,0.3)] dark:shadow-[0_0_40px_rgba(26,86,219,0.4)]">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#1a56db]">
               <GraduationCap className="h-8 w-8 text-white" strokeWidth={1.5} />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
@@ -153,7 +139,7 @@ export default function LoginPage() {
           </div>
 
           {/* Carte */}
-          <div className="rounded-2xl border border-gray-200/80 bg-white/80 p-7 shadow-xl shadow-gray-200/60 backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.05] dark:shadow-[0_24px_64px_rgba(0,0,0,0.4)]">
+          <div className="rounded-2xl border border-gray-200 bg-white p-7 shadow-lg dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-6">
               <h2 className="text-base font-semibold text-gray-900 dark:text-white">Connexion</h2>
               <p className="mt-0.5 text-xs text-gray-400 dark:text-white/40">

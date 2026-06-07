@@ -400,7 +400,7 @@ export default function ParentDashboardPage() {
       {subscriptionAlert && showSubscriptionAlert ? (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-amber-950 shadow-card dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100 sm:p-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200 sm:h-11 sm:w-11">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200 sm:h-11 sm:w-11">
               <Bell className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">

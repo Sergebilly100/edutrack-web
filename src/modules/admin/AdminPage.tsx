@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { Navigate, useLocation, useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
-import { BarChart3, Building2, TrendingUp, Users } from "lucide-react"
+import { AlertTriangle, BarChart3, Building2, TrendingDown, TrendingUp, Users } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -12,9 +12,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   getAdminMetrics,
+  getRevenueSummary,
   getSmsFeatureGlobalStats,
   getAllRecentPayments,
-  getRevenueMetrics,
   getSmsDashboard,
   listAllActiveSchools,
   listSchools,
@@ -35,7 +35,7 @@ const ALL_ACTIVE_SCHOOLS_VALUE = "all-active"
 const PLAN_OPTIONS: TenantPlan[] = ["essential", "pro", "establishment"]
 const STATUS_OPTIONS: TenantStatus[] = ["trial", "active", "suspended", "cancelled"]
 
-const formatFcfa = (value: number) => `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} FCFA`
+const fmt = (value: number) => `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} FCFA`
 
 const computeRetentionRate = (schools: SchoolListItem[]) => {
   if (schools.length === 0) {
@@ -100,8 +100,9 @@ export default function AdminPage() {
   })
 
   const revenueQuery = useQuery({
-    queryKey: ["admin", "revenue-metrics"],
-    queryFn: getRevenueMetrics,
+    queryKey: ["admin", "revenue", "summary"],
+    queryFn: getRevenueSummary,
+    enabled: !isSchoolsView,
   })
 
   const smsDashboardQuery = useQuery({
@@ -144,7 +145,8 @@ export default function AdminPage() {
     )
   }
 
-  const metrics = metricsQuery.data
+  const metrics  = metricsQuery.data
+  const revenue  = revenueQuery.data
   const visibleSchools = isSchoolsView
     ? schoolsQuery.data?.schools ?? []
     : recentSchoolsQuery.data?.schools ?? []
@@ -191,46 +193,84 @@ export default function AdminPage() {
       </header>
 
       {!isSchoolsView ? (
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            title="Total écoles actives"
-            value={metrics?.activeSchools ?? 0}
-            subtitle="Écoles actives sur les 7 derniers jours"
-            icon={<Building2 className="h-4 w-4" />}
-            loading={metricsQuery.isLoading}
-          />
-          <StatCard
-            title="MRR total FCFA"
-            value={formatFcfa(metrics?.mrrTotalFcfa ?? 0)}
-            subtitle="Revenus mensuels récurrents"
-            icon={<TrendingUp className="h-4 w-4" />}
-            variant="success"
-            loading={metricsQuery.isLoading}
-          />
-          <StatCard
-            title="DAU (7j)"
-            value={dau7d}
-            subtitle="Utilisateurs actifs aujourd'hui"
-            icon={<Users className="h-4 w-4" />}
-            loading={metricsQuery.isLoading}
-          />
-          <StatCard
-            title="Commission SMS totale restante"
-            value={formatFcfa((smsFeatureGlobalStatsQuery.data ?? []).reduce((acc, row) => acc + row.commission_remaining_fcfa, 0))}
-            subtitle="Reversement à recevoir des écoles"
-            icon={<TrendingUp className="h-4 w-4" />}
-            variant={(smsFeatureGlobalStatsQuery.data ?? []).reduce((acc, row) => acc + row.commission_remaining_fcfa, 0) > 0 ? "danger" : "default"}
-            loading={smsFeatureGlobalStatsQuery.isLoading}
-          />
-          <StatCard
-            title="Taux de rétention"
-            value={`${retentionRate}%`}
-            subtitle="Écoles actives ≤ 30j / total"
-            icon={<BarChart3 className="h-4 w-4" />}
-            variant={retentionRate >= 70 ? "success" : retentionRate >= 40 ? "warning" : "danger"}
-            loading={schoolsQuery.isLoading}
-          />
-        </section>
+        <>
+          {/* Ligne 1 — Financier prioritaire */}
+          {(revenue?.cards?.totalOverdueFcfa ?? 0) > 0 && (
+            <Alert variant="destructive" className="py-2">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>{revenue!.cards.schoolsWithOverdue} école{revenue!.cards.schoolsWithOverdue > 1 ? "s" : ""} en retard</strong>
+                {" — "}IvoirEdu est dû <strong>{fmt(revenue!.cards.totalOverdueFcfa)}</strong> sur les mensualités impayées.
+                {" "}<button type="button" className="underline underline-offset-2 ml-1" onClick={() => navigate("/admin/revenue")}>Voir détail →</button>
+              </AlertDescription>
+            </Alert>
+          )}
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              title="Encaissé ce mois"
+              value={fmt(revenue?.cards?.totalCollectedThisMonthFcfa ?? 0)}
+              subtitle={`MRR cible : ${fmt(revenue?.cards?.mrrTotalFcfa ?? 0)}`}
+              icon={<TrendingUp className="h-4 w-4" />}
+              variant="success"
+              loading={revenueQuery.isLoading}
+            />
+            <StatCard
+              title="Impayé cumulé"
+              value={fmt(revenue?.cards?.totalOverdueFcfa ?? 0)}
+              subtitle={`${revenue?.cards?.schoolsWithOverdue ?? 0} école(s) en retard`}
+              icon={<TrendingDown className="h-4 w-4" />}
+              variant={(revenue?.cards?.totalOverdueFcfa ?? 0) > 0 ? "danger" : "default"}
+              loading={revenueQuery.isLoading}
+            />
+            <StatCard
+              title="Écoles actives (7j)"
+              value={metrics?.activeSchools ?? 0}
+              subtitle={`${metrics?.totalSchools ?? 0} total · DAU : ${dau7d}`}
+              icon={<Building2 className="h-4 w-4" />}
+              loading={metricsQuery.isLoading}
+            />
+            <StatCard
+              title="Commission SMS à percevoir"
+              value={fmt((smsFeatureGlobalStatsQuery.data ?? []).reduce((acc, r) => acc + r.commission_remaining_fcfa, 0))}
+              subtitle="Reversements en attente des écoles"
+              icon={<BarChart3 className="h-4 w-4" />}
+              variant={(smsFeatureGlobalStatsQuery.data ?? []).reduce((acc, r) => acc + r.commission_remaining_fcfa, 0) > 0 ? "danger" : "default"}
+              loading={smsFeatureGlobalStatsQuery.isLoading}
+            />
+          </section>
+          {/* Ligne 2 — Utilisation */}
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              title="Encaissé cette année"
+              value={fmt(revenue?.cards?.totalCollectedThisYearFcfa ?? 0)}
+              subtitle="Depuis septembre (année scolaire)"
+              icon={<TrendingUp className="h-4 w-4" />}
+              loading={revenueQuery.isLoading}
+            />
+            <StatCard
+              title="Nouvelles souscriptions"
+              value={revenue?.cards?.newSubscriptionsThisMonth ?? 0}
+              subtitle="Ce mois-ci"
+              icon={<Users className="h-4 w-4" />}
+              loading={revenueQuery.isLoading}
+            />
+            <StatCard
+              title="Taux de rétention"
+              value={`${retentionRate}%`}
+              subtitle="Écoles avec connexion ≤ 30j"
+              icon={<BarChart3 className="h-4 w-4" />}
+              variant={retentionRate >= 70 ? "success" : retentionRate >= 40 ? "warning" : "danger"}
+              loading={metricsQuery.isLoading}
+            />
+            <StatCard
+              title="DAU"
+              value={dau7d}
+              subtitle="Utilisateurs actifs sur 7j (dernier jour)"
+              icon={<Users className="h-4 w-4" />}
+              loading={metricsQuery.isLoading}
+            />
+          </section>
+        </>
       ) : null}
 
       {metricsQuery.isError || revenueQuery.isError || schoolsQuery.isError || smsDashboardQuery.isError || recentSchoolsQuery.isError || activeSchoolsForPaymentsQuery.isError ? (
@@ -240,7 +280,9 @@ export default function AdminPage() {
       ) : null}
 
       {!isSchoolsView ? (
-        revenueQuery.isLoading ? <Skeleton className="h-[280px] w-full rounded-lg" /> : <RevenueChart data={revenueQuery.data ?? []} />
+        revenueQuery.isLoading
+          ? <Skeleton className="h-[280px] w-full rounded-lg" />
+          : <RevenueChart data={(revenue?.monthly ?? []).map((e) => ({ month: e.month, mrr_fcfa: e.mrr_fcfa, collected_fcfa: e.collected_fcfa }))} />
       ) : null}
 
       {!isSchoolsView ? (
@@ -285,7 +327,7 @@ export default function AdminPage() {
                       {(schoolPaymentsQuery.data ?? []).slice(0, 5).map((payment) => (
                         <TableRow key={payment.id}>
                           <TableCell>{new Date(payment.date).toLocaleDateString("fr-FR")}</TableCell>
-                          <TableCell>{formatFcfa(payment.amountFcfa)}</TableCell>
+                          <TableCell>{fmt(payment.amountFcfa)}</TableCell>
                           <TableCell>{payment.provider}</TableCell>
                           <TableCell>{payment.status}</TableCell>
                         </TableRow>

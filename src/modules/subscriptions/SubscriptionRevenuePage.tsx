@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 import { AlertBanner, EmptyState, PageLayout } from "@/shared/components"
@@ -7,10 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useToast } from "@/components/ui/use-toast"
 import { SubscriptionsStatsCards } from "@/modules/subscriptions/components/SubscriptionsStatsCards"
 import { OverdueReversalBanner } from "@/modules/subscriptions/components/OverdueReversalBanner"
 import {
@@ -20,12 +18,9 @@ import {
   getSubscriptionsRevenueDetails,
   getSubscriptionsRevenuePayments,
   getSubscriptionsRevenueSummary,
-  recordCommissionPayment,
 } from "@/modules/subscriptions/subscriptions.api"
-import { usePermissions } from "@/shared/hooks/usePermissions"
 import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
-import { useAuthStore } from "@/shared/store/auth.store"
 import { OfflineGuard} from "@/shared/components"
 
 const toMonth = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`
@@ -38,17 +33,9 @@ const monthLabel = (month: string) => {
 const formatFcfa = (value: number) => `${new Intl.NumberFormat("fr-FR").format(value)} FCFA`
 
 export default function SubscriptionRevenuePage() {
-  const { toast } = useToast()
-  const queryClient = useQueryClient()
-  const { hasPermission } = usePermissions()
   const studentLabels = useStudentLabels()
-  const user = useAuthStore((state) => state.user)
 
   const [monthCursor, setMonthCursor] = useState<Date>(new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)))
-  const [paymentOpen, setPaymentOpen] = useState(false)
-  const [paymentAmount, setPaymentAmount] = useState("")
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "momo_mtn" | "momo_orange" | "bank_transfer">("cash")
-  const [paymentNotes, setPaymentNotes] = useState("")
   const [exportOpen, setExportOpen] = useState(false)
   const [exportFromMonth, setExportFromMonth] = useState(toMonth(new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - 2, 1))))
   const [exportToMonth, setExportToMonth] = useState(toMonth(new Date()))
@@ -86,29 +73,11 @@ export default function SubscriptionRevenuePage() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const paymentMutation = useMutation({
-    mutationFn: (payload: { period_month: string; amount_fcfa: number; payment_method?: "cash" | "momo_mtn" | "momo_orange" | "bank_transfer"; notes?: string; idempotency_key: string }) =>
-      recordCommissionPayment(payload),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["subscriptions", "revenue", "summary"] }),
-        queryClient.invalidateQueries({ queryKey: ["subscriptions", "revenue", "stats"] }),
-        queryClient.invalidateQueries({ queryKey: ["subscriptions", "revenue", "history"] }),
-      ])
-      setPaymentAmount("")
-      setPaymentMethod("cash")
-      setPaymentNotes("")
-      setPaymentOpen(false)
-      toast({ title: "Versement enregistré" })
-    },
-  })
-
   const summary = summaryQuery.data
   const history = historyQuery.data ?? []
   const monthSubscriptions = monthSubscriptionsQuery.data ?? []
   const currentMonth = toMonth(new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)))
   const canGoNextMonth = month !== currentMonth
-  const canRecordPayment = user?.role === "super_admin" && hasPermission("subscriptions.revenue")
   const monthSubscriptionsCollected = monthSubscriptions.reduce((sum, item) => sum + item.amount_fcfa, 0)
 
   return (
@@ -155,25 +124,18 @@ export default function SubscriptionRevenuePage() {
 
       {summary ? (
         <section className="space-y-3 rounded-lg border p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold">Commission IvoirEdu</h2>
-              <p className="text-sm text-muted-foreground">
-                Commission de {summary.commission_pct}% sur les revenus de ce mois.
-              </p>
-            </div>
-            {canRecordPayment ? (
-              <Button type="button" onClick={() => setPaymentOpen(true)}>
-                Enregistrer un versement
-              </Button>
-            ) : null}
+          <div>
+            <h2 className="text-sm font-semibold">Commission IvoirEdu</h2>
+            <p className="text-sm text-muted-foreground">
+              Commission de {summary.commission_pct}% sur les revenus de ce mois.
+            </p>
           </div>
 
-          {summary.commission_remaining_fcfa > 0 ? (
+          {summary.commission_remaining_fcfa > 0 && summary.total_collected_fcfa > 0 ? (
             <AlertBanner
               type="warning"
               title="Reversement en attente"
-              message={`Il reste ${formatFcfa(summary.commission_remaining_fcfa)} à reverser à IvoirEdu pour ${monthLabel(month)}.`}
+              message={`Il reste ${formatFcfa(summary.commission_remaining_fcfa)} à reverser à IvoirEdu pour ${monthLabel(month)}. Contactez IvoirEdu pour effectuer le versement.`}
             />
           ) : null}
         </section>
@@ -276,72 +238,6 @@ export default function SubscriptionRevenuePage() {
           )}
         </TabsContent>
       </Tabs>
-
-      <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Enregistrer un versement</DialogTitle>
-            <DialogDescription>Période {monthLabel(month)}.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label>Période</Label>
-              <Input value={month} disabled />
-            </div>
-            <div className="space-y-1">
-              <Label>Montant (FCFA)</Label>
-              <Input value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value.replace(/\D/g, ""))} />
-            </div>
-            <div className="space-y-1">
-              <Label>Moyen de versement</Label>
-              <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as typeof paymentMethod)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Espèces</SelectItem>
-                  <SelectItem value="momo_mtn">MTN MoMo</SelectItem>
-                  <SelectItem value="momo_orange">Orange Money</SelectItem>
-                  <SelectItem value="bank_transfer">Virement bancaire</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Notes</Label>
-              <Input value={paymentNotes} onChange={(event) => setPaymentNotes(event.target.value)} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setPaymentOpen(false)}>
-              Annuler
-            </Button>
-            <Button
-              type="button"
-              onClick={() => {
-                const amount = Number(paymentAmount)
-                if (!Number.isFinite(amount) || amount <= 0) {
-                  toast({
-                    title: "Montant invalide",
-                    description: "Saisissez un montant strictement positif.",
-                    variant: "destructive",
-                  })
-                  return
-                }
-                paymentMutation.mutate({
-                  period_month: month,
-                  amount_fcfa: amount,
-                  payment_method: paymentMethod,
-                  notes: paymentNotes.trim() || undefined,
-                  idempotency_key: crypto.randomUUID(),
-                })
-              }}
-              disabled={paymentMutation.isPending}
-            >
-              Enregistrer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={exportOpen} onOpenChange={setExportOpen}>
         <DialogContent>

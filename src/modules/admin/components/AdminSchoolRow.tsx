@@ -67,7 +67,7 @@ const statusClassName = (status: AdminSchoolRowItem["status"]) => {
   }
 
   if (status === "trial") {
-    return "border-amber-200 bg-amber-50 text-amber-700"
+    return "border-amber-200 bg-amber-50 text-amber-900"
   }
 
   if (status === "suspended") {

@@ -26,12 +26,14 @@ export function OverviewTab({
   return (
     <div className="space-y-6">
       {/* Stats globales */}
-      <DashboardStatsCards
-        showTeacherCard={canViewAttendance || canViewTeachers}
-        showStudentCard={canViewAttendance}
-        showSalaryCard={canViewSalary}
-        showSubscriptionCard={canViewSubscriptions}
-      />
+      <div data-tour="dashboard-stats">
+        <DashboardStatsCards
+          showTeacherCard={canViewAttendance || canViewTeachers}
+          showStudentCard={canViewAttendance}
+          showSalaryCard={canViewSalary}
+          showSubscriptionCard={canViewSubscriptions}
+        />
+      </div>
 
       {/* Alertes système */}
       {weeklyAbsenceCount > 5 ? (

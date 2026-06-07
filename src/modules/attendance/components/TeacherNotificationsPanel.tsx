@@ -152,7 +152,7 @@ export default function TeacherNotificationsPanel() {
                             className={
                               notification.type === "attendance_rejected"
                                 ? "border-red-200 bg-red-50 text-red-700 text-[10px]"
-                                : "border-amber-200 bg-amber-50 text-amber-700 text-[10px]"
+                                : "border-amber-200 bg-amber-50 text-amber-900 text-[10px]"
                             }
                           >
                             {notifTypeLabel[notification.type] ?? notification.type}

@@ -10,6 +10,13 @@ export interface StatCardProps {
   subtitle?: string
   icon: ReactNode
   trend?: { value: number; label: string }
+  /**
+   * Définit la sémantique du trend : une hausse est-elle bonne ou mauvaise ?
+   * - "higher-is-better" : hausse = vert (ex: revenus, taux de présence)
+   * - "lower-is-better" : hausse = rouge (ex: absences, retards)
+   * Par défaut : "higher-is-better"
+   */
+  trendSemantic?: "higher-is-better" | "lower-is-better"
   variant?: "default" | "success" | "warning" | "danger"
   onClick?: () => void
   loading?: boolean
@@ -28,12 +35,22 @@ export function StatCard({
   subtitle,
   icon,
   trend,
+  trendSemantic = "higher-is-better",
   variant = "default",
   onClick,
   loading = false,
 }: StatCardProps) {
   const clickable = typeof onClick === "function"
-  const trendPositive = (trend?.value ?? 0) >= 0
+  const trendValue = trend?.value ?? 0
+  const trendPositive = trendValue >= 0
+
+  // Déterminer si le trend est "bon" en fonction de la sémantique
+  // Un trend de 0 (stable) est toujours considéré comme "bon"
+  const trendIsGood = trendValue === 0
+    ? true
+    : trendSemantic === "higher-is-better"
+      ? trendPositive
+      : !trendPositive
 
   return (
     <article
@@ -75,11 +92,11 @@ export function StatCard({
         {!loading && trend ? (
           <p className="flex items-center gap-1 text-xs">
             {trendPositive ? (
-              <ArrowUpRight className="h-3.5 w-3.5 text-green-600" />
+              <ArrowUpRight className={cn("h-3.5 w-3.5", trendIsGood ? "text-green-600" : "text-red-600")} />
             ) : (
-              <ArrowDownRight className="h-3.5 w-3.5 text-red-600" />
+              <ArrowDownRight className={cn("h-3.5 w-3.5", trendIsGood ? "text-green-600" : "text-red-600")} />
             )}
-            <span className={trendPositive ? "text-green-600" : "text-red-600"}>
+            <span className={trendIsGood ? "text-green-600" : "text-red-600"}>
               {trendPositive ? "+" : ""}
               {trend.value}%
             </span>

@@ -104,7 +104,7 @@ const statusLabel: Record<string, string> = {
 const statusBadgeClass: Record<string, string> = {
   present: "border-green-200 bg-green-50 text-green-700",
   absent: "border-red-200 bg-red-50 text-red-700",
-  late: "border-amber-200 bg-amber-50 text-amber-700",
+  late: "border-amber-200 bg-amber-50 text-amber-900",
   not_marked: "border-slate-200 bg-slate-50 text-slate-600",
 }
 
@@ -112,7 +112,7 @@ const dayMeta: Record<number, { label: string; className: string }> = {
   1: { label: "Lundi", className: "border-blue-200 bg-blue-50 text-blue-700" },
   2: { label: "Mardi", className: "border-indigo-200 bg-indigo-50 text-indigo-700" },
   3: { label: "Mercredi", className: "border-violet-200 bg-violet-50 text-violet-700" },
-  4: { label: "Jeudi", className: "border-amber-200 bg-amber-50 text-amber-700" },
+  4: { label: "Jeudi", className: "border-amber-200 bg-amber-50 text-amber-900" },
   5: { label: "Vendredi", className: "border-emerald-200 bg-emerald-50 text-emerald-700" },
   6: { label: "Samedi", className: "border-rose-200 bg-rose-50 text-rose-700" },
   7: { label: "Dimanche", className: "border-slate-200 bg-slate-50 text-slate-700" },
@@ -316,7 +316,7 @@ function AttendancePanel({ teacherId, canViewAttendance }: { teacherId: string; 
         <Card>
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground">Heures restantes</p>
-            <p className="text-lg font-semibold tabular-nums text-amber-700">
+            <p className="text-lg font-semibold tabular-nums text-amber-900">
               {formatDecimalHours(remainingHours)}
             </p>
           </CardContent>
@@ -385,7 +385,7 @@ function AttendancePanel({ teacherId, canViewAttendance }: { teacherId: string; 
                       </TableCell>
                       <TableCell>
                         {(row.attendanceStatus === "present" || row.attendanceStatus === "late") && row.rollcallMissing ? (
-                          <Badge className="border-amber-200 bg-amber-50 text-amber-700">Manquant</Badge>
+                          <Badge className="border-amber-200 bg-amber-50 text-amber-900">Manquant</Badge>
                         ) : (row.attendanceStatus === "present" || row.attendanceStatus === "late") && row.rollcallDone ? (
                           <Badge className="border-green-200 bg-green-50 text-green-700">Effectué</Badge>
                         ) : (

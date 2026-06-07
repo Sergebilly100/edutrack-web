@@ -146,7 +146,7 @@ export function SalariesStatsCards({ month, toPayVacataire, toPayPermanent }: Sa
                 <div>Du 1er à aujourd'hui: {formatDecimalHours(stats.economy.plannedHours)}</div>
                 <div>Heures effectuées : {formatDecimalHours(stats.economy.completedHours)}</div>
                 <div>Heures manquées : {formatDecimalHours(stats.economy.plannedHours - stats.economy.completedHours)}</div>
-                <div className="font-semibold text-amber-700">Économie : {formatFcfa(stats.economy.savedAmount)}</div>
+                <div className="font-semibold text-amber-900">Économie : {formatFcfa(stats.economy.savedAmount)}</div>
               </div>
             </TooltipTrigger>
             <TooltipContent>

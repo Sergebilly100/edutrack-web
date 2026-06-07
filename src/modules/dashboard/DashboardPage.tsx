@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Bell, CheckCircle2, ChevronRight, CircleX, ClipboardCheck, Flag, GraduationCap, MapPin, RefreshCw, Users, Wallet } from "lucide-react"
+import { Bell, CheckCircle2, ChevronRight, CircleX, ClipboardCheck, Flag, GraduationCap, Info, MapPin, RefreshCw, Users, Wallet } from "lucide-react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -50,6 +50,9 @@ import { useAuthStore } from "@/shared/store/auth.store"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { getInitials } from "@/shared/utils/avatar"
 import { DashboardTabSkeleton } from "@/modules/dashboard/tabs/DashboardTabSkeleton"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { dashboardTourSteps } from "@/shared/lib/tour-steps"
 
 const OverviewTab = lazy(() =>
   import("@/modules/dashboard/tabs/OverviewTab").then(m => ({ default: m.OverviewTab }))
@@ -279,6 +282,8 @@ export default function DashboardPage() {
   const previousMonth = useMemo(() => getPreviousMonthKey(new Date()), [])
   const alertsRef = useRef<HTMLDivElement | null>(null)
   const isDirector = user?.role === "director"
+  const tour = useTourGuide("dashboard", isDirector)
+
   const canViewSalary = isDirector || permissions.includes("salary.view")
   const canViewStudents = isDirector || permissions.includes("students.view")
   const canViewTeachers = isDirector || permissions.includes("teachers.view")
@@ -763,6 +768,13 @@ export default function DashboardPage() {
   return (
     <>
       <OfflineIndicator />
+      <TourGuide
+        steps={dashboardTourSteps}
+        run={tour.run}
+        stepIndex={tour.stepIndex}
+        onStepChange={tour.setStepIndex}
+        onFinish={tour.markDone}
+      />
 
       <div className={`space-y-6 animate-fade-in rounded-lg ${refreshSuccess ? "fresh-data-pulse" : ""}`}>
         <header className="-mx-4 border-b bg-background px-4 py-4 md:sticky md:top-0 md:z-30 md:-mx-6 md:px-6">
@@ -773,6 +785,23 @@ export default function DashboardPage() {
               <Badge variant="outline" className="mt-1">{schoolName}</Badge>
             </div>
             <div className="hidden items-center gap-2 md:flex">
+              {isDirector ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={() => {
+                    setActiveTab("overview");
+                    (document.scrollingElement ?? document.documentElement).scrollTo({ top: 0, behavior: "instant" })
+                    tour.restart()
+                  }}
+                  aria-label="Revoir le tour guidé"
+                >
+                  <Info className="mr-1.5 h-4 w-4" />
+                  Guide
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="outline"
@@ -780,6 +809,7 @@ export default function DashboardPage() {
                 aria-label="Voir les notifications"
                 onClick={() => setNotificationsOpen((current) => !current)}
                 className="relative"
+                data-tour="dashboard-alerts"
               >
                 <Bell className="h-4 w-4" />
                 {activeAlertsCount > 0 ? (
@@ -914,12 +944,12 @@ export default function DashboardPage() {
           onValueChange={(v) => setActiveTab(v as typeof activeTab)}
           className="w-full"
         >
-          <div className="sticky top-[64px] z-30 -mx-4 border-b bg-background px-4 py-3 shadow-sm md:top-[72px] md:-mx-6 md:px-6">
+          <div className="sticky top-[64px] z-30 -mx-4 border-b bg-background px-4 py-3 shadow-sm md:top-[72px] md:-mx-6 md:px-6" data-tour="dashboard-tabs">
             <TabsList className="grid w-full grid-cols-3 gap-1 md:inline-flex md:w-auto">
             <TabsTrigger value="overview">
               Vue d'ensemble
             </TabsTrigger>
-            <TabsTrigger value="attendance">
+            <TabsTrigger value="attendance" data-tour="dashboard-tab-attendance">
               Présences
               {todayQuery.data && todayQuery.data.absentCount > 0 ? (
                 <Badge variant="destructive" className="ml-1 h-4 px-1 text-[10px]">
@@ -927,7 +957,7 @@ export default function DashboardPage() {
                 </Badge>
               ) : null}
             </TabsTrigger>
-            <TabsTrigger value="salaries">
+            <TabsTrigger value="salaries" data-tour="dashboard-tab-salaries">
               Salaires
               {pendingSalaries.count > 0 ? (
                 <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px]">

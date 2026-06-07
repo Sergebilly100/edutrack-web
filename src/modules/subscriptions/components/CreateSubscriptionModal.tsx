@@ -273,7 +273,7 @@ export default function CreateSubscriptionModal({
                     />
                     {!phoneValid ? <p className="text-xs text-red-600">Format requis: 225 + 10 chiffres.</p> : null}
                     {phoneExists ? (
-                      <p className="text-xs text-amber-700">
+                      <p className="text-xs text-amber-900">
                         Ce numéro est déjà enregistré. Utiliser Renouveler à la place.
                       </p>
                     ) : null}

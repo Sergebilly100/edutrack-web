@@ -362,17 +362,17 @@ function TeacherRankingPanel({
                 </div>
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
-                <Badge title="Taux de présence: 20% du Total" variant="outline" className={teacher.attendanceRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.attendanceRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
+                <Badge title="Taux de présence: 20% du Total" variant="outline" className={teacher.attendanceRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.attendanceRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-900" : "border-red-200 bg-red-50 text-red-700"}>
                   {/* // teacher.attendanceRate représente le taux de présence du professeur, calculé à partir des données de pointage et de présence, et est un indicateur clé de la régularité du professeur dans ses cours. */}
                   Présence {Math.round(teacher.attendanceRate)}%
                 </Badge>
-                <Badge title="Taux de scan de fin: 30% du Total" variant="outline" className={teacher.scanEndRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.scanEndRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
+                <Badge title="Taux de scan de fin: 30% du Total" variant="outline" className={teacher.scanEndRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.scanEndRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-900" : "border-red-200 bg-red-50 text-red-700"}>
                   Scan fin {Math.round(teacher.scanEndRate)}%
                 </Badge>
-                <Badge title="Taux de salle correcte: 25% du Total" variant="outline" className={teacher.roomCorrectRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.roomCorrectRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
+                <Badge title="Taux de salle correcte: 25% du Total" variant="outline" className={teacher.roomCorrectRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.roomCorrectRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-900" : "border-red-200 bg-red-50 text-red-700"}>
                   Salle correcte {Math.round(teacher.roomCorrectRate)}%
                 </Badge>
-                <Badge title={`Taux de pointage des ${studentLabels.pluralLower}: 25% du Total`} variant="outline" className={teacher.rollcallRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.rollcallRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-700"}>
+                <Badge title={`Taux de pointage des ${studentLabels.pluralLower}: 25% du Total`} variant="outline" className={teacher.rollcallRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.rollcallRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-900" : "border-red-200 bg-red-50 text-red-700"}>
                   Pointage {studentLabels.singularLower} {Math.round(teacher.rollcallRate)}%
                 </Badge>
               </div>

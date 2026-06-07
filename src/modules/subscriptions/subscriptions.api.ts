@@ -374,20 +374,6 @@ export const getSubscriptionsRevenueDetails = async (month: string): Promise<Rev
   return response.data.data
 }
 
-export const recordCommissionPayment = async (payload: {
-  period_month: string
-  amount_fcfa: number
-  payment_method?: "cash" | "momo_mtn" | "momo_orange" | "bank_transfer"
-  notes?: string
-  idempotency_key: string
-}): Promise<void> => {
-  try {
-    await apiClient.post("/subscriptions/revenue/commission/record-payment", payload)
-  } catch (error) {
-    throw new Error(parseApiError(error, "Impossible d'enregistrer le versement."))
-  }
-}
-
 export const getSmsFeatureSettings = async (): Promise<SmsFeatureSettings> => {
   const response = await apiClient.get<SmsFeatureSettings>("/settings/sms-price")
   return response.data

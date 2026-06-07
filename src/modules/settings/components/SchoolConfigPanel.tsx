@@ -742,7 +742,7 @@ export default function SchoolConfigPanel() {
                           "flex h-8 w-8 items-center justify-center rounded-lg text-xs font-medium",
                           index % 3 === 0 && "bg-blue-50 text-blue-700",
                           index % 3 === 1 && "bg-green-50 text-green-700",
-                          index % 3 === 2 && "bg-amber-50 text-amber-700",
+                          index % 3 === 2 && "bg-amber-50 text-amber-900",
                         )}
                       >
                         {position.name.slice(0, 2).toUpperCase()}

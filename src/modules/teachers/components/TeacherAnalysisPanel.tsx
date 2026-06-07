@@ -244,7 +244,7 @@ export default function TeacherAnalysisPanel() {
                       rate >= 80
                         ? "border-green-200 bg-green-50 text-green-700"
                         : rate >= 50
-                          ? "border-amber-200 bg-amber-50 text-amber-700"
+                          ? "border-amber-200 bg-amber-50 text-amber-900"
                           : "border-red-200 bg-red-50 text-red-700"
                     const rateColorClass =
                       rate >= 80
@@ -298,7 +298,7 @@ export default function TeacherAnalysisPanel() {
                           </div>
                           <div className="flex items-center justify-between rounded-lg border px-3 py-2">
                             <span className="inline-flex items-center gap-2 text-muted-foreground"><ListChecks className="h-4 w-4" /> {`Pointage ${studentLabels.pluralLower}`}</span>
-                            <Badge variant="outline" role="status" className={doneOrMissing ? "border-amber-200 bg-amber-50 text-amber-700" : "border-green-200 bg-green-50 text-green-700"}>
+                            <Badge variant="outline" role="status" className={doneOrMissing ? "border-amber-200 bg-amber-50 text-amber-900" : "border-green-200 bg-green-50 text-green-700"}>
                               {doneOrMissing ? `Manquant ${row.rollcall_missing_count}` : `Fait ${row.rollcall_done_count}/${row.total_scheduled}`}
                             </Badge>
                           </div>
@@ -351,7 +351,7 @@ export default function TeacherAnalysisPanel() {
                                   variant="outline"
                                   className={cn(
                                     row.teacher_type === "vacataire"
-                                      ? "border-amber-200 bg-amber-50 text-amber-700"
+                                      ? "border-amber-200 bg-amber-50 text-amber-900"
                                       : "border-slate-200 bg-slate-50 text-slate-700"
                                   )}
                                 >
@@ -378,7 +378,7 @@ export default function TeacherAnalysisPanel() {
                             </TableCell>
                             <TableCell>
                               {row.late_count > 0 ? (
-                                <Badge className="border-amber-200 bg-amber-50 text-amber-700">
+                                <Badge className="border-amber-200 bg-amber-50 text-amber-900">
                                   {row.late_count}
                                 </Badge>
                               ) : (
@@ -394,7 +394,7 @@ export default function TeacherAnalysisPanel() {
                             </TableCell>
                             <TableCell>
                               {doneOrMissing ? (
-                                <Badge className="border-amber-200 bg-amber-50 text-amber-700">
+                                <Badge className="border-amber-200 bg-amber-50 text-amber-900">
                                   Manquant {row.rollcall_missing_count}
                                 </Badge>
                               ) : (

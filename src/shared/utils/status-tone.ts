@@ -2,7 +2,7 @@
  * Tons sémantiques partagés pour les badges/encarts de statut du tableau de bord.
  *
  * Centralise les classes Tailwind (fond + texte + bordure, clair ET sombre) afin
- * d'éviter la duplication des chaînes `bg-amber-50 text-amber-700 dark:...`
+ * d'éviter la duplication des chaînes `bg-amber-50 text-amber-900 dark:...`
  * dispersées dans les pages. Les couleurs suivent la sémantique des tokens
  * present (vert) / late (ambre) / absent (rouge) définis dans DESIGN.md.
  *

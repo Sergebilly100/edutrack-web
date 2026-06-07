@@ -146,7 +146,7 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
 
           {/* Rappel appel en attente */}
           {rollCallPending && rollCallStillOpen ? (
-            <p className="flex items-center gap-1.5 text-xs font-medium text-amber-700">
+            <p className="flex items-center gap-1.5 text-xs font-medium text-amber-900">
               <span className="h-2 w-2 rounded-full bg-amber-500" />
               {`Appel ${studentLabels.pluralLower} à faire avant ${formatTime(slot.end_time)}`}
             </p>
@@ -203,7 +203,7 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
           {status === "missed" && rollCallPending ? (
             <Badge
               variant="outline"
-              className="border-amber-300 bg-amber-50 text-amber-700 text-xs"
+              className="border-amber-300 bg-amber-50 text-amber-900 text-xs"
             >
               Appel non effectué
             </Badge>
@@ -252,7 +252,7 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
               type="button"
               size="sm"
               variant="outline"
-              className="w-full border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-200 sm:w-auto"
+              className="w-full border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-200 sm:w-auto"
               data-testid={`teacher-rollcall-${slot.id}`}
               onClick={() => onStartCourse(slot)}
             >

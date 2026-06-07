@@ -42,7 +42,7 @@ const smsConfig: Record<
   },
   partial: {
     label: "Partiel",
-    className: "bg-amber-100 text-amber-700 border-amber-200",
+    className: "bg-amber-100 text-amber-900 border-amber-200",
   },
   none: {
     label: "Non notifié",
@@ -256,7 +256,7 @@ export default function StudentAbsencePanel() {
                     rate > 20
                       ? "border-red-200 bg-red-50 text-red-700"
                       : rate > 10
-                        ? "border-amber-200 bg-amber-50 text-amber-700"
+                        ? "border-amber-200 bg-amber-50 text-amber-900"
                         : "border-green-200 bg-green-50 text-green-700"
 
                   return (

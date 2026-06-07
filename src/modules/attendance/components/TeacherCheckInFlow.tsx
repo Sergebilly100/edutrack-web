@@ -859,7 +859,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                   {absentCount} absent{absentCount > 1 ? "s" : ""}
                 </span>
                 {unmarkedCount > 0 ? (
-                  <span className="flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                  <span className="flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900">
                     <span className="h-2 w-2 rounded-full bg-amber-400" />
                     {unmarkedCount} à marquer
                   </span>
@@ -1053,7 +1053,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
                 <p>{`Votre présence est confirmée. Souhaitez-vous faire le pointage des ${studentLabels.pluralLower} maintenant ou plus tard ?`}</p>
-                <p className="font-medium text-amber-700">
+                <p className="font-medium text-amber-900">
                   Le pointage doit être effectué avant {formatTime(slot.end_time)}.
                 </p>
               </div>

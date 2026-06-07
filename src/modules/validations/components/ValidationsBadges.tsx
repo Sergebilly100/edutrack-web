@@ -26,7 +26,7 @@ export function KindBadges({ kinds }: { kinds: ValidationKind[] | undefined | nu
       {hasShortHours && (
         <Badge
           variant="outline"
-          className="border-amber-200 bg-amber-50 text-amber-700"
+          className="border-amber-200 bg-amber-50 text-amber-900"
         >
           <Clock className="mr-1 h-3 w-3" />
           {KIND_LABEL.short_hours}
@@ -66,7 +66,7 @@ export function HistoryStatusBadge({
         validatedHours !== undefined &&
         validatedHours < scheduledH - 0.01
       label = isRealHours ? "Heure réelle accordée" : "Heure prévue accordée"
-      color_class = isRealHours ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"
+      color_class = isRealHours ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-900"
     }
     return (
       <Badge
@@ -107,7 +107,7 @@ export function EndScanStatusBadge({ session }: { session: MissingEndScanSession
     return (
       <Badge
         variant="outline"
-        className="border-amber-200 bg-amber-50 text-amber-700"
+        className="border-amber-200 bg-amber-50 text-amber-900"
       >
         Averti
       </Badge>

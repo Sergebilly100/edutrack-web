@@ -114,7 +114,7 @@ export const getStatusBadgeClass = (
   isPartiallyPaid: boolean
 ): string => {
   if (isPartiallyPaid) {
-    return "border-amber-200 bg-amber-50 text-amber-700"
+    return "border-amber-200 bg-amber-50 text-amber-900"
   }
   if (status === "disputed") {
     return "border-red-200 bg-red-50 text-red-700"
@@ -138,7 +138,7 @@ export const attendanceStatusMeta: Record<
   },
   late: {
     label: "En retard",
-    className: "border-amber-200 bg-amber-50 text-amber-700",
+    className: "border-amber-200 bg-amber-50 text-amber-900",
   },
   absent: {
     label: "Absent",
