@@ -202,7 +202,7 @@ export default function TeacherSchedulePage() {
       <InstallPwaCard
         audience="user"
         headline="Installez IvoirEdu pour pointer plus vite"
-        className="mb-4"
+        className="!mb-4 !mt-0"
       />
 
       <header className="rounded-lg border bg-card p-4 shadow-sm !mt-0" data-tour="teacher-app-header">
