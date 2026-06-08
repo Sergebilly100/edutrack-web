@@ -822,18 +822,18 @@ export default function SalariesPage() {
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-1 text-muted-foreground"
+                onClick={() => tour.restart()}
+                aria-label="Revoir le guide"
+              >
+                <Info className="mr-1.5 h-4 w-4" />
+                Guide
+              </Button>
               <div className="flex items-center gap-2" data-tour="salaries-month">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-1 text-muted-foreground"
-                  onClick={() => tour.restart()}
-                  aria-label="Revoir le guide"
-                >
-                  <Info className="mr-1.5 h-4 w-4" />
-                  Guide
-                </Button>
                 <Button
                   type="button"
                   variant="outline"
@@ -993,7 +993,7 @@ export default function SalariesPage() {
         ) : null}
 
         {/* Search et filtres */}
-        <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between" data-tour="salaries-filtre">
           <div className="flex-1">
             <Input
               type="text"

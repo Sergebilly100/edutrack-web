@@ -170,20 +170,6 @@ function TeacherRowActions({
             <ViewIcon className="mr-2 h-4 w-4" />
             Voir le profil
           </DropdownMenuItem>
-          {canToggleBlocked ? (
-            <DropdownMenuItem onSelect={onToggleBlocked}>
-              {teacher.isBlocked ? (
-                <UnblockIcon className="mr-2 h-4 w-4" />
-              ) : (
-                <BlockIcon className="mr-2 h-4 w-4" />
-              )}
-              {teacher.isBlocked ? "Débloquer" : "Bloquer"}
-            </DropdownMenuItem>
-          ) : null}
-          <DropdownMenuItem onSelect={onExportPdf}>
-            <ExportIcon className="mr-2 h-4 w-4" />
-            Exporter PDF
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
