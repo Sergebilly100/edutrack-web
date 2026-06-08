@@ -7,6 +7,7 @@ import { useRollCallStore } from "@/shared/store/rollCall.store"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 
 interface CourseCardProps {
+  onEditRollCall?: (slot: ScheduleSlot) => void
   slot: ScheduleSlot
   attendance?: TeacherAttendance
   onStartCourse: (slot: ScheduleSlot) => void
@@ -53,7 +54,7 @@ const getStatus = (
   return "upcoming"
 }
 
-export default function CourseCard({ slot, attendance, onStartCourse }: CourseCardProps) {
+export default function CourseCard({ slot, attendance, onStartCourse, onEditRollCall }: CourseCardProps) {
   const studentLabels = useStudentLabels()
   const now = new Date()
   const status = getStatus(slot, attendance, now)
@@ -270,6 +271,21 @@ export default function CourseCard({ slot, attendance, onStartCourse }: CourseCa
               onClick={() => onStartCourse(slot)}
             >
               Terminer le cours
+            </Button>
+          ) : null}
+
+          {/* Modifier l'appel : appel déjà fait, fenêtre encore ouverte, cours non terminé.
+              Permet de corriger un élève marqué absent qui est finalement arrivé. */}
+          {onEditRollCall && alreadyCheckedIn && !rollCallPending && rollCallStillOpen && status !== "done" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="w-full text-muted-foreground sm:w-auto"
+              data-testid={`teacher-edit-rollcall-${slot.id}`}
+              onClick={() => onEditRollCall(slot)}
+            >
+              Modifier l'appel
             </Button>
           ) : null}
         </div>

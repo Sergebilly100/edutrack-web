@@ -354,6 +354,19 @@ export const teacherScheduleApi = {
 
     return list.map(toStudentItem)
   },
+
+  // Statuts de présence du jour pour pré-remplir l'appel quand on le rouvre.
+  getStudentRollCall: async (
+    scheduleId: string,
+    date: string
+  ): Promise<Array<{ student_id: string; status: "present" | "absent" | "excused" | "unmarked" }>> => {
+    const response = await api.get<{
+      data?: Array<{ student_id: string; status: "present" | "absent" | "excused" | "unmarked" }>
+    }>("/attendance/students/roll-call", {
+      params: { schedule_id: scheduleId, date },
+    })
+    return response.data?.data ?? []
+  },
 }
 
 // ── Exports standalone (utilisés par TeacherFlow.tsx) ────────────────────────

@@ -43,6 +43,8 @@ interface TeacherCheckInFlowProps {
   open: boolean
   onClose: () => void
   slot: ScheduleSlot
+  /** Ouvre directement à l'étape d'appel (étape 3) pour corriger un pointage. */
+  editRollCall?: boolean
 }
 
 type StudentRollCallStatus = "unmarked" | "present" | "absent"
@@ -108,7 +110,7 @@ export const shouldMarkCheckinQrDoneOnSheetClose = ({
   isReadyToFinish: boolean
 }) => step === 3 && !isRollCallPending && !isReadyToFinish
 
-export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheckInFlowProps) {
+export default function TeacherCheckInFlow({ open, onClose, slot, editRollCall = false }: TeacherCheckInFlowProps) {
   const studentLabels = useStudentLabels()
   const motivationalByStep = useMemo(() => buildMotivationalByStep(studentLabels), [studentLabels])
   const attendanceDate = slot.date ?? toDateKey(new Date())
@@ -126,7 +128,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
    * - null (nouveau)    → étape 1
    */
   const initialStep: 1 | 2 | 3 | 4 =
-    isReadyToFinish ? 4 : isRollCallPending || isCheckinQrDone ? 3 : 1
+    editRollCall ? 3 : isReadyToFinish ? 4 : isRollCallPending || isCheckinQrDone ? 3 : 1
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(initialStep)
 
@@ -187,6 +189,17 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
     gcTime: 1000 * 60 * 30,
   })
 
+  // Statuts déjà enregistrés pour ce cours/jour : sert à pré-cocher l'appel quand
+  // le prof le rouvre pour corriger (élève absent → présent). Toujours frais.
+  const rollCallQuery = useQuery({
+    queryKey: ["student-roll-call", slot.id, attendanceDate],
+    queryFn: () => teacherScheduleApi.getStudentRollCall(slot.id, attendanceDate),
+    enabled: open && step === 3,
+    staleTime: 0,
+    gcTime: 1000 * 60 * 30,
+    refetchOnMount: "always",
+  })
+
   const submitStudentsMutation = useOfflineMutation(teacherScheduleApi.submitStudentAttendance, {
     queueKey: OFFLINE_QUEUE_KEYS.attendanceStudentsBulk,
   })
@@ -218,12 +231,24 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
   const allStudentsMarked = totalStudents > 0 && unmarkedCount === 0
 
   useEffect(() => {
-    if (studentsQuery.data) {
-      setStudentStatuses(
-        new Map(studentsQuery.data.map((s) => [s.id, "unmarked" as StudentRollCallStatus]))
+    if (!studentsQuery.data) return
+    // Pré-remplissage depuis les statuts déjà enregistrés (réouverture pour
+    // correction). Sans données roll-call (premier appel), tout est "unmarked".
+    const byId = new Map(
+      (rollCallQuery.data ?? []).map((r) => [r.student_id, r.status])
+    )
+    setStudentStatuses(
+      new Map(
+        studentsQuery.data.map((s) => {
+          const status = byId.get(s.id)
+          // present/excused → présent (coché présent), absent → absent, sinon non marqué
+          const mapped: StudentRollCallStatus =
+            status === "absent" ? "absent" : status === "present" || status === "excused" ? "present" : "unmarked"
+          return [s.id, mapped]
+        })
       )
-    }
-  }, [studentsQuery.data])
+    )
+  }, [studentsQuery.data, rollCallQuery.data])
 
   // ── Étape 1 - Le prof indique sa présence (local uniquement) ─────────────
   /**
@@ -1040,6 +1065,17 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
                   {finishCourseMutation.isPending ? "Clôture en cours..." : "Terminer le cours"}
                 </Button>
               )}
+
+              {/* Correction : revenir à l'appel si un élève marqué absent est finalement arrivé. */}
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full text-muted-foreground"
+                data-testid="teacher-edit-rollcall"
+                onClick={() => setStep(3)}
+              >
+                Modifier l'appel
+              </Button>
             </section>
           ) : null}
         </SheetContent>

@@ -67,6 +67,8 @@ export default function TeacherSchedulePage() {
 
   const [selectedDate, setSelectedDate] = useState(getDefaultTeachingDate)
   const [activeSlot, setActiveSlot] = useState<ScheduleSlot | null>(null)
+  // true quand le flux est ouvert en mode « correction de l'appel » (étape 3 directe).
+  const [editingRollCall, setEditingRollCall] = useState(false)
   // Tick horloge : force un re-render périodique pour que les états dépendant de
   // l'heure (statut des cours, auto-fermeture du bouton « Terminer le cours ») se
   // mettent à jour sans interaction. Sans ce minuteur, le bouton restait affiché
@@ -317,7 +319,8 @@ export default function TeacherSchedulePage() {
               key={slot.id}
               slot={slot}
               attendance={attendanceBySchedule.get(slot.id)}
-              onStartCourse={setActiveSlot}
+              onStartCourse={(s) => { setEditingRollCall(false); setActiveSlot(s) }}
+              onEditRollCall={(s) => { setEditingRollCall(true); setActiveSlot(s) }}
             />
           ))}
         </ul>
@@ -327,7 +330,8 @@ export default function TeacherSchedulePage() {
         <TeacherCheckInFlow
           open={Boolean(activeSlot)}
           slot={activeSlot}
-          onClose={() => setActiveSlot(null)}
+          editRollCall={editingRollCall}
+          onClose={() => { setActiveSlot(null); setEditingRollCall(false) }}
         />
       ) : null}
     </div>
