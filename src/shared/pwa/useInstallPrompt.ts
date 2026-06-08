@@ -13,8 +13,25 @@ export type UseInstallPromptResult = {
   /** Un prompt natif d'installation est disponible (Chrome/Android/Desktop). */
   canPromptInstall: boolean
   platform: InstallPlatform
+  /**
+   * Navigateur qui ne sait pas installer une PWA (navigateur in-app type
+   * Facebook/WhatsApp, ou Firefox Android) → il faut conseiller d'ouvrir dans Chrome.
+   */
+  isUnsupportedBrowser: boolean
   /** Déclenche le prompt natif. Retourne true si l'utilisateur a accepté. */
   promptInstall: () => Promise<boolean>
+}
+
+// Navigateurs Android qui n'installent pas de PWA : navigateurs in-app (webviews
+// des réseaux sociaux) et Firefox. Sur ceux-ci, on oriente vers Chrome.
+const detectUnsupportedBrowser = (): boolean => {
+  if (typeof navigator === "undefined") return false
+  const ua = navigator.userAgent.toLowerCase()
+  const isAndroid = /android/.test(ua)
+  if (!isAndroid) return false
+  const inApp = /\b(fban|fbav|instagram|line|wv|; wv\)|micromessenger|whatsapp)\b/.test(ua)
+  const isFirefox = /firefox|fxios/.test(ua)
+  return inApp || isFirefox
 }
 
 const detectPlatform = (): InstallPlatform => {
@@ -41,6 +58,7 @@ export const useInstallPrompt = (): UseInstallPromptResult => {
   const [isInstalled, setIsInstalled] = useState(detectStandalone)
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [platform] = useState(detectPlatform)
+  const [isUnsupportedBrowser] = useState(detectUnsupportedBrowser)
 
   useEffect(() => {
     const onBeforeInstall = (event: Event) => {
@@ -72,6 +90,7 @@ export const useInstallPrompt = (): UseInstallPromptResult => {
     isInstalled,
     canPromptInstall: Boolean(deferredPrompt),
     platform,
+    isUnsupportedBrowser,
     promptInstall,
   }
 }

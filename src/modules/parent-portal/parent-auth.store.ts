@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
+import { resetInstallCardDismiss } from "@/shared/pwa/install-dismiss"
 import { useOfflineStore } from "@/shared/store/offline.store"
 
 export type ParentAuthUser = {
@@ -30,6 +31,7 @@ export const useParentAuthStore = create<ParentAuthState>()(
       setAccessToken: (accessToken) => setState({ accessToken }),
       logout: () => {
         setState({ user: null, accessToken: null })
+        resetInstallCardDismiss()
         // Idem que pour le staff : purger la queue offline pour ne pas
         // rejouer une action dans le contexte d'une autre session.
         useOfflineStore.getState().clearQueue()

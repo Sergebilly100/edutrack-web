@@ -1,6 +1,7 @@
 import { create } from "zustand"
 
 import { clearDashboardDismissedNotifications } from "@/shared/lib/dashboard-notifications"
+import { resetInstallCardDismiss } from "@/shared/pwa/install-dismiss"
 import { useOfflineStore } from "@/shared/store/offline.store"
 
 export type AuthRole = "director" | "staff" | "teacher" | "super_admin"
@@ -190,6 +191,7 @@ export const useAuthStore = create<AuthState>()((setState) => ({
   logout: () =>
     setState(() => {
       clearDashboardDismissedNotifications()
+      resetInstallCardDismiss()
       // Purge la queue offline : un check-in mis en queue par un prof
       // ne doit pas être rejoué après reconnexion en directeur (token
       // différent, permissions différentes, et l'action n'a pas de
