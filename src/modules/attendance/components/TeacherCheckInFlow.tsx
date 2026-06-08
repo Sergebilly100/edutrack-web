@@ -685,7 +685,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
         <SheetContent
           side="bottom"
           data-testid="teacher-checkin-flow"
-          className="max-h-[92vh] space-y-4 overflow-y-auto rounded-t-2xl px-4 pb-6 pt-4 md:mx-auto md:max-w-3xl"
+          className="max-h-[95vh] space-y-4 overflow-y-auto rounded-t-2xl px-4 pb-6 pt-4 md:mx-auto md:max-w-3xl lg:max-w-5xl"
         >
           <SheetHeader className="space-y-1 text-left">
             <SheetTitle>
@@ -887,7 +887,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot }: TeacherCheck
 
               {studentsQuery.data?.length ? (
                 <div
-                  className="max-h-[40vh] space-y-2 overflow-y-auto pr-1"
+                  className="max-h-[60vh] space-y-2 overflow-y-auto pr-1"
                   data-testid="teacher-student-list"
                 >
                   {studentsQuery.data.map((student) => {

@@ -94,11 +94,11 @@ export default function QRScanner({ onTokenDetected, scheduleId, scanType, showM
         <div
           id="qr-reader"
           data-testid="teacher-qr-reader"
-          className="mx-auto aspect-square w-full max-w-sm rounded-lg bg-black/80"
+          className="mx-auto aspect-square w-full max-w-md rounded-lg bg-black/80"
         />
 
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="h-56 w-56 rounded-lg border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+          <div className="h-72 w-72 max-w-[80%] rounded-lg border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
         </div>
 
         {lastResult ? (
