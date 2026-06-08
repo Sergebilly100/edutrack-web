@@ -19,9 +19,16 @@ const formatDate = (value: string): string => {
   return parsed.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
 }
 
+// Doit couvrir tous les types renvoyés par l'API prof (cf. whitelist backend
+// validations.repository : attendance_approved/rejected, scan_end_warning/
+// sanction/sanction_cancelled). Sans entrée ici, le code technique brut était
+// affiché à l'enseignant.
 const notifTypeLabel: Record<string, string> = {
+  attendance_approved: "Présence validée",
   attendance_rejected: "Présence refusée",
   scan_end_warning: "Scan de fin manquant",
+  scan_end_sanction: "Heures non comptabilisées",
+  scan_end_sanction_cancelled: "Sanction annulée",
 }
 
 export default function TeacherNotificationsPanel() {
@@ -155,7 +162,7 @@ export default function TeacherNotificationsPanel() {
                                 : "border-amber-200 bg-amber-50 text-amber-900 text-[10px]"
                             }
                           >
-                            {notifTypeLabel[notification.type] ?? notification.type}
+                            {notifTypeLabel[notification.type] ?? "Notification"}
                           </Badge>
                           {notification.readAt === null ? (
                             <span className="inline-block h-2 w-2 rounded-full bg-amber-500" aria-label="Non lu" />
