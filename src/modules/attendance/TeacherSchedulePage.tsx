@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/shared/components/EmptyState"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
+import { InstallPwaCard } from "@/shared/pwa/InstallPwaCard"
 import { TourGuide } from "@/shared/components/TourGuide"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { teacherAppTourSteps } from "@/shared/lib/tour-steps"
@@ -197,6 +198,8 @@ export default function TeacherSchedulePage() {
       ) : (
         <OfflineIndicator offlineCapable />
       )}
+
+      <InstallPwaCard audience="user" headline="Installez IvoirEdu pour pointer plus vite" />
 
       <header className="rounded-lg border bg-card p-4 shadow-sm !mt-0" data-tour="teacher-app-header">
         <div className="flex items-start justify-between gap-2">

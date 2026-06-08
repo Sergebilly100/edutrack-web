@@ -74,6 +74,9 @@ export default defineConfig(({ mode }) => {
         ],
       },
       workbox: {
+        // Handlers Web Push (push / notificationclick) ajoutés au SW généré, sans
+        // toucher au cache offline auto-généré. Le fichier est servi depuis public/.
+        importScripts: ["/push-sw.js"],
         // The app bundle can exceed Workbox's default 2 MiB precache limit in CI builds.
         // Keep precaching enabled by raising the threshold.
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,

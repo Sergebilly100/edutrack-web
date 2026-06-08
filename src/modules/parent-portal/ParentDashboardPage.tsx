@@ -18,6 +18,7 @@ import {
 import { Link } from "react-router-dom"
 
 import { EmptyState, OfflineIndicator } from "@/shared/components"
+import { InstallPwaCard } from "@/shared/pwa/InstallPwaCard"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
@@ -210,6 +211,10 @@ export default function ParentDashboardPage() {
     <>
     <div className="space-y-3 text-base">
       <OfflineIndicator />
+      <InstallPwaCard
+        audience="parent"
+        headline="Installez IvoirEdu pour suivre votre enfant"
+      />
       <section data-tour="parent-student-selector">
         {(studentsQuery.data?.length ?? 0) > 1 ? (
           <div className="rounded-xl border bg-card p-2 shadow-card">
