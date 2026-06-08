@@ -667,11 +667,11 @@ function InfosPanel({
             <DialogTitle>Mot de passe réinitialisé</DialogTitle>
             <DialogDescription>
               {resetResult.emailSent
-                ? `Les identifiants ont été envoyés à ${resetResult.email}.`
+                ? `Un email a été envoyé à ${resetResult.email}. Vous pouvez aussi transmettre le mot de passe ci-dessous manuellement.`
                 : "Aucun email n'a pu être envoyé. Transmettez le mot de passe ci-dessous au professeur."}
             </DialogDescription>
           </DialogHeader>
-          {!resetResult.emailSent && resetResult.plainPassword ? (
+          {resetResult.plainPassword ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">
               <p className="text-xs uppercase tracking-wide">Mot de passe temporaire</p>
               <p className="mt-1 font-mono text-lg font-semibold">{resetResult.plainPassword}</p>

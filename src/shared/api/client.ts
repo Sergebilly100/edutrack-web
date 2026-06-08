@@ -72,7 +72,10 @@ const redirectToSessionExpired = (): void => {
     useParentAuthStore.getState().logout()
   } else {
     const authState = useAuthStore.getState()
-    authState.logout()
+    // Garder la queue offline lors d'une session expirée (401) - les actions
+    // mises en queue avant l'expiration (check-in, QR, pointage) doivent être
+    // rejouées après reconnexion, sinon le prof perd tout son travail offline.
+    authState.logout({ keepOfflineQueue: true })
   }
   queryClient.clear()
   if (isAlreadyOnParentLogin && hasSessionExpiredReason) {

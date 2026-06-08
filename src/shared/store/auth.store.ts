@@ -97,7 +97,7 @@ type AuthState = {
   setRefreshToken: (refreshToken: string | null) => void
   setSessionRestored: () => void
   setPermissions: (permissions: PermissionKey[]) => void
-  logout: () => void
+  logout: (options?: { keepOfflineQueue?: boolean }) => void
 }
 
 const AUTH_SNAPSHOT_KEY = "edutrack-auth-snapshot-v1"
@@ -188,15 +188,17 @@ export const useAuthStore = create<AuthState>()((setState) => ({
       writeAuthSnapshot(next)
       return { permissions }
     }),
-  logout: () =>
+  logout: (options?: { keepOfflineQueue?: boolean }) =>
     setState(() => {
       clearDashboardDismissedNotifications()
       resetInstallCardDismiss()
-      // Purge la queue offline : un check-in mis en queue par un prof
-      // ne doit pas être rejoué après reconnexion en directeur (token
-      // différent, permissions différentes, et l'action n'a pas de
-      // sens hors du contexte de la session prof).
-      useOfflineStore.getState().clearQueue()
+      // Ne purger la queue offline que lors d'un logout volontaire.
+      // Lors d'une session expirée (401), on garde la queue pour la rejouer
+      // après reconnexion - sinon les actions offline d'un prof (check-in,
+      // QR, pointage) sont perdues si sa session expire avant le retour réseau.
+      if (!options?.keepOfflineQueue) {
+        useOfflineStore.getState().clearQueue()
+      }
       if (isBrowser) {
         window.localStorage.removeItem(AUTH_SNAPSHOT_KEY)
       }

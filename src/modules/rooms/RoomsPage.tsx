@@ -120,8 +120,15 @@ export default function RoomsPage() {
 
   const createMutation = useMutation({
     mutationFn: createRoom,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+    onSuccess: async (newRoom) => {
+      // Ajouter la nouvelle salle au cache IMMÉDIATEMENT. Une salle qui vient
+      // d'être créée n'a ni créneau ni scan : stats à 0 est exact. Pas de
+      // refetch immédiat (cf. updateMutation : il écraserait ce cache frais).
+      queryClient.setQueryData<RoomListItem[]>(QUERY_KEY, (oldRooms) => {
+        if (!oldRooms) return [newRoom]
+        return [...oldRooms, newRoom]
+      })
+
       setCreateDialogOpen(false)
       setForm(EMPTY_FORM)
       toast({ title: "Salle ajoutée" })
@@ -148,8 +155,22 @@ export default function RoomsPage() {
         geoRadius?: number | null
       }
     }) => updateRoom(input.roomId, input.payload),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+    onSuccess: async (updatedRoom) => {
+      // Mettre à jour le cache IMMÉDIATEMENT avec la salle modifiée.
+      // On conserve les stats existantes (modifier nom/GPS/capacité ne les change
+      // pas) car la réponse PATCH ne renvoie pas les stats. On NE refetch PAS
+      // ensuite : un refetch immédiat écrase ce cache frais par une réponse qui
+      // peut être servie depuis un cache HTTP/réplique en lag, d'où l'ancien bug
+      // "rien ne change puis les données apparaissent quelques minutes après".
+      queryClient.setQueryData<RoomListItem[]>(QUERY_KEY, (oldRooms) => {
+        if (!oldRooms) return oldRooms
+        return oldRooms.map((room) =>
+          room.id === updatedRoom.id
+            ? { ...updatedRoom, stats: room.stats }
+            : room
+        )
+      })
+
       setEditDialogOpen(false)
       setSelectedRoom(null)
       setForm(EMPTY_FORM)

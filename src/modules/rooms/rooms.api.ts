@@ -58,8 +58,8 @@ export const createRoom = async (input: {
   latitude?: number | null
   longitude?: number | null
   geoRadius?: number | null
-}): Promise<void> => {
-  await api.post("/rooms", {
+}): Promise<RoomListItem> => {
+  const response = await api.post<unknown>("/rooms", {
     name: input.name.trim(),
     building: input.building?.trim() ? input.building.trim() : null,
     capacity: input.capacity ?? null,
@@ -67,6 +67,26 @@ export const createRoom = async (input: {
     longitude: input.longitude ?? null,
     geoRadius: input.geoRadius ?? 100,
   })
+
+  // Le backend retourne { room: {...} } sans les stats
+  const payload = isRecord(response.data) ? response.data : {}
+  const roomData = isRecord(payload.room) ? payload.room : {}
+
+  return {
+    id: asString(roomData.id),
+    name: asString(roomData.name),
+    building: asNullableString(roomData.building),
+    capacity: asNullableNumber(roomData.capacity),
+    latitude: asNullableNumber(roomData.latitude),
+    longitude: asNullableNumber(roomData.longitude),
+    geoRadius: asNullableNumber(roomData.geoRadius ?? roomData.geo_radius),
+    isActive: asBoolean(roomData.isActive ?? roomData.is_active, true),
+    createdAt: asString(roomData.createdAt ?? roomData.created_at),
+    stats: {
+      weeklySchedulesCount: 0,
+      scansCount: 0,
+    },
+  }
 }
 
 export const updateRoom = async (
@@ -79,8 +99,8 @@ export const updateRoom = async (
     longitude?: number | null
     geoRadius?: number | null
   }
-): Promise<void> => {
-  await api.patch(`/rooms/${roomId}`, {
+): Promise<RoomListItem> => {
+  const response = await api.patch<unknown>(`/rooms/${roomId}`, {
     ...(input.name !== undefined ? { name: input.name.trim() } : {}),
     ...(input.building !== undefined ? { building: input.building?.trim() ? input.building.trim() : null } : {}),
     ...(input.capacity !== undefined ? { capacity: input.capacity } : {}),
@@ -88,6 +108,29 @@ export const updateRoom = async (
     ...(input.longitude !== undefined ? { longitude: input.longitude } : {}),
     ...(input.geoRadius !== undefined ? { geoRadius: input.geoRadius } : {}),
   })
+
+  // Le backend retourne { room: {...} } sans les stats
+  // On doit refetch pour avoir les stats à jour, mais on peut utiliser la room retournée
+  // pour mettre à jour temporairement le cache
+  const payload = isRecord(response.data) ? response.data : {}
+  const roomData = isRecord(payload.room) ? payload.room : {}
+
+  return {
+    id: asString(roomData.id),
+    name: asString(roomData.name),
+    building: asNullableString(roomData.building),
+    capacity: asNullableNumber(roomData.capacity),
+    latitude: asNullableNumber(roomData.latitude),
+    longitude: asNullableNumber(roomData.longitude),
+    geoRadius: asNullableNumber(roomData.geoRadius ?? roomData.geo_radius),
+    isActive: asBoolean(roomData.isActive ?? roomData.is_active, true),
+    createdAt: asString(roomData.createdAt ?? roomData.created_at),
+    // Les stats seront récupérées lors du refetch complet
+    stats: {
+      weeklySchedulesCount: 0,
+      scansCount: 0,
+    },
+  }
 }
 
 export const deleteRoom = async (roomId: string): Promise<void> => {
