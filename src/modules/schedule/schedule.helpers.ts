@@ -137,6 +137,22 @@ export const occurrenceDateFromWeek = (
   return toISODate(monday)
 }
 
+/**
+ * Inverse de occurrenceDateFromWeek : à partir d'une DATE choisie (cours unique),
+ * dérive le jour de semaine ISO (1=lundi..7=dimanche) et le lundi de sa semaine.
+ * Permet de piloter la création d'un cours unique par un sélecteur de date plutôt
+ * que par (semaine affichée + jour de semaine).
+ */
+export const weekMondayAndDayFromDate = (
+  dateIso: string
+): { weekMonday: string; dayOfWeek: number } => {
+  const date = fromISODate(dateIso)
+  return {
+    weekMonday: toISODate(getMonday(date)),
+    dayOfWeek: isoDayOfWeek(date),
+  }
+}
+
 export const formatWeekRange = (weekStartIso: string) => {
   const weekStart = fromISODate(weekStartIso)
   const weekEnd = new Date(weekStart)

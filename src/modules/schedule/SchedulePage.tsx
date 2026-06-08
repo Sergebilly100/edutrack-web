@@ -96,6 +96,7 @@ import {
   isPastScheduleSelection,
   isoDayOfWeek,
   occurrenceDateFromWeek,
+  weekMondayAndDayFromDate,
   shiftWeekIso,
   sortSchedules,
   timeToMinutes,
@@ -534,15 +535,20 @@ export default function SchedulePage() {
       return
     }
 
-    // Pour un one_shot, valider que la date d'occurrence est dans la fourchette
-    // de la période sélectionnée (utile si l'utilisateur change la période).
-    if (formState.recurrence === "one_shot") {
+    // Valider que la date d'occurrence est dans la fourchette de la période
+    // sélectionnée — pour le one_shot ET le récurrent. Sans cette garde en mode
+    // récurrent, on pouvait créer un cours sur une semaine hors période : il était
+    // accepté mais n'apparaissait jamais dans la grille (cours "fantôme").
+    {
       const period = formPeriodOptions.find((p) => p.id === payload.schedulePeriodId)
       if (period && (occurrenceDate < period.validFrom || occurrenceDate > period.validTo)) {
         toast({
           variant: "destructive",
           title: "Date hors période",
-          description: `Le créneau de rattrapage doit tomber entre ${period.validFrom} et ${period.validTo}.`,
+          description:
+            formState.recurrence === "one_shot"
+              ? `Le créneau de rattrapage doit tomber entre ${period.validFrom} et ${period.validTo}.`
+              : `La semaine sélectionnée est hors de la période « ${period.name} » (${period.validFrom} → ${period.validTo}). Choisissez une semaine couverte par la période.`,
         })
         return
       }
@@ -688,7 +694,16 @@ export default function SchedulePage() {
               Guide
             </Button>
             {canEditSchedule ? (
-              <Button onClick={() => openCreateModal()} disabled={!data} className="w-full sm:w-auto" data-tour="schedule-add-btn">
+              <Button
+                onClick={() => openCreateModal()}
+                // Pas de période active sur la semaine affichée = impossible de
+                // poser un créneau cohérent (il n'apparaîtrait pas). On bloque ici
+                // comme le font déjà la vue liste et l'EmptyState mobile.
+                disabled={!data || !data.period}
+                title={data && !data.period ? "Aucune période active pour cette semaine" : undefined}
+                className="w-full sm:w-auto"
+                data-tour="schedule-add-btn"
+              >
                 <AddIcon className="mr-2 h-4 w-4" />Ajouter un créneau
               </Button>
             ) : (
@@ -1409,16 +1424,61 @@ export default function SchedulePage() {
 
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-1">
-                <Label>Jour</Label>
-                <Select value={formState.dayOfWeek}
-                  onValueChange={(v) => setFormState((p) => ({ ...p, dayOfWeek: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Choisir un jour" /></SelectTrigger>
-                  <SelectContent>
-                    {DAYS.map((day) => (
-                      <SelectItem key={day.value} value={String(day.value)}>{day.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {formState.recurrence === "one_shot" ? (
+                  (() => {
+                    // Cours unique : on choisit une DATE directement. On en déduit
+                    // le jour de semaine et la semaine cible (la grille suit), au
+                    // lieu de dépendre de la semaine déjà affichée.
+                    const formPeriod = formPeriodOptions.find((p) => p.id === formState.schedulePeriodId)
+                    const todayIso = toISODate(new Date())
+                    const minDate = formPeriod
+                      ? (formPeriod.validFrom > todayIso ? formPeriod.validFrom : todayIso)
+                      : todayIso
+                    const maxDate = formPeriod?.validTo
+                    const currentDate = occurrenceDateFromWeek(selectedWeekMonday, Number(formState.dayOfWeek))
+                    return (
+                      <>
+                        <Label htmlFor="one-shot-date">Date du cours</Label>
+                        <Input
+                          id="one-shot-date"
+                          type="date"
+                          value={currentDate}
+                          min={minDate}
+                          max={maxDate}
+                          onChange={(event) => {
+                            const picked = event.target.value
+                            if (!picked) return
+                            const { weekMonday, dayOfWeek } = weekMondayAndDayFromDate(picked)
+                            // Le modèle ne couvre que lundi→samedi (pas de cours le dimanche).
+                            if (dayOfWeek === 7) {
+                              toast({
+                                variant: "destructive",
+                                title: "Jour non autorisé",
+                                description: "Aucun cours ne peut être planifié un dimanche.",
+                              })
+                              return
+                            }
+                            setSelectedWeekMonday(weekMonday)
+                            setFormState((p) => ({ ...p, dayOfWeek: String(dayOfWeek) }))
+                          }}
+                        />
+                      </>
+                    )
+                  })()
+                ) : (
+                  <>
+                    <Label>Jour</Label>
+                    <Select value={formState.dayOfWeek}
+                      onValueChange={(v) => setFormState((p) => ({ ...p, dayOfWeek: v }))}>
+                      <SelectTrigger><SelectValue placeholder="Choisir un jour" /></SelectTrigger>
+                      <SelectContent>
+                        {DAYS.map((day) => (
+                          <SelectItem key={day.value} value={String(day.value)}>{day.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </>
+                )}
               </div>
               <div className="space-y-1">
                 <Label>Début</Label>
