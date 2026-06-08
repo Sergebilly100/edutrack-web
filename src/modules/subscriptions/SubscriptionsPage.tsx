@@ -33,6 +33,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import {
   CreateSubscriptionModal,
@@ -64,6 +65,17 @@ import { todayInBusinessTimezone } from "@/shared/lib/business-date"
 const formatFcfa = (value: number) => `${new Intl.NumberFormat("fr-FR").format(value)} FCFA`
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${value}T00:00:00.000Z`))
+
+// Un abonnement n'est annulable que dans les 7 jours suivant la souscription
+// (cf. règle backend CANCELLATION_WINDOW_CLOSED). Au-delà, l'annulation est refusée.
+const CANCELLATION_WINDOW_DAYS = 7
+const isWithinCancellationWindow = (createdAt: string | null | undefined): boolean => {
+  if (!createdAt) return false
+  const created = new Date(createdAt).getTime()
+  if (Number.isNaN(created)) return false
+  const ageDays = (Date.now() - created) / (24 * 60 * 60 * 1000)
+  return ageDays < CANCELLATION_WINDOW_DAYS
+}
 
 type FilterStatus = "all" | SubscriptionStatus
 const toMonth = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`
@@ -198,6 +210,7 @@ export default function SubscriptionsPage() {
   const [contactPhone, setContactPhone] = useState("")
   const [contactEmail, setContactEmail] = useState("")
   const [cancelTarget, setCancelTarget] = useState<SubscriptionListItem | null>(null)
+  const [cancelReason, setCancelReason] = useState("")
   const [detailsTarget, setDetailsTarget] = useState<SubscriptionListItem | null>(null)
   const [resetCredentials, setResetCredentials] = useState<{ phone: string; password: string } | null>(null)
   const [passwordResetTarget, setPasswordResetTarget] = useState<SubscriptionListItem | null>(null)
@@ -268,8 +281,8 @@ export default function SubscriptionsPage() {
   })
 
   const cancelMutation = useMutation({
-    mutationFn: ({ parentId, subscriptionId }: { parentId: string; subscriptionId: string }) =>
-      cancelSubscription(parentId, subscriptionId),
+    mutationFn: ({ parentId, subscriptionId, reason }: { parentId: string; subscriptionId: string; reason: string }) =>
+      cancelSubscription(parentId, subscriptionId, reason),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["subscriptions", "parents"] })
       toast({
@@ -277,6 +290,14 @@ export default function SubscriptionsPage() {
         description: "L'accès parent est maintenant désactivé pour cette souscription.",
       })
       setCancelTarget(null)
+      setCancelReason("")
+    },
+    onError: (error) => {
+      toast({
+        title: "Annulation impossible",
+        description: error instanceof Error ? error.message : "Une erreur est survenue.",
+        variant: "destructive",
+      })
     },
   })
 
@@ -347,7 +368,7 @@ export default function SubscriptionsPage() {
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
             className="text-muted-foreground"
             onClick={() => tour.restart()}
@@ -635,29 +656,67 @@ export default function SubscriptionsPage() {
         }}
       />
 
-      <AlertDialog open={Boolean(cancelTarget)} onOpenChange={(open) => !open && setCancelTarget(null)}>
+      <AlertDialog
+        open={Boolean(cancelTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCancelTarget(null)
+            setCancelReason("")
+          }
+        }}
+      >
         <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Annuler l'abonnement de {cancelTarget?.full_name ?? "ce parent"} ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Le parent perdra l'accès au suivi de ses enfants pour cette souscription. Vous pourrez créer ou renouveler un abonnement plus tard si besoin.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Garder l'abonnement actif</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                const item = cancelTarget
-                const subscription = item?.latest_subscription
-                if (!item || !subscription) {
-                  return
-                }
-                cancelMutation.mutate({ parentId: item.parent_id, subscriptionId: subscription.id })
-              }}
-            >
-              Annuler l'abonnement
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          {(() => {
+            const cancellable = isWithinCancellationWindow(cancelTarget?.latest_subscription?.created_at)
+            return (
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Annuler l'abonnement de {cancelTarget?.full_name ?? "ce parent"} ?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {cancellable
+                      ? "Le parent sera remboursé intégralement et perdra l'accès au suivi de ses enfants pour cette souscription. Vous pourrez créer un nouvel abonnement ensuite."
+                      : `L'annulation n'est possible que dans les ${CANCELLATION_WINDOW_DAYS} jours suivant la souscription. Ce délai est dépassé : l'abonnement ne peut plus être annulé.`}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                {cancellable ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="cancel-reason">Motif de l'annulation (obligatoire)</Label>
+                    <Textarea
+                      id="cancel-reason"
+                      value={cancelReason}
+                      onChange={(event) => setCancelReason(event.target.value)}
+                      placeholder="Ex : erreur de saisie, doublon de souscription…"
+                      maxLength={500}
+                      rows={3}
+                    />
+                  </div>
+                ) : null}
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{cancellable ? "Garder l'abonnement actif" : "Fermer"}</AlertDialogCancel>
+                  {cancellable ? (
+                    <AlertDialogAction
+                      disabled={cancelReason.trim().length === 0 || cancelMutation.isPending}
+                      onClick={(event) => {
+                        const item = cancelTarget
+                        const subscription = item?.latest_subscription
+                        if (!item || !subscription || cancelReason.trim().length === 0) {
+                          event.preventDefault()
+                          return
+                        }
+                        cancelMutation.mutate({
+                          parentId: item.parent_id,
+                          subscriptionId: subscription.id,
+                          reason: cancelReason.trim(),
+                        })
+                      }}
+                    >
+                      {cancelMutation.isPending ? "Annulation…" : "Annuler l'abonnement"}
+                    </AlertDialogAction>
+                  ) : null}
+                </AlertDialogFooter>
+              </>
+            )
+          })()}
         </AlertDialogContent>
       </AlertDialog>
 

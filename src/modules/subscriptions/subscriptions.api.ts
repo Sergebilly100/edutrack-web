@@ -266,11 +266,11 @@ export const updateParentSubscriptionContact = async (
 export const cancelSubscription = async (
   parentId: string,
   subscriptionId: string,
-  reason?: string
+  reason: string
 ): Promise<void> => {
   try {
     await apiClient.patch(`/subscriptions/parents/${parentId}/subscription/${subscriptionId}/cancel`, {
-      ...(reason?.trim() ? { reason: reason.trim() } : {}),
+      reason: reason.trim(),
     })
   } catch (error) {
     throw new Error(parseApiError(error, "Impossible d'annuler l'abonnement."))
