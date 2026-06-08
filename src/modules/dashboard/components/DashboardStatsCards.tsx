@@ -163,7 +163,7 @@ export function DashboardStatsCards({
                 <TooltipContent>
                   <div className="space-y-1 text-xs">
                     <p>
-                      Calcul : {stats.teacherAttendance.partTime.present + stats.teacherAttendance.fullTime.present} présents /{" "}
+                      Calcul : {stats.teacherAttendance.partTime.present + stats.teacherAttendance.fullTime.present} présences /{" "}
                       {stats.teacherAttendance.partTime.expected + stats.teacherAttendance.fullTime.expected} cours prévus
                     </p>
                     <p className="text-muted-foreground">
@@ -206,7 +206,7 @@ export function DashboardStatsCards({
                 </TooltipTrigger>
                 <TooltipContent>
                   <p className="text-xs">
-                    Calcul : {stats.studentAttendance.present} présents / {stats.studentAttendance.total} total
+                    Calcul : {stats.studentAttendance.present} présences / {stats.studentAttendance.total} total
                   </p>
                 </TooltipContent>
               </Tooltip>

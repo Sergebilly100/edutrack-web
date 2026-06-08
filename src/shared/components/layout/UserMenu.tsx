@@ -13,6 +13,11 @@ import {
 import { logout } from "@/modules/auth/auth.api"
 import { cn } from "@/lib/utils"
 import { LogoutIcon, UserIcon } from "@/shared/components/icons"
+import { LogoutOfflineGuardDialog } from "@/shared/components/LogoutOfflineGuardDialog"
+import {
+  useLogoutWithOfflineGuard,
+  type LogoutExecutorOptions,
+} from "@/shared/hooks/useLogoutWithOfflineGuard"
 import { getAvatarColor, getInitials } from "@/shared/utils/avatar"
 import { getUserRoleLabel } from "@/shared/lib/user-role-label"
 import { useAuthStore } from "@/shared/store/auth.store"
@@ -39,17 +44,21 @@ export function UserMenu({ collapsed = false }: UserMenuProps) {
     [userName]
   )
 
-  const handleLogout = async () => {
+  const performLogout = async ({ keepOfflineQueue }: LogoutExecutorOptions) => {
     try {
       await logout()
     } finally {
-      logoutStore()
+      logoutStore({ keepOfflineQueue })
       queryClient.clear()
       navigate("/login", { replace: true })
     }
   }
 
+  const { confirmOpen, setConfirmOpen, pendingCount, requestLogout, confirmLogout } =
+    useLogoutWithOfflineGuard((options) => void performLogout(options))
+
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
@@ -80,11 +89,19 @@ export function UserMenu({ collapsed = false }: UserMenuProps) {
           <span>Mon compte</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleLogout}>
+        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={requestLogout}>
           <LogoutIcon className="h-4 w-4" />
           <span>Se déconnecter</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+
+    <LogoutOfflineGuardDialog
+      open={confirmOpen}
+      onOpenChange={setConfirmOpen}
+      pendingCount={pendingCount}
+      onConfirm={confirmLogout}
+    />
+    </>
   )
 }

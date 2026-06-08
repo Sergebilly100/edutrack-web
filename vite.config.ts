@@ -42,7 +42,7 @@ export default defineConfig(({ mode }) => {
       : []),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "icons/*.png"],
+      includeAssets: ["favicon.ico", "icon.svg", "apple-touch-icon.png", "icons/*.png"],
       manifest: {
         name: "IvoirEdu",
         short_name: "IvoirEdu",

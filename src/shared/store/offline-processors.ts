@@ -41,7 +41,11 @@ import {
   approveValidation,
   rejectValidation,
 } from "@/modules/validations/validations.api"
-import { registerGlobalOfflineProcessor } from "@/shared/store/offline.store"
+import { useAuthStore } from "@/shared/store/auth.store"
+import {
+  registerGlobalOfflineProcessor,
+  setCurrentOwnerResolver,
+} from "@/shared/store/offline.store"
 
 // Les queueKey sont des constantes partagées entre composant et processor
 // pour éviter les typos silencieux. À chaque ajout, déclarer ici puis
@@ -90,6 +94,10 @@ let installed = false
 export function installOfflineProcessors(): void {
   if (installed) return
   installed = true
+
+  // Identité du user connecté pour le filtrage de la file offline : la sync ne
+  // rejoue un item que sous l'identité qui l'a créé (sûreté appareil partagé).
+  setCurrentOwnerResolver(() => useAuthStore.getState().user?.id)
 
   registerGlobalOfflineProcessor<void, UpdateSalaryStatusInput>(
     OFFLINE_QUEUE_KEYS.salaryMarkPaid,

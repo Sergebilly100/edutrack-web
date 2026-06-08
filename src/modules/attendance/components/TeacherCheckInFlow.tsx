@@ -1069,8 +1069,8 @@ export default function TeacherCheckInFlow({ open, onClose, slot, editRollCall =
               {/* Correction : revenir à l'appel si un élève marqué absent est finalement arrivé. */}
               <Button
                 type="button"
-                variant="ghost"
-                className="w-full text-muted-foreground"
+                variant="outline"
+                className="w-full text-muted-foreground border-muted-foreground hover:bg-muted hover:text-muted-foreground"
                 data-testid="teacher-edit-rollcall"
                 onClick={() => setStep(3)}
               >

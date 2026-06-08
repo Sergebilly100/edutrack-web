@@ -66,7 +66,7 @@ export default function ParentPortalLayout() {
           <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-4 lg:max-w-5xl">
             <div className="flex items-center gap-2.5">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary shadow-sm">
-                <GraduationCap className="h-4 w-4 text-primary-foreground" strokeWidth={2} />
+                <img src="/logo.png" alt="logo-ivoiredu" />
               </div>
               <div>
                 <p className="text-sm font-bold leading-tight tracking-tight">IvoirEdu</p>

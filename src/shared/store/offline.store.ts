@@ -7,6 +7,12 @@ export type OfflineQueueItem<TVariables = unknown> = {
   queueKey: string
   variables: TVariables
   timestamp: number
+  // Identité du user qui a créé l'item. Renseigné à la mise en file
+  // (useOfflineMutation). La sync ne rejoue un item taggé que si l'owner
+  // courant correspond - indispensable sur appareil partagé : sans ça, la
+  // file d'un prof pourrait être rejouée sous la session d'un autre prof.
+  // Optionnel pour rester rétrocompatible avec les items déjà persistés.
+  ownerId?: string
 }
 
 type OfflineQueueProcessor<TData = unknown, TVariables = unknown> = {
@@ -39,6 +45,26 @@ const resolveProcessor = (queueKey: string): OfflineQueueProcessor | undefined =
 // Zustand state (isSyncing) is async and can be read stale by two callers before either
 // has called markSyncing(true), causing double-sends. A plain Promise ref is synchronous.
 let syncLock: Promise<number> | null = null
+
+// Résolveur de l'identité du user connecté, injecté au démarrage (main.tsx)
+// pour ne PAS importer auth.store ici (auth.store importe déjà offline.store →
+// éviter un cycle). Tant qu'aucun résolveur n'est installé, la sync rejoue tous
+// les items (comportement historique, et items legacy sans ownerId).
+let currentOwnerResolver: (() => string | undefined) | null = null
+
+export function setCurrentOwnerResolver(resolver: () => string | undefined): void {
+  currentOwnerResolver = resolver
+}
+
+// Un item est rejouable s'il n'a pas d'owner (legacy / rétrocompat) ou si son
+// owner correspond au user actuellement connecté. Sans résolveur installé, on
+// ne filtre pas.
+function canReplayForCurrentOwner(item: OfflineQueueItem): boolean {
+  if (item.ownerId === undefined || currentOwnerResolver === null) {
+    return true
+  }
+  return item.ownerId === currentOwnerResolver()
+}
 
 const idbStorage: StateStorage = {
   getItem: async (name) => {
@@ -185,6 +211,13 @@ export async function syncOfflineQueue(): Promise<number> {
       )
 
       for (const item of sortedQueue) {
+        // Item créé par un AUTRE user que celui connecté : on le laisse en file
+        // (ne pas le rejouer sous la mauvaise identité, ne pas le supprimer non
+        // plus). Il repartira quand son propriétaire se reconnectera.
+        if (!canReplayForCurrentOwner(item)) {
+          continue
+        }
+
         const processor = resolveProcessor(item.queueKey)
 
         if (!processor) {

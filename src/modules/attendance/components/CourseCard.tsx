@@ -280,8 +280,8 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
             <Button
               type="button"
               size="sm"
-              variant="ghost"
-              className="w-full text-muted-foreground sm:w-auto"
+              variant="outline"
+              className="w-full text-muted-foreground sm:w-auto border-muted-foreground hover:bg-muted hover:text-muted-foreground"
               data-testid={`teacher-edit-rollcall-${slot.id}`}
               onClick={() => onEditRollCall(slot)}
             >

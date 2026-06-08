@@ -29,10 +29,15 @@ import { cn } from "@/lib/utils"
 import { logout as logoutApi } from "@/modules/auth/auth.api"
 import { getSmsFeatureSettings } from "@/modules/subscriptions/subscriptions.api"
 import { getPendingValidationCount } from "@/modules/validations/validations.api"
+import { LogoutOfflineGuardDialog } from "@/shared/components/LogoutOfflineGuardDialog"
 import { OfflineQueueBadge } from "@/shared/components/OfflineQueueBadge"
 import { NotificationButton } from "@/shared/components/layout/NotificationButton"
 import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
 import { useTheme } from "@/shared/hooks/useTheme"
+import {
+  useLogoutWithOfflineGuard,
+  type LogoutExecutorOptions,
+} from "@/shared/hooks/useLogoutWithOfflineGuard"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { getUserRoleLabel } from "@/shared/lib/user-role-label"
 import { isStaffRole } from "@/shared/store/auth.store"
@@ -139,15 +144,18 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
     toggleCollapsed()
   }
 
-  const handleLogout = async (): Promise<void> => {
+  const performLogout = async ({ keepOfflineQueue }: LogoutExecutorOptions): Promise<void> => {
     try {
       await logoutApi()
     } finally {
-      clearSession()
+      clearSession({ keepOfflineQueue })
       queryClient.clear()
       navigate("/login", { replace: true })
     }
   }
+
+  const { confirmOpen, setConfirmOpen, pendingCount, requestLogout, confirmLogout } =
+    useLogoutWithOfflineGuard((options) => void performLogout(options))
 
   return (
     <div className="flex h-full flex-col gap-1 p-2">
@@ -155,9 +163,10 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
         {!collapsed && (
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#1a56db] shadow-sm">
-              <GraduationCap className="h-4 w-4 text-white" strokeWidth={2} />
+              <img src="/logo.png" alt="logo-ivoiredu" />
             </div>
             <span className="truncate text-lg font-bold tracking-tight text-foreground">IvoirEdu</span>
+            
           </div>
         )}
         <div className="flex items-center gap-1">
@@ -282,7 +291,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            onClick={() => void handleLogout()}
+            onClick={requestLogout}
             className="text-destructive focus:text-destructive"
           >
             <LogOut className="mr-2 h-4 w-4" />
@@ -290,6 +299,13 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <LogoutOfflineGuardDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        pendingCount={pendingCount}
+        onConfirm={confirmLogout}
+      />
     </div>
   )
 }

@@ -128,7 +128,7 @@ export default function LoginPage() {
           {/* Logo + marque */}
           <div className="mb-8 text-center">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#1a56db]">
-              <GraduationCap className="h-8 w-8 text-white" strokeWidth={1.5} />
+              <img src="/logo.png" alt="logo-ivoiredu" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
               IvoirEdu
@@ -215,7 +215,7 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 disabled={isPending}
-                className="mt-2 h-11 w-full bg-gradient-to-r from-blue-600 to-blue-500 font-semibold text-white shadow-md shadow-blue-500/25 transition-all hover:from-blue-700 hover:to-blue-600 hover:shadow-blue-500/40 active:scale-[0.99] disabled:opacity-60 dark:from-[#1a56db] dark:to-[#1e68f0] dark:shadow-[0_4px_24px_rgba(26,86,219,0.4)] dark:hover:shadow-[0_4px_32px_rgba(26,86,219,0.55)]"
+                className="mt-2 h-11 w-full  font-semibold text-white shadow-md shadow-blue-500/25 transition-all hover:from-blue-700 hover:to-blue-600 hover:shadow-blue-500/40 active:scale-[0.99] disabled:opacity-60 dark:from-[#1a56db] dark:to-[#1e68f0] dark:shadow-[0_4px_24px_rgba(26,86,219,0.4)] dark:hover:shadow-[0_4px_32px_rgba(26,86,219,0.55)]"
               >
                 {isPending ? (
                   <span className="flex items-center gap-2">

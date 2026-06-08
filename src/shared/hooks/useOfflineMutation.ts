@@ -3,6 +3,7 @@ import { useMutation, type UseMutationResult } from "@tanstack/react-query"
 import axios from "axios"
 
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
+import { useAuthStore } from "@/shared/store/auth.store"
 import {
   registerOfflineProcessor,
   syncOfflineQueue,
@@ -86,6 +87,9 @@ export function useOfflineMutation<TData, TVariables>(
       queueKey: options.queueKey,
       variables,
       timestamp: Date.now(),
+      // Tag l'item avec le user courant pour que la sync ne le rejoue que sous
+      // sa propre identité (sûreté appareil partagé). undefined si pas connecté.
+      ownerId: useAuthStore.getState().user?.id,
     }
 
     addToQueue(queueItem)

@@ -57,14 +57,6 @@ export default function ParentLoginPage() {
       {/* Blobs décoratifs */}
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -left-32 -top-32 h-[500px] w-[500px] rounded-full bg-blue-400/20 blur-[100px] dark:bg-[#1a56db]/8" />
-        <div
-          className="absolute inset-0 opacity-[0.025] dark:opacity-[0.02]"
-          style={{
-            backgroundImage:
-              "linear-gradient(to right, currentColor 1px, transparent 1px), linear-gradient(to bottom, currentColor 1px, transparent 1px)",
-            backgroundSize: "40px 40px",
-          }}
-        />
       </div>
 
       <div className="relative flex min-h-screen items-center justify-center px-4 py-12">
@@ -72,7 +64,7 @@ export default function ParentLoginPage() {
           {/* Logo + marque */}
           <div className="mb-8 text-center">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#1a56db] shadow-[0_0_40px_rgba(26,86,219,0.3)] dark:shadow-[0_0_40px_rgba(26,86,219,0.4)]">
-              <GraduationCap className="h-8 w-8 text-white" strokeWidth={1.5} />
+              <img src="/logo.png" alt="logo-ivoiredu" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
               IvoirEdu
@@ -165,7 +157,7 @@ export default function ParentLoginPage() {
               <Button
                 type="submit"
                 disabled={loginMutation.isPending}
-                className="mt-2 h-11 w-full bg-gradient-to-r from-blue-600 to-blue-500 font-semibold text-white shadow-md shadow-blue-500/25 transition-all hover:from-blue-700 hover:to-blue-600 hover:shadow-blue-500/40 active:scale-[0.99] disabled:opacity-60 dark:from-[#1a56db] dark:to-[#1e68f0] dark:shadow-[0_4px_24px_rgba(26,86,219,0.4)] dark:hover:shadow-[0_4px_32px_rgba(26,86,219,0.55)]"
+                className="mt-2 h-11 w-full font-semibold text-white shadow-md shadow-blue-500/25 transition-all hover:from-blue-700 hover:to-blue-600 hover:shadow-blue-500/40 active:scale-[0.99] disabled:opacity-60 dark:from-[#1a56db] dark:to-[#1e68f0] dark:shadow-[0_4px_24px_rgba(26,86,219,0.4)] dark:hover:shadow-[0_4px_32px_rgba(26,86,219,0.55)]"
               >
                 {loginMutation.isPending ? (
                   <span className="flex items-center gap-2">

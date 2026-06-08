@@ -471,7 +471,7 @@ export const teacherAppTourSteps: Step[] = [
   {
     target: "[data-tour='teacher-app-courses']",
     title: "Cartes de cours",
-    content: "Chaque carte représente un cours. Appuyez sur une carte pour démarrer le pointage : scannez le QR code de la salle ou utilisez votre position GPS. En fin de cours, revenez sur la carte et confirmez la fin de séance. Sans scan de fin, votre présence reste 'en cours' et peut passer en validation manuelle.",
+    content: "Chaque carte représente un cours. Appuyez sur une carte pour démarrer le pointage : scannez le QR code de la salle ou utilisez votre position GPS. En fin de cours, revenez sur la carte et confirmez la fin de séance. Sans scan de fin, votre présence reste \"en cours\" et peut passer en validation manuelle.",
     placement: "top",
   },
 ]
@@ -493,13 +493,13 @@ export const parentPortalTourSteps: Step[] = [
   {
     target: "[data-tour='parent-stats']",
     title: "Statistiques de la semaine et du mois",
-    content: "Ces deux cartes résument les absences de votre enfant : le nombre d'absences sur la semaine en cours, et le taux d'absence sur le mois. Un taux au-dessus de 20 % s'affiche en rouge — prenez contact avec l'établissement si nécessaire.",
+    content: "Ces deux cartes résument les absences de votre enfant : le nombre d'absences sur la semaine en cours, et le taux d'absence sur le mois. Un taux au-dessus de 20 % s'affiche en rouge - prenez contact avec l'établissement si nécessaire.",
     placement: "bottom",
   },
   {
     target: "[data-tour='parent-nav-links']",
     title: "Historique et emploi du temps",
-    content: "Utilisez ces deux liens pour consulter : l'historique complet des absences de votre enfant avec les détails de chaque séance, et l'emploi du temps de la semaine pour savoir quels cours sont prévus et à quelle heure.",
+    content: "Utilisez ces deux boutons pour consulter : l'historique complet des absences de votre enfant avec les détails de chaque séance, et l'emploi du temps de la semaine pour savoir quels cours sont prévus et à quelle heure.",
     placement: "top",
   },
   {
