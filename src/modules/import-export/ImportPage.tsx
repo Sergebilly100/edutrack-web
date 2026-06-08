@@ -145,7 +145,7 @@ export default function ImportPage() {
         </div>
       </header>
 
-      <div data-tour="import-wizard">
+      <div>
         {allowedImportTypes.length > 0 ? (
           isImportBlocked ? (
             <ContextualHelp title="Import indisponible hors ligne" tone="warning">

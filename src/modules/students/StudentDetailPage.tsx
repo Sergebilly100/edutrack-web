@@ -61,7 +61,7 @@ const formatDate = (value: string) =>
 
 const formatSlot = (startTime: string | null, endTime: string | null) => {
   if (!startTime || !endTime) {
-    return "—"
+    return "-"
   }
   return `${startTime.slice(0, 5)} - ${endTime.slice(0, 5)}`
 }
@@ -506,7 +506,7 @@ export default function StudentDetailPage() {
                                       Excuser
                                     </Button>
                                   ) : (
-                                    <span className="text-xs text-muted-foreground">—</span>
+                                    <span className="text-xs text-muted-foreground">-</span>
                                   )}
                                 </TableCell>
                               ) : null}

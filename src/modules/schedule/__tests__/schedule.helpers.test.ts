@@ -25,7 +25,7 @@ describe("weekMondayAndDayFromDate", () => {
     })
   })
 
-  it("détecte le dimanche (jour 7) — cas à refuser côté UI", () => {
+  it("détecte le dimanche (jour 7) - cas à refuser côté UI", () => {
     expect(weekMondayAndDayFromDate("2099-01-11").dayOfWeek).toBe(7)
   })
 

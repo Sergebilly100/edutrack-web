@@ -169,9 +169,9 @@ export default function StudentAbsenceDetail({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent side="bottom" className="h-[85vh] overflow-y-auto p-4 sm:p-6">
           <SheetHeader>
-            <SheetTitle>Absences de {student?.studentName ?? "—"}</SheetTitle>
+            <SheetTitle>Absences de {student?.studentName ?? "-"}</SheetTitle>
             <SheetDescription>
-              Classe {student?.className ?? "—"} • {student?.absenceCount ?? 0} absences sur la période
+              Classe {student?.className ?? "-"} • {student?.absenceCount ?? 0} absences sur la période
             </SheetDescription>
           </SheetHeader>
 

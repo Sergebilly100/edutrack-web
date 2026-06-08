@@ -136,7 +136,7 @@ export default function ParentLoginPage() {
                   </button>
                 </div>
                 <p className="text-[11px] text-gray-400 dark:text-white/25">
-                  Mot de passe oublié ? Contactez le secrétariat de l'école.
+                  Mot de passe oublié ? Contactez l'adminstration de l'école.
                 </p>
               </div>
 

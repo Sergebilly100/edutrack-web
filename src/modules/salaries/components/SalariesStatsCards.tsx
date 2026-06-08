@@ -71,7 +71,7 @@ export function SalariesStatsCards({ month, toPayVacataire, toPayPermanent }: Sa
         {[1, 2, 3, 4].map((i) => (
           <Card key={i} className="border border-gray-100 rounded-2xl shadow-sm p-5">
             <p className="text-sm font-medium text-gray-500 mb-1">Données non disponibles</p>
-            <p className="text-2xl font-bold text-gray-900">—</p>
+            <p className="text-2xl font-bold text-gray-900">-</p>
           </Card>
         ))}
       </div>

@@ -78,7 +78,7 @@ export default function AdminRevenuePage() {
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             <strong>{cards!.schoolsWithOverdue} école{cards!.schoolsWithOverdue > 1 ? "s" : ""} en retard</strong>
-            {" — "}IvoirEdu est dû <strong>{fmt(totalOverdue)}</strong> au total sur les mensualités impayées.
+            {" - "}IvoirEdu est dû <strong>{fmt(totalOverdue)}</strong> au total sur les mensualités impayées.
           </AlertDescription>
         </Alert>
       )}
@@ -88,7 +88,7 @@ export default function AdminRevenuePage() {
         <StatCard
           title="Encaissé ce mois"
           value={fmt(cards?.totalCollectedThisMonthFcfa ?? 0)}
-          subtitle={collectionRate !== null ? `${collectionRate}% du MRR attendu` : "—"}
+          subtitle={collectionRate !== null ? `${collectionRate}% du MRR attendu` : "-"}
           icon={<Wallet className="h-4 w-4" />}
           variant={collectionRate !== null && collectionRate < 50 ? "warning" : "default"}
           loading={q.isLoading}
@@ -181,7 +181,7 @@ export default function AdminRevenuePage() {
                           ? `${new Date(row.lastPaymentDate).toLocaleDateString("fr-FR")} · ${fmt(row.lastPaymentAmount)}`
                           : <span className="italic">Jamais payé</span>}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{row.paymentMode ?? "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">{row.paymentMode ?? "-"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -252,18 +252,18 @@ export default function AdminRevenuePage() {
                             À jour
                           </span>
                         ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
+                          <span className="text-muted-foreground text-xs">-</span>
                         )}
                       </TableCell>
                       <TableCell className={`text-right font-medium ${isOverdue ? "text-destructive" : "text-muted-foreground"}`}>
-                        {isOverdue ? fmt(row.overdueFcfa) : "—"}
+                        {isOverdue ? fmt(row.overdueFcfa) : "-"}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {row.lastPaymentDate
                           ? `${new Date(row.lastPaymentDate).toLocaleDateString("fr-FR")} · ${fmt(row.lastPaymentAmount)}`
                           : <span className="italic text-xs">Jamais</span>}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{row.paymentMode ?? "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">{row.paymentMode ?? "-"}</TableCell>
                     </TableRow>
                   )
                 })}

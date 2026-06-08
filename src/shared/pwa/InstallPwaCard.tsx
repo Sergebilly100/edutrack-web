@@ -43,7 +43,7 @@ export function InstallPwaCard({ audience, headline, className }: InstallPwaCard
   const showNotifications = push.isSupported && !notificationsActive
 
   // Masquée si : rien à proposer, OU fermée par l'utilisateur pour cette session
-  // (réapparaît à la prochaine connexion — le flag est purgé au logout).
+  // (réapparaît à la prochaine connexion - le flag est purgé au logout).
   if (dismissed || (!showInstall && !showNotifications)) {
     return null
   }

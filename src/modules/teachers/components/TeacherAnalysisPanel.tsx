@@ -379,7 +379,7 @@ export default function TeacherAnalysisPanel() {
                                   {row.late_count}
                                 </Badge>
                               ) : (
-                                "—"
+                                "-"
                               )}
                             </TableCell>
                             <TableCell>

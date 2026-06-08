@@ -194,13 +194,13 @@ export default function AdminPage() {
 
       {!isSchoolsView ? (
         <>
-          {/* Ligne 1 — Financier prioritaire */}
+          {/* Ligne 1 - Financier prioritaire */}
           {(revenue?.cards?.totalOverdueFcfa ?? 0) > 0 && (
             <Alert variant="destructive" className="py-2">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
                 <strong>{revenue!.cards.schoolsWithOverdue} école{revenue!.cards.schoolsWithOverdue > 1 ? "s" : ""} en retard</strong>
-                {" — "}IvoirEdu est dû <strong>{fmt(revenue!.cards.totalOverdueFcfa)}</strong> sur les mensualités impayées.
+                {" - "}IvoirEdu est dû <strong>{fmt(revenue!.cards.totalOverdueFcfa)}</strong> sur les mensualités impayées.
                 {" "}<button type="button" className="underline underline-offset-2 ml-1" onClick={() => navigate("/admin/revenue")}>Voir détail →</button>
               </AlertDescription>
             </Alert>
@@ -238,7 +238,7 @@ export default function AdminPage() {
               loading={smsFeatureGlobalStatsQuery.isLoading}
             />
           </section>
-          {/* Ligne 2 — Utilisation */}
+          {/* Ligne 2 - Utilisation */}
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               title="Encaissé cette année"
@@ -458,7 +458,7 @@ export default function AdminPage() {
                 school={{
                   id: school.tenantId,
                   name: school.name,
-                  city: school.city ?? "—",
+                  city: school.city ?? "-",
                   plan: school.plan,
                   status: school.status,
                   usersCount: school.nbUsers,

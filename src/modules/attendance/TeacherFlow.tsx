@@ -102,7 +102,7 @@ function Step4Success({
       {deadlineLabel ? (
         <p className="text-xs text-green-600">
           {isLocked
-            ? "Appel verrouillé — délai de modification expiré."
+            ? "Appel verrouillé - délai de modification expiré."
             : `Modifiable jusqu'à ${deadlineLabel}`}
         </p>
       ) : null}
@@ -411,7 +411,7 @@ export default function TeacherFlow({ schedule, demoMode = false }: TeacherFlowP
         if (isOfflineQueued(error)) {
           return null
         }
-        // 409 ROLLCALL_WINDOW_CLOSED — deadline dépassée
+        // 409 ROLLCALL_WINDOW_CLOSED - deadline dépassée
         const axiosError = error as { response?: { data?: { code?: string } } }
         if (axiosError?.response?.data?.code === "ROLLCALL_WINDOW_CLOSED") {
           toast({
@@ -519,7 +519,7 @@ export default function TeacherFlow({ schedule, demoMode = false }: TeacherFlowP
             </Button>
           </div>
 
-          {/* Aide contextuelle QR — Jordan persona */}
+          {/* Aide contextuelle QR - Jordan persona */}
           <div>
             <button
               type="button"

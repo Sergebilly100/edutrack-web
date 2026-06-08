@@ -536,7 +536,7 @@ export default function SchedulePage() {
     }
 
     // Valider que la date d'occurrence est dans la fourchette de la période
-    // sélectionnée — pour le one_shot ET le récurrent. Sans cette garde en mode
+    // sélectionnée - pour le one_shot ET le récurrent. Sans cette garde en mode
     // récurrent, on pouvait créer un cours sur une semaine hors période : il était
     // accepté mais n'apparaissait jamais dans la grille (cours "fantôme").
     {

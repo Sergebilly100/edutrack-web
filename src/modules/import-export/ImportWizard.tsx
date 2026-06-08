@@ -206,7 +206,7 @@ function ImportTypeTabs({
       }}
       className="space-y-4"
     >
-      <TabsList className="grid h-auto w-full grid-cols-1 gap-2 bg-transparent p-0 md:grid-cols-3 md:gap-0 md:rounded-lg md:bg-muted md:p-1">
+      <TabsList className="grid h-auto w-full grid-cols-1 gap-2 bg-transparent p-0 md:grid-cols-3 md:gap-0 md:rounded-lg md:bg-muted md:p-1" data-tour="import-wizard-tab">
         {availableTypes.map((type) => {
           const Icon = tabConfig[type].icon
 
@@ -248,6 +248,7 @@ function ImportTypeTabs({
               className="min-h-[48px]"
               onClick={() => void onTemplateDownload(type)}
               disabled={isDownloadingTemplate}
+               data-tour="import-wizard-file"
             >
               {isDownloadingTemplate ? <Spinner size="sm" className="mr-2" /> : <Download className="mr-2 h-4 w-4" />}
               Télécharger le modèle
@@ -679,7 +680,7 @@ export default function ImportWizard({
             />
 
             {(importType === "students" || importType === "teachers") ? (
-              <div className="space-y-2 rounded-lg border p-4">
+              <div className="space-y-2 rounded-lg border p-4" data-tour="import-mode">
                 <p className="text-sm font-medium">Mode de mise à jour</p>
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -718,7 +719,7 @@ export default function ImportWizard({
             ) : null}
 
             {importType === "schedule" ? (
-              <div className="space-y-3 rounded-lg border p-4">
+              <div className="space-y-3 rounded-lg border p-4" data-tour="import-periode-edt">
                 <p className="text-sm font-medium">Période de validité de l&apos;emploi du temps</p>
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
@@ -795,6 +796,7 @@ export default function ImportWizard({
                 onClick={handleGoToValidation}
                 disabled={!file || dryRunMutation.isPending}
                 className={cn(touchFeedbackClass, "min-h-[48px]")}
+                data-tour="import-validation"
               >
                 {dryRunMutation.isPending ? (
                   <>

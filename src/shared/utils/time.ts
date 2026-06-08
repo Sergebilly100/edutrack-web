@@ -45,7 +45,7 @@ export const minutesToTime = (minutes: number): string => {
  * SalariesStatsCards, TeacherDetailPage, DashboardStatsCards, DashboardPage).
  */
 export const formatDecimalHours = (value: number): string => {
-  if (!Number.isFinite(value)) return "—"
+  if (!Number.isFinite(value)) return "-"
   const sign = value < 0 ? "-" : ""
   // Arrondi à la minute pour éviter "7h29" sur 7.499 ; gère le report (60 → +1h).
   const totalMinutes = Math.round(Math.abs(value) * 60)

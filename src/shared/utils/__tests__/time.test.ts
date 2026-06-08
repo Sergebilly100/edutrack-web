@@ -53,6 +53,6 @@ describe('formatDecimalHours', () => {
   })
 
   it('renvoie un tiret pour une valeur non finie', () => {
-    expect(formatDecimalHours(Number.NaN)).toBe('—')
+    expect(formatDecimalHours(Number.NaN)).toBe('-')
   })
 })

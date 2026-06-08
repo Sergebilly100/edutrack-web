@@ -120,7 +120,7 @@ export function DashboardStatsCards({
               <CardTitle className="text-sm font-medium text-gray-500">
                 Données non disponibles
               </CardTitle>
-              <p className="text-2xl font-bold text-gray-900">—</p>
+              <p className="text-2xl font-bold text-gray-900">-</p>
             </CardHeader>
           </Card>
         ))}

@@ -95,7 +95,7 @@ export default function PresenceChart({ data }: PresenceChartProps) {
       <CardHeader className="pb-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <CardTitle className="text-lg font-semibold">Évolution des présences — 7 jours</CardTitle>
+            <CardTitle className="text-lg font-semibold">Évolution des présences - 7 jours</CardTitle>
             <p className="mt-0.5 text-xs text-muted-foreground">
               Taux de présence quotidien des professeurs (cours pointés / cours planifiés)
             </p>

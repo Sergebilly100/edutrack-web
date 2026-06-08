@@ -195,7 +195,7 @@ export default function LoginPage() {
               </div>
 
               <p className="text-[11px] text-gray-400 dark:text-white/25">
-                L'école est détectée automatiquement via le sous-domaine.
+                Contactez le support IvoirEdu si vous avez oublié vos identifiants.
               </p>
 
               {errorMessage ? (

@@ -876,7 +876,7 @@ export default function SubscriptionsPage() {
                       <p>Durée: <span className="font-medium">{subscription.duration_months} mois</span></p>
                       <p>Montant total: <span className="font-medium">{formatFcfa(subscription.total_amount_fcfa)}</span></p>
                       <p>Date de souscription: <span className="font-medium">{formatDate(subscription.created_at.slice(0, 10))}</span></p>
-                      <p>Créé par: <span className="font-medium">{subscription.created_by_name ?? "—"}</span></p>
+                      <p>Créé par: <span className="font-medium">{subscription.created_by_name ?? "-"}</span></p>
                       <p>Paiements enregistrés: <span className="font-medium">{subscription.payments.length}</span></p>
                     </div>
                     {subscription.status === "cancelled" ? (

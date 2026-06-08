@@ -69,7 +69,7 @@ const navigateToStep4 = async () => {
   const skipBtn = await screen.findByText(/Passer le scan/i)
   fireEvent.click(skipBtn)
 
-  // DEMO_STUDENTS appear in step 3 — toggle first student absent
+  // DEMO_STUDENTS appear in step 3 - toggle first student absent
   await screen.findByText(/Kouadio Amani/i)
   const presentBtn = screen.getByRole("button", { name: /Marquer Kouadio Amani absent/i })
   fireEvent.click(presentBtn)
@@ -153,7 +153,7 @@ describe("TeacherFlow - Re-soumission appel", () => {
       expect(screen.getByText(/Cours démarré. Bonne journée/i)).toBeInTheDocument()
     })
 
-    // Pas de re-soumission (bulkStudentsMock appelé 1 fois seulement — lors de la validation initiale)
+    // Pas de re-soumission (bulkStudentsMock appelé 1 fois seulement - lors de la validation initiale)
     expect(bulkStudentsMock).toHaveBeenCalledTimes(0) // demoMode n'appelle pas l'API
   })
 
@@ -167,7 +167,7 @@ describe("TeacherFlow - Re-soumission appel", () => {
     fireEvent.click(screen.getByText(/Mettre à jour l'appel/i))
     await waitFor(() => expect(screen.getByText(/Appel de 6ème A/i)).toBeInTheDocument())
 
-    // Kouadio Amani est déjà absent (du 1er appel) — marquer Traoré Mariam absent
+    // Kouadio Amani est déjà absent (du 1er appel) - marquer Traoré Mariam absent
     await screen.findByText(/Traoré Mariam/i)
     fireEvent.click(screen.getByRole("button", { name: /Marquer Traoré Mariam absent/i }))
 

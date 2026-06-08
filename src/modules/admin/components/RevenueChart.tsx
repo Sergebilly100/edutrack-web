@@ -57,7 +57,7 @@ export default function RevenueChart({ data }: RevenueChartProps) {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-semibold">
-          Encaissements réels vs MRR cible — 12 mois
+          Encaissements réels vs MRR cible - 12 mois
         </CardTitle>
       </CardHeader>
       <CardContent>

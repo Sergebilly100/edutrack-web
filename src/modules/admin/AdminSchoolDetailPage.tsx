@@ -548,7 +548,7 @@ export default function AdminSchoolDetailPage() {
       ].filter((item): item is string => item !== null)
     : []
 
-  // Historique SMS — données dérivées
+  // Historique SMS - données dérivées
   const currentMonthData = smsFeatureStatsQuery.data?.current_month
   const historyData = smsFeatureStatsQuery.data?.history ?? []
   const currentYM = new Date().toISOString().slice(0, 7)
@@ -627,7 +627,7 @@ export default function AdminSchoolDetailPage() {
             </TabsList>
 
             {/* ══════════════════════════════════════════════════
-                ONGLET 1 — CONFIGURATION
+                ONGLET 1 - CONFIGURATION
             ══════════════════════════════════════════════════ */}
             <TabsContent value="config" className="space-y-5">
 
@@ -699,7 +699,7 @@ export default function AdminSchoolDetailPage() {
                 <CardHeader>
                   <CardTitle>Limites & quotas</CardTitle>
                   <CardDescription>
-                    Plafonds appliqués à cet établissement. Initialisés depuis le plan à la création —
+                    Plafonds appliqués à cet établissement. Initialisés depuis le plan à la création -
                     modifiables ici individuellement sans changer le plan. C&apos;est ce quota
                     qui bloque réellement la création d&apos;utilisateurs.
                   </CardDescription>
@@ -800,7 +800,7 @@ export default function AdminSchoolDetailPage() {
                   </div>
 
                   <p className="text-xs text-muted-foreground">
-                    Ces quotas sont indépendants du plan — changer de plan ne les met pas à jour automatiquement.
+                    Ces quotas sont indépendants du plan - changer de plan ne les met pas à jour automatiquement.
                   </p>
                 </CardContent>
               </Card>
@@ -856,7 +856,7 @@ export default function AdminSchoolDetailPage() {
             </TabsContent>
 
             {/* ══════════════════════════════════════════════════
-                ONGLET 2 — UTILISATEURS
+                ONGLET 2 - UTILISATEURS
             ══════════════════════════════════════════════════ */}
             <TabsContent value="users" className="space-y-4">
               {schoolUsersQuery.isLoading ? (
@@ -997,7 +997,7 @@ export default function AdminSchoolDetailPage() {
             </TabsContent>
 
             {/* ══════════════════════════════════════════════════
-                ONGLET 3 — ABONNEMENT & FACTURATION
+                ONGLET 3 - ABONNEMENT & FACTURATION
             ══════════════════════════════════════════════════ */}
             <TabsContent value="abonnement" className="space-y-5">
               {(() => {
@@ -1018,7 +1018,7 @@ export default function AdminSchoolDetailPage() {
                   if (s === "partial") return <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-900 text-xs px-2 py-0.5 font-medium">Partiel</span>
                   if (s === "unpaid")  return <span className="inline-flex items-center rounded-full bg-red-100 text-red-700 text-xs px-2 py-0.5 font-medium">Impayé</span>
                   if (s === "future")  return <span className="inline-flex items-center rounded-full bg-muted text-muted-foreground text-xs px-2 py-0.5 font-medium">À venir</span>
-                  return <span className="inline-flex items-center rounded-full bg-muted text-muted-foreground text-xs px-2 py-0.5 font-medium">—</span>
+                  return <span className="inline-flex items-center rounded-full bg-muted text-muted-foreground text-xs px-2 py-0.5 font-medium">-</span>
                 }
 
                 const providerLabel = (p: string) => {
@@ -1035,13 +1035,13 @@ export default function AdminSchoolDetailPage() {
                       <Alert variant="destructive">
                         <AlertTriangle className="h-4 w-4" />
                         <AlertDescription>
-                          <strong>{overdueCount} mois impayé{overdueCount > 1 ? "s" : ""}</strong> — {formatFcfa(totalUnpaidFcfa)} restent dus
+                          <strong>{overdueCount} mois impayé{overdueCount > 1 ? "s" : ""}</strong> - {formatFcfa(totalUnpaidFcfa)} restent dus
                           sur les mensualités passées. Voir le calendrier ci-dessous.
                         </AlertDescription>
                       </Alert>
                     )}
 
-                    {/* A — Souscription + config MRR */}
+                    {/* A - Souscription + config MRR */}
                     <Card className="shadow-sm">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-base">Souscription</CardTitle>
@@ -1070,7 +1070,7 @@ export default function AdminSchoolDetailPage() {
                             ) : mrrIsFromPlan ? (
                               <>
                                 <p className="font-semibold text-amber-900">{formatFcfa(stats.planMonthlyPriceFcfa)}</p>
-                                <p className="text-xs text-amber-600 mt-0.5">Estimé depuis le plan — à confirmer</p>
+                                <p className="text-xs text-amber-600 mt-0.5">Estimé depuis le plan - à confirmer</p>
                               </>
                             ) : (
                               <p className="font-semibold text-muted-foreground">Non configuré</p>
@@ -1130,17 +1130,17 @@ export default function AdminSchoolDetailPage() {
                       </CardContent>
                     </Card>
 
-                    {/* B — Résumé année + calendrier mois par mois */}
+                    {/* B - Résumé année + calendrier mois par mois */}
                     <Card className="shadow-sm">
                       <CardHeader className="pb-3">
-                        <CardTitle className="text-base">Calendrier de paiement — {syLabel}</CardTitle>
+                        <CardTitle className="text-base">Calendrier de paiement - {syLabel}</CardTitle>
                         <CardDescription>
-                          {syParsed?.totalMonths ?? 10} mensualités × {effectiveMrr > 0 ? formatFcfa(effectiveMrr) : "—"} ={" "}
-                          <strong>{effectiveMrr > 0 ? formatFcfa(syFullYear) : "—"} sur l&apos;année.</strong>
+                          {syParsed?.totalMonths ?? 10} mensualités × {effectiveMrr > 0 ? formatFcfa(effectiveMrr) : "-"} ={" "}
+                          <strong>{effectiveMrr > 0 ? formatFcfa(syFullYear) : "-"} sur l&apos;année.</strong>
                           {mrrIsFromPlan && <span className="text-amber-600"> (estimé depuis le plan)</span>}
                           {!rawSY && (
                             <span className="block mt-1 text-amber-600 text-xs">
-                              Année scolaire non renseignée — bornes estimées. Renseignez-la dans l&apos;onglet Configuration.
+                              Année scolaire non renseignée - bornes estimées. Renseignez-la dans l&apos;onglet Configuration.
                             </span>
                           )}
                         </CardDescription>
@@ -1150,8 +1150,8 @@ export default function AdminSchoolDetailPage() {
                         <div className="grid gap-3 sm:grid-cols-3">
                           <div className="rounded-lg border bg-muted/30 p-3 text-sm">
                             <p className="text-xs text-muted-foreground">Attendu à ce jour</p>
-                            <p className="font-semibold">{effectiveMrr > 0 ? formatFcfa(syExpected) : "—"}</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">{elapsed} mois × {effectiveMrr > 0 ? formatFcfa(effectiveMrr) : "—"}</p>
+                            <p className="font-semibold">{effectiveMrr > 0 ? formatFcfa(syExpected) : "-"}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{elapsed} mois × {effectiveMrr > 0 ? formatFcfa(effectiveMrr) : "-"}</p>
                           </div>
                           <div className="rounded-lg border bg-green-50 border-green-200 p-3 text-sm">
                             <p className="text-xs text-muted-foreground">Couvert (via périodes)</p>
@@ -1161,7 +1161,7 @@ export default function AdminSchoolDetailPage() {
                           <div className={`rounded-lg border p-3 text-sm ${totalUnpaidFcfa > 0 ? "border-red-300 bg-red-50" : "bg-muted/30"}`}>
                             <p className="text-xs text-muted-foreground">Restant dû (mois passés)</p>
                             <p className={`font-semibold ${totalUnpaidFcfa > 0 ? "text-red-700" : "text-green-700"}`}>
-                              {effectiveMrr > 0 ? (totalUnpaidFcfa === 0 ? "À jour ✓" : formatFcfa(totalUnpaidFcfa)) : "—"}
+                              {effectiveMrr > 0 ? (totalUnpaidFcfa === 0 ? "À jour ✓" : formatFcfa(totalUnpaidFcfa)) : "-"}
                             </p>
                             {overdueCount > 0 && (
                               <p className="text-xs text-red-600 mt-0.5">{overdueCount} mois impayé{overdueCount > 1 ? "s" : ""}</p>
@@ -1202,13 +1202,13 @@ export default function AdminSchoolDetailPage() {
                                       {m.isCurrent && <span className="ml-1.5 text-xs text-blue-600 font-normal">(en cours)</span>}
                                     </TableCell>
                                     <TableCell className="text-right text-sm">
-                                      {effectiveMrr > 0 ? formatFcfa(m.due) : "—"}
+                                      {effectiveMrr > 0 ? formatFcfa(m.due) : "-"}
                                     </TableCell>
                                     <TableCell className={`text-right text-sm font-medium ${m.covered > 0 ? "text-green-700" : "text-muted-foreground"}`}>
-                                      {m.covered > 0 ? formatFcfa(m.covered) : m.isFuture ? "—" : "0 FCFA"}
+                                      {m.covered > 0 ? formatFcfa(m.covered) : m.isFuture ? "-" : "0 FCFA"}
                                     </TableCell>
                                     <TableCell className={`text-right text-sm ${m.remaining > 0 && !m.isFuture ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
-                                      {m.isFuture ? "—" : m.remaining > 0 ? formatFcfa(m.remaining) : "—"}
+                                      {m.isFuture ? "-" : m.remaining > 0 ? formatFcfa(m.remaining) : "-"}
                                     </TableCell>
                                     <TableCell>{statusBadge(m.status)}</TableCell>
                                   </TableRow>
@@ -1220,12 +1220,12 @@ export default function AdminSchoolDetailPage() {
                       </CardContent>
                     </Card>
 
-                    {/* C — Enregistrer un paiement */}
+                    {/* C - Enregistrer un paiement */}
                     <Card className="shadow-sm">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-base">Enregistrer un paiement</CardTitle>
                         <CardDescription>
-                          La période couverte est obligatoire — un paiement de plusieurs mois met à jour
+                          La période couverte est obligatoire - un paiement de plusieurs mois met à jour
                           automatiquement toutes les lignes correspondantes du calendrier.
                         </CardDescription>
                       </CardHeader>
@@ -1266,12 +1266,12 @@ export default function AdminSchoolDetailPage() {
                               onChange={(e) => setPayment((p) => ({ ...p, reference: e.target.value }))} />
                           </div>
                           <div className="space-y-2">
-                            <Label>Période couverte — début <span className="text-destructive">*</span></Label>
+                            <Label>Période couverte - début <span className="text-destructive">*</span></Label>
                             <Input type="date" value={payment.periodFrom}
                               onChange={(e) => setPayment((p) => ({ ...p, periodFrom: e.target.value }))} />
                           </div>
                           <div className="space-y-2">
-                            <Label>Période couverte — fin <span className="text-destructive">*</span></Label>
+                            <Label>Période couverte - fin <span className="text-destructive">*</span></Label>
                             <Input type="date" value={payment.periodTo}
                               onChange={(e) => setPayment((p) => ({ ...p, periodTo: e.target.value }))} />
                           </div>
@@ -1288,7 +1288,7 @@ export default function AdminSchoolDetailPage() {
                       </CardContent>
                     </Card>
 
-                    {/* D — Historique brut des versements */}
+                    {/* D - Historique brut des versements */}
                     <Card className="shadow-sm">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-base">Historique des versements</CardTitle>
@@ -1325,7 +1325,7 @@ export default function AdminSchoolDetailPage() {
                                   </TableCell>
                                   <TableCell className="text-right font-medium">{formatFcfa(item.amountFcfa)}</TableCell>
                                   <TableCell>{providerLabel(item.provider)}</TableCell>
-                                  <TableCell className="text-muted-foreground">{item.reference ?? "—"}</TableCell>
+                                  <TableCell className="text-muted-foreground">{item.reference ?? "-"}</TableCell>
                                 </TableRow>
                               ))}
                               {!paymentsQuery.isLoading && payments.length === 0 && (
@@ -1341,7 +1341,7 @@ export default function AdminSchoolDetailPage() {
                         {payments.length > 0 && (
                           <p className="mt-2 text-xs text-muted-foreground text-right">
                             Total encaissé : <strong>{formatFcfa(payments.reduce((s, p) => s + p.amountFcfa, 0))}</strong>
-                            {" — "}{payments.length} versement(s)
+                            {" - "}{payments.length} versement(s)
                             {payments.some((p) => !p.periodFrom) && (
                               <span className="ml-2 text-amber-600">
                                 · {payments.filter((p) => !p.periodFrom).length} sans période (non comptabilisé dans le calendrier)
@@ -1352,7 +1352,7 @@ export default function AdminSchoolDetailPage() {
                       </CardContent>
                     </Card>
 
-                    {/* E — Relance SMS */}
+                    {/* E - Relance SMS */}
                     <Card className="shadow-sm">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-base">Relance paiement par SMS</CardTitle>
@@ -1366,7 +1366,7 @@ export default function AdminSchoolDetailPage() {
                             État:{" "}
                             <strong className={overdueCount > 0 ? "text-destructive" : "text-green-700"}>
                               {overdueCount > 0
-                                ? `${overdueCount} mois impayé${overdueCount > 1 ? "s" : ""} — ${formatFcfa(totalUnpaidFcfa)}`
+                                ? `${overdueCount} mois impayé${overdueCount > 1 ? "s" : ""} - ${formatFcfa(totalUnpaidFcfa)}`
                                 : "À jour"}
                             </strong>
                           </p>
@@ -1395,7 +1395,7 @@ export default function AdminSchoolDetailPage() {
             </TabsContent>
 
             {/* ══════════════════════════════════════════════════
-                ONGLET 4 — SMS & REVENUS
+                ONGLET 4 - SMS & REVENUS
             ══════════════════════════════════════════════════ */}
             <TabsContent value="sms-revenus" className="space-y-6">
 
@@ -1411,7 +1411,7 @@ export default function AdminSchoolDetailPage() {
                   <Card className="shadow-sm">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm">
-                        Étape 1 — Mode des alertes parents
+                        Étape 1 - Mode des alertes parents
                       </CardTitle>
                       <CardDescription>
                         Détermine si le menu &quot;Abonnements parents&quot; apparaît dans le dashboard de l&apos;école.
@@ -1460,7 +1460,7 @@ export default function AdminSchoolDetailPage() {
                     <Card className="shadow-sm">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-sm">
-                          Étape 2 — Activation opérationnelle des abonnements
+                          Étape 2 - Activation opérationnelle des abonnements
                         </CardTitle>
                         <CardDescription>
                           Une fois le mode payant activé (étape 1), cette étape ouvre réellement la création
@@ -1476,8 +1476,8 @@ export default function AdminSchoolDetailPage() {
                             <p className="text-xs text-muted-foreground">
                               État actuel :{" "}
                               {smsFeatureStatsQuery.data?.config.is_enabled
-                                ? <span className="text-green-600 font-medium">Ouverte — les souscriptions peuvent être créées</span>
-                                : <span className="text-amber-600 font-medium">Fermée — menu visible mais souscriptions bloquées</span>}
+                                ? <span className="text-green-600 font-medium">Ouverte - les souscriptions peuvent être créées</span>
+                                : <span className="text-amber-600 font-medium">Fermée - menu visible mais souscriptions bloquées</span>}
                             </p>
                           </div>
                           <Button
@@ -1496,7 +1496,7 @@ export default function AdminSchoolDetailPage() {
                           <div className="space-y-2">
                             <Label>
                               Commission IvoirEdu (%)
-                              <span className="ml-1 text-xs text-muted-foreground">— part reversée sur les abonnements collectés</span>
+                              <span className="ml-1 text-xs text-muted-foreground">- part reversée sur les abonnements collectés</span>
                             </Label>
                             <Input
                               type="number" min={0} max={100}
@@ -1514,7 +1514,7 @@ export default function AdminSchoolDetailPage() {
                           <div className="space-y-2">
                             <Label>
                               Plafond SMS / élève / mois
-                              <span className="ml-1 text-xs text-muted-foreground">— nombre max d&apos;alertes par enfant</span>
+                              <span className="ml-1 text-xs text-muted-foreground">- nombre max d&apos;alertes par enfant</span>
                             </Label>
                             <Input
                               type="number" min={0}
@@ -1659,13 +1659,13 @@ export default function AdminSchoolDetailPage() {
                           {(revenueDisplayData?.commission_remaining_fcfa ?? 0) > 0
                             ? `Reste à reverser sur ${formatFcfa(revenueDisplayData!.commission_due_fcfa)} dus`
                             : (revenueDisplayData?.commission_due_fcfa ?? 0) > 0
-                              ? `${formatFcfa(revenueDisplayData!.commission_due_fcfa)} dus — intégralement reversés`
+                              ? `${formatFcfa(revenueDisplayData!.commission_due_fcfa)} dus - intégralement reversés`
                               : "Aucune commission ce mois"}
                         </p>
                       </div>
                     </div>
 
-                    {/* Historique par mois — seulement les mois avec activité */}
+                    {/* Historique par mois - seulement les mois avec activité */}
                     {historyWithActivity.length > 0 ? (
                       <div className="mt-4 overflow-x-auto rounded-md border">
                         <Table>
@@ -1788,7 +1788,7 @@ export default function AdminSchoolDetailPage() {
                               </span>
                               {isOverdue && (
                                 <Badge variant="destructive" className="ml-auto">
-                                  Retard — {formatFcfa(row.commission_remaining_fcfa)} restant
+                                  Retard - {formatFcfa(row.commission_remaining_fcfa)} restant
                                 </Badge>
                               )}
                               {isPaid && (
@@ -1820,7 +1820,7 @@ export default function AdminSchoolDetailPage() {
                                   <p className="text-xs text-muted-foreground">Chargement…</p>
                                 ) : (auditItems ?? []).length === 0 ? (
                                   <p className="text-xs text-muted-foreground">
-                                    Aucune opération trouvée pour ce mois — utilisez le bouton
+                                    Aucune opération trouvée pour ce mois - utilisez le bouton
                                     &quot;Enregistrer&quot; pour en saisir une.
                                   </p>
                                 ) : (
@@ -1883,7 +1883,7 @@ export default function AdminSchoolDetailPage() {
             </TabsContent>
 
             {/* ══════════════════════════════════════════════════
-                ONGLET 5 — STATISTIQUES
+                ONGLET 5 - STATISTIQUES
             ══════════════════════════════════════════════════ */}
             <TabsContent value="stats" className="space-y-4">
               <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

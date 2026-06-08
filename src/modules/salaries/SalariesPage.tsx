@@ -2029,7 +2029,7 @@ export default function SalariesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Barre flottante de paiement groupé — permanents */}
+      {/* Barre flottante de paiement groupé - permanents */}
       {bulkPermanentSelection.selectedCount > 0 ? (
         <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 md:left-[calc(50%+8rem)]">
           <div className="flex items-center gap-3 rounded-2xl border border-border bg-background px-5 py-3 shadow-2xl ring-1 ring-black/5">
@@ -2060,7 +2060,7 @@ export default function SalariesPage() {
         </div>
       ) : null}
 
-      {/* Dialog confirmation paiement groupé — permanents */}
+      {/* Dialog confirmation paiement groupé - permanents */}
       <Dialog open={bulkPermanentPayDialogOpen} onOpenChange={setBulkPermanentPayDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

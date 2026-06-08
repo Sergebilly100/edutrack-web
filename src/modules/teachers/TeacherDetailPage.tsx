@@ -370,10 +370,10 @@ function AttendancePanel({ teacherId, canViewAttendance }: { teacherId: string; 
                           {statusLabel[row.attendanceStatus] ?? statusLabel.not_marked}
                         </Badge>
                       </TableCell>
-                      <TableCell>{row.lateMinutes ? `${row.lateMinutes} min` : "—"}</TableCell>
-                      <TableCell>{row.checkedInAt ? row.checkedInAt.slice(11, 16) : "—"}</TableCell>
+                      <TableCell>{row.lateMinutes ? `${row.lateMinutes} min` : "-"}</TableCell>
+                      <TableCell>{row.checkedInAt ? row.checkedInAt.slice(11, 16) : "-"}</TableCell>
                       <TableCell>
-                        {row.checkedOutAt ? row.checkedOutAt.slice(11, 16) : "—"}
+                        {row.checkedOutAt ? row.checkedOutAt.slice(11, 16) : "-"}
                       </TableCell>
                       <TableCell>
                         {/* C'est seulement si le prof est présent qu'on vérifie si la salle était correcte */}

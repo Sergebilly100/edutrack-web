@@ -68,7 +68,7 @@ export default function AdminRevenuSmsPage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Revenus SMS</h1>
         <p className="text-sm text-muted-foreground">
-          Commissions IvoirEdu sur la feature SMS — abonnements parents par école.
+          Commissions IvoirEdu sur la feature SMS - abonnements parents par école.
           Les SMS comptés sont les <strong>notifications d&apos;absence envoyées aux parents</strong> abonnés.
         </p>
         <div className="flex items-center gap-2 pt-2">
@@ -88,7 +88,7 @@ export default function AdminRevenuSmsPage() {
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            <strong>{overdueRows.length} école{overdueRows.length > 1 ? "s" : ""}</strong> avec commission non reversée —{" "}
+            <strong>{overdueRows.length} école{overdueRows.length > 1 ? "s" : ""}</strong> avec commission non reversée -{" "}
             <strong>{fmt(totalRemaining)}</strong> à percevoir ce mois.
           </AlertDescription>
         </Alert>
@@ -150,7 +150,7 @@ export default function AdminRevenuSmsPage() {
               <p className="text-xs text-muted-foreground">Commission IvoirEdu générée (feature SMS)</p>
               <p className="text-2xl font-bold mt-1 text-green-700">{fmt(totalCommissionYtd)}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Gain annuel estimé — {rows.length > 0 ? `taux moyen ${Math.round(rows.reduce((s, r) => s + r.commission_pct, 0) / rows.length)}%` : "—"}
+                Gain annuel estimé - {rows.length > 0 ? `taux moyen ${Math.round(rows.reduce((s, r) => s + r.commission_pct, 0) / rows.length)}%` : "-"}
               </p>
             </CardContent>
           </Card>
@@ -166,7 +166,7 @@ export default function AdminRevenuSmsPage() {
       {/* Tableau par école */}
       <Card className="shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Détail par école — {monthLabel(month)}</CardTitle>
+          <CardTitle className="text-base">Détail par école - {monthLabel(month)}</CardTitle>
           <CardDescription>
             Triées par commission restante décroissante.
             La colonne <em>SMS</em> compte les notifications d&apos;absence envoyées aux parents abonnés ce mois.
@@ -202,7 +202,7 @@ export default function AdminRevenuSmsPage() {
                       <TableCell className="text-right text-muted-foreground">{row.commission_pct}%</TableCell>
                       <TableCell className="text-right font-medium">{fmt(row.commission_due_fcfa)}</TableCell>
                       <TableCell className="text-right text-green-700">
-                        {row.commission_paid_fcfa > 0 ? fmt(row.commission_paid_fcfa) : "—"}
+                        {row.commission_paid_fcfa > 0 ? fmt(row.commission_paid_fcfa) : "-"}
                       </TableCell>
                       <TableCell className="text-right">
                         {pending ? (

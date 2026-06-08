@@ -166,7 +166,7 @@ describe("TeacherFlow - Confirmation Dialog", () => {
       expect(screen.getByRole("alertdialog")).toBeInTheDocument()
     })
 
-    // Confirm — button inside dialog
+    // Confirm - button inside dialog
     const confirmBtn = screen.getAllByRole("button").find(
       (btn) => /Confirmer l'appel/i.test(btn.textContent ?? "")
     )!
@@ -188,7 +188,7 @@ describe("TeacherFlow - Confirmation Dialog", () => {
 
     await goToStep3()
 
-    // No toggles — click validate with 0 absents
+    // No toggles - click validate with 0 absents
     fireEvent.click(screen.getByRole("button", { name: /Valider l'appel/i }))
 
     await waitFor(() => {

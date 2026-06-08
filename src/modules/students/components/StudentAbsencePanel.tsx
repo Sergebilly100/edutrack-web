@@ -55,7 +55,7 @@ const smsBadgeConfig = (summary: StudentAbsenceStat["smsSummary"]) =>
 
 const formatRate = (value: number | null | undefined) => `${(value ?? 0).toFixed(2)}%`
 
-const formatPhone = (value: string | null) => (value ? `+${value}` : "—")
+const formatPhone = (value: string | null) => (value ? `+${value}` : "-")
 
 export default function StudentAbsencePanel() {
   const {
