@@ -869,7 +869,7 @@ export default function SchedulePage() {
               </CardTitle>
               <CardDescription>
                 {data.period
-                  ? `${data.period.validFrom} → ${data.period.validTo}`
+                  ? `${data.period.name} · ${data.period.validFrom} → ${data.period.validTo}`
                   : "Sans période active"}
               </CardDescription>
             </CardHeader>
