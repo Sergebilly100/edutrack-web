@@ -5,7 +5,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import {
   Select,
@@ -24,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
-import { EmptyState } from "@/shared/components"
+import { DateInput, EmptyState } from "@/shared/components"
 
 import { useTeacherStats } from "@/modules/teachers/hooks/useTeacherStats"
 import { exportTeacherAttendanceStats } from "@/modules/teachers/teachers.api"
@@ -76,23 +75,21 @@ export default function TeacherAnalysisPanel() {
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[180px] space-y-2">
               <p className="text-sm font-medium">Du</p>
-              <Input
-                type="date"
+              <DateInput
                 className="min-h-12"
                 value={formValues.from}
-                onChange={(event) =>
-                  setFormValues((current) => ({ ...current, from: event.target.value }))
+                onChange={(value) =>
+                  setFormValues((current) => ({ ...current, from: value }))
                 }
               />
             </div>
             <div className="min-w-[180px] space-y-2">
               <p className="text-sm font-medium">Au</p>
-              <Input
-                type="date"
+              <DateInput
                 className="min-h-12"
                 value={formValues.to}
-                onChange={(event) =>
-                  setFormValues((current) => ({ ...current, to: event.target.value }))
+                onChange={(value) =>
+                  setFormValues((current) => ({ ...current, to: value }))
                 }
               />
             </div>

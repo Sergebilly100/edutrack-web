@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils"
 import StudentAbsenceDetail from "@/modules/students/components/StudentAbsenceDetail"
 import { exportStudentAbsences, type StudentAbsenceStat } from "@/modules/students/students.api"
 import { useStudentAbsences } from "@/modules/students/hooks/useStudentAbsences"
-import { EmptyState } from "@/shared/components"
+import { DateInput, EmptyState } from "@/shared/components"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
 
@@ -98,23 +98,21 @@ export default function StudentAbsencePanel() {
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[180px] space-y-2">
               <p className="text-sm font-medium">Du</p>
-              <Input
-                type="date"
+              <DateInput
                 className="min-h-12"
                 value={formValues.from}
-                onChange={(event) =>
-                  setFormValues((current) => ({ ...current, from: event.target.value }))
+                onChange={(value) =>
+                  setFormValues((current) => ({ ...current, from: value }))
                 }
               />
             </div>
             <div className="min-w-[180px] space-y-2">
               <p className="text-sm font-medium">Au</p>
-              <Input
-                type="date"
+              <DateInput
                 className="min-h-12"
                 value={formValues.to}
-                onChange={(event) =>
-                  setFormValues((current) => ({ ...current, to: event.target.value }))
+                onChange={(value) =>
+                  setFormValues((current) => ({ ...current, to: value }))
                 }
               />
             </div>

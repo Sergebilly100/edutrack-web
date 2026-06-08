@@ -55,6 +55,7 @@ import {
 } from "@/modules/salaries/salaries.api"
 import { useBulkSelection } from "@/shared/hooks/useBulkSelection"
 import { usePendingValidationCount } from "@/shared/hooks/usePendingValidationCount"
+import { useSchoolYearMonths } from "@/shared/hooks/useSchoolYearMonths"
 import { SalarySummaryCards } from "@/modules/salaries/components/SalarySummaryCards"
 import { SalariesStatsCards } from "@/modules/salaries/components/SalariesStatsCards"
 import { SalaryExportSection } from "@/modules/salaries/components/SalaryExportSection"
@@ -137,7 +138,14 @@ export default function SalariesPage() {
   const lastNotifiedExportJobIdRef = useRef<string | null>(null)
   const pageSize = 10
 
-  const monthOptions = useMemo(() => getRecentMonthOptions(getCurrentMonth(), 18), [])
+  const schoolYear = useSchoolYearMonths()
+  const monthOptions = useMemo(() => {
+    const today = getCurrentMonth()
+    if (schoolYear.bounds && schoolYear.monthsInYear.length > 0) {
+      return schoolYear.monthsInYear.filter((m) => m <= today)
+    }
+    return getRecentMonthOptions(today, 18)
+  }, [schoolYear.bounds, schoolYear.monthsInYear])
   const payMonthOptions = useMemo(() => {
     const current = getCurrentMonth()
     const minus1 = getPreviousMonth(current)
@@ -830,6 +838,7 @@ export default function SalariesPage() {
                   type="button"
                   variant="outline"
                   size="icon"
+                  disabled={Boolean(schoolYear.bounds && getPreviousMonth(selectedMonth) < schoolYear.bounds.minMonth)}
                   onClick={() => setSelectedMonth((current) => getPreviousMonth(current))}
                   aria-label="Mois précédent"
                 >

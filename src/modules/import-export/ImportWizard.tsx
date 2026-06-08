@@ -25,7 +25,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -33,6 +32,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { useConfirmImport, useDryRun } from "@/modules/import/import.hooks"
 import { downloadTemplate, type ImportIssue, type ImportMode, type ImportType } from "./import-export.api"
+import { DateInput } from "@/shared/components/DateInput"
 import { DropZone } from "@/shared/components/DropZone"
 import { Spinner } from "@/shared/components/Spinner"
 import { useStudentLabels, type StudentLabels } from "@/shared/hooks/useStudentLabel"
@@ -723,12 +723,10 @@ export default function ImportWizard({
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="week-start">Semaine de début (lundi)</Label>
-                    <Input
-                      id="week-start"
-                      type="date"
+                    <DateInput
+                      aria-label="Semaine de début (lundi)"
                       value={weekStart}
-                      onChange={(event) => {
-                        const newStart = event.target.value
+                      onChange={(newStart) => {
                         setWeekStart(newStart)
                         if (weekEnd && weekEnd <= newStart) {
                           setWeekEnd("")
@@ -741,14 +739,13 @@ export default function ImportWizard({
                     <Label htmlFor="week-end" className={!weekStart ? "text-muted-foreground" : undefined}>
                       Semaine de fin (lundi)
                     </Label>
-                    <Input
-                      id="week-end"
-                      type="date"
+                    <DateInput
+                      aria-label="Semaine de fin (lundi)"
                       value={weekEnd}
                       min={weekStart || undefined}
                       disabled={!weekStart}
-                      onChange={(event) => {
-                        setWeekEnd(event.target.value)
+                      onChange={(value) => {
+                        setWeekEnd(value)
                         setPeriodError(null)
                       }}
                     />

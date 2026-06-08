@@ -5,25 +5,17 @@ import { Link } from "react-router-dom"
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { EmptyState, OfflineIndicator } from "@/shared/components"
+import { EmptyState, MonthPicker, OfflineIndicator } from "@/shared/components"
 import { getParentAbsences, listParentStudents } from "@/modules/parent-portal/parent.api"
 import { currentIsoMonth, formatDateFr, monthLabelFr } from "@/modules/parent-portal/parent.utils"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
+import { useParentSchoolYearMonths } from "@/modules/parent-portal/useParentSchoolYearMonths"
 
 const SELECTED_STUDENT_STORAGE_KEY = "parent_selected_student_id"
 
-const lastMonths = (count: number): string[] => {
-  const items: string[] = []
-  const now = new Date()
-  for (let i = 0; i < count; i += 1) {
-    const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1))
-    items.push(`${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`)
-  }
-  return items
-}
-
 export default function ParentAbsenceHistoryPage() {
   const studentLabels = useStudentLabels()
+  const { months: schoolMonths } = useParentSchoolYearMonths()
   const studentsQuery = useQuery({
     queryKey: ["parent", "students", "history"],
     queryFn: listParentStudents,
@@ -84,18 +76,12 @@ export default function ParentAbsenceHistoryPage() {
             </SelectContent>
           </Select>
 
-          <Select value={month} onValueChange={setMonth}>
-            <SelectTrigger className="h-12 text-base">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {lastMonths(6).map((item) => (
-                <SelectItem key={item} value={item}>
-                  {monthLabelFr(item)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MonthPicker
+            value={month}
+            onChange={setMonth}
+            months={schoolMonths}
+            className="h-12 text-base"
+          />
         </div>
       </div>
 

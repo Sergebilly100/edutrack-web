@@ -182,3 +182,8 @@ export const fetchParentSchoolInfo = async (): Promise<{ name: string }> => {
   })
   return { name: response.data.name ?? "Votre école" }
 }
+
+export const fetchParentSchoolConfig = async (): Promise<{ activeSchoolYear: string | null }> => {
+  const response = await apiClient.get<{ activeSchoolYear?: string | null }>("/parent/school-config")
+  return { activeSchoolYear: response.data.activeSchoolYear ?? null }
+}

@@ -2,10 +2,9 @@ import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { ChevronLeft, ChevronRight, Info } from "lucide-react"
 
-import { AlertBanner, EmptyState, PageLayout } from "@/shared/components"
+import { AlertBanner, EmptyState, MonthPicker, OfflineGuard, PageLayout } from "@/shared/components"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -21,10 +20,10 @@ import {
 } from "@/modules/subscriptions/subscriptions.api"
 import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
-import { OfflineGuard} from "@/shared/components"
 import { TourGuide } from "@/shared/components/TourGuide"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { subscriptionRevenueTourSteps } from "@/shared/lib/tour-steps"
+import { useSchoolYearMonths } from "@/shared/hooks/useSchoolYearMonths"
 
 const toMonth = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`
 const monthLabel = (month: string) => {
@@ -38,6 +37,7 @@ const formatFcfa = (value: number) => `${new Intl.NumberFormat("fr-FR").format(v
 export default function SubscriptionRevenuePage() {
   const studentLabels = useStudentLabels()
   const tour = useTourGuide("subscription-revenue", true)
+  const schoolYear = useSchoolYearMonths()
 
   const [monthCursor, setMonthCursor] = useState<Date>(new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)))
   const [exportOpen, setExportOpen] = useState(false)
@@ -80,9 +80,11 @@ export default function SubscriptionRevenuePage() {
   const summary = summaryQuery.data
   const history = historyQuery.data ?? []
   const monthSubscriptions = monthSubscriptionsQuery.data ?? []
-  const currentMonth = toMonth(new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)))
-  const canGoNextMonth = month !== currentMonth
   const monthSubscriptionsCollected = monthSubscriptions.reduce((sum, item) => sum + item.amount_fcfa, 0)
+
+  const today = toMonth(new Date())
+  const canGoPrev = !schoolYear.bounds || month > schoolYear.bounds.minMonth
+  const canGoNext = toMonth(new Date(Date.UTC(monthCursor.getUTCFullYear(), monthCursor.getUTCMonth() + 1, 1))) <= today
 
   return (
     <>
@@ -113,17 +115,25 @@ export default function SubscriptionRevenuePage() {
               type="button"
               variant="outline"
               size="icon"
+              disabled={!canGoPrev}
               onClick={() => setMonthCursor((prev) => new Date(Date.UTC(prev.getUTCFullYear(), prev.getUTCMonth() - 1, 1)))}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="min-w-40 text-center text-sm capitalize">{monthLabel(month)}</span>
+            <MonthPicker
+              value={month}
+              onChange={(m) => {
+                const [y, mo] = m.split("-").map(Number)
+                setMonthCursor(new Date(Date.UTC(y, (mo ?? 1) - 1, 1)))
+              }}
+              months={schoolYear.monthsInYear}
+            />
             <Button
               type="button"
               variant="outline"
               size="icon"
+              disabled={!canGoNext}
               onClick={() => setMonthCursor((prev) => new Date(Date.UTC(prev.getUTCFullYear(), prev.getUTCMonth() + 1, 1)))}
-              disabled={!canGoNextMonth}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -273,11 +283,11 @@ export default function SubscriptionRevenuePage() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <Label>Du mois</Label>
-              <Input type="month" value={exportFromMonth} onChange={(event) => setExportFromMonth(event.target.value)} max={currentMonth} />
+              <MonthPicker value={exportFromMonth} onChange={setExportFromMonth} months={schoolYear.monthsInYear} />
             </div>
             <div className="space-y-1">
               <Label>Au mois</Label>
-              <Input type="month" value={exportToMonth} onChange={(event) => setExportToMonth(event.target.value)} max={currentMonth} />
+              <MonthPicker value={exportToMonth} onChange={setExportToMonth} months={schoolYear.monthsInYear} />
             </div>
           </div>
           <DialogFooter>

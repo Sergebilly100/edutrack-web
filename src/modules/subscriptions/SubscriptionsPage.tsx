@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CheckCircle2, Info, MoreHorizontal, Search } from "lucide-react"
 
@@ -54,7 +54,8 @@ import {
   type SubscriptionListItem,
   type SubscriptionStatus,
 } from "@/modules/subscriptions/subscriptions.api"
-import { ContextualHelp, EmptyState, OfflineGuard, PageLayout } from "@/shared/components"
+import { ContextualHelp, EmptyState, MonthPicker, OfflineGuard, PageLayout } from "@/shared/components"
+import { useSchoolYearMonths } from "@/shared/hooks/useSchoolYearMonths"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { TourGuide } from "@/shared/components/TourGuide"
@@ -200,9 +201,23 @@ export default function SubscriptionsPage() {
   const { hasPermission } = usePermissions()
   const studentLabels = useStudentLabels()
 
+  const schoolYear = useSchoolYearMonths()
+
   const [status, setStatus] = useState<FilterStatus>("all")
   const [search, setSearch] = useState("")
   const [month, setMonth] = useState(toMonth(new Date()))
+
+  // Recale le mois sélectionné dans les bornes de l'année scolaire une fois la config chargée
+  useEffect(() => {
+    if (!schoolYear.bounds) return
+    const today = toMonth(new Date())
+    const clamp = (m: string) => {
+      if (m < schoolYear.bounds!.minMonth) return schoolYear.bounds!.minMonth
+      if (m > schoolYear.bounds!.maxMonth || m > today) return today < schoolYear.bounds!.maxMonth ? today : schoolYear.bounds!.maxMonth
+      return m
+    }
+    setMonth((current) => clamp(current))
+  }, [schoolYear.bounds])
   const [createdBy, setCreatedBy] = useState<string>("all")
   const [createOpen, setCreateOpen] = useState(false)
   const [renewTarget, setRenewTarget] = useState<SubscriptionListItem | null>(null)
@@ -406,11 +421,10 @@ export default function SubscriptionsPage() {
 
           <div className="space-y-2">
             <Label>Mois de souscription</Label>
-            <Input
-              type="month"
+            <MonthPicker
               value={month}
-              max={toMonth(new Date())}
-              onChange={(event) => setMonth(event.target.value)}
+              onChange={setMonth}
+              months={schoolYear.monthsInYear}
             />
           </div>
 
