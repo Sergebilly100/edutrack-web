@@ -811,21 +811,21 @@ export default function SalariesPage() {
                 <h1 className="text-2xl font-semibold tracking-tight">Gestion des salaires</h1>
                 <p className="text-sm text-muted-foreground">Pilotage mensuel des paies vacataires</p>
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="mt-1 text-muted-foreground"
-                onClick={() => tour.restart()}
-                aria-label="Revoir le guide"
-              >
-                <Info className="mr-1.5 h-4 w-4" />
-                Guide
-              </Button>
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <div className="flex items-center gap-2" data-tour="salaries-month">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-1 text-muted-foreground"
+                  onClick={() => tour.restart()}
+                  aria-label="Revoir le guide"
+                >
+                  <Info className="mr-1.5 h-4 w-4" />
+                  Guide
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
@@ -853,8 +853,17 @@ export default function SalariesPage() {
                   type="button"
                   variant="outline"
                   size="icon"
-                  onClick={() => setSelectedMonth((current) => getNextMonth(current))}
+                  // On ne peut pas consulter un mois futur : le salaire se calcule
+                  // sur des pointages passés. Le bouton est désactivé dès que le
+                  // mois suivant dépasserait le mois courant.
+                  disabled={isFutureMonth(getNextMonth(selectedMonth))}
+                  onClick={() =>
+                    setSelectedMonth((current) =>
+                      isFutureMonth(getNextMonth(current)) ? current : getNextMonth(current)
+                    )
+                  }
                   aria-label="Mois suivant"
+                  title={isFutureMonth(getNextMonth(selectedMonth)) ? "Mois futur indisponible" : undefined}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
