@@ -199,7 +199,11 @@ export default function TeacherSchedulePage() {
         <OfflineIndicator offlineCapable />
       )}
 
-      <InstallPwaCard audience="user" headline="Installez IvoirEdu pour pointer plus vite" />
+      <InstallPwaCard
+        audience="user"
+        headline="Installez IvoirEdu pour pointer plus vite"
+        className="mb-4"
+      />
 
       <header className="rounded-lg border bg-card p-4 shadow-sm !mt-0" data-tour="teacher-app-header">
         <div className="flex items-start justify-between gap-2">

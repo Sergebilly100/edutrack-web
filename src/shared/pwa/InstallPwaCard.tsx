@@ -19,24 +19,28 @@ type InstallPwaCardProps = {
   audience: PushAudience
   /** Texte d'accroche adapté au public. */
   headline?: string
+  className?: string
 }
 
 /**
  * Carte d'onboarding qui guide l'utilisateur (prof ou parent) pour :
  *  1. installer l'app sur son téléphone (PWA),
  *  2. activer les notifications.
- * S'efface d'elle-même si l'app est déjà installée ET les notifs déjà activées.
+ * Reste visible tant que l'app n'est pas installée OU que les notifs ne sont pas
+ * activées (réapparaît donc à chaque connexion). S'efface une fois les deux faits.
  */
-export function InstallPwaCard({ audience, headline }: InstallPwaCardProps) {
+export function InstallPwaCard({ audience, headline, className }: InstallPwaCardProps) {
   const { toast } = useToast()
   const { isInstalled, canPromptInstall, platform, promptInstall } = useInstallPrompt()
   const push = usePushNotifications(audience)
   const [howToOpen, setHowToOpen] = useState(false)
 
   const notificationsActive = push.isSubscribed && push.permission === "granted"
+  const showInstall = !isInstalled
+  const showNotifications = push.isSupported && !notificationsActive
 
-  // Rien à proposer : déjà installée + notifs actives (ou push non supporté).
-  if (isInstalled && (notificationsActive || !push.isSupported)) {
+  // Rien à proposer (déjà installée + notifs actives, ou aucune action possible).
+  if (!showInstall && !showNotifications) {
     return null
   }
 
@@ -47,7 +51,8 @@ export function InstallPwaCard({ audience, headline }: InstallPwaCardProps) {
         toast({ title: "Application installée", description: "Retrouvez IvoirEdu sur votre écran d'accueil." })
       }
     } else {
-      // iOS / navigateurs sans prompt natif → instructions manuelles.
+      // Pas de prompt natif disponible (iOS, ou prompt pas encore prêt) →
+      // on montre les instructions manuelles adaptées à la plateforme.
       setHowToOpen(true)
     }
   }
@@ -67,10 +72,10 @@ export function InstallPwaCard({ audience, headline }: InstallPwaCardProps) {
 
   return (
     <>
-      <Card className="border-blue-200 bg-blue-50/60">
-        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <Card className={`border-blue-200 bg-blue-50/60 ${className ?? ""}`}>
+        <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-3">
-            <span className="mt-0.5 rounded-full bg-blue-100 p-2 text-blue-700">
+            <span className="mt-0.5 shrink-0 rounded-full bg-blue-100 p-2 text-blue-700">
               <Smartphone className="h-5 w-5" />
             </span>
             <div className="space-y-0.5">
@@ -82,20 +87,21 @@ export function InstallPwaCard({ audience, headline }: InstallPwaCardProps) {
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
-            {!isInstalled ? (
-              <Button size="sm" onClick={handleInstall} className="min-h-9">
+          {/* grid 1 colonne sur mobile (boutons pleine largeur), auto en ligne sur desktop */}
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:shrink-0">
+            {showInstall ? (
+              <Button size="sm" onClick={handleInstall} className="min-h-10 w-full lg:w-auto">
                 <Download className="mr-1.5 h-4 w-4" />
                 Installer l'app
               </Button>
             ) : null}
-            {push.isSupported && !notificationsActive ? (
+            {showNotifications ? (
               <Button
                 size="sm"
                 variant="outline"
                 onClick={handleEnableNotifications}
                 disabled={push.isBusy}
-                className="min-h-9"
+                className="min-h-10 w-full lg:w-auto"
               >
                 {notificationsActive ? (
                   <BellRing className="mr-1.5 h-4 w-4" />
@@ -136,14 +142,21 @@ export function InstallPwaCard({ audience, headline }: InstallPwaCardProps) {
             <ol className="space-y-3 text-sm">
               <li className="flex items-start gap-2">
                 <SquarePlus className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
-                <span>Ouvrez le menu <strong>⋮</strong> de votre navigateur.</span>
+                <span>
+                  Ouvrez le menu de votre navigateur (icône <strong>⋮</strong>{" "}
+                  {platform === "desktop" ? "en haut à droite" : "en haut à droite de Chrome"}).
+                </span>
               </li>
               <li className="flex items-start gap-2">
                 <Download className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
                 <span>
                   Touchez <strong>« Installer l'application »</strong> ou{" "}
-                  <strong>« Ajouter à l'écran d'accueil »</strong>.
+                  <strong>« Ajouter à l'écran d'accueil »</strong>, puis confirmez.
                 </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Smartphone className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                <span>L'icône IvoirEdu apparaît sur votre écran d'accueil.</span>
               </li>
             </ol>
           )}
