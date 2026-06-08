@@ -67,6 +67,15 @@ export default function TeacherSchedulePage() {
 
   const [selectedDate, setSelectedDate] = useState(getDefaultTeachingDate)
   const [activeSlot, setActiveSlot] = useState<ScheduleSlot | null>(null)
+  // Tick horloge : force un re-render périodique pour que les états dépendant de
+  // l'heure (statut des cours, auto-fermeture du bouton « Terminer le cours ») se
+  // mettent à jour sans interaction. Sans ce minuteur, le bouton restait affiché
+  // bien après l'heure prévue tant que la page n'était pas rechargée.
+  const [nowTick, setNowTick] = useState(() => Date.now())
+  useEffect(() => {
+    const interval = setInterval(() => setNowTick(Date.now()), 60_000)
+    return () => clearInterval(interval)
+  }, [])
 
   const selectedDateKey = toDateKey(selectedDate)
   const currentMonth = useMemo(() => getCurrentMonthKey(), [])
@@ -149,7 +158,9 @@ export default function TeacherSchedulePage() {
         markFlowDone(slot.id, selectedDateKey)
       }
     }
-  }, [attendanceBySchedule, daySlots, markFlowDone, selectedDate, selectedDateKey])
+    // nowTick : relance cette vérification à chaque tick d'horloge (60s) pour que
+    // l'auto-fermeture s'applique à l'heure dite sans rechargement.
+  }, [attendanceBySchedule, daySlots, markFlowDone, selectedDate, selectedDateKey, nowTick])
 
   /**
    * Les points highlighted dans le DayPicker = jours de la semaine affichée
