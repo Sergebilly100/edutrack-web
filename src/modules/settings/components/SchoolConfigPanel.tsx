@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import axios from "axios"
-import { Building2, KeyRound, Pencil, Plus, Settings2, Shield, Trash2, UserPlus, Users, X } from "lucide-react"
+import { Building2, CheckCircle, KeyRound, Pencil, Plus, Settings2, Shield, Trash2, UserPlus, Users, X } from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
@@ -49,15 +49,30 @@ import {
   updateAdministrativeUser,
   updateSchoolInfo,
   updateSchoolLimit,
+  getSchoolSmsFeatureSettings,
+  updateRealHoursConfig,
 } from "@/modules/settings/settings.api"
 import { cn } from "@/lib/utils"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useAuthStore } from "@/shared/store/auth.store"
+import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form"
+import { Badge } from "@/components/ui/badge"
+import { OfflineGuard } from "@/shared/components/OfflineGuard"
+import { ContextualHelp } from "@/shared/components/ContextualHelp"
+import { zodResolver } from "@hookform/resolvers/zod/dist/zod.js"
+import { useForm } from "react-hook-form"
+import { z } from "zod"
 
 const SETTINGS_QUERY_KEY = ["settings", "school-config"] as const
 const PHONE_CI_REGEX = /^225\d{10}$/
 
 const normalizePhoneInput = (value: string) => value.replace(/\D/g, "").slice(0, 13)
+
+const smsPriceSchema = z.object({
+  smsUnitPriceFcfa: z.number().int().min(1).max(50000),
+  checkoutToleranceMinutes: z.number().int().min(0).max(30),
+})
+type SmsPriceFormValues = z.infer<typeof smsPriceSchema>
 
 export default function SchoolConfigPanel() {
   const queryClient = useQueryClient()
@@ -65,6 +80,7 @@ export default function SchoolConfigPanel() {
   const user = useAuthStore((state) => state.user)
   const { hasPermission } = usePermissions()
   const canManagePositions = hasPermission("settings.positions")
+  const canManageSchoolSettings = user?.role === "director" || hasPermission("settings.school")
 
   const [positionModalOpen, setPositionModalOpen] = useState(false)
   const [positionToEdit, setPositionToEdit] = useState<PositionPayload | null>(null)
@@ -94,6 +110,34 @@ export default function SchoolConfigPanel() {
   const schoolConfigQuery = useQuery({
     queryKey: SETTINGS_QUERY_KEY,
     queryFn: fetchSchoolConfig,
+  })
+
+  const smsFeatureQuery = useQuery({
+    queryKey: ["settings", "sms-feature"],
+    queryFn: getSchoolSmsFeatureSettings,
+  })
+
+  const smsPriceForm = useForm<SmsPriceFormValues>({
+    resolver: zodResolver(smsPriceSchema),
+    defaultValues: {
+      smsUnitPriceFcfa: smsFeatureQuery.data?.sms_unit_price_fcfa ?? 0,
+      checkoutToleranceMinutes: smsFeatureQuery.data?.checkout_tolerance_minutes ?? 5,
+    },
+  })
+
+  const saveRealHoursConfigMutation = useMutation({
+    mutationFn: (values: SmsPriceFormValues) => updateRealHoursConfig(values.checkoutToleranceMinutes),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["settings", "sms-feature"] })
+      toast({ title: "Tolérance heures réelles sauvegardée" })
+    },
+    onError: (error) => {
+      toast({
+        title: "Erreur",
+        description: error instanceof Error ? error.message : "Impossible de sauvegarder la tolérance.",
+        variant: "destructive",
+      })
+    },
   })
 
   const [maxAdminPositions, setMaxAdminPositions] = useState("0")
@@ -663,7 +707,7 @@ export default function SchoolConfigPanel() {
                 </div>
               </div>
             </div>
-            <div className="mt-8 rounded-lg border border-border bg-background p-4">
+            <div className="mt-8 rounded-lg border border-border bg-background p-4" data-tour="settings-qr-skip-policy">
               <div className="space-y-3">
                 <div>
                   <p className="text-sm font-medium mb-5">Politique de scan QR Codes des salles</p>
@@ -701,6 +745,90 @@ export default function SchoolConfigPanel() {
             </div>
           </div>
         </div>
+
+        {canManageSchoolSettings ? (
+          <section
+            data-tour="settings-real-hours"
+            className={
+              smsFeatureQuery.data?.use_real_hours
+                ? "space-y-4 rounded-lg border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900/70 dark:bg-blue-950/20"
+                : "space-y-3 rounded-lg border border-dashed border-border bg-muted/40 p-4 opacity-90"
+            }
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold">Heures réelles</h2>
+                <p className="text-xs text-muted-foreground">
+                  Tolérance appliquée au check-out avant qu&apos;une présence courte passe en validation.
+                </p>
+              </div>
+              <Badge variant={smsFeatureQuery.data?.use_real_hours ? "default" : "outline"}>
+                {smsFeatureQuery.data?.use_real_hours ? "Activé" : "Ignoré"}
+              </Badge>
+            </div>
+
+            {smsFeatureQuery.data?.use_real_hours ? (
+              <Form {...smsPriceForm}>
+                <form
+                  onSubmit={smsPriceForm.handleSubmit((values) => saveRealHoursConfigMutation.mutate(values))}
+                  className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
+                >
+                  <FormField
+                    control={smsPriceForm.control}
+                    name="checkoutToleranceMinutes"
+                    render={({ field }) => (
+                      <FormItem className="space-y-2">
+                        <Label htmlFor="checkout-tolerance-minutes">Tolérance check-out (minutes)</Label>
+                        <FormControl>
+                          <Input
+                            id="checkout-tolerance-minutes"
+                            inputMode="numeric"
+                            maxLength={2}
+                            placeholder="5"
+                            {...field}
+                            onChange={(event) => field.onChange(Number(event.target.value.replace(/\D/g, "")))}
+                            value={field.value === 0 ? "" : String(field.value)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                        <p className="text-xs text-muted-foreground">
+                          Entier entre 0 et 30. Une présence plus courte part en validation.
+                        </p>
+                      </FormItem>
+                    )}
+                  />
+                  {saveRealHoursConfigMutation.isSuccess && !smsPriceForm.formState.isDirty ? (
+                    <div className="flex items-center gap-2 text-green-600 animate-in fade-in duration-300">
+                      <CheckCircle className="h-4 w-4" />
+                      <span className="text-sm font-medium">Tolérance sauvegardée</span>
+                    </div>
+                  ) : (
+                    <OfflineGuard>
+                      <Button
+                        type="submit"
+                        disabled={
+                          saveRealHoursConfigMutation.isPending ||
+                          !smsPriceForm.formState.dirtyFields.checkoutToleranceMinutes ||
+                          !smsPriceForm.formState.isValid
+                        }
+                      >
+                        {saveRealHoursConfigMutation.isPending
+                          ? "Sauvegarde..."
+                          : smsPriceForm.formState.dirtyFields.checkoutToleranceMinutes
+                            ? "Sauvegarder"
+                            : "Tolérance à jour"}
+                      </Button>
+                    </OfflineGuard>
+                  )}
+                </form>
+              </Form>
+            ) : (
+              <ContextualHelp title="Heures réelles désactivées" tone="warning">
+                La valeur de tolérance existe en base mais elle est ignorée tant que les heures réelles ne sont pas activées par IvoirEdu.
+              </ContextualHelp>
+            )}
+          </section>
+        ) : null}
 
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[2fr_1fr]">
           <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="settings-positions-panel">

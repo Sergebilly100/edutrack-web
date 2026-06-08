@@ -406,14 +406,20 @@ export const settingsTourSteps: Step[] = [
   {
     target: "[data-tour='settings-school-info-header']",
     title: "Informations de l'école",
-    content: "Ce formulaire contient les données de base : nom de l'école, type d'établissement, année scolaire en cours et le terme utilisé pour les apprenants (élève ou étudiant). Ces valeurs apparaissent dans tous les exports et rapports.",
+    content: "Ce formulaire contient les données de base : nom de l'école, type d'établissement, année scolaire en cours etc. Ces valeurs apparaissent dans les exports et rapports.",
     placement: "bottom",
     skipBeacon: true,
   },
   {
     target: "[data-tour='settings-logo']",
     title: "Logo de l'école",
-    content: "Importez ici le logo officiel de votre établissement. Il sera affiché sur les exports PDF (bilans de salaires, relevés de présence) et sur le portail parent. Format recommandé : PNG ou SVG, fond transparent.",
+    content: "Importez ici le logo officiel de votre établissement. Il sera affiché sur les exports PDF (bilans de salaires etc). Format recommandé : PNG fond transparent.",
+    placement: "bottom",
+  },
+    {
+    target: "[data-tour='settings-qr-skip-policy']",
+    title: "Politique de scan QR Codes",
+    content: "Contrôlez si les enseignants peuvent terminer le flux de pointage sans scanner le QR code de salle. Si cette option est activée, les enseignants peuvent confirmer leur présence sans scan, mais cela peut réduire la fiabilité des données de présence. Si elle est désactivée, le scan du QR code de la salle est obligatoire pour valider une présence.",
     placement: "bottom",
   },
   {
@@ -425,7 +431,7 @@ export const settingsTourSteps: Step[] = [
   {
     target: "[data-tour='settings-positions-panel']",
     title: "Postes administratifs",
-    content: "Créez et gérez ici les postes du personnel administratif (secrétaire, comptable, surveillant…). Chaque poste peut se voir attribuer des droits précis : certains peuvent marquer les salaires payés, d'autres seulement consulter. Les droits sont cumulatifs avec le rôle.",
+    content: "Créez et gérez ici les postes du personnel administratif (secrétaire, Censeur, comptable, surveillant…). Chaque poste peut se voir attribuer des droits précis : certains peuvent marquer les salaires payés, d'autres seulement consulter. Les droits sont cumulatifs avec le rôle.",
     placement: "bottom",
   },
   {
@@ -437,19 +443,19 @@ export const settingsTourSteps: Step[] = [
   {
     target: "[data-tour='settings-admin-users']",
     title: "Utilisateurs administratifs",
-    content: "Gérez ici les comptes du personnel administratif (hors professeurs). Pour chaque compte, vous assignez un poste qui détermine ses droits. Ces utilisateurs accèdent à l'interface web mais pas à l'application de pointage des profs.",
+    content: "Gérez ici les comptes du personnel administratif (hors professeurs). Pour chaque compte, vous assignez un poste créé au préalable qui détermine ses droits. Ces utilisateurs accèdent à l'interface web mais pas à l'application de pointage des profs.",
     placement: "top",
   },
   {
     target: "[data-tour='settings-sms-templates-panel']",
     title: "Modèles de messages SMS",
-    content: "Personnalisez le texte des SMS envoyés aux parents lors des absences. Les mots entre doubles accolades ({{élève}}, {{matière}}, {{heure}}) sont remplacés automatiquement par les vraies valeurs au moment de l'envoi.",
+    content: "Personnalisez le texte des SMS envoyés aux parents lors des absences. Les mots entre doubles accolades ({élève}, {matière}, {heure}) sont remplacés automatiquement par les vraies valeurs au moment de l'envoi.",
     placement: "top",
   },
   {
     target: "[data-tour='settings-sms']",
-    title: "Service SMS parents",
-    content: "Ce bloc apparaît si votre école utilise la facturation des alertes SMS parents. Définissez ici le tarif par élève/mois (en FCFA) facturé aux parents abonnés. La commission IvoirEdu est calculée automatiquement sur ce montant.",
+    title: "Service Alertes Parents",
+    content: "Ce bloc apparaît si votre école utilise la facturation des alertes parents. Définissez ici le tarif par élève/mois (en FCFA) facturé aux parents abonnés. La commission IvoirEdu est calculée automatiquement sur ce montant.",
     placement: "top",
   },
 ]

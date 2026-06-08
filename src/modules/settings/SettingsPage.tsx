@@ -4,7 +4,6 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CheckCircle, Info } from "lucide-react"
-
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,7 +16,6 @@ import SmsTemplatePanel from "@/modules/settings/components/SmsTemplatePanel"
 import {
   fetchSchoolConfig,
   getSchoolSmsFeatureSettings,
-  updateRealHoursConfig,
   updateSchoolSmsUnitPrice,
 } from "@/modules/settings/settings.api"
 import { OfflineDisabledFieldset } from "@/shared/components/OfflineDisabledFieldset"
@@ -97,20 +95,6 @@ export default function SettingsPage() {
     },
   })
 
-  const saveRealHoursConfigMutation = useMutation({
-    mutationFn: (values: SmsPriceFormValues) => updateRealHoursConfig(values.checkoutToleranceMinutes),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["settings", "sms-feature"] })
-      toast({ title: "Tolérance heures réelles sauvegardée" })
-    },
-    onError: (error) => {
-      toast({
-        title: "Erreur",
-        description: error instanceof Error ? error.message : "Impossible de sauvegarder la tolérance.",
-        variant: "destructive",
-      })
-    },
-  })
   const schoolConfigState = schoolConfigQuery.isLoading
     ? "Chargement"
     : schoolConfigQuery.isError
@@ -165,7 +149,7 @@ export default function SettingsPage() {
             <p className="text-sm font-semibold">Centre de configuration</p>
             <p className="text-xs text-muted-foreground">
               {parentSmsMonetized
-                ? "Les accès, le service SMS Parents et les templates sont visibles au même endroit."
+                ? "Les accès, le service Alertes Parents et les templates sont visibles au même endroit."
                 : "Les accès et les templates sont visibles au même endroit."}
             </p>
           </div>
@@ -204,90 +188,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {canManageSchoolSettings ? (
-        <section
-          data-tour="settings-real-hours"
-          className={
-            smsFeatureQuery.data?.use_real_hours
-              ? "space-y-4 rounded-lg border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900/70 dark:bg-blue-950/20"
-              : "space-y-3 rounded-lg border border-dashed border-border bg-muted/40 p-4 opacity-90"
-          }
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold">Heures réelles</h2>
-              <p className="text-xs text-muted-foreground">
-                Tolérance appliquée au check-out avant qu&apos;une présence courte passe en validation.
-              </p>
-            </div>
-            <Badge variant={smsFeatureQuery.data?.use_real_hours ? "default" : "outline"}>
-              {smsFeatureQuery.data?.use_real_hours ? "Activé" : "Ignoré"}
-            </Badge>
-          </div>
-
-          {smsFeatureQuery.data?.use_real_hours ? (
-            <Form {...smsPriceForm}>
-              <form
-                onSubmit={smsPriceForm.handleSubmit((values) => saveRealHoursConfigMutation.mutate(values))}
-                className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
-              >
-                <FormField
-                  control={smsPriceForm.control}
-                  name="checkoutToleranceMinutes"
-                  render={({ field }) => (
-                    <FormItem className="space-y-2">
-                      <Label htmlFor="checkout-tolerance-minutes">Tolérance check-out (minutes)</Label>
-                      <FormControl>
-                        <Input
-                          id="checkout-tolerance-minutes"
-                          inputMode="numeric"
-                          maxLength={2}
-                          placeholder="5"
-                          {...field}
-                          onChange={(event) => field.onChange(Number(event.target.value.replace(/\D/g, "")))}
-                          value={field.value === 0 ? "" : String(field.value)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                      <p className="text-xs text-muted-foreground">
-                        Entier entre 0 et 30. Une présence plus courte part en validation.
-                      </p>
-                    </FormItem>
-                  )}
-                />
-                {saveRealHoursConfigMutation.isSuccess && !smsPriceForm.formState.isDirty ? (
-                  <div className="flex items-center gap-2 text-green-600 animate-in fade-in duration-300">
-                    <CheckCircle className="h-4 w-4" />
-                    <span className="text-sm font-medium">Tolérance sauvegardée</span>
-                  </div>
-                ) : (
-                  <OfflineGuard>
-                    <Button
-                      type="submit"
-                      disabled={
-                        saveRealHoursConfigMutation.isPending ||
-                        !smsPriceForm.formState.dirtyFields.checkoutToleranceMinutes ||
-                        !smsPriceForm.formState.isValid
-                      }
-                    >
-                      {saveRealHoursConfigMutation.isPending
-                        ? "Sauvegarde..."
-                        : smsPriceForm.formState.dirtyFields.checkoutToleranceMinutes
-                          ? "Sauvegarder"
-                          : "Tolérance à jour"}
-                    </Button>
-                  </OfflineGuard>
-                )}
-              </form>
-            </Form>
-          ) : (
-            <ContextualHelp title="Heures réelles désactivées" tone="warning">
-              La valeur de tolérance existe en base mais elle est ignorée tant que les heures réelles ne sont pas activées par IvoirEdu.
-            </ContextualHelp>
-          )}
-        </section>
-      ) : null}
-
       {canManagePositions && schoolConfigQuery.isError ? (
         <Alert variant="destructive">
           <AlertDescription>
@@ -299,7 +199,7 @@ export default function SettingsPage() {
       {canManageSchoolSettings && smsFeatureQuery.isError ? (
         <Alert variant="destructive">
           <AlertDescription>
-            Impossible de charger les paramètres SMS Parents. Le tarif ne peut pas être modifié pour le moment.
+            Impossible de charger les paramètres Alertes Parents. Le tarif ne peut pas être modifié pour le moment.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -311,6 +211,7 @@ export default function SettingsPage() {
         </OfflineDisabledFieldset>
         </div>
       ) : null}
+
       {canAccessSmsTemplate ? (
         <div data-tour="settings-sms-templates-panel">
         <OfflineDisabledFieldset notice="Templates SMS indisponibles hors ligne.">
@@ -325,9 +226,9 @@ export default function SettingsPage() {
         <section className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/70 dark:bg-emerald-950/20" data-tour="settings-sms">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold">Service SMS Parents</h2>
+              <h2 className="text-sm font-semibold">Service Alertes Parents</h2>
               <p className="text-xs text-muted-foreground">
-                Paramétrage de la souscription parent pour les notifications SMS.
+                Paramétrage de la souscription parent pour les notifications.
               </p>
             </div>
             <Badge variant="default">Activé</Badge>
@@ -390,7 +291,7 @@ export default function SettingsPage() {
             </Form>
           ) : (
             <ContextualHelp title="Activation requise" tone="warning">
-              Le portail d&apos;abonnement parent et les notifications SMS restent masqués tant que le service SMS Parents n&apos;est pas activé par IvoirEdu.
+              Le portail d&apos;abonnement parent et les notifications Alertes Parents restent masqués tant que le service Alertes Parents n&apos;est pas activé par IvoirEdu.
             </ContextualHelp>
           )}
         </section>
@@ -398,7 +299,7 @@ export default function SettingsPage() {
 
       {!canManagePositions && !canManageSchoolSettings && !canAccessSmsTemplate ? (
         <ContextualHelp title="Paramètres non disponibles" tone="warning">
-          Votre poste ne donne pas accès à la configuration école. Demandez au directeur les droits paramètres école, postes ou templates SMS selon la tâche à réaliser.
+          Votre poste ne donne pas accès à la configuration école. Demandez au directeur les droits paramètres école, postes ou templates Alertes Parents selon la tâche à réaliser.
         </ContextualHelp>
       ) : null}
     </div>
