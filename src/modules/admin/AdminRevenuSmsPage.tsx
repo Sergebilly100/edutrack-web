@@ -72,12 +72,12 @@ export default function AdminRevenuSmsPage() {
           Les SMS comptés sont les <strong>notifications d&apos;absence envoyées aux parents</strong> abonnés.
         </p>
         <div className="flex items-center gap-2 pt-2">
-          <Button type="button" variant="outline" size="icon"
+          <Button type="button" variant="outline" size="icon" aria-label="Mois précédent"
             onClick={() => setCursor((p) => new Date(Date.UTC(p.getUTCFullYear(), p.getUTCMonth() - 1, 1)))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="min-w-44 text-center text-sm font-medium capitalize">{monthLabel(month)}</span>
-          <Button type="button" variant="outline" size="icon" disabled={isCurrentMonth}
+          <Button type="button" variant="outline" size="icon" disabled={isCurrentMonth} aria-label="Mois suivant"
             onClick={() => setCursor((p) => new Date(Date.UTC(p.getUTCFullYear(), p.getUTCMonth() + 1, 1)))}>
             <ChevronRight className="h-4 w-4" />
           </Button>

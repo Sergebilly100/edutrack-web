@@ -203,8 +203,12 @@ function ParentLoginRoute() {
 }
 
 function TeacherShell({ element }: { element: ReactElement }) {
+  // h-screen (et non min-h-screen) : le body a overflow:hidden, donc le scroll
+  // doit être porté par <main> (flex-1 overflow-y-auto). Avec min-h-screen, le
+  // conteneur s'étendait au-delà de la fenêtre sans jamais permettre le défilement
+  // → contenu inaccessible dès que la page dépasse la hauteur de l'écran.
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex h-screen flex-col bg-background">
       <TeacherTopBar />
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-lg px-4 py-4 lg:max-w-4xl lg:py-6">{element}</div>

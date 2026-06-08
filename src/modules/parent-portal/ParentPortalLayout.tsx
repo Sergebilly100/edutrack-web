@@ -59,7 +59,9 @@ export default function ParentPortalLayout() {
         onStepChange={tour.setStepIndex}
         onFinish={tour.markDone}
       />
-      <div className="min-h-screen bg-background text-base">
+      {/* h-screen + overflow-y-auto : le body a overflow:hidden, c'est donc ce
+          conteneur qui porte le défilement. Le header reste sticky en haut. */}
+      <div className="h-screen overflow-y-auto bg-background text-base">
         <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur-sm">
           <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-4 lg:max-w-5xl">
             <div className="flex items-center gap-2.5">

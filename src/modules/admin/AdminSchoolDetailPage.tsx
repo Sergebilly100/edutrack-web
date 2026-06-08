@@ -1602,6 +1602,7 @@ export default function AdminSchoolDetailPage() {
                           type="button"
                           variant="ghost"
                           size="icon"
+                          aria-label="Mois précédent"
                           onClick={() => setRevenueMonth(prevMonth(revenueMonth))}
                         >
                           <ChevronLeft className="h-4 w-4" />
@@ -1611,6 +1612,7 @@ export default function AdminSchoolDetailPage() {
                           type="button"
                           variant="ghost"
                           size="icon"
+                          aria-label="Mois suivant"
                           onClick={() => setRevenueMonth(nextMonth(revenueMonth))}
                           disabled={isNextMonthDisabled}
                         >
