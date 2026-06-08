@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CheckCircle2, MoreHorizontal, Search } from "lucide-react"
+import { CheckCircle2, Info, MoreHorizontal, Search } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
@@ -56,6 +56,9 @@ import {
 import { ContextualHelp, EmptyState, OfflineGuard, PageLayout } from "@/shared/components"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { subscriptionsTourSteps } from "@/shared/lib/tour-steps"
 import { todayInBusinessTimezone } from "@/shared/lib/business-date"
 
 const formatFcfa = (value: number) => `${new Intl.NumberFormat("fr-FR").format(value)} FCFA`
@@ -205,6 +208,7 @@ export default function SubscriptionsPage() {
   const canRenew = hasPermission("subscriptions.renew")
   const canCancel = hasPermission("subscriptions.cancel")
   const canResetPassword = hasPermission("subscriptions.password.reset")
+  const tour = useTourGuide("subscriptions", true)
 
   const featureQuery = useQuery({
     queryKey: ["subscriptions", "feature-settings"],
@@ -328,20 +332,41 @@ export default function SubscriptionsPage() {
   }
 
   return (
+    <>
+      <TourGuide
+        steps={subscriptionsTourSteps}
+        run={tour.run}
+        stepIndex={tour.stepIndex}
+        onStepChange={tour.setStepIndex}
+        onFinish={tour.markDone}
+      />
     <PageLayout
       title="Abonnements parents"
       subtitle={`(${activeCount} actifs)`}
       actions={
-        canCreate ? (
-          <OfflineGuard>
-            <Button type="button" className="w-full sm:w-auto" onClick={() => setCreateOpen(true)}>
-              Nouvel abonnement
-            </Button>
-          </OfflineGuard>
-        ) : null
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={() => tour.restart()}
+            aria-label="Revoir le guide"
+          >
+            <Info className="mr-1.5 h-4 w-4" />
+            Guide
+          </Button>
+          {canCreate ? (
+            <OfflineGuard>
+              <Button type="button" className="w-full sm:w-auto" onClick={() => setCreateOpen(true)} data-tour="subscriptions-add-btn">
+                Nouvel abonnement
+              </Button>
+            </OfflineGuard>
+          ) : null}
+        </div>
       }
     >
-      <section className="rounded-lg border bg-card p-3 shadow-sm sm:p-4">
+      <section className="rounded-lg border bg-card p-3 shadow-sm sm:p-4" data-tour="subscriptions-filters">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
           <div className="space-y-2">
             <Label>État de l'accès</Label>
@@ -400,7 +425,7 @@ export default function SubscriptionsPage() {
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
+      <section className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3" data-tour="subscriptions-stats">
         <Card className="rounded-lg shadow-sm">
           <CardContent className="space-y-1 p-3 sm:p-4">
             <p className="text-xs text-muted-foreground">Abonnements actifs</p>
@@ -470,7 +495,7 @@ export default function SubscriptionsPage() {
         </Alert>
       ) : null}
 
-      <section className="hidden overflow-x-auto rounded-lg border bg-card shadow-sm md:block">
+      <section className="hidden overflow-x-auto rounded-lg border bg-card shadow-sm md:block" data-tour="subscriptions-table">
         <table className="w-full min-w-[960px] text-sm">
           <thead className="bg-muted/50">
             <tr>
@@ -824,5 +849,6 @@ export default function SubscriptionsPage() {
         </DialogContent>
       </Dialog>
     </PageLayout>
+    </>
   )
 }

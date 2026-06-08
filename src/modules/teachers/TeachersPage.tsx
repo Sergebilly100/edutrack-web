@@ -56,16 +56,20 @@ import {
   BlockIcon,
   ChevronRightIcon,
   ExportIcon,
+  InfoIcon,
   MoreIcon,
   TeachersIcon,
   UnblockIcon,
   ViewIcon,
 } from "@/shared/components/icons"
 import { ConfirmActionDialog, DataTable, EmptyState, OfflineGuard, PageLayout } from "@/shared/components"
+import { TourGuide } from "@/shared/components/TourGuide"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
+import { teachersTourSteps } from "@/shared/lib/tour-steps"
 
 const THIRTY_DAYS_MS = 1000 * 60 * 60 * 24 * 30
 
@@ -648,6 +652,8 @@ export default function TeachersPage() {
     [canToggleBlocked, navigate]
   )
 
+  const tour = useTourGuide("teachers", Boolean(user && (user.role === "director" || isStaffRole(user.role))))
+
   if (!user) return null
 
   if (user.role !== "director" && !isStaffRole(user.role)) {
@@ -663,35 +669,54 @@ export default function TeachersPage() {
   }
 
   return (
+    <>
+    <TourGuide
+      steps={teachersTourSteps}
+      run={tour.run}
+      stepIndex={tour.stepIndex}
+      onStepChange={tour.setStepIndex}
+      onFinish={tour.markDone}
+    />
     <PageLayout
       title={`Professeurs`}
       subtitle="Gestion des profs, blocage et export"
       actions={
-        canCreateTeacher || canResetTeacherPassword ? (
-          <div className="flex flex-wrap gap-2">
-            {canResetTeacherPassword ? (
-              <OfflineGuard>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={sendCredentialsMutation.isPending}
-                  onClick={() => setSendCredentialsConfirmOpen(true)}
-                  title="Envoie un email avec un mot de passe temporaire aux profs qui n'ont jamais reçu leurs identifiants."
-                >
-                  {sendCredentialsMutation.isPending ? "Envoi..." : "Envoyer les identifiants"}
-                </Button>
-              </OfflineGuard>
-            ) : null}
-            {canCreateTeacher ? (
-              <OfflineGuard>
-                <Button type="button" onClick={() => setCreateOpen(true)}>
-                  <AddIcon className="mr-2 h-4 w-4" />
-                  Ajouter un prof
-                </Button>
-              </OfflineGuard>
-            ) : null}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={() => tour.restart()}
+            aria-label="Revoir le guide"
+          >
+            <InfoIcon className="mr-1.5 h-4 w-4" />
+            Guide
+          </Button>
+          <div className="flex flex-wrap gap-2" data-tour="teachers-actions">
+          {canResetTeacherPassword ? (
+            <OfflineGuard>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={sendCredentialsMutation.isPending}
+                onClick={() => setSendCredentialsConfirmOpen(true)}
+                title="Envoie un email avec un mot de passe temporaire aux profs qui n'ont jamais reçu leurs identifiants."
+              >
+                {sendCredentialsMutation.isPending ? "Envoi..." : "Envoyer les identifiants"}
+              </Button>
+            </OfflineGuard>
+          ) : null}
+          {canCreateTeacher ? (
+            <OfflineGuard>
+              <Button type="button" onClick={() => setCreateOpen(true)}>
+                <AddIcon className="mr-2 h-4 w-4" />
+                Ajouter un prof
+              </Button>
+            </OfflineGuard>
+          ) : null}
           </div>
-        ) : null
+        </div>
       }
     >
       <Tabs
@@ -702,6 +727,7 @@ export default function TeachersPage() {
           setSearchParams(next, { replace: true })
         }}
         className="space-y-4"
+        data-tour="teachers-tabs"
       >
         <TabsList
           className={cn(
@@ -713,12 +739,12 @@ export default function TeachersPage() {
                 : "grid-cols-1 md:w-[220px]"
           )}
         >
-          <TabsTrigger value="liste" className="min-h-12 rounded-lg text-sm font-medium">Liste</TabsTrigger>
+          <TabsTrigger value="liste" className="min-h-12 rounded-lg text-sm font-medium" data-tour="teachers-tab-liste">Liste</TabsTrigger>
           {canViewTeacherAnalysis ? (
-            <TabsTrigger value="analyse" className="min-h-12 rounded-lg text-sm font-medium">Analyse présence</TabsTrigger>
+            <TabsTrigger value="analyse" className="min-h-12 rounded-lg text-sm font-medium" data-tour="teachers-tab-analyse">Analyse présence</TabsTrigger>
           ) : null}
           {canViewTeacherRanking ? (
-            <TabsTrigger value="classement" className="min-h-12 rounded-lg text-sm font-medium">Classement</TabsTrigger>
+            <TabsTrigger value="classement" className="min-h-12 rounded-lg text-sm font-medium" data-tour="teachers-tab-classement">Classement</TabsTrigger>
           ) : null}
         </TabsList>
 
@@ -764,6 +790,7 @@ export default function TeachersPage() {
           <div
             className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-sm"
             data-testid="teachers-filters"
+            data-tour="teachers-filters"
           >
             <div className="grid gap-3 md:grid-cols-3">
               <Select
@@ -1062,5 +1089,6 @@ export default function TeachersPage() {
         />
       ) : null}
     </PageLayout>
+    </>
   )
 }

@@ -115,7 +115,6 @@ export function PresenceHeatmap({ month, rows }: PresenceHeatmapProps) {
         <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" />Présent</span>
         <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" />Retard</span>
         <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" />Absent</span>
-        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-blue-500" />Excusé</span>
       </div>
     </div>
   )

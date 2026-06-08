@@ -544,8 +544,8 @@ export default function SchoolConfigPanel() {
   return (
     <>
       <div className="space-y-5">
-        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-          <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4">
+        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="settings-school-info">
+          <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4" data-tour="settings-school-info-header">
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background">
                 <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
@@ -598,7 +598,7 @@ export default function SchoolConfigPanel() {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-border bg-background p-4">
+              <div className="rounded-lg border border-border bg-background p-4" data-tour="settings-logo">
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
                     {logoUrlDraft ? (
@@ -703,7 +703,7 @@ export default function SchoolConfigPanel() {
         </div>
 
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[2fr_1fr]">
-          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="settings-positions-panel">
             <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background">
@@ -801,7 +801,7 @@ export default function SchoolConfigPanel() {
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="settings-limits">
             <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background">
@@ -849,7 +849,7 @@ export default function SchoolConfigPanel() {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="settings-admin-users">
           <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4">
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background">

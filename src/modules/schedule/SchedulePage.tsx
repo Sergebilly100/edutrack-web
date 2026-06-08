@@ -46,6 +46,7 @@ import {
   ChevronRightIcon,
   DeleteIcon,
   EditIcon,
+  InfoIcon,
   LayoutGridIcon,
   ListIcon,
   ScheduleIcon,
@@ -61,6 +62,9 @@ import {
   type ScheduleUpdateOfflinePayload,
 } from "@/shared/store/offline-processors"
 import { useAuthStore } from "@/shared/store/auth.store"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { scheduleTourSteps } from "@/shared/lib/tour-steps"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 
 import WeekGrid from "./components/WeekGrid"
@@ -224,6 +228,7 @@ export default function SchedulePage() {
   const { hasPermission } = usePermissions()
   const queryClient = useQueryClient()
   const { toast } = useToast()
+  const tour = useTourGuide("schedule", !!user)
 
   const [teacherFilter, setTeacherFilter] = useState("all")
   const [classFilter, setClassFilter] = useState("all")
@@ -648,6 +653,14 @@ export default function SchedulePage() {
   const todayDayValue = mondayKey === currentMondayKey ? isoDayOfWeek(today) : null
 
   return (
+    <>
+      <TourGuide
+        steps={scheduleTourSteps}
+        run={tour.run}
+        stepIndex={tour.stepIndex}
+        onStepChange={tour.setStepIndex}
+        onFinish={tour.markDone}
+      />
     <div className="space-y-6 px-4 md:px-1">
       <OfflineIndicator offlineCapable />
       <header className="space-y-4">
@@ -662,17 +675,30 @@ export default function SchedulePage() {
             <p className="text-sm text-muted-foreground">Vue hebdomadaire et gestion des créneaux de cours.</p>
           </div>
 
-          {canEditSchedule ? (
-            <Button onClick={() => openCreateModal()} disabled={!data} className="w-full sm:w-auto">
-              <AddIcon className="mr-2 h-4 w-4" />Ajouter un créneau
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={() => tour.restart()}
+              aria-label="Revoir le guide"
+            >
+              <InfoIcon className="mr-1.5 h-4 w-4" />
+              Guide
             </Button>
-          ) : (
-            <Badge variant="outline">Lecture seule</Badge>
-          )}
+            {canEditSchedule ? (
+              <Button onClick={() => openCreateModal()} disabled={!data} className="w-full sm:w-auto" data-tour="schedule-add-btn">
+                <AddIcon className="mr-2 h-4 w-4" />Ajouter un créneau
+              </Button>
+            ) : (
+              <Badge variant="outline">Lecture seule</Badge>
+            )}
+          </div>
         </div>
 
         {/* ── Barre de contrôles ─────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-2 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-2 shadow-sm" data-tour="schedule-periods">
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             <Button
               type="button"
@@ -803,6 +829,7 @@ export default function SchedulePage() {
       ) : null}
 
       {!scheduleQuery.isLoading && data && viewMode === "grid" ? (
+        <div data-tour="schedule-grid">
         <WeekGrid
           slots={filteredSchedules}
           weekStart={weekStartDate}
@@ -814,25 +841,26 @@ export default function SchedulePage() {
           onToday={() => setWeekFromIso(currentWeekMonday)}
           isBlockedTeacher={(id) => blockedTeachers.has(id)}
         />
+        </div>
       ) : null}
 
       {!scheduleQuery.isLoading && data && viewMode === "list" ? (
         <>
           {/* Vue desktop */}
-          <Card className="hidden md:block">
+          <Card className="hidden md:block" data-tour="schedule-grid">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <ScheduleIcon className="h-5 w-5" />Vue liste
               </CardTitle>
               <CardDescription>
                 {data.period
-                  ? `${data.period.name} · ${data.period.validFrom} → ${data.period.validTo}`
+                  ? `${data.period.validFrom} → ${data.period.validTo}`
                   : "Sans période active"}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <table className="min-w-full table-fixed border-collapse text-sm">
+                <table className="min-w-full table-fixed border-collapse text-sm" >
                   <thead>
                     <tr className="bg-muted/40">
                       <th className="w-32 border p-2 text-left text-xs font-semibold text-muted-foreground">
@@ -1442,5 +1470,6 @@ export default function SchedulePage() {
         </DialogContent>
       </Dialog>
     </div>
+    </>
   )
 }

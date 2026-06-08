@@ -26,11 +26,14 @@ import { fetchWeeklySchedule } from "@/modules/schedule/schedule.api"
 import StudentAbsencePanel from "@/modules/students/components/StudentAbsencePanel"
 import { createStudent, getAttendanceHistory, listStudents, type StudentItem } from "@/modules/students/students.api"
 import { DataTable, EmptyState, OfflineGuard, PageLayout } from "@/shared/components"
-import { AddIcon, AppIcon, ChevronRightIcon, FilterIcon, StudentsIcon } from "@/shared/components/icons"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { AddIcon, AppIcon, ChevronRightIcon, FilterIcon, InfoIcon, StudentsIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { normalizePhoneInput, isValidOptionalPhone } from "@/shared/utils/phone"
+import { studentsTourSteps } from "@/shared/lib/tour-steps"
 
 type StudentTableRow = StudentItem & {
   name: string
@@ -291,6 +294,8 @@ export default function StudentsPage() {
     [canViewAttendance, studentLabels.singular]
   )
 
+  const tour = useTourGuide("students", Boolean(user && (user.role === "director" || isStaffRole(user.role))))
+
   if (!user) {
     return null
   }
@@ -306,18 +311,39 @@ export default function StudentsPage() {
   }
 
   return (
+    <>
+    <TourGuide
+      steps={studentsTourSteps}
+      run={tour.run}
+      stepIndex={tour.stepIndex}
+      onStepChange={tour.setStepIndex}
+      onFinish={tour.markDone}
+    />
     <PageLayout
       title={studentLabels.plural}
       subtitle={`Liste des ${studentLabels.pluralLower} et suivi des absences`}
       actions={
-        canCreateStudent ? (
-          <OfflineGuard>
-            <Button type="button" onClick={() => setCreateDialogOpen(true)}>
-              <AddIcon className="mr-2 h-4 w-4" />
-              {`Ajouter un ${studentLabels.singularLower}`}
-            </Button>
-          </OfflineGuard>
-        ) : null
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={() => tour.restart()}
+            aria-label="Revoir le guide"
+          >
+            <InfoIcon className="mr-1.5 h-4 w-4" />
+            Guide
+          </Button>
+          {canCreateStudent ? (
+            <OfflineGuard>
+              <Button type="button" onClick={() => setCreateDialogOpen(true)} data-tour="students-add-btn">
+                <AddIcon className="mr-2 h-4 w-4" />
+                {`Ajouter un ${studentLabels.singularLower}`}
+              </Button>
+            </OfflineGuard>
+          ) : null}
+        </div>
       }
     >
       <Tabs
@@ -328,13 +354,14 @@ export default function StudentsPage() {
           setSearchParams(next, { replace: true })
         }}
         className="space-y-4"
+        data-tour="students-tabs"
       >
         <TabsList className={cn("grid h-auto w-full rounded-xl border border-border bg-muted/50 p-1 sm:w-full", canViewStudents && canViewAttendance ? "grid-cols-2 md:w-[420px]" : "grid-cols-1 md:w-[220px]")}>
           {canViewStudents ? (
-            <TabsTrigger value="liste" className="min-h-12 rounded-lg text-sm font-medium">Liste</TabsTrigger>
+            <TabsTrigger value="liste" className="min-h-12 rounded-lg text-sm font-medium" data-tour="students-tab-liste">Liste</TabsTrigger>
           ) : null}
           {canViewAttendance ? (
-            <TabsTrigger value="absences" className="min-h-12 rounded-lg text-sm font-medium">Absences</TabsTrigger>
+            <TabsTrigger value="absences" className="min-h-12 rounded-lg text-sm font-medium" data-tour="students-tab-absences">Absences</TabsTrigger>
           ) : null}
         </TabsList>
 
@@ -382,7 +409,7 @@ export default function StudentsPage() {
             </div>
           </div>
 
-          <div className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-sm">
+          <div className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-sm" data-tour="students-filters">
             <div className="grid gap-3 md:grid-cols-3">
               <Select
                 value={classFilter}
@@ -648,5 +675,6 @@ export default function StudentsPage() {
         </DialogContent>
       </Dialog>
     </PageLayout>
+    </>
   )
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Plus } from "lucide-react"
+import { Info, Plus } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,9 @@ import { useToast } from "@/components/ui/use-toast"
 import { OfflineGuard } from "@/shared/components/OfflineGuard"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { roomsTourSteps } from "@/shared/lib/tour-steps"
 import { createRoom, deleteRoom, getRoomQr, listRooms, regenerateRoomQr, updateRoom, type RoomListItem, type RoomQrPayload } from "./rooms.api"
 import { RoomFormDialog } from "./components/RoomFormDialog"
 import { RoomQrDialog } from "./components/RoomQrDialog"
@@ -76,6 +79,7 @@ export default function RoomsPage() {
   const canCreateRoom = hasPermission("rooms.create")
   const canEditRoom = hasPermission("rooms.edit")
   const canDeleteRoom = hasPermission("rooms.delete")
+  const tour = useTourGuide("rooms", true)
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -309,13 +313,36 @@ export default function RoomsPage() {
   }
 
   return (
+    <>
+      <TourGuide
+        steps={roomsTourSteps}
+        run={tour.run}
+        stepIndex={tour.stepIndex}
+        onStepChange={tour.setStepIndex}
+        onFinish={tour.markDone}
+      />
     <div className="space-y-6" data-testid="rooms-page">
       <OfflineIndicator />
-      <header className="space-y-2 md:py-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Salles & QR Codes</h1>
-        <p className="text-sm text-muted-foreground">
-          Gérez les salles de classe et imprimez les QR codes pour le check-in professeur.
-        </p>
+      <header className="space-y-2 md:py-2" data-tour="rooms-header">
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Salles & QR Codes</h1>
+            <p className="text-sm text-muted-foreground">
+              Gérez les salles de classe et imprimez les QR codes pour le check-in professeur.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={() => tour.restart()}
+            aria-label="Revoir le guide"
+          >
+            <Info className="mr-1.5 h-4 w-4" />
+            Guide
+          </Button>
+        </div>
       </header>
 
       <Card>
@@ -326,7 +353,7 @@ export default function RoomsPage() {
           </div>
           {canCreateRoom ? (
             <OfflineGuard>
-              <Button onClick={openCreate} type="button">
+              <Button onClick={openCreate} type="button" data-tour="rooms-add-btn">
                 <Plus className="mr-2 h-4 w-4" />
                 Ajouter une salle
               </Button>
@@ -344,6 +371,7 @@ export default function RoomsPage() {
           ) : canViewRooms && sortedRooms.length === 0 ? (
             <p className="text-sm text-muted-foreground">Aucune salle active trouvée.</p>
           ) : canViewRooms ? (
+            <div data-tour="rooms-table">
             <RoomTable
               rooms={pagedRooms}
               page={currentPage}
@@ -359,6 +387,7 @@ export default function RoomsPage() {
               canEditRoom={canEditRoom}
               canDeleteRoom={canDeleteRoom}
             />
+            </div>
           ) : null}
         </CardContent>
       </Card>
@@ -415,5 +444,6 @@ export default function RoomsPage() {
         }}
       />
     </div>
+    </>
   )
 }

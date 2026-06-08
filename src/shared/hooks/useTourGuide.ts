@@ -2,7 +2,22 @@ import { useCallback, useEffect, useState } from "react"
 
 const TOUR_KEY_PREFIX = "ivoiredu-tour-done-"
 
-export type TourId = "dashboard" | "validations"
+export type TourId =
+  | "dashboard"
+  | "validations"
+  | "teachers"
+  | "teacher-detail"
+  | "students"
+  | "student-detail"
+  | "schedule"
+  | "salaries"
+  | "subscriptions"
+  | "subscription-revenue"
+  | "settings"
+  | "rooms"
+  | "import"
+  | "teacher-app"
+  | "parent-portal"
 
 export function useTourGuide(tourId: TourId, enabled: boolean) {
   const key = `${TOUR_KEY_PREFIX}${tourId}`

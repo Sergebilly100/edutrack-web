@@ -28,9 +28,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import { excuseAbsence, getStudentById, retrySmsNotification, updateStudent } from "@/modules/students/students.api"
 import { DocumentList, DocumentUpload, OfflineDisabledFieldset, PageLayout, PresenceDonut, StatCard } from "@/shared/components"
-import { BackIcon } from "@/shared/components/icons"
+import { BackIcon, InfoIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabel, useStudentLabels } from "@/shared/hooks/useStudentLabel"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { studentDetailTourSteps } from "@/shared/lib/tour-steps"
 
 const initials = (firstName: string, lastName: string) =>
   `${lastName?.[0] ?? ""}${firstName?.[0] ?? ""}`.toUpperCase()
@@ -74,6 +77,7 @@ export default function StudentDetailPage() {
   const { hasPermission } = usePermissions()
   const canManageStudentDocuments = hasPermission("students.documents")
   const canEditStudent = hasPermission("students.edit")
+  const tour = useTourGuide("student-detail", true)
 
   const [parentName, setParentName] = useState("")
   const [parentPhone, setParentPhone] = useState("")
@@ -284,18 +288,39 @@ export default function StudentDetailPage() {
   const canExcuse = hasPermission("students.excuse")
 
   return (
+    <>
+      <TourGuide
+        steps={studentDetailTourSteps}
+        run={tour.run}
+        stepIndex={tour.stepIndex}
+        onStepChange={tour.setStepIndex}
+        onFinish={tour.markDone}
+      />
     <PageLayout
       title={`Fiche ${studentLabel.toLowerCase()}`}
       subtitle={`${student.lastName} ${student.firstName}`.trim()}
       actions={
-        <Button variant="outline" onClick={() => navigate(returnTo)}>
-          <BackIcon className="mr-2 h-4 w-4" />
-          Retour
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={() => tour.restart()}
+            aria-label="Revoir le guide"
+          >
+            <InfoIcon className="mr-1.5 h-4 w-4" />
+            Guide
+          </Button>
+          <Button variant="outline" onClick={() => navigate(returnTo)}>
+            <BackIcon className="mr-2 h-4 w-4" />
+            Retour
+          </Button>
+        </div>
       }
     >
       <OfflineDisabledFieldset showNotice={false}>
-      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="student-detail-profile">
         <div className="flex flex-col gap-4 bg-muted/30 px-4 py-4 md:flex-row md:items-center md:justify-between">
           <div className="flex min-w-0 items-center gap-3">
             <Avatar className="h-12 w-12 flex-shrink-0">
@@ -347,14 +372,14 @@ export default function StudentDetailPage() {
 
       <Tabs defaultValue="absences" className="space-y-4">
         <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
-          <TabsTrigger value="absences">Absences</TabsTrigger>
-          <TabsTrigger value="informations">Informations</TabsTrigger>
-          {canManageStudentDocuments ? <TabsTrigger value="documents">Documents</TabsTrigger> : null}
-          <TabsTrigger value="sms">SMS Parents</TabsTrigger>
+          <TabsTrigger value="absences" data-tour="student-detail-tab-absences">Absences</TabsTrigger>
+          <TabsTrigger value="informations" data-tour="student-detail-tab-informations">Informations</TabsTrigger>
+          {canManageStudentDocuments ? <TabsTrigger value="documents" data-tour="student-detail-tab-documents">Documents</TabsTrigger> : null}
+          <TabsTrigger value="sms" data-tour="student-detail-tab-sms">SMS Parents</TabsTrigger>
         </TabsList>
 
         <TabsContent value="absences" className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-4" data-tour="student-detail-absences">
             <StatCard title="Total absences" value={student.absenceSummary.total} icon={<BookOpen className="h-4 w-4" />} variant="danger" />
             <StatCard title="Ce mois" value={student.absenceSummary.thisMonth} icon={<Clock3 className="h-4 w-4" />} variant="warning" />
             <StatCard title="Cette semaine" value={student.absenceSummary.thisWeek} icon={<UserCheck className="h-4 w-4" />} />
@@ -744,5 +769,6 @@ export default function StudentDetailPage() {
       </Dialog>
       </OfflineDisabledFieldset>
     </PageLayout>
+    </>
   )
 }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, Info } from "lucide-react"
 
 import { AlertBanner, EmptyState, PageLayout } from "@/shared/components"
 import { Button } from "@/components/ui/button"
@@ -22,6 +22,9 @@ import {
 import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { OfflineGuard} from "@/shared/components"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { subscriptionRevenueTourSteps } from "@/shared/lib/tour-steps"
 
 const toMonth = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`
 const monthLabel = (month: string) => {
@@ -34,6 +37,7 @@ const formatFcfa = (value: number) => `${new Intl.NumberFormat("fr-FR").format(v
 
 export default function SubscriptionRevenuePage() {
   const studentLabels = useStudentLabels()
+  const tour = useTourGuide("subscription-revenue", true)
 
   const [monthCursor, setMonthCursor] = useState<Date>(new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)))
   const [exportOpen, setExportOpen] = useState(false)
@@ -81,28 +85,49 @@ export default function SubscriptionRevenuePage() {
   const monthSubscriptionsCollected = monthSubscriptions.reduce((sum, item) => sum + item.amount_fcfa, 0)
 
   return (
+    <>
+      <TourGuide
+        steps={subscriptionRevenueTourSteps}
+        run={tour.run}
+        stepIndex={tour.stepIndex}
+        onStepChange={tour.setStepIndex}
+        onFinish={tour.markDone}
+      />
     <PageLayout
       title="Revenus abonnements"
       actions={
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
-            variant="outline"
-            size="icon"
-            onClick={() => setMonthCursor((prev) => new Date(Date.UTC(prev.getUTCFullYear(), prev.getUTCMonth() - 1, 1)))}
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={() => tour.restart()}
+            aria-label="Revoir le guide"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <Info className="mr-1.5 h-4 w-4" />
+            Guide
           </Button>
-          <span className="min-w-40 text-center text-sm capitalize">{monthLabel(month)}</span>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={() => setMonthCursor((prev) => new Date(Date.UTC(prev.getUTCFullYear(), prev.getUTCMonth() + 1, 1)))}
-            disabled={!canGoNextMonth}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1" data-tour="revenue-nav">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => setMonthCursor((prev) => new Date(Date.UTC(prev.getUTCFullYear(), prev.getUTCMonth() - 1, 1)))}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="min-w-40 text-center text-sm capitalize">{monthLabel(month)}</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => setMonthCursor((prev) => new Date(Date.UTC(prev.getUTCFullYear(), prev.getUTCMonth() + 1, 1)))}
+              disabled={!canGoNextMonth}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
           <OfflineGuard>
             <Button type="button" variant="outline" onClick={() => setExportOpen(true)}>
               Exporter bilan
@@ -123,7 +148,7 @@ export default function SubscriptionRevenuePage() {
       <SubscriptionsStatsCards month={month} />
 
       {summary ? (
-        <section className="space-y-3 rounded-lg border p-4">
+        <section className="space-y-3 rounded-lg border p-4" data-tour="revenue-commission">
           <div>
             <h2 className="text-sm font-semibold">Commission IvoirEdu</h2>
             <p className="text-sm text-muted-foreground">
@@ -143,8 +168,8 @@ export default function SubscriptionRevenuePage() {
 
       <Tabs defaultValue="subscriptions" className="space-y-3">
         <TabsList>
-          <TabsTrigger value="subscriptions">Détail abonnements du mois ({monthSubscriptions.length})</TabsTrigger>
-          <TabsTrigger value="payments">Historique des reversements du mois</TabsTrigger>
+          <TabsTrigger value="subscriptions" data-tour="revenue-tab-subscriptions">Détail abonnements du mois ({monthSubscriptions.length})</TabsTrigger>
+          <TabsTrigger value="payments" data-tour="revenue-tab-payments">Historique des reversements du mois</TabsTrigger>
         </TabsList>
         <TabsContent value="subscriptions" className="rounded-lg border p-4">
           <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -276,5 +301,6 @@ export default function SubscriptionRevenuePage() {
         </DialogContent>
       </Dialog>
     </PageLayout>
+    </>
   )
 }

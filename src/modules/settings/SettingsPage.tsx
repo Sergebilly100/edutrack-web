@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CheckCircle } from "lucide-react"
+import { CheckCircle, Info } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -27,6 +27,9 @@ import { ContextualHelp } from "@/shared/components/ContextualHelp"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { useAuthStore } from "@/shared/store/auth.store"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { settingsTourSteps } from "@/shared/lib/tour-steps"
 
 const smsPriceSchema = z.object({
   smsUnitPriceFcfa: z.number().int().min(1).max(50000),
@@ -42,6 +45,7 @@ export default function SettingsPage() {
   const studentLabels = useStudentLabels()
   const canManagePositions = user?.role === "director" || hasPermission("settings.positions")
   const canManageSchoolSettings = user?.role === "director" || hasPermission("settings.school")
+  const tour = useTourGuide("settings", user?.role === "director")
   const canAccessSmsTemplate = user?.role === "director" || hasPermission("settings.sms_templates")
   const schoolConfigQuery = useQuery({
     queryKey: ["settings", "school-config", "access-gate"],
@@ -123,6 +127,14 @@ export default function SettingsPage() {
         : "Non activé"
 
   return (
+    <>
+      <TourGuide
+        steps={settingsTourSteps}
+        run={tour.run}
+        stepIndex={tour.stepIndex}
+        onStepChange={tour.setStepIndex}
+        onFinish={tour.markDone}
+      />
     <div className="animate-fade-in space-y-6">
       <OfflineIndicator />
       <div className="flex items-start justify-between border-b border-border pb-5">
@@ -132,6 +144,19 @@ export default function SettingsPage() {
             Configuration de l&apos;école et gestion des postes administratifs.
           </p>
         </div>
+        {user?.role === "director" ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={() => tour.restart()}
+            aria-label="Revoir le guide"
+          >
+            <Info className="mr-1.5 h-4 w-4" />
+            Guide
+          </Button>
+        ) : null}
       </div>
 
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
@@ -181,6 +206,7 @@ export default function SettingsPage() {
 
       {canManageSchoolSettings ? (
         <section
+          data-tour="settings-real-hours"
           className={
             smsFeatureQuery.data?.use_real_hours
               ? "space-y-4 rounded-lg border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900/70 dark:bg-blue-950/20"
@@ -279,20 +305,24 @@ export default function SettingsPage() {
       ) : null}
 
       {canManagePositions ? (
+        <div data-tour="settings-school-panel">
         <OfflineDisabledFieldset notice="Configuration école indisponible hors ligne. Reconnectez-vous pour modifier ces paramètres.">
           <SchoolConfigPanel />
         </OfflineDisabledFieldset>
+        </div>
       ) : null}
       {canAccessSmsTemplate ? (
+        <div data-tour="settings-sms-templates-panel">
         <OfflineDisabledFieldset notice="Templates SMS indisponibles hors ligne.">
           <SmsTemplatePanel />
         </OfflineDisabledFieldset>
+        </div>
       ) : null}
       {/* Section masquée tant que l'école ne monétise pas les alertes parents :
           le tarif/abonnement parent n'a aucun sens sans monétisation (cohérent avec les
           menus Abonnements/Revenus et la colonne Abonnements de la matrice de rôles). */}
       {canManageSchoolSettings && parentSmsMonetized ? (
-        <section className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/70 dark:bg-emerald-950/20">
+        <section className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/70 dark:bg-emerald-950/20" data-tour="settings-sms">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold">Service SMS Parents</h2>
@@ -372,5 +402,6 @@ export default function SettingsPage() {
         </ContextualHelp>
       ) : null}
     </div>
+    </>
   )
 }

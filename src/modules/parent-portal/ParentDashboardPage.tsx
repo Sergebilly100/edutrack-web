@@ -9,10 +9,11 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
+  Info,
   MinusCircle,
   PieChart,
   XCircle,
-  CircleX 
+  CircleX
 } from "lucide-react"
 import { Link } from "react-router-dom"
 
@@ -206,9 +207,10 @@ export default function ParentDashboardPage() {
   }
 
   return (
+    <>
     <div className="space-y-3 text-base">
       <OfflineIndicator />
-      <section>
+      <section data-tour="parent-student-selector">
         {(studentsQuery.data?.length ?? 0) > 1 ? (
           <div className="rounded-xl border bg-card p-2 shadow-card">
             <p className="mb-2 text-sm text-muted-foreground">Enfant sélectionné</p>
@@ -260,7 +262,7 @@ export default function ParentDashboardPage() {
         ) : null}
       </section>
 
-      <section className="overflow-hidden rounded-xl border bg-card shadow-card">
+      <section className="overflow-hidden rounded-xl border bg-card shadow-card" data-tour="parent-today-status">
         <div className={cn("border-b px-2 py-3 sm:px-4", todayStatus === "clear" ? "bg-emerald-50/70 dark:bg-emerald-950/20" : "bg-card")}>
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 gap-2.5">
@@ -324,7 +326,7 @@ export default function ParentDashboardPage() {
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-2.5 sm:gap-3">
+      <section className="grid grid-cols-2 gap-2.5 sm:gap-3" data-tour="parent-stats">
         <div className="rounded-xl border bg-card p-3 shadow-card sm:p-4">
           <div className="flex items-start gap-2 sm:gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 sm:h-10 sm:w-10">
@@ -424,7 +426,7 @@ export default function ParentDashboardPage() {
         </div>
       ) : null}
 
-      <section className="overflow-hidden rounded-xl border bg-card shadow-card">
+      <section className="overflow-hidden rounded-xl border bg-card shadow-card" data-tour="parent-nav-links">
         <Link
           to="/parent/absences"
           className="flex items-center gap-3 border-b p-3.5 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-4"
@@ -491,5 +493,6 @@ export default function ParentDashboardPage() {
         )}
       </section> */}
     </div>
+    </>
   )
 }

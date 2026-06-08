@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Navigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
+import { Info } from "lucide-react"
 
 import { teacherScheduleApi, type ScheduleSlot } from "@/modules/attendance/attendance.api"
 import CourseCard from "@/modules/attendance/components/CourseCard"
@@ -11,8 +12,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/shared/components/EmptyState"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { teacherAppTourSteps } from "@/shared/lib/tour-steps"
 import { CalendarIcon } from "@/shared/components/icons"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
 import { useAuthStore } from "@/shared/store/auth.store"
@@ -57,6 +62,7 @@ const getCurrentMonthKey = (date = new Date()) => {
 export default function TeacherSchedulePage() {
   const user = useAuthStore((state) => state.user)
   const { isOnline } = useNetworkStatus()
+  const tour = useTourGuide("teacher-app", true)
 
   const [selectedDate, setSelectedDate] = useState(getDefaultTeachingDate)
   const [activeSlot, setActiveSlot] = useState<ScheduleSlot | null>(null)
@@ -176,21 +182,42 @@ export default function TeacherSchedulePage() {
   }
 
   return (
+    <>
+      <TourGuide
+        steps={teacherAppTourSteps}
+        run={tour.run}
+        stepIndex={tour.stepIndex}
+        onStepChange={tour.setStepIndex}
+        onFinish={tour.markDone}
+      />
     <div className="space-y-4 pb-4" data-testid="teacher-schedule-page">
-      
+
       {!isOnline ? (
         <OfflineIndicator forceState="offline" offlineCapable />
       ) : (
         <OfflineIndicator offlineCapable />
       )}
 
-      <header className="rounded-lg border bg-card p-4 shadow-sm !mt-0">
+      <header className="rounded-lg border bg-card p-4 shadow-sm !mt-0" data-tour="teacher-app-header">
         <div className="flex items-start justify-between gap-2">
           <div>
             <p className="text-xs font-semibold uppercase text-muted-foreground">Aujourd'hui et semaine</p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight">Mon planning</h1>
           </div>
-          <TeacherNotificationsPanel />
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={() => tour.restart()}
+              aria-label="Revoir le guide"
+            >
+              <Info className="mr-1.5 h-4 w-4" />
+              Guide
+            </Button>
+            <TeacherNotificationsPanel />
+          </div>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <span className="font-medium">Semaine du {formatDateRange(weekStart, weekEnd)}</span>
@@ -200,7 +227,7 @@ export default function TeacherSchedulePage() {
         </div>
       </header>
 
-      <header className="rounded-lg border bg-card p-4 shadow-sm">
+      <header className="rounded-lg border bg-card p-4 shadow-sm" data-tour="teacher-app-compliance">
           {complianceQuery.isLoading ? (
             <div className="space-y-2">
               <Skeleton className="h-5 w-40" />
@@ -224,11 +251,13 @@ export default function TeacherSchedulePage() {
           )}
       </header>
 
-      <DayPicker
-        selectedDate={selectedDate}
-        onChange={setSelectedDate}
-        highlightDates={highlightDates}
-      />
+      <div data-tour="teacher-app-daypicker">
+        <DayPicker
+          selectedDate={selectedDate}
+          onChange={setSelectedDate}
+          highlightDates={highlightDates}
+        />
+      </div>
 
       {scheduleQuery.isLoading ? (
         <div className="space-y-2">
@@ -264,7 +293,7 @@ export default function TeacherSchedulePage() {
       ) : null}
 
       {!scheduleQuery.isLoading && daySlots.length > 0 ? (
-        <ul className="space-y-2" data-testid="teacher-schedule-list">
+        <ul className="space-y-2" data-testid="teacher-schedule-list" data-tour="teacher-app-courses">
           {daySlots.map((slot) => (
             <CourseCard
               key={slot.id}
@@ -284,5 +313,6 @@ export default function TeacherSchedulePage() {
         />
       ) : null}
     </div>
+    </>
   )
 }

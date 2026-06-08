@@ -825,9 +825,8 @@ export default function DashboardPage() {
                   size="sm"
                   aria-label="Mettre à jour les données"
                   disabled={isRefreshing}
-                  onClick={() => {
-                    void handleDashboardRefresh()
-                  }}
+                  onClick={() => { void handleDashboardRefresh() }}
+                  data-tour="dashboard-refresh"
                 >
                   {isRefreshing ? (
                     <>
@@ -944,8 +943,8 @@ export default function DashboardPage() {
           onValueChange={(v) => setActiveTab(v as typeof activeTab)}
           className="w-full"
         >
-          <div className="sticky top-[64px] z-30 -mx-4 border-b bg-background px-4 py-3 shadow-sm md:top-[72px] md:-mx-6 md:px-6" data-tour="dashboard-tabs">
-            <TabsList className="grid w-full grid-cols-3 gap-1 md:inline-flex md:w-auto">
+          <div className="sticky top-[64px] z-30 -mx-4 border-b bg-background px-4 py-3 shadow-sm md:top-[72px] md:-mx-6 md:px-6">
+            <TabsList className="grid w-full grid-cols-3 gap-1 md:inline-flex md:w-auto" data-tour="dashboard-tabs">
             <TabsTrigger value="overview">
               Vue d'ensemble
             </TabsTrigger>

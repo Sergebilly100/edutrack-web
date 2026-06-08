@@ -49,9 +49,12 @@ import {
   PresenceHeatmap,
   TeacherProfileCard,
 } from "@/shared/components"
-import { BackIcon, WarningIcon } from "@/shared/components/icons"
+import { BackIcon, InfoIcon, WarningIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { teacherDetailTourSteps } from "@/shared/lib/tour-steps"
 import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
 import { getCurrentMonth, formatMonthLabel } from "@/shared/utils/month"
 import { computeAbsenceHours, computeRemainingHours, toDisplayedStatus, toSortableTime } from "@/shared/utils/salary-helpers"
@@ -774,6 +777,7 @@ export default function TeacherDetailPage() {
   const [blockDialogOpen, setBlockDialogOpen] = useState(false)
   const [blockReason, setBlockReason] = useState("")
   const [detailTab, setDetailTab] = useState<"presences" | "documents" | "infos">("presences")
+  const tour = useTourGuide("teacher-detail", true)
   const canManageTeacherDocuments = hasPermission("teachers.documents")
   const canViewSalary = hasPermission("salary.view")
   const canViewAttendance =
@@ -906,27 +910,48 @@ export default function TeacherDetailPage() {
   )
 
   return (
+    <>
+      <TourGuide
+        steps={teacherDetailTourSteps}
+        run={tour.run}
+        stepIndex={tour.stepIndex}
+        onStepChange={tour.setStepIndex}
+        onFinish={tour.markDone}
+      />
     <PageLayout
       title="Détail professeur"
       subtitle={teacher.fullName}
       actions={
-        <Button
-          variant="outline"
-          onClick={() => {
-            if (returnTo) {
-              navigate(returnTo)
-              return
-            }
-            navigate(-1)
-          }}
-        >
-          <BackIcon className="mr-2 h-4 w-4" />
-          Retour
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={() => tour.restart()}
+            aria-label="Revoir le guide"
+          >
+            <InfoIcon className="mr-1.5 h-4 w-4" />
+            Guide
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (returnTo) {
+                navigate(returnTo)
+                return
+              }
+              navigate(-1)
+            }}
+          >
+            <BackIcon className="mr-2 h-4 w-4" />
+            Retour
+          </Button>
+        </div>
       }
     >
       <OfflineDisabledFieldset showNotice={false}>
-      <div className="mb-4 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <div className="mb-4 overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="teacher-detail-salary">
         <div className="flex flex-col gap-4 bg-muted/30 px-4 py-4 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0 space-y-1">
             <p className="truncate text-sm font-semibold">Synthèse du mois en cours</p>
@@ -947,8 +972,8 @@ export default function TeacherDetailPage() {
       ) : null}
 
       <div className="mb-3 grid gap-4 lg:grid-cols-[420px_minmax(0,1fr)]">
-        {profileSection}
-        <WeeklyScheduleCard teacherId={teacher.id} />
+        <div data-tour="teacher-detail-profile">{profileSection}</div>
+        <div data-tour="teacher-detail-weekly-schedule"><WeeklyScheduleCard teacherId={teacher.id} /></div>
       </div>
 
       <div className="space-y-4">
@@ -960,13 +985,15 @@ export default function TeacherDetailPage() {
           <TabsList
             className={`grid h-auto min-h-12 w-full ${canManageTeacherDocuments ? "grid-cols-3" : "grid-cols-2"}`}
           >
-            <TabsTrigger value="presences" className="min-h-12">Présences</TabsTrigger>
-            {canManageTeacherDocuments ? <TabsTrigger value="documents" className="min-h-12">Documents</TabsTrigger> : null}
-            <TabsTrigger value="infos" className="min-h-12">Infos</TabsTrigger>
+            <TabsTrigger value="presences" className="min-h-12" data-tour="teacher-detail-tab-presences">Présences</TabsTrigger>
+            {canManageTeacherDocuments ? <TabsTrigger value="documents" className="min-h-12" data-tour="teacher-detail-tab-documents">Documents</TabsTrigger> : null}
+            <TabsTrigger value="infos" className="min-h-12" data-tour="teacher-detail-tab-infos">Infos</TabsTrigger>
           </TabsList>
 
           <TabsContent value="presences">
-            <AttendancePanel teacherId={teacher.id} canViewAttendance={canViewAttendance} />
+            <div data-tour="teacher-detail-heatmap">
+              <AttendancePanel teacherId={teacher.id} canViewAttendance={canViewAttendance} />
+            </div>
           </TabsContent>
           {canManageTeacherDocuments ? (
             <TabsContent value="documents">
@@ -1020,5 +1047,6 @@ export default function TeacherDetailPage() {
       </Dialog>
       </OfflineDisabledFieldset>
     </PageLayout>
+    </>
   )
 }

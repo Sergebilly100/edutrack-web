@@ -26,7 +26,7 @@ export function OverviewTab({
   return (
     <div className="space-y-6">
       {/* Stats globales */}
-      <div data-tour="dashboard-stats">
+      <div>
         <DashboardStatsCards
           showTeacherCard={canViewAttendance || canViewTeachers}
           showStudentCard={canViewAttendance}

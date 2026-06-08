@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
-import { ChevronLeft, ChevronRight, Download, TriangleAlert } from "lucide-react"
+import { ChevronLeft, ChevronRight, Download, Info, TriangleAlert } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -59,15 +59,18 @@ import { SalarySummaryCards } from "@/modules/salaries/components/SalarySummaryC
 import { SalariesStatsCards } from "@/modules/salaries/components/SalariesStatsCards"
 import { SalaryExportSection } from "@/modules/salaries/components/SalaryExportSection"
 import { ContextualHelp, EmptyState, OfflineGuard, OfflineIndicator, SalaryRow, emptyStateIcons } from "@/shared/components"
+import { TourGuide } from "@/shared/components/TourGuide"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
 import {
   OfflineMutationQueuedError,
   useOfflineMutation,
 } from "@/shared/hooks/useOfflineMutation"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { OFFLINE_QUEUE_KEYS } from "@/shared/store/offline-processors"
 import { formatFcfa } from "@/shared/utils/formatting"
 import { formatDecimalHours } from "@/shared/utils/time"
+import { salariesTourSteps } from "@/shared/lib/tour-steps"
 
 // Tooltip pour les actions qui restent online-only (exports, paiement
 // permanent qui nécessite un GET intermédiaire pour récupérer le salaryRecordId).
@@ -78,6 +81,7 @@ export default function SalariesPage() {
   const { toast } = useToast()
   const { hasPermission } = usePermissions()
   const { isOnline } = useNetworkStatus()
+  const tour = useTourGuide("salaries", true)
   const canComputeSalaries = hasPermission("salary.compute")
   const canMarkSalaryAsPaid = hasPermission("salary.mark_paid")
   const canExportSalaries = hasPermission("salary.export")
@@ -85,16 +89,23 @@ export default function SalariesPage() {
 
   const bulkSelection = useBulkSelection<string>()
   const [bulkPayDialogOpen, setBulkPayDialogOpen] = useState(false)
+  const bulkPermanentSelection = useBulkSelection<string>()
+  const [bulkPermanentPayDialogOpen, setBulkPermanentPayDialogOpen] = useState(false)
 
-  // Escape annule la sélection bulk active
+  // Escape annule la sélection bulk active (vacataires et permanents)
   useEffect(() => {
-    if (bulkSelection.selectedCount === 0) return
+    if (bulkSelection.selectedCount === 0 && bulkPermanentSelection.selectedCount === 0) return
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { bulkSelection.clearSelection(); setBulkPayDialogOpen(false) }
+      if (e.key === "Escape") {
+        bulkSelection.clearSelection()
+        setBulkPayDialogOpen(false)
+        bulkPermanentSelection.clearSelection()
+        setBulkPermanentPayDialogOpen(false)
+      }
     }
     document.addEventListener("keydown", handler)
     return () => document.removeEventListener("keydown", handler)
-  }, [bulkSelection])
+  }, [bulkSelection, bulkPermanentSelection])
 
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth)
   const [computeDialogOpen, setComputeDialogOpen] = useState(false)
@@ -226,6 +237,32 @@ export default function SalariesPage() {
       toast({
         title: "Erreur",
         description: "Impossible d'effectuer les paiements groupés.",
+        variant: "destructive",
+      })
+    },
+  })
+
+  const bulkMarkPermanentPaidMutation = useMutation({
+    mutationFn: (items: { recordId: string; hoursToPay: number }[]) =>
+      bulkMarkSalariesPaid({ items }),
+    onSuccess: async (result) => {
+      setBulkPermanentPayDialogOpen(false)
+      bulkPermanentSelection.clearSelection()
+      await queryClient.invalidateQueries({ queryKey: ["salaries", "summary", selectedMonth] })
+      await queryClient.invalidateQueries({ queryKey: ["salaries-stats", selectedMonth] })
+      if (result.skipped > 0) {
+        toast({
+          title: `${result.paid} paiement(s) enregistré(s)`,
+          description: `${result.skipped} ligne(s) ignorée(s) (déjà payée ou erreur).`,
+        })
+      } else {
+        toast({ title: `${result.paid} salaire(s) permanent(s) marqué(s) comme payés` })
+      }
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible d'effectuer les paiements groupés des permanents.",
         variant: "destructive",
       })
     },
@@ -452,6 +489,25 @@ export default function SalariesPage() {
     () => filteredAndSortedItems.filter((item) => item.teacherType === "permanent"),
     [filteredAndSortedItems]
   )
+
+  // Lignes éligibles au paiement groupé pour les permanents : fiche calculée, montant > 0, non entièrement payés
+  const bulkSelectablePermanentRows = useMemo(
+    () =>
+      permanentRows.filter(
+        (row) =>
+          canMarkSalaryAsPaid &&
+          row.salaryRecordId &&
+          (row.totalFcfa ?? 0) > 0 &&
+          row.status !== "paid" &&
+          row.status !== "nothing_to_pay"
+      ),
+    [permanentRows, canMarkSalaryAsPaid]
+  )
+  const bulkSelectablePermanentIds = useMemo(
+    () => bulkSelectablePermanentRows.map((row) => row.salaryRecordId as string),
+    [bulkSelectablePermanentRows]
+  )
+
   const toPayVacataire = useMemo(
     () => vacataireRows
       .filter((item) => item.status !== "nothing_to_pay" && item.totalFcfa !== null)
@@ -739,17 +795,37 @@ export default function SalariesPage() {
   return (
     <>
       <OfflineIndicator offlineCapable />
+      <TourGuide
+        steps={salariesTourSteps}
+        run={tour.run}
+        stepIndex={tour.stepIndex}
+        onStepChange={tour.setStepIndex}
+        onFinish={tour.markDone}
+      />
 
       <div className="space-y-6 animate-fade-in mt-2" data-testid="salaries-page">
         <header className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="space-y-1 md:py-2">
-              <h1 className="text-2xl font-semibold tracking-tight">Gestion des salaires</h1>
-              <p className="text-sm text-muted-foreground">Pilotage mensuel des paies vacataires</p>
+            <div className="flex items-start gap-3">
+              <div className="space-y-1 md:py-2">
+                <h1 className="text-2xl font-semibold tracking-tight">Gestion des salaires</h1>
+                <p className="text-sm text-muted-foreground">Pilotage mensuel des paies vacataires</p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="mt-1 text-muted-foreground"
+                onClick={() => tour.restart()}
+                aria-label="Revoir le guide"
+              >
+                <Info className="mr-1.5 h-4 w-4" />
+                Guide
+              </Button>
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2" data-tour="salaries-month">
                 <Button
                   type="button"
                   variant="outline"
@@ -785,7 +861,7 @@ export default function SalariesPage() {
               </div>
 
               {canComputeSalaries ? (
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1" data-tour="salaries-compute">
                   <Button
                     type="button"
                     onClick={() => setComputeDialogOpen(true)}
@@ -821,6 +897,7 @@ export default function SalariesPage() {
                   disabled={exportBulkMutation.isPending || !isOnline}
                   title={!isOnline ? OFFLINE_ACTION_TITLE : undefined}
                   data-testid="salaries-export-school-button"
+                  data-tour="salaries-export"
                 >
                   Export bilan PDF
                 </Button>
@@ -831,56 +908,6 @@ export default function SalariesPage() {
           {isSelectedMonthFuture ? (
             <p className="text-sm text-amber-900">Le calcul est désactivé pour un mois futur.</p>
           ) : null}
-
-          {/* Search et filtres */}
-          <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex-1">
-              <Input
-                type="text"
-                placeholder="Rechercher un professeur..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="max-w-sm"
-              />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous types</SelectItem>
-                  <SelectItem value="vacataire">Vacataires</SelectItem>
-                  <SelectItem value="permanent">Permanents</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous statuts</SelectItem>
-                  <SelectItem value="pending">En attente</SelectItem>
-                  <SelectItem value="paid">Payés</SelectItem>
-                  <SelectItem value="partial">Partiels</SelectItem>
-                </SelectContent>
-              </Select>
-              {searchQuery || typeFilter !== "all" || statusFilter !== "all" ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setSearchQuery("")
-                    setTypeFilter("all")
-                    setStatusFilter("all")
-                  }}
-                >
-                  Réinitialiser
-                </Button>
-              ) : null}
-            </div>
-          </div>
 
           <SalaryExportSection
             exportJobId={exportJobId}
@@ -893,11 +920,13 @@ export default function SalariesPage() {
           />
         </header>
 
-        <SalariesStatsCards
-          month={selectedMonth}
-          toPayVacataire={salarySummaryQuery.isSuccess ? toPayVacataire : undefined}
-          toPayPermanent={salarySummaryQuery.isSuccess ? toPayPermanent : undefined}
-        />
+        <div data-tour="salaries-stats">
+          <SalariesStatsCards
+            month={selectedMonth}
+            toPayVacataire={salarySummaryQuery.isSuccess ? toPayVacataire : undefined}
+            toPayPermanent={salarySummaryQuery.isSuccess ? toPayPermanent : undefined}
+          />
+        </div>
 
         {canViewValidations && (validationCountQuery.data?.total ?? 0) > 0 ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
@@ -945,8 +974,58 @@ export default function SalariesPage() {
           </ContextualHelp>
         ) : null}
 
+        {/* Search et filtres */}
+        <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex-1">
+            <Input
+              type="text"
+              placeholder="Rechercher un professeur..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="max-w-sm"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous types</SelectItem>
+                <SelectItem value="vacataire">Vacataires</SelectItem>
+                <SelectItem value="permanent">Permanents</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous statuts</SelectItem>
+                <SelectItem value="pending">En attente</SelectItem>
+                <SelectItem value="paid">Payés</SelectItem>
+                <SelectItem value="partial">Partiels</SelectItem>
+              </SelectContent>
+            </Select>
+            {searchQuery || typeFilter !== "all" || statusFilter !== "all" ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearchQuery("")
+                  setTypeFilter("all")
+                  setStatusFilter("all")
+                }}
+              >
+                Réinitialiser
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
         <section className="rounded-lg border border-border bg-card p-4 shadow-sm md:p-6" data-testid="salaries-vacataire-section">
-          <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="mb-4 flex items-center justify-between gap-2" data-tour="salaries-vacataire-section">
             <h2 className="text-lg font-semibold">Salaires vacataires • {formatMonthLabel(selectedMonth)}</h2>
             <Badge variant="outline">{vacataireRows.length} vacataire(s)</Badge>
           </div>
@@ -1069,7 +1148,7 @@ export default function SalariesPage() {
         </section>
 
         <section className="rounded-lg border border-border bg-card p-4 shadow-sm md:p-6">
-          <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="mb-4 flex items-center justify-between gap-2" data-tour="salaries-fixed-section">
             <h2 className="text-lg font-semibold">Salaires fixes • {formatMonthLabel(selectedMonth)}</h2>
             <Badge variant="outline">{permanentRows.length} permanent(s)</Badge>
           </div>
@@ -1083,6 +1162,15 @@ export default function SalariesPage() {
               <Table data-testid="salaries-fixed-table">
                 <TableHeader>
                   <TableRow>
+                    {canMarkSalaryAsPaid && bulkSelectablePermanentIds.length > 0 ? (
+                      <TableHead className="w-10">
+                        <Checkbox
+                          checked={bulkPermanentSelection.isAllSelected(bulkSelectablePermanentIds)}
+                          onCheckedChange={() => bulkPermanentSelection.toggleAll(bulkSelectablePermanentIds)}
+                          aria-label="Tout sélectionner (permanents)"
+                        />
+                      </TableHead>
+                    ) : null}
                     <TableHead>Professeur</TableHead>
                     <TableHead>Progression</TableHead>
                     <TableHead>Montant mensuel</TableHead>
@@ -1091,8 +1179,26 @@ export default function SalariesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pagedPermanentRows.map((row) => (
+                  {pagedPermanentRows.map((row) => {
+                    const isPermanentSelectable =
+                      canMarkSalaryAsPaid &&
+                      !!row.salaryRecordId &&
+                      (row.totalFcfa ?? 0) > 0 &&
+                      row.status !== "paid" &&
+                      row.status !== "nothing_to_pay"
+                    return (
                     <TableRow key={row.teacherId}>
+                      {canMarkSalaryAsPaid && bulkSelectablePermanentIds.length > 0 ? (
+                        <TableCell className="w-10">
+                          {isPermanentSelectable ? (
+                            <Checkbox
+                              checked={bulkPermanentSelection.isSelected(row.salaryRecordId!)}
+                              onCheckedChange={() => bulkPermanentSelection.toggleSelection(row.salaryRecordId!)}
+                              aria-label={`Sélectionner ${row.teacherName}`}
+                            />
+                          ) : null}
+                        </TableCell>
+                      ) : null}
                       <TableCell className="font-medium">{row.teacherName}</TableCell>
                       <TableCell className="font-normal">
                         {formatDecimalHours(row.hoursDone)} / {formatDecimalHours(row.hoursPlanned)}
@@ -1115,22 +1221,8 @@ export default function SalariesPage() {
                             size="sm"
                             className="mr-2"
                             onClick={() => void openMarkPaidDialog(row)}
-                            disabled={
-                              // Le compute fallback online est requis pour
-                              // les vacataires sans salaryRecordId : on désactive
-                              // dans ce cas précis. Sinon, la mutation de
-                              // paiement peut être mise en queue offline.
-                              !isOnline &&
-                              row.teacherType === "vacataire" &&
-                              !row.salaryRecordId
-                            }
-                            title={
-                              !isOnline &&
-                              row.teacherType === "vacataire" &&
-                              !row.salaryRecordId
-                                ? "Aucune fiche calculée : recalcul nécessaire en ligne."
-                                : undefined
-                            }
+                            disabled={!isOnline}
+                            title={!isOnline ? OFFLINE_ACTION_TITLE : undefined}
                           >
                             Marquer payé
                           </Button>
@@ -1147,7 +1239,8 @@ export default function SalariesPage() {
                         </OfflineGuard>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    )
+                  })}
                 </TableBody>
               </Table>
               <div className="mt-4 flex items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -1913,6 +2006,72 @@ export default function SalariesPage() {
               }}
             >
               {bulkMarkPaidMutation.isPending ? "En cours…" : "Confirmer le paiement"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Barre flottante de paiement groupé — permanents */}
+      {bulkPermanentSelection.selectedCount > 0 ? (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 md:left-[calc(50%+8rem)]">
+          <div className="flex items-center gap-3 rounded-2xl border border-border bg-background px-5 py-3 shadow-2xl ring-1 ring-black/5">
+            <span className="text-sm font-medium text-foreground">
+              {bulkPermanentSelection.selectedCount} permanent{bulkPermanentSelection.selectedCount > 1 ? "s" : ""} sélectionné{bulkPermanentSelection.selectedCount > 1 ? "s" : ""}
+            </span>
+            <div className="h-4 w-px bg-border" />
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground"
+              onClick={() => bulkPermanentSelection.clearSelection()}
+            >
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="bg-green-600 text-white hover:bg-green-700"
+              onClick={() => setBulkPermanentPayDialogOpen(true)}
+              disabled={!isOnline}
+              title={!isOnline ? OFFLINE_ACTION_TITLE : undefined}
+            >
+              Marquer payés
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Dialog confirmation paiement groupé — permanents */}
+      <Dialog open={bulkPermanentPayDialogOpen} onOpenChange={setBulkPermanentPayDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirmer le paiement groupé (permanents)</DialogTitle>
+            <DialogDescription>
+              {bulkPermanentSelection.selectedCount} permanent{bulkPermanentSelection.selectedCount > 1 ? "s" : ""} vont être marqué
+              {bulkPermanentSelection.selectedCount > 1 ? "s" : ""} comme payé{bulkPermanentSelection.selectedCount > 1 ? "s" : ""} pour{" "}
+              <strong>{formatMonthLabel(selectedMonth)}</strong>. Le montant mensuel fixe sera enregistré comme payé.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setBulkPermanentPayDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              className="bg-green-600 text-white hover:bg-green-700"
+              disabled={bulkMarkPermanentPaidMutation.isPending}
+              onClick={() => {
+                const items = bulkSelectablePermanentRows
+                  .filter((row) => row.salaryRecordId && bulkPermanentSelection.isSelected(row.salaryRecordId))
+                  .map((row) => ({
+                    recordId: row.salaryRecordId!,
+                    hoursToPay: row.hoursPlanned > 0 ? row.hoursPlanned : 1,
+                  }))
+                bulkMarkPermanentPaidMutation.mutate(items)
+              }}
+            >
+              {bulkMarkPermanentPaidMutation.isPending ? "En cours…" : "Confirmer le paiement"}
             </Button>
           </DialogFooter>
         </DialogContent>

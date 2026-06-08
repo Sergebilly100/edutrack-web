@@ -146,7 +146,7 @@ export function DashboardStatsCards({
   }
 
   return (
-    <div className={gridClassName}>
+    <div className={gridClassName}  data-tour="dashboard-stats">
       {/* CARD 1: Taux de présence professeurs */}
       {showTeacherCard ? (
       <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">

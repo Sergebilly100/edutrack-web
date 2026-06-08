@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, Info } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -16,6 +16,9 @@ import { CalendarClockIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabels, type StudentLabels } from "@/shared/hooks/useStudentLabel"
 import { useAuthStore } from "@/shared/store/auth.store"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { importTourSteps } from "@/shared/lib/tour-steps"
 import ImportWizard from "./ImportWizard"
 
 const HISTORY_PAGE_SIZE = 10
@@ -57,6 +60,7 @@ export default function ImportPage() {
   const labelByType = buildLabelByType(studentLabels)
   const user = useAuthStore((state) => state.user)
   const isDirector = user?.role === "director"
+  const tour = useTourGuide("import", true)
   const canImportStudents = isDirector || hasPermission("import.students")
   const canImportTeachers = isDirector || hasPermission("import.teachers")
   const canImportSchedule = isDirector || hasPermission("import.schedule")
@@ -109,35 +113,60 @@ export default function ImportPage() {
   const totalItems = historyResult?.total ?? 0
 
   return (
+    <>
+      <TourGuide
+        steps={importTourSteps}
+        run={tour.run}
+        stepIndex={tour.stepIndex}
+        onStepChange={tour.setStepIndex}
+        onFinish={tour.markDone}
+      />
     <div className="space-y-6 px-4 md:px-1">
       <OfflineIndicator />
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Import de données</h1>
-        <p className="text-sm text-muted-foreground">
-          {`Utilisez les modèles Excel puis importez vos ${studentLabels.pluralLower}, professeurs et emploi du temps.`}
-        </p>
+      <header className="space-y-1" data-tour="import-header">
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Import de données</h1>
+            <p className="text-sm text-muted-foreground">
+              {`Utilisez les modèles Excel puis importez vos ${studentLabels.pluralLower}, professeurs et emploi du temps.`}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={() => tour.restart()}
+            aria-label="Revoir le guide"
+          >
+            <Info className="mr-1.5 h-4 w-4" />
+            Guide
+          </Button>
+        </div>
       </header>
 
-      {allowedImportTypes.length > 0 ? (
-        isImportBlocked ? (
-          <ContextualHelp title="Import indisponible hors ligne" tone="warning">
-            L'import de fichiers nécessite une connexion réseau active. Reconnectez-vous puis recommencez.
-          </ContextualHelp>
+      <div data-tour="import-wizard">
+        {allowedImportTypes.length > 0 ? (
+          isImportBlocked ? (
+            <ContextualHelp title="Import indisponible hors ligne" tone="warning">
+              L'import de fichiers nécessite une connexion réseau active. Reconnectez-vous puis recommencez.
+            </ContextualHelp>
+          ) : (
+            <ImportWizard
+              selectedImportType={activeImportType}
+              onImportTypeChange={setActiveImportType}
+              allowedImportTypes={allowedImportTypes}
+            />
+          )
         ) : (
-          <ImportWizard
-            selectedImportType={activeImportType}
-            onImportTypeChange={setActiveImportType}
-            allowedImportTypes={allowedImportTypes}
-          />
-        )
-      ) : (
-        <ContextualHelp title="Import indisponible pour votre poste" tone="warning">
-          {`Aucun droit d'import n'est actif sur votre profil. Demandez au directeur d'ajouter au moins un droit: ${studentLabels.pluralLower}, professeurs ou emploi du temps.`}
-        </ContextualHelp>
-      )}
+          <ContextualHelp title="Import indisponible pour votre poste" tone="warning">
+            {`Aucun droit d'import n'est actif sur votre profil. Demandez au directeur d'ajouter au moins un droit: ${studentLabels.pluralLower}, professeurs ou emploi du temps.`}
+          </ContextualHelp>
+        )}
+      </div>
 
       {canViewHistory ? (
-        <Card>
+        <Card data-tour="import-history">
           <CardHeader>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -278,5 +307,6 @@ export default function ImportPage() {
         </Card>
       ) : null}
     </div>
+    </>
   )
 }
