@@ -788,7 +788,7 @@ export default function DashboardPage() {
               {isDirector ? (
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   className="text-muted-foreground"
                   onClick={() => {

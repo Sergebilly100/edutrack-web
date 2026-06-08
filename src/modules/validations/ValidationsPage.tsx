@@ -1216,7 +1216,7 @@ export default function ValidationsPage() {
             <p className="text-sm text-muted-foreground">Présence(s) en attente de décision.</p>
           </div>
           {isDirectorValidations ? (
-            <Button type="button" variant="ghost" size="sm" className="text-muted-foreground shrink-0" onClick={() => tour.restart()}>
+            <Button type="button" variant="outline" size="sm" className="text-muted-foreground shrink-0" onClick={() => tour.restart()}>
               <Info className="mr-1.5 h-4 w-4" />
               Guide
             </Button>

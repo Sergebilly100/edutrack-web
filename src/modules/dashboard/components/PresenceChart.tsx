@@ -37,9 +37,9 @@ const formatDateLong = (value: string) => {
 }
 
 const rateColor = (rate: number) => {
-  if (rate >= 80) return "hsl(142, 71%, 45%)"
-  if (rate >= 60) return "hsl(38, 92%, 50%)"
-  return "hsl(0, 84%, 60%)"
+  if (rate >= 80) return "hsla(142, 71%, 45%, 0.88)"
+  if (rate >= 60) return "hsl(38, 100%, 72%)"
+  return "hsla(0, 100%, 57%, 0.65)"
 }
 
 type CustomTooltipProps = {
@@ -187,11 +187,11 @@ export default function PresenceChart({ data }: PresenceChartProps) {
                 ≥ 80% (bon)
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-500" />
+                <span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-300" />
                 60–79% (attention)
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="inline-block h-2.5 w-2.5 rounded-sm bg-red-500" />
+                <span className="inline-block h-2.5 w-2.5 rounded-sm bg-red-400" />
                 &lt; 60% (critique)
               </span>
             </div>

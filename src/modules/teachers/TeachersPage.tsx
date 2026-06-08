@@ -684,7 +684,7 @@ export default function TeachersPage() {
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
             className="text-muted-foreground"
             onClick={() => tour.restart()}

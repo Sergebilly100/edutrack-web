@@ -133,7 +133,7 @@ export default function ImportPage() {
           </div>
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
             className="text-muted-foreground"
             onClick={() => tour.restart()}
