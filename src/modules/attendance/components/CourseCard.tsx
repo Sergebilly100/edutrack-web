@@ -62,7 +62,10 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
   const courseDateKey = slot.date ?? toDateKey(now)
   const end = toDateTime(courseDateKey, slot.end_time)
   const finishWindowEnd = new Date(end.getTime() + 30 * 60 * 1000)
-  const rollCallStillOpen = now <= end
+  // ── CORRECTION : grace period de 30 min pour le pointage (même que finishWindow)
+  // Permet au prof de faire/rattraper le pointage même après la fin du créneau.
+  // Sans cela, les boutons "Faire le pointage" et "Poursuivre" disparaissent immédiatement.
+  const rollCallStillOpen = now <= finishWindowEnd
 
   const alreadyCheckedIn =
     attendance?.status === "present" || attendance?.status === "late"
@@ -149,7 +152,7 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
           {rollCallPending && rollCallStillOpen ? (
             <p className="flex items-center gap-1.5 text-xs font-medium text-amber-900">
               <span className="h-2 w-2 rounded-full bg-amber-500" />
-              {`Appel ${studentLabels.pluralLower} à faire avant ${formatTime(slot.end_time)}`}
+              {`Appel ${studentLabels.pluralLower} à faire rapidement (30 min après fin)`}
             </p>
           ) : null}
 

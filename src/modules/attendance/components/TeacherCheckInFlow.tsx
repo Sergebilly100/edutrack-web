@@ -450,9 +450,14 @@ export default function TeacherCheckInFlow({ open, onClose, slot, editRollCall =
   const handleRollCallLater = () => {
     setShowRollCallPrompt(false)
     rollCallStore.markRollCallPending(slot.id, attendanceDate)
+    const endTime = new Date()
+    const [hours, minutes] = slot.end_time.split(":")
+    endTime.setHours(Number(hours) || 0, Number(minutes) || 0, 0, 0)
+    const deadline = new Date(endTime.getTime() + 30 * 60 * 1000)
+    const deadlineStr = deadline.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
     toast({
       title: "Appel reporté",
-      description: `Pensez à faire le pointage avant ${formatTime(slot.end_time)}.`,
+      description: `Terminez le pointage avant ${deadlineStr} (30 min après fin du cours).`,
     })
     onClose()
   }
