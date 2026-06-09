@@ -1065,17 +1065,6 @@ export default function TeacherCheckInFlow({ open, onClose, slot, editRollCall =
                   {finishCourseMutation.isPending ? "Clôture en cours..." : "Terminer le cours"}
                 </Button>
               )}
-
-              {/* Correction : revenir à l'appel si un élève marqué absent est finalement arrivé. */}
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full text-muted-foreground border-muted-foreground hover:bg-muted hover:text-muted-foreground"
-                data-testid="teacher-edit-rollcall"
-                onClick={() => setStep(3)}
-              >
-                Modifier l'appel
-              </Button>
             </section>
           ) : null}
         </SheetContent>
