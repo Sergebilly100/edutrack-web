@@ -22,6 +22,8 @@ export type UseInstallPromptResult = {
   promptInstall: () => Promise<boolean>
 }
 
+const INSTALL_STORAGE_KEY = "ivoiredu:pwa-installed"
+
 // Navigateurs Android qui n'installent pas de PWA : navigateurs in-app (webviews
 // des réseaux sociaux) et Firefox. Sur ceux-ci, on oriente vers Chrome.
 const detectUnsupportedBrowser = (): boolean => {
@@ -45,13 +47,14 @@ const detectPlatform = (): InstallPlatform => {
 
 const detectStandalone = (): boolean => {
   if (typeof window === "undefined") return false
+  const locallyInstalled = window.localStorage.getItem(INSTALL_STORAGE_KEY) === "true"
   const standaloneDisplay =
     typeof window.matchMedia === "function" &&
     window.matchMedia("(display-mode: standalone)").matches
   // iOS Safari expose navigator.standalone
   const iosStandalone =
     (window.navigator as Navigator & { standalone?: boolean }).standalone === true
-  return standaloneDisplay || iosStandalone
+  return locallyInstalled || standaloneDisplay || iosStandalone
 }
 
 export const useInstallPrompt = (): UseInstallPromptResult => {
@@ -67,14 +70,26 @@ export const useInstallPrompt = (): UseInstallPromptResult => {
       setDeferredPrompt(event as BeforeInstallPromptEvent)
     }
     const onInstalled = () => {
+      window.localStorage.setItem(INSTALL_STORAGE_KEY, "true")
       setIsInstalled(true)
       setDeferredPrompt(null)
     }
+    const standaloneQuery =
+      typeof window.matchMedia === "function"
+        ? window.matchMedia("(display-mode: standalone)")
+        : null
+    const onDisplayModeChange = () => {
+      if (detectStandalone()) {
+        setIsInstalled(true)
+      }
+    }
     window.addEventListener("beforeinstallprompt", onBeforeInstall)
     window.addEventListener("appinstalled", onInstalled)
+    standaloneQuery?.addEventListener("change", onDisplayModeChange)
     return () => {
       window.removeEventListener("beforeinstallprompt", onBeforeInstall)
       window.removeEventListener("appinstalled", onInstalled)
+      standaloneQuery?.removeEventListener("change", onDisplayModeChange)
     }
   }, [])
 

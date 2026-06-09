@@ -50,6 +50,14 @@ const ValidationsPage = lazy(() => import("@/modules/validations/ValidationsPage
 const LoginPage = lazy(() => import("./modules/auth/LoginPage"))
 const AdminLoginPage = lazy(() => import("./modules/auth/AdminLoginPage"))
 const MaintenancePage = lazy(() => import("./modules/auth/MaintenancePage"))
+const MarketingHomePage = lazy(() => import("@/modules/marketing/MarketingHomePage"))
+
+const MAIN_DOMAIN_HOSTS = new Set(["ivoiredu.ci", "www.ivoiredu.ci"])
+
+const isMainPublicDomain = (): boolean => {
+  if (typeof window === "undefined") return false
+  return MAIN_DOMAIN_HOSTS.has(window.location.hostname.toLowerCase())
+}
 
 function DashboardRoute() {
   const [searchParams] = useSearchParams()
@@ -184,6 +192,14 @@ function LoginRoute() {
   }
 
   return <LoginPage />
+}
+
+function HomeRoute() {
+  if (isMainPublicDomain()) {
+    return <MarketingHomePage />
+  }
+
+  return <LoginRoute />
 }
 
 function AdminLoginRoute() {
@@ -382,7 +398,7 @@ export default function App() {
   return (
     <Suspense fallback={<SessionLoader />}>
       <Routes>
-        <Route path="/" element={<LoginRoute />} />
+        <Route path="/" element={<HomeRoute />} />
         <Route path="/login" element={<LoginRoute />} />
         <Route path="/admin/login" element={<AdminLoginRoute />} />
         <Route path="/parent/login" element={<ParentLoginRoute />} />

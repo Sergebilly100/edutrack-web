@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Bell, BellRing, Download, Share, SquarePlus, Smartphone, X } from "lucide-react"
+import { Bell, Download, Share, SquarePlus, Smartphone, X } from "lucide-react"
 
 import { dismissInstallCard, isInstallCardDismissed } from "./install-dismiss"
 
@@ -28,8 +28,8 @@ type InstallPwaCardProps = {
  * Carte d'onboarding qui guide l'utilisateur (prof ou parent) pour :
  *  1. installer l'app sur son téléphone (PWA),
  *  2. activer les notifications.
- * Reste visible tant que l'app n'est pas installée OU que les notifs ne sont pas
- * activées (réapparaît donc à chaque connexion). S'efface une fois les deux faits.
+ * Reste visible tant que l'app n'est pas installée. Le bouton notifications est
+ * proposé uniquement tant que les notifications ne sont pas déjà actives.
  */
 export function InstallPwaCard({ audience, headline, className }: InstallPwaCardProps) {
   const { toast } = useToast()
@@ -44,7 +44,7 @@ export function InstallPwaCard({ audience, headline, className }: InstallPwaCard
 
   // Masquée si : rien à proposer, OU fermée par l'utilisateur pour cette session
   // (réapparaît à la prochaine connexion - le flag est purgé au logout).
-  if (dismissed || (!showInstall && !showNotifications)) {
+  if (isInstalled || dismissed || (!showInstall && !showNotifications)) {
     return null
   }
 
@@ -120,11 +120,7 @@ export function InstallPwaCard({ audience, headline, className }: InstallPwaCard
                 disabled={push.isBusy}
                 className="min-h-10 w-full lg:w-auto"
               >
-                {notificationsActive ? (
-                  <BellRing className="mr-1.5 h-4 w-4" />
-                ) : (
-                  <Bell className="mr-1.5 h-4 w-4" />
-                )}
+                <Bell className="mr-1.5 h-4 w-4" />
                 {push.isBusy ? "Activation…" : "Activer les notifications"}
               </Button>
             ) : null}

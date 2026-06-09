@@ -96,6 +96,27 @@ const nextMonth = (ym: string): string => {
   return `${y}-${String(m + 1).padStart(2, "0")}`
 }
 
+const monthStartIso = (ym: string): string => `${ym}-01`
+
+const monthEndIso = (ym: string): string => {
+  const [year, month] = ym.split("-").map(Number)
+  if (!year || !month) return ""
+  return new Date(year, month, 0).toISOString().slice(0, 10)
+}
+
+const dateToMonthKey = (value: string | null): string | null => {
+  if (!value) return null
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}`
+}
+
+const monthLabel = (ym: string): string => {
+  const [year, month] = ym.split("-").map(Number)
+  if (!year || !month) return ym
+  return new Date(year, month - 1, 1).toLocaleDateString("fr-FR", { month: "short", year: "numeric" })
+}
+
 const PAYMENT_METHODS = [
   { value: "cash", label: "Espèces" },
   { value: "momo_mtn", label: "MTN MoMo" },
@@ -270,8 +291,8 @@ export default function AdminSchoolDetailPage() {
         amount_fcfa: Number(payment.amount),
         provider: payment.provider,
         reference: payment.reference || undefined,
-        period_from: payment.periodFrom,
-        period_to: payment.periodTo,
+        period_from: monthStartIso(payment.periodFrom),
+        period_to: monthEndIso(payment.periodTo),
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["admin", "school-payments", tenantId] })
@@ -456,7 +477,8 @@ export default function AdminSchoolDetailPage() {
     Number(payment.amount) > 0 &&
     payment.date.length > 0 &&
     payment.periodFrom.length > 0 &&
-    payment.periodTo.length > 0
+    payment.periodTo.length > 0 &&
+    payment.periodFrom <= payment.periodTo
 
   // ── Calendrier de paiement année scolaire ────────────────────────────────
   // Calcul global (utilisé dans le header, les badges, et le tab abonnement)
@@ -480,8 +502,18 @@ export default function AdminSchoolDetailPage() {
     const payments = paymentsQuery.data ?? []
     const now = new Date()
 
-    // Build one entry per month of the school year
-    const months = Array.from({ length: syParsed.totalMonths }, (_, i) => {
+    const months: Array<{
+      ym: string
+      monthStart: Date
+      monthEnd: Date
+      isPast: boolean
+      isCurrent: boolean
+      isFuture: boolean
+      due: number
+      covered: number
+      remaining: number
+      status: "paid" | "partial" | "unpaid" | "future" | "no-mrr"
+    }> = Array.from({ length: syParsed.totalMonths }, (_, i) => {
       const monthStart = new Date(syParsed.start.getFullYear(), syParsed.start.getMonth() + i, 1)
       const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0)
       const ym = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}`
@@ -489,37 +521,50 @@ export default function AdminSchoolDetailPage() {
       const isCurrent = monthStart <= now && now <= monthEnd
       const isFuture = monthStart > now
 
-      // Sum payments whose period overlaps this month (period_from ≤ monthEnd && period_to ≥ monthStart)
-      const covered = payments
-        .filter((p) => {
-          if (!p.periodFrom || !p.periodTo) return false
-          const pFrom = new Date(p.periodFrom)
-          const pTo = new Date(p.periodTo)
-          return pFrom <= monthEnd && pTo >= monthStart
-        })
-        .reduce((sum, p) => {
-          if (!p.periodFrom || !p.periodTo) return sum
-          // Allocate proportionally if a single payment covers multiple months
-          const pFrom = new Date(p.periodFrom)
-          const pTo = new Date(p.periodTo)
-          const totalDays = Math.max(1, Math.round((pTo.getTime() - pFrom.getTime()) / 86400000) + 1)
-          const overlapStart = pFrom < monthStart ? monthStart : pFrom
-          const overlapEnd = pTo > monthEnd ? monthEnd : pTo
-          const overlapDays = Math.max(0, Math.round((overlapEnd.getTime() - overlapStart.getTime()) / 86400000) + 1)
-          return sum + Math.round((p.amountFcfa * overlapDays) / totalDays)
-        }, 0)
-
       const due = effectiveMrr
-      const remaining = Math.max(0, due - covered)
+      const covered = 0
+      const remaining = due
       let status: "paid" | "partial" | "unpaid" | "future" | "no-mrr"
       if (effectiveMrr === 0) status = "no-mrr"
       else if (isFuture) status = "future"
-      else if (covered >= due) status = "paid"
-      else if (covered > 0) status = "partial"
       else status = "unpaid"
 
       return { ym, monthStart, monthEnd, isPast, isCurrent, isFuture, due, covered, remaining, status }
     })
+
+    const monthByKey = new Map(months.map((month) => [month.ym, month]))
+    payments
+      .filter((paymentItem) => paymentItem.status === "success" && paymentItem.periodFrom && paymentItem.periodTo)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .forEach((paymentItem) => {
+        const startMonth = dateToMonthKey(paymentItem.periodFrom)
+        const endMonth = dateToMonthKey(paymentItem.periodTo)
+        if (!startMonth || !endMonth || startMonth > endMonth) return
+
+        let amountLeft = paymentItem.amountFcfa
+        let cursor = startMonth
+        while (cursor <= endMonth && amountLeft > 0) {
+          const month = monthByKey.get(cursor)
+          if (month && month.due > 0) {
+            const missing = Math.max(0, month.due - month.covered)
+            const allocated = Math.min(missing, amountLeft)
+            month.covered += allocated
+            month.remaining = Math.max(0, month.due - month.covered)
+            amountLeft -= allocated
+
+            if (month.isFuture) {
+              month.status = "future"
+            } else if (month.covered >= month.due) {
+              month.status = "paid"
+            } else if (month.covered > 0) {
+              month.status = "partial"
+            } else {
+              month.status = "unpaid"
+            }
+          }
+          cursor = nextMonth(cursor)
+        }
+      })
 
     const overdueMonthsCalc = months.filter((m) => (m.isPast || m.isCurrent) && (m.status === "unpaid" || m.status === "partial"))
     const totalUnpaidFcfa = overdueMonthsCalc.reduce((s, m) => s + m.remaining, 0)
@@ -528,6 +573,14 @@ export default function AdminSchoolDetailPage() {
   })()
 
   const isPaymentOverdue = billingCalendar.overdueCount > 0
+
+  const remainingMonthsToSettle = billingCalendar.months.filter(
+    (m) => !m.isFuture && m.status !== "paid" && m.status !== "no-mrr"
+  )
+  const remainingMonthOptions = remainingMonthsToSettle.map((m) => m.ym)
+  const paymentEndOptions = payment.periodFrom
+    ? remainingMonthOptions.filter((ym) => ym >= payment.periodFrom)
+    : remainingMonthOptions
 
   const activeUsersRatePct =
     school && school.usageStats.nbUsers > 0
@@ -588,7 +641,7 @@ export default function AdminSchoolDetailPage() {
             {isPaymentOverdue && (
               <Badge variant="destructive" className="gap-1">
                 <AlertTriangle className="h-3 w-3" />
-                {billingCalendar.overdueCount} mois impayé{billingCalendar.overdueCount > 1 ? "s" : ""}
+                {billingCalendar.overdueCount} mois non soldé{billingCalendar.overdueCount > 1 ? "s" : ""}
               </Badge>
             )}
             {overdueMonths.length > 0 && (
@@ -1015,7 +1068,7 @@ export default function AdminSchoolDetailPage() {
 
                 const statusBadge = (s: string) => {
                   if (s === "paid")    return <span className="inline-flex items-center rounded-full bg-green-100 text-green-700 text-xs px-2 py-0.5 font-medium">Payé</span>
-                  if (s === "partial") return <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-900 text-xs px-2 py-0.5 font-medium">Partiel</span>
+                  if (s === "partial") return <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-900 text-xs px-2 py-0.5 font-medium">Non soldé</span>
                   if (s === "unpaid")  return <span className="inline-flex items-center rounded-full bg-red-100 text-red-700 text-xs px-2 py-0.5 font-medium">Impayé</span>
                   if (s === "future")  return <span className="inline-flex items-center rounded-full bg-muted text-muted-foreground text-xs px-2 py-0.5 font-medium">À venir</span>
                   return <span className="inline-flex items-center rounded-full bg-muted text-muted-foreground text-xs px-2 py-0.5 font-medium">-</span>
@@ -1035,7 +1088,7 @@ export default function AdminSchoolDetailPage() {
                       <Alert variant="destructive">
                         <AlertTriangle className="h-4 w-4" />
                         <AlertDescription>
-                          <strong>{overdueCount} mois impayé{overdueCount > 1 ? "s" : ""}</strong> - {formatFcfa(totalUnpaidFcfa)} restent dus
+                          <strong>{overdueCount} mois non soldé{overdueCount > 1 ? "s" : ""}</strong> - {formatFcfa(totalUnpaidFcfa)} restent dus
                           sur les mensualités passées. Voir le calendrier ci-dessous.
                         </AlertDescription>
                       </Alert>
@@ -1137,6 +1190,9 @@ export default function AdminSchoolDetailPage() {
                         <CardDescription>
                           {syParsed?.totalMonths ?? 10} mensualités × {effectiveMrr > 0 ? formatFcfa(effectiveMrr) : "-"} ={" "}
                           <strong>{effectiveMrr > 0 ? formatFcfa(syFullYear) : "-"} sur l&apos;année.</strong>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Un mois n&apos;est marqué comme « Payé » que si son montant attendu est entièrement couvert. Les paiements partiels restent non soldés.
+                          </p>
                           {mrrIsFromPlan && <span className="text-amber-600"> (estimé depuis le plan)</span>}
                           {!rawSY && (
                             <span className="block mt-1 text-amber-600 text-xs">
@@ -1154,7 +1210,7 @@ export default function AdminSchoolDetailPage() {
                             <p className="text-xs text-muted-foreground mt-0.5">{elapsed} mois × {effectiveMrr > 0 ? formatFcfa(effectiveMrr) : "-"}</p>
                           </div>
                           <div className="rounded-lg border bg-green-50 border-green-200 p-3 text-sm">
-                            <p className="text-xs text-muted-foreground">Couvert (via périodes)</p>
+                            <p className="text-xs text-muted-foreground">Imputé (via périodes)</p>
                             <p className="font-semibold text-green-700">{formatFcfa(syPaid)}</p>
                             <p className="text-xs text-muted-foreground mt-0.5">{syPct}% réglé</p>
                           </div>
@@ -1189,7 +1245,7 @@ export default function AdminSchoolDetailPage() {
                                 <TableRow>
                                   <TableHead>Mois</TableHead>
                                   <TableHead className="text-right">Attendu</TableHead>
-                                  <TableHead className="text-right">Couvert</TableHead>
+                                  <TableHead className="text-right">Imputé</TableHead>
                                   <TableHead className="text-right">Reste</TableHead>
                                   <TableHead>Statut</TableHead>
                                 </TableRow>
@@ -1225,8 +1281,8 @@ export default function AdminSchoolDetailPage() {
                       <CardHeader className="pb-3">
                         <CardTitle className="text-base">Enregistrer un paiement</CardTitle>
                         <CardDescription>
-                          La période couverte est obligatoire - un paiement de plusieurs mois met à jour
-                          automatiquement toutes les lignes correspondantes du calendrier.
+                          La période couverte est obligatoire et se saisit en mois. Le montant couvre les mois
+                          entiers dans l'ordre ; un mois partiellement couvert reste non soldé.
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
@@ -1266,14 +1322,46 @@ export default function AdminSchoolDetailPage() {
                               onChange={(e) => setPayment((p) => ({ ...p, reference: e.target.value }))} />
                           </div>
                           <div className="space-y-2">
-                            <Label>Période couverte - début <span className="text-destructive">*</span></Label>
-                            <Input type="date" value={payment.periodFrom}
-                              onChange={(e) => setPayment((p) => ({ ...p, periodFrom: e.target.value }))} />
+                            <Label>Mois couvert - début <span className="text-destructive">*</span></Label>
+                            {remainingMonthOptions.length > 0 ? (
+                              <Select value={payment.periodFrom}
+                                onValueChange={(value) => setPayment((p) => ({
+                                  ...p,
+                                  periodFrom: value,
+                                  periodTo: value > p.periodTo ? "" : p.periodTo,
+                                }))}
+                              >
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {remainingMonthOptions.map((ym) => (
+                                    <SelectItem key={ym} value={ym}>{monthLabel(ym)}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <div className="rounded-md border border-muted/50 bg-muted/10 p-3 text-sm text-muted-foreground">
+                                Aucun mois restant à solder.
+                              </div>
+                            )}
                           </div>
                           <div className="space-y-2">
-                            <Label>Période couverte - fin <span className="text-destructive">*</span></Label>
-                            <Input type="date" value={payment.periodTo}
-                              onChange={(e) => setPayment((p) => ({ ...p, periodTo: e.target.value }))} />
+                            <Label>Mois couvert - fin <span className="text-destructive">*</span></Label>
+                            {payment.periodFrom && paymentEndOptions.length > 0 ? (
+                              <Select value={payment.periodTo}
+                                onValueChange={(value) => setPayment((p) => ({ ...p, periodTo: value }))}
+                              >
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {paymentEndOptions.map((ym) => (
+                                    <SelectItem key={ym} value={ym}>{monthLabel(ym)}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <div className="rounded-md border border-muted/50 bg-muted/10 p-3 text-sm text-muted-foreground">
+                                Sélectionnez d'abord un mois de début valide.
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
@@ -1284,6 +1372,11 @@ export default function AdminSchoolDetailPage() {
                           {!canSubmitPayment && Number(payment.amount) > 0 && payment.date.length > 0 && (
                             <p className="text-xs text-muted-foreground">Renseignez la période couverte pour valider.</p>
                           )}
+                          {effectiveMrr > 0 && Number(payment.amount) > 0 && Number(payment.amount) < effectiveMrr ? (
+                            <p className="text-xs text-amber-700">
+                              Montant inférieur à une mensualité : le mois restera partiellement couvert, donc non soldé.
+                            </p>
+                          ) : null}
                         </div>
                       </CardContent>
                     </Card>
@@ -1315,9 +1408,9 @@ export default function AdminSchoolDetailPage() {
                                   <TableCell className="whitespace-nowrap text-sm">
                                     {item.periodFrom && item.periodTo ? (
                                       <span>
-                                        {new Date(item.periodFrom).toLocaleDateString("fr-FR", { month: "short", year: "numeric" })}
+                                        {monthLabel(dateToMonthKey(item.periodFrom) ?? item.periodFrom)}
                                         {" → "}
-                                        {new Date(item.periodTo).toLocaleDateString("fr-FR", { month: "short", year: "numeric" })}
+                                        {monthLabel(dateToMonthKey(item.periodTo) ?? item.periodTo)}
                                       </span>
                                     ) : (
                                       <span className="text-muted-foreground text-xs italic">Non rattaché</span>

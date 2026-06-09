@@ -46,15 +46,51 @@ export const usePushNotifications = (audience: PushAudience): UsePushNotificatio
 
   // État initial : permission courante + abonnement déjà présent.
   useEffect(() => {
+    let cancelled = false
+
     if (!isSupported) {
       setPermission("unsupported")
       return
     }
-    setPermission(Notification.permission as PushPermissionState)
-    navigator.serviceWorker.ready
-      .then((reg) => reg.pushManager.getSubscription())
-      .then((sub) => setIsSubscribed(Boolean(sub)))
-      .catch(() => setIsSubscribed(false))
+
+    const refreshSubscriptionState = async (): Promise<void> => {
+      setPermission(Notification.permission as PushPermissionState)
+      try {
+        const reg = await navigator.serviceWorker.ready
+        const sub = await reg.pushManager.getSubscription()
+        if (!cancelled) {
+          setIsSubscribed(Notification.permission === "granted" && Boolean(sub))
+        }
+      } catch {
+        if (!cancelled) {
+          setIsSubscribed(false)
+        }
+      }
+    }
+
+    void refreshSubscriptionState()
+
+    let permissionStatus: PermissionStatus | null = null
+    if ("permissions" in navigator) {
+      void navigator.permissions
+        .query({ name: "notifications" as PermissionName })
+        .then((status) => {
+          permissionStatus = status
+          status.onchange = () => {
+            void refreshSubscriptionState()
+          }
+        })
+        .catch(() => {
+          permissionStatus = null
+        })
+    }
+
+    return () => {
+      cancelled = true
+      if (permissionStatus) {
+        permissionStatus.onchange = null
+      }
+    }
   }, [isSupported])
 
   const subscribe = useCallback(async (): Promise<boolean> => {
@@ -78,6 +114,7 @@ export const usePushNotifications = (audience: PushAudience): UsePushNotificatio
         }))
 
       await sendPushSubscription(audience, subscription.toJSON())
+      setPermission("granted")
       setIsSubscribed(true)
       return true
     } catch {
