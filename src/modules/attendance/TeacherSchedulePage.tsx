@@ -142,7 +142,7 @@ export default function TeacherSchedulePage() {
 
     for (const slot of daySlots) {
       const flowState = useRollCallStore.getState().getFlowState(slot.id, selectedDateKey)
-      if (flowState !== "ready_to_finish") {
+      if (flowState !== "ready_to_finish" && flowState !== "ready_to_finish_without_rollcall") {
         continue
       }
 

@@ -70,6 +70,8 @@ const motivationalMessages = [
   "Votre taux de conformité est visible par la direction. Gardez le cap",
 ]
 
+const ROLLCALL_GRACE_AFTER_END_MS = 15 * 60 * 1000
+
 const buildMotivationalByStep = (labels: StudentLabels): Record<1 | 2 | 3 | 4, string> => ({
   1: "Votre ponctualité est notée par la direction. Bonne séance !",
   2: "La vérification de salle protège votre dossier. Encore une étape.",
@@ -120,6 +122,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot, editRollCall =
   const isRollCallPending = flowState === "rollcall_pending"
   const isCheckinQrDone = flowState === "checkin_qr_done"
   const isReadyToFinish = flowState === "ready_to_finish"
+  const isReadyToFinishWithoutRollCall = flowState === "ready_to_finish_without_rollcall"
 
   /**
    * Étape de départ selon l'état du flow :
@@ -128,7 +131,13 @@ export default function TeacherCheckInFlow({ open, onClose, slot, editRollCall =
    * - null (nouveau)    → étape 1
    */
   const initialStep: 1 | 2 | 3 | 4 =
-    editRollCall ? 3 : isReadyToFinish ? 4 : isRollCallPending || isCheckinQrDone ? 3 : 1
+    editRollCall
+      ? 3
+      : isReadyToFinish || isReadyToFinishWithoutRollCall
+        ? 4
+        : isRollCallPending || isCheckinQrDone
+          ? 3
+          : 1
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(initialStep)
 
@@ -165,7 +174,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot, editRollCall =
       setCheckInScheduled(false)
       setEndQrScanned(false)
       const currentFlow = rollCallStore.getFlowState(slot.id, attendanceDate)
-      if (currentFlow === "ready_to_finish") {
+      if (currentFlow === "ready_to_finish" || currentFlow === "ready_to_finish_without_rollcall") {
         setStep(4)
       } else {
         setStep(currentFlow === "rollcall_pending" || currentFlow === "checkin_qr_done" ? 3 : 1)
@@ -453,11 +462,11 @@ export default function TeacherCheckInFlow({ open, onClose, slot, editRollCall =
     const endTime = new Date()
     const [hours, minutes] = slot.end_time.split(":")
     endTime.setHours(Number(hours) || 0, Number(minutes) || 0, 0, 0)
-    const deadline = new Date(endTime.getTime() + 30 * 60 * 1000)
+    const deadline = new Date(endTime.getTime() + ROLLCALL_GRACE_AFTER_END_MS)
     const deadlineStr = deadline.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
     toast({
       title: "Appel reporté",
-      description: `Terminez le pointage avant ${deadlineStr} (30 min après fin du cours).`,
+      description: `Terminez le pointage avant ${deadlineStr} (15 min après fin du cours).`,
     })
     onClose()
   }
@@ -702,7 +711,16 @@ export default function TeacherCheckInFlow({ open, onClose, slot, editRollCall =
   // ── Render ────────────────────────────────────────────────────────────────
 
   const stepIndex = useMemo(() => [1, 2, 3] as const, [])
-  const isResuming = isRollCallPending || isCheckinQrDone || isReadyToFinish
+  const isResuming = isRollCallPending || isCheckinQrDone || isReadyToFinish || isReadyToFinishWithoutRollCall
+  const rollCallDeadlineLabel = useMemo(() => {
+    const endTime = new Date()
+    const [hours, minutes] = slot.end_time.split(":")
+    endTime.setHours(Number(hours) || 0, Number(minutes) || 0, 0, 0)
+    return new Date(endTime.getTime() + ROLLCALL_GRACE_AFTER_END_MS).toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  }, [slot.end_time])
 
   return (
     <>
@@ -721,6 +739,8 @@ export default function TeacherCheckInFlow({ open, onClose, slot, editRollCall =
             <SheetTitle>
               {isRollCallPending
                 ? `Pointage des ${studentLabels.pluralLower}`
+                : isReadyToFinishWithoutRollCall
+                  ? "Terminer sans pointage"
                 : isReadyToFinish
                   ? "Terminer le cours"
                 : isCheckinQrDone
@@ -1014,12 +1034,16 @@ export default function TeacherCheckInFlow({ open, onClose, slot, editRollCall =
             <section className="space-y-4 rounded-xl border p-2" data-testid="teacher-checkin-step-4">
               <div className="space-y-2 rounded-lg border border-green-200 bg-green-50 px-3 py-3">
                 <p className="text-sm font-medium text-green-800">
-                  Cours en cours : {slot.subject_name} {slot.class_name}
+                  {isReadyToFinishWithoutRollCall ? "Cours sans pointage élèves" : "Cours en cours"} : {slot.subject_name} {slot.class_name}
                 </p>
                 <p className="text-xs text-green-700">
                   Début : {formatTime(slot.start_time)} - Salle {slot.room_name}
                 </p>
-                <p className="text-xs text-green-700">{motivationalByStep[4]}</p>
+                <p className="text-xs text-green-700">
+                  {isReadyToFinishWithoutRollCall
+                    ? `L'appel des ${studentLabels.pluralLower} n'a pas été soumis dans le délai. Clôturez le cours avant la fin de la fenêtre autorisée.`
+                    : motivationalByStep[4]}
+                </p>
               </div>
 
               {!endQrScanned ? (
@@ -1084,7 +1108,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot, editRollCall =
               <div className="space-y-2 text-sm text-muted-foreground">
                 <p>{`Votre présence est confirmée. Souhaitez-vous faire le pointage des ${studentLabels.pluralLower} maintenant ou plus tard ?`}</p>
                 <p className="font-medium text-amber-900">
-                  Le pointage doit être effectué avant {formatTime(slot.end_time)}.
+                  Le pointage doit être effectué avant {rollCallDeadlineLabel} (15 min après la fin du cours).
                 </p>
               </div>
             </AlertDialogDescription>

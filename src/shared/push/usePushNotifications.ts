@@ -38,6 +38,14 @@ const detectSupport = (): boolean =>
   "Notification" in window &&
   Boolean(VAPID_PUBLIC_KEY)
 
+const serviceWorkerReadyWithTimeout = (timeoutMs = 10_000): Promise<ServiceWorkerRegistration> =>
+  Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<ServiceWorkerRegistration>((_, reject) => {
+      window.setTimeout(() => reject(new Error("Service worker not ready")), timeoutMs)
+    }),
+  ])
+
 export const usePushNotifications = (audience: PushAudience): UsePushNotificationsResult => {
   const [isSupported] = useState(detectSupport)
   const [permission, setPermission] = useState<PushPermissionState>("default")
@@ -56,7 +64,7 @@ export const usePushNotifications = (audience: PushAudience): UsePushNotificatio
     const refreshSubscriptionState = async (): Promise<void> => {
       setPermission(Notification.permission as PushPermissionState)
       try {
-        const reg = await navigator.serviceWorker.ready
+        const reg = await serviceWorkerReadyWithTimeout()
         const sub = await reg.pushManager.getSubscription()
         if (!cancelled) {
           setIsSubscribed(Notification.permission === "granted" && Boolean(sub))
@@ -103,7 +111,7 @@ export const usePushNotifications = (audience: PushAudience): UsePushNotificatio
         return false
       }
 
-      const registration = await navigator.serviceWorker.ready
+      const registration = await serviceWorkerReadyWithTimeout()
       const existing = await registration.pushManager.getSubscription()
       const subscription =
         existing ??
@@ -129,7 +137,7 @@ export const usePushNotifications = (audience: PushAudience): UsePushNotificatio
     if (!isSupported) return
     setIsBusy(true)
     try {
-      const registration = await navigator.serviceWorker.ready
+      const registration = await serviceWorkerReadyWithTimeout()
       const subscription = await registration.pushManager.getSubscription()
       if (subscription) {
         await removePushSubscription(audience, subscription.endpoint).catch(() => {

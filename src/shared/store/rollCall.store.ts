@@ -15,12 +15,21 @@
  *   "ready_to_finish"   → appel élèves validé, cours à clôturer par scan QR de fin
  *                         CourseCard → bouton "Terminer le cours"
  *
+ *   "ready_to_finish_without_rollcall"
+ *                      → appel élèves non fait, délai de grâce dépassé, cours
+ *                         clôturable sans pointage jusqu'à fin + 30 min
+ *                         CourseCard → bouton "Terminer le cours sans pointage"
+ *
  *   absent (clé inexistante ou supprimée) → workflow non commencé ou terminé
  */
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
-export type FlowState = "rollcall_pending" | "checkin_qr_done" | "ready_to_finish"
+export type FlowState =
+  | "rollcall_pending"
+  | "checkin_qr_done"
+  | "ready_to_finish"
+  | "ready_to_finish_without_rollcall"
 
 type FlowKey = string // `${scheduleId}:${date}`
 
@@ -54,6 +63,9 @@ interface RollCallStore {
 
   /** Appel élèves validé, en attente du scan QR de fin */
   markReadyToFinish: (scheduleId: string, date: string) => void
+
+  /** Appel non soumis, fenêtre passée, en attente de clôture sans pointage */
+  markReadyToFinishWithoutRollCall: (scheduleId: string, date: string) => void
 
   /** Appel soumis ou workflow complet → nettoyer */
   markDone: (scheduleId: string, date: string) => void
@@ -93,6 +105,11 @@ export const useRollCallStore = create<RollCallStore>()(
       markReadyToFinish: (scheduleId, date) =>
         set((s) => ({
           flows: { ...s.flows, [`${scheduleId}:${date}`]: "ready_to_finish" },
+        })),
+
+      markReadyToFinishWithoutRollCall: (scheduleId, date) =>
+        set((s) => ({
+          flows: { ...s.flows, [`${scheduleId}:${date}`]: "ready_to_finish_without_rollcall" },
         })),
 
       // Nettoie aussi le contexte du scan début : le cours est terminé, le

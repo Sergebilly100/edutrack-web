@@ -33,7 +33,7 @@ type InstallPwaCardProps = {
  */
 export function InstallPwaCard({ audience, headline, className }: InstallPwaCardProps) {
   const { toast } = useToast()
-  const { isInstalled, canPromptInstall, platform, isUnsupportedBrowser, promptInstall } = useInstallPrompt()
+  const { isInstalled, canPromptInstall, platform, browser, isUnsupportedBrowser, promptInstall } = useInstallPrompt()
   const push = usePushNotifications(audience)
   const [howToOpen, setHowToOpen] = useState(false)
   const [dismissed, setDismissed] = useState(isInstallCardDismissed)
@@ -136,7 +136,7 @@ export function InstallPwaCard({ audience, headline, className }: InstallPwaCard
               En quelques secondes, ajoutez l'app à votre écran d'accueil.
             </DialogDescription>
           </DialogHeader>
-          {platform === "ios" ? (
+          {platform === "ios" && browser === "safari" ? (
             <ol className="space-y-3 text-sm">
               <li className="flex items-start gap-2">
                 <Share className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
@@ -151,6 +151,26 @@ export function InstallPwaCard({ audience, headline, className }: InstallPwaCard
                 <span>Validez avec <strong>Ajouter</strong>. L'icône IvoirEdu apparaît sur votre écran.</span>
               </li>
             </ol>
+          ) : platform === "ios" ? (
+            <div className="space-y-3">
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <p className="font-medium">L'installation iPhone se fait depuis Safari.</p>
+                <p className="mt-1 text-xs">
+                  Ouvrez <strong>ivoiredu.ci</strong> dans <strong>Safari</strong>, puis utilisez le bouton
+                  <strong> Partager</strong> pour l'ajouter à l'écran d'accueil.
+                </p>
+              </div>
+              <ol className="space-y-3 text-sm">
+                <li className="flex items-start gap-2">
+                  <Share className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                  <span>Dans Safari, touchez <strong>Partager</strong>.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <SquarePlus className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                  <span>Choisissez <strong>« Sur l'écran d'accueil »</strong>, puis <strong>Ajouter</strong>.</span>
+                </li>
+              </ol>
+            </div>
           ) : (
             <div className="space-y-3">
               {isUnsupportedBrowser ? (
@@ -166,10 +186,17 @@ export function InstallPwaCard({ audience, headline, className }: InstallPwaCard
               <ol className="space-y-3 text-sm">
                 <li className="flex items-start gap-2">
                   <SquarePlus className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
-                  <span>
-                    Dans <strong>Chrome</strong>, touchez le menu <strong>⋮</strong>{" "}
-                    {platform === "desktop" ? "en haut à droite" : "en haut à droite de l'écran"}.
-                  </span>
+                  {browser === "safari" ? (
+                    <span>
+                      Dans <strong>Safari</strong>, ouvrez le menu <strong>Fichier</strong> puis choisissez
+                      <strong> Ajouter au Dock</strong>.
+                    </span>
+                  ) : (
+                    <span>
+                      Dans <strong>Chrome</strong>, touchez le menu <strong>⋮</strong>{" "}
+                      {platform === "desktop" ? "en haut à droite" : "en haut à droite de l'écran"}.
+                    </span>
+                  )}
                 </li>
                 <li className="flex items-start gap-2">
                   <Download className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />

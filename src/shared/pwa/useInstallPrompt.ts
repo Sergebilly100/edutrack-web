@@ -6,6 +6,7 @@ type BeforeInstallPromptEvent = Event & {
 }
 
 export type InstallPlatform = "android" | "ios" | "desktop" | "other"
+export type InstallBrowser = "chrome" | "safari" | "firefox" | "edge" | "in_app" | "other"
 
 export type UseInstallPromptResult = {
   /** L'app tourne déjà en mode installé (standalone) → pas besoin de proposer. */
@@ -13,6 +14,7 @@ export type UseInstallPromptResult = {
   /** Un prompt natif d'installation est disponible (Chrome/Android/Desktop). */
   canPromptInstall: boolean
   platform: InstallPlatform
+  browser: InstallBrowser
   /**
    * Navigateur qui ne sait pas installer une PWA (navigateur in-app type
    * Facebook/WhatsApp, ou Firefox Android) → il faut conseiller d'ouvrir dans Chrome.
@@ -34,6 +36,19 @@ const detectUnsupportedBrowser = (): boolean => {
   const inApp = /\b(fban|fbav|instagram|line|wv|; wv\)|micromessenger|whatsapp)\b/.test(ua)
   const isFirefox = /firefox|fxios/.test(ua)
   return inApp || isFirefox
+}
+
+const detectBrowser = (): InstallBrowser => {
+  if (typeof navigator === "undefined") return "other"
+  const ua = navigator.userAgent.toLowerCase()
+  const vendor = navigator.vendor.toLowerCase()
+  const isInApp = /\b(fban|fbav|instagram|line|wv|; wv\)|micromessenger|whatsapp)\b/.test(ua)
+  if (isInApp) return "in_app"
+  if (/edg\//.test(ua)) return "edge"
+  if (/firefox|fxios/.test(ua)) return "firefox"
+  if (/crios|chrome|chromium/.test(ua) && !/edg\//.test(ua)) return "chrome"
+  if (/safari/.test(ua) && /apple/.test(vendor) && !/crios|fxios|edg\//.test(ua)) return "safari"
+  return "other"
 }
 
 const detectPlatform = (): InstallPlatform => {
@@ -61,6 +76,7 @@ export const useInstallPrompt = (): UseInstallPromptResult => {
   const [isInstalled, setIsInstalled] = useState(detectStandalone)
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [platform] = useState(detectPlatform)
+  const [browser] = useState(detectBrowser)
   const [isUnsupportedBrowser] = useState(detectUnsupportedBrowser)
 
   useEffect(() => {
@@ -98,6 +114,10 @@ export const useInstallPrompt = (): UseInstallPromptResult => {
     await deferredPrompt.prompt()
     const choice = await deferredPrompt.userChoice
     setDeferredPrompt(null)
+    if (choice.outcome === "accepted") {
+      window.localStorage.setItem(INSTALL_STORAGE_KEY, "true")
+      setIsInstalled(true)
+    }
     return choice.outcome === "accepted"
   }
 
@@ -105,6 +125,7 @@ export const useInstallPrompt = (): UseInstallPromptResult => {
     isInstalled,
     canPromptInstall: Boolean(deferredPrompt),
     platform,
+    browser,
     isUnsupportedBrowser,
     promptInstall,
   }
