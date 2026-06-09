@@ -119,7 +119,8 @@
   body {
     @apply bg-background text-foreground;
     background-color: var(--surface-base);
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
     font-feature-settings: "cv11", "ss01", "tnum";
   }
 }

@@ -55,8 +55,11 @@ const MarketingHomePage = lazy(() => import("@/modules/marketing/MarketingHomePa
 const MAIN_DOMAIN_HOSTS = new Set(["ivoiredu.ci", "www.ivoiredu.ci"])
 
 const isMainPublicDomain = (): boolean => {
-  if (typeof window === "undefined") return false
+
+  if (import.meta.env.DEV) return true
+
   return MAIN_DOMAIN_HOSTS.has(window.location.hostname.toLowerCase())
+
 }
 
 function DashboardRoute() {
