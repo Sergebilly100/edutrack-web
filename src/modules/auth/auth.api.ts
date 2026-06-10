@@ -20,6 +20,9 @@ type LoginResponse = {
   };
 };
 
+// le tenantSubdomain est optionnel car on peut être en localhost ou sur le domaine principal ivoiredu.ci, 
+// auquel cas on utilise le header x-tenant-schema à la place pour faire du fallback vers une école par défaut 
+// (configurable via les variables d'environnement VITE_DEFAULT_TENANT_SCHEMA ou VITE_E2E_SCHEMA_NAME)
 export const login = async (
   identifier: string,
   password: string,
@@ -47,6 +50,8 @@ export const login = async (
   return response.data;
 };
 
+// Cette fonction est séparée de login car elle utilise une route différente et n'a pas besoin du header x-tenant-subdomain ou x-tenant-schema,
+//  car les admins ne sont pas rattachés à une école spécifique et sont gérés dans une table séparée dans la base de données
 export const loginAdmin = async (
   identifier: string,
   password: string,
@@ -55,6 +60,8 @@ export const loginAdmin = async (
   return response.data;
 };
 
+// La route de logout est la même pour les enseignants et les admins, car elle se contente de supprimer le token côté serveur et de faire du cleanup côté client
+// la redirection après logout est gérée côté client dans le store auth.store.ts, et elle redirige vers la page de login classique pour les enseignants et les admins
 export const logout = async (): Promise<void> => {
   await api.post("/auth/logout");
 };

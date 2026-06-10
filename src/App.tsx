@@ -175,6 +175,8 @@ function RoleRedirect() {
     return <Navigate to="/attendance" replace />
   }
 
+  // c'est un peu redondant avec la route /admin, mais ça garantit que même si un super_admin tape manuellement /dashboard ou /schedule
+  //  il sera redirigé vers l'interface admin complète et pas vers une interface limitée par erreur
   if (user.role === "super_admin") {
     return <Navigate to="/admin" replace />
   }

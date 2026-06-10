@@ -259,6 +259,7 @@ export default function SchedulePage() {
     window.localStorage.setItem("schedule-view-mode", viewMode)
   }, [viewMode])
 
+  // chargement du planning de la semaine sélectionnée - source de vérité pour les données affichées et éditées sur la page
   const scheduleQuery = useQuery({
     queryKey: weeklyQueryKey,
     queryFn: () => fetchWeeklySchedule(selectedWeekMonday),
@@ -282,6 +283,10 @@ export default function SchedulePage() {
     staleTime: 60_000,
   })
 
+  // Le scheduleQuery est la source de vérité pour les données affichées et éditées sur la page. 
+  // Les autres queries (teachers, periods) sont utilisées pour alimenter les options du formulaire d'édition, mais ne sont pas critiques pour l'affichage de la grille ou des détails. 
+  // En cas d'erreur sur ces queries secondaires, on peut quand même afficher la page (avec des options de formulaire limitées) et laisser l'utilisateur faire des actions de base 
+  // (ex : voir la grille, ouvrir les détails), plutôt que d'afficher une page d'erreur complète.
   const data = scheduleQuery.data
   const canEditSchedule = hasPermission("schedule.edit")
 
@@ -429,11 +434,12 @@ export default function SchedulePage() {
   )
 
   const upsertMutation = useMutation({
+    // En édition, on utilise l'endpoint de mise à jour pour bénéficier de la logique de portée (updateScope).
     mutationFn: async (values: { id?: string; payload: ScheduleCreatePayload }) => {
-      if (values.id) return updateScheduleSlot(values.id, values.payload)
+      if (values.id) return updateScheduleSlot(values.id, values.payload) // si id présent → édition de créneau existant
       return createScheduleSlot(values.payload)
     },
-    onMutate: async (values) => {
+    onMutate: async (values) => { // ici on applique l'optimistic update pour les deux cas (création et édition) puisque le payload est similaire (le backend gère la distinction via la présence ou non de l'id)
       await queryClient.cancelQueries({ queryKey: weeklyQueryKey })
       const previous = queryClient.getQueryData<WeeklyScheduleData>(weeklyQueryKey)
       if (!previous) return { previous }

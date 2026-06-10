@@ -364,7 +364,7 @@ export default function StudentDetailPage() {
             <p className="mt-1 truncate text-sm font-medium">{hasParentContact ? "Renseigné" : "Manquant"}</p>
           </div>
           <div className="bg-background px-4 py-3">
-            <p className="text-[11px] font-medium uppercase text-muted-foreground">SMS envoyés</p>
+            <p className="text-[11px] font-medium uppercase text-muted-foreground">Alertes envoyés</p>
             <p className="mt-1 text-lg font-semibold tabular-nums">{sentSmsCount}</p>
           </div>
         </div>
@@ -375,7 +375,7 @@ export default function StudentDetailPage() {
           <TabsTrigger value="absences" data-tour="student-detail-tab-absences">Absences</TabsTrigger>
           <TabsTrigger value="informations" data-tour="student-detail-tab-informations">Informations</TabsTrigger>
           {canManageStudentDocuments ? <TabsTrigger value="documents" data-tour="student-detail-tab-documents">Documents</TabsTrigger> : null}
-          <TabsTrigger value="sms" data-tour="student-detail-tab-sms">SMS Parents</TabsTrigger>
+          <TabsTrigger value="sms" data-tour="student-detail-tab-sms">Notifications Parents</TabsTrigger>
         </TabsList>
 
         <TabsContent value="absences" className="space-y-4">
@@ -461,8 +461,8 @@ export default function StudentDetailPage() {
                           <TableHead>Matière</TableHead>
                           <TableHead>Professeur</TableHead>
                           <TableHead>Statut</TableHead>
-                          <TableHead>SMS</TableHead>
-                          {canExcuse ? <TableHead className="w-[110px]">Action</TableHead> : null}
+                          {/* <TableHead>SMS</TableHead> */}
+                          {canExcuse ? <TableHead className="w-[110px] align-right">Action</TableHead> : null}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -488,11 +488,11 @@ export default function StudentDetailPage() {
                                   <p className="mt-0.5 text-xs text-muted-foreground">{row.excuseReason}</p>
                                 ) : null}
                               </TableCell>
-                              <TableCell>
+                              {/* <TableCell>
                                 <Badge variant={row.smsStatus === "failed" ? "destructive" : "secondary"} className="text-xs">
                                   {recentSmsLabel[statusKey]}
-                                </Badge>
-                              </TableCell>
+                                </Badge> 
+                              </TableCell>*/}
                               {canExcuse ? (
                                 <TableCell>
                                   {row.status === "absent" ? (
@@ -673,7 +673,7 @@ export default function StudentDetailPage() {
         <TabsContent value="sms" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Historique SMS parents</CardTitle>
+              <CardTitle className="text-base">Historique Notifications parents</CardTitle>
             </CardHeader>
             <CardContent>
               {student.parentSms.length === 0 ? (

@@ -188,6 +188,7 @@ export const useAuthStore = create<AuthState>()((setState) => ({
       writeAuthSnapshot(next)
       return { permissions }
     }),
+    // la redirection après logout est gérée dans App.tsx en écoutant les changements de user dans le store auth, et elle redirige vers la page de login classique pour les enseignants et les admins
   logout: (options?: { keepOfflineQueue?: boolean }) =>
     setState(() => {
       clearDashboardDismissedNotifications()
