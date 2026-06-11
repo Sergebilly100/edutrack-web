@@ -70,7 +70,7 @@ import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { OFFLINE_QUEUE_KEYS } from "@/shared/store/offline-processors"
 import { formatFcfa } from "@/shared/utils/formatting"
-import { formatDecimalHours } from "@/shared/utils/time"
+import { formatDecimalHours } from "../../../../edutrack-api/src/shared/utils/time"
 import { salariesTourSteps } from "@/shared/lib/tour-steps"
 
 // Tooltip pour les actions qui restent online-only (exports, paiement

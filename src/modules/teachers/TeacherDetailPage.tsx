@@ -58,7 +58,7 @@ import { teacherDetailTourSteps } from "@/shared/lib/tour-steps"
 import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
 import { getCurrentMonth, formatMonthLabel } from "@/shared/utils/month"
 import { computeAbsenceHours, computeRemainingHours, toDisplayedStatus, toSortableTime } from "@/shared/utils/salary-helpers"
-import { formatDecimalHours } from "@/shared/utils/time"
+import { formatDecimalHours } from "../../../../edutrack-api/src/shared/utils/time"
 
 const updateTeacherErrorMessages: Record<string, string> = {
   TEACHER_TYPE_CHANGE_BLOCKED:

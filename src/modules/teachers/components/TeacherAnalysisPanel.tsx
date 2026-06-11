@@ -29,7 +29,7 @@ import { useTeacherStats } from "@/modules/teachers/hooks/useTeacherStats"
 import { exportTeacherAttendanceStats } from "@/modules/teachers/teachers.api"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
-import { formatDecimalHours } from "@/shared/utils/time"
+import { formatDecimalHours } from "../../../../../edutrack-api/src/shared/utils/time"
 
 const formatHours = (value: number) => formatDecimalHours(value)
 

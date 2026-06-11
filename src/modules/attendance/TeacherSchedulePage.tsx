@@ -125,6 +125,9 @@ export default function TeacherSchedulePage() {
     return new Map((attendanceQuery.data ?? []).map((entry) => [entry.schedule_id, entry]))
   }, [attendanceQuery.data])
 
+  // Permet de marquer un créneau comme « terminé » (flowState = "done") quand :
+  // - soit l'enseignant a déjà effectué une action de pointage indiquant la fin du cours (checked_out_at, student_rollcall_done ou room_scan_end_at non null)
+  // - soit l'heure de fin du cours est dépassée depuis plus de 30 minutes (pour éviter les oublis de l'enseignant à la fin du cours)
   const markFlowDone = useRollCallStore((state) => state.markDone)
 
   const selectedDayOfWeek = getDayOfWeek(selectedDate)
@@ -147,7 +150,7 @@ export default function TeacherSchedulePage() {
       }
 
       const attendance = attendanceBySchedule.get(slot.id)
-      if (attendance?.checked_out_at || attendance?.student_rollcall_done || attendance?.room_scan_end_at) {
+      if (attendance?.checked_out_at || attendance?.room_scan_end_at) {
         markFlowDone(slot.id, selectedDateKey)
         continue
       }

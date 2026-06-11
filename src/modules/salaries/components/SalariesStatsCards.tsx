@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { getSalariesStats } from "../salaries.api"
 import { formatFcfa, formatRate } from "@/shared/utils/formatting"
-import { formatDecimalHours } from "@/shared/utils/time"
+import { formatDecimalHours } from "../../../../../edutrack-api/src/shared/utils/time"
 import { cn } from "@/lib/utils"
 
 const QUERY_STALE_TIME = 5 * 60 * 1000 // 5 minutes

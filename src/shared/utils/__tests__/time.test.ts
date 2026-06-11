@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatDecimalHours, minutesToTime, normalizeTime, timeToMinutes } from '../time'
+import { formatDecimalHours, minutesToTime, normalizeTime, timeToMinutes } from '../../../../../edutrack-api/src/shared/utils/time'
 
 describe('normalizeTime', () => {
   it('tronque les secondes', () => {

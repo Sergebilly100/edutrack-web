@@ -15,9 +15,9 @@ interface CourseCardProps {
 
 type CourseStatus = "upcoming" | "starting_soon" | "now" | "done" | "missed"
 
-const ROLLCALL_GRACE_AFTER_END_MS = 15 * 60 * 1000
-const ABSENCE_NOTIFICATIONS_AFTER_END_MS = 20 * 60 * 1000
-const FINISH_WINDOW_AFTER_END_MS = 30 * 60 * 1000
+const ROLLCALL_GRACE_AFTER_END_MS = 15 * 60 * 1000 // Durée pendant laquelle le bouton de pointage reste disponible après la fin du cours, pour permettre de faire l'appel en cas d'oubli immédiat
+const ABSENCE_NOTIFICATIONS_AFTER_END_MS = 20 * 60 * 1000 // Durée pendant laquelle les notifications d'absence sont envoyées après la fin du cours
+const FINISH_WINDOW_AFTER_END_MS = 30 * 60 * 1000 // Durée pendant laquelle la fenêtre de fin est accessible après la fin du cours
 
 const toDateKey = (date: Date) => {
   const year = date.getFullYear()
@@ -74,9 +74,9 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
   const alreadyCheckedIn =
     attendance?.status === "present" || attendance?.status === "late"
   const courseClosed = Boolean(attendance?.checked_out_at)
-  const rollCallCompleted = Boolean(attendance?.student_rollcall_done)
+  const rollCallCompleted = Boolean(attendance?.student_rollcall_done) // Indique que le prof a validé le pointage (bouton "Terminer le cours" affiché) - même si le cours n'est pas officiellement "terminé" côté API (checked_out_at non rempli) parce qu'on est dans le flow ready_to_finish_without_rollcall par exemple
 
-  const flowState = useRollCallStore((s) => s.getFlowState(slot.id, courseDateKey))
+  const flowState = useRollCallStore((s) => s.getFlowState(slot.id, courseDateKey)) // "rollcall_pending", "checkin_qr_done", "ready_to_finish_without_rollcall", "ready_to_finish"
   const markReadyToFinishWithoutRollCall = useRollCallStore((s) => s.markReadyToFinishWithoutRollCall)
   const localFlowCanDriveUi = !courseClosed && !rollCallCompleted
   const rollCallPending = localFlowCanDriveUi && flowState === "rollcall_pending" // Le prof a choisi "Non, plus tard" dans la modale d'appel
@@ -120,11 +120,22 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
 
   // Après un refresh, le store Zustand est vide mais room_scan_end_at indique
   // que le scan a été validé - on s'appuie dessus pour garder le bouton.
-  const endQrDone = readyToFinish || readyToFinishWithoutRollCall || !!attendance?.room_scan_end_at
+  const endQrDone = readyToFinishWithoutRollCall || !!attendance?.room_scan_end_at
+
   const canFinishCourse =
-    endQrDone &&
     finishWindowOpen &&
-    !attendance?.checked_out_at
+    !attendance?.checked_out_at &&
+    (
+      readyToFinish ||
+      (
+        alreadyCheckedIn &&
+        rollCallCompleted &&
+        !rollCallPending
+      )
+    )
+    // endQrDone && // Le QR de fin a été validé ou on est dans le cas readyToFinishWithoutRollCall (flow terminé sans scan), et que la fenêtre de finish est encore ouverte
+    // finishWindowOpen && // La fenêtre de finish est encore ouverte
+    // !attendance?.checked_out_at 
 
   const handleFinishWithoutRollCall = () => {
     markReadyToFinishWithoutRollCall(slot.id, courseDateKey)
@@ -284,30 +295,6 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
             </Button>
           ) : null}
 
-          {canFinishWithoutRollCall ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="default"
-              className="w-full sm:w-auto"
-              data-testid={`teacher-finish-without-rollcall-${slot.id}`}
-              onClick={handleFinishWithoutRollCall}
-            >
-              Terminer le cours sans pointage
-            </Button>
-          ) : canFinishCourse ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="default"
-              className="w-full sm:w-auto"
-              data-testid={`teacher-finish-course-${slot.id}`}
-              onClick={() => onStartCourse(slot)}
-            >
-              Terminer le cours
-            </Button>
-          ) : null}
-
           {/* Modifier l'appel : appel déjà fait, fenêtre encore ouverte, cours non terminé.
               Permet de corriger un élève marqué absent qui est finalement arrivé. */}
           {onEditRollCall && alreadyCheckedIn && rollCallCompleted && !courseClosed && rollCallStillOpen && status !== "done" ? (
@@ -320,6 +307,30 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
               onClick={() => onEditRollCall(slot)}
             >
               Modifier l'appel
+            </Button>
+          ) : null}
+
+          {canFinishWithoutRollCall ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              className="w-full sm:w-auto"
+              data-testid={`teacher-finish-without-rollcall-${slot.id}`}
+              onClick={handleFinishWithoutRollCall}
+            >
+              Terminer le cours sans pointage
+            </Button>
+          ) : canFinishCourse ? ( // canFinishCourse est vrai si le QR de fin a été validé ou si on est dans le cas readyToFinishWithoutRollCall, et que la fenêtre de finish est encore ouverte
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              className="w-full sm:w-auto"
+              data-testid={`teacher-finish-course-${slot.id}`}
+              onClick={() => onStartCourse(slot)} // Le même handler que pour démarrer le cours, qui gère aussi la fin en fonction du flowState
+            >
+              Terminer le cours
             </Button>
           ) : null}
         </div>
