@@ -185,6 +185,36 @@ describe("offline hooks", () => {
     })
   })
 
+  it("drops terminal HTTP 4xx queue items that cannot be replayed", async () => {
+    setOnlineStatus(false)
+    const conflictError = Object.assign(new Error("conflict"), {
+      response: { status: 409 },
+    })
+    const failingFn = vi.fn(async () => {
+      throw conflictError
+    })
+
+    const { result } = renderHook(
+      () => useOfflineMutation(failingFn, { queueKey: "schedule-update", maxRetries: 3 }),
+      { wrapper: createQueryWrapper() }
+    )
+
+    await act(async () => {
+      await expect(result.current.mutateAsync({ id: "slot-1" })).rejects.toBeInstanceOf(OfflineMutationQueuedError)
+    })
+
+    expect(useOfflineStore.getState().queue).toHaveLength(1)
+
+    await act(async () => {
+      await syncOfflineQueue()
+    })
+
+    await waitFor(() => {
+      expect(failingFn).toHaveBeenCalledTimes(1)
+      expect(useOfflineStore.getState().queue).toHaveLength(0)
+    })
+  })
+
   it("does not sync twice when syncOfflineQueue is called concurrently", async () => {
     setOnlineStatus(false)
     const mutationFn = vi.fn(async () => ({ ok: true }))

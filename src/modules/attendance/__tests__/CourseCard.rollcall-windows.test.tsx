@@ -44,12 +44,13 @@ const attendance: TeacherAttendance = {
   date: "2026-06-09",
 }
 
-const renderCard = () =>
+const renderCard = (overrides?: Partial<TeacherAttendance>, onEditRollCall?: (slot: ScheduleSlot) => void) =>
   render(
     <CourseCard
       slot={slot}
-      attendance={attendance}
+      attendance={{ ...attendance, ...overrides }}
       onStartCourse={vi.fn()}
+      onEditRollCall={onEditRollCall}
     />
   )
 
@@ -80,5 +81,27 @@ describe("CourseCard rollcall windows", () => {
 
     expect(screen.queryByTestId("teacher-rollcall-schedule-1")).not.toBeInTheDocument()
     expect(screen.getByTestId("teacher-finish-without-rollcall-schedule-1")).toBeInTheDocument()
+  })
+
+  it("masque le badge incomplet si l'appel est déjà enregistré côté serveur", () => {
+    flowState = "checkin_qr_done"
+    vi.setSystemTime(new Date("2026-06-09T09:10:00"))
+
+    renderCard({ student_rollcall_done: true })
+
+    expect(screen.queryByText("Pointage incomplet")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("teacher-resume-course-schedule-1")).not.toBeInTheDocument()
+  })
+
+  it("masque Modifier l'appel quand le cours est clôturé", () => {
+    flowState = null
+    vi.setSystemTime(new Date("2026-06-09T08:45:00"))
+
+    renderCard(
+      { student_rollcall_done: true, checked_out_at: "2026-06-09T09:00:00.000Z" },
+      vi.fn()
+    )
+
+    expect(screen.queryByTestId("teacher-edit-rollcall-schedule-1")).not.toBeInTheDocument()
   })
 })

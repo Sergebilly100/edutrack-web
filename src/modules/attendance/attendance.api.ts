@@ -17,18 +17,21 @@ export type QrScanPayload = {
   schedule_id: string
   date?: string
 } & ClientTimestampPayload
+
 export type QrScanResponse = { room_mismatch?: boolean }
+
 export type QrSkipPayload = {
   scan_type: "start" | "end"
   schedule_id: string
   date?: string
-}
+} & ClientTimestampPayload
 
 export type BulkStudentsPayload = {
   schedule_id: string
   date: string
   absent_student_ids: string[]
-}
+} & ClientTimestampPayload
+
 export type BulkStudentsResponse = { success: boolean; notifSendAfter: number; isLocked: boolean }
 
 export type StudentItem = { id: string; full_name: string; matricule: string | null }
@@ -72,6 +75,10 @@ export type TeacherAttendance = {
   checked_out_at?: string | null
   actual_minutes?: number | null
   geo_status?: "verified" | "suspicious" | "unavailable" | "not_checked" | null
+  student_rollcall_done?: boolean
+  student_present_count?: number
+  student_absent_count?: number
+  student_total_count?: number
 }
 
 const toRecord = (value: unknown): Record<string, unknown> =>
@@ -190,6 +197,10 @@ const toTeacherAttendance = (row: unknown): TeacherAttendance => {
       item.geo_status === "not_checked"
         ? item.geo_status
         : null,
+    student_rollcall_done: toBoolean(item.student_rollcall_done ?? item.studentRollcallDone, false),
+    student_present_count: toNumber(item.student_present_count ?? item.studentPresentCount, 0),
+    student_absent_count: toNumber(item.student_absent_count ?? item.studentAbsentCount, 0),
+    student_total_count: toNumber(item.student_total_count ?? item.studentTotalCount, 0),
   }
 }
 
@@ -327,6 +338,7 @@ export const teacherScheduleApi = {
     schedule_id: string
     date: string
     absent_student_ids: string[]
+    client_timestamp?: string
   }) => {
     const response = await api.post<{
       data?: { upsertedCount?: number }
@@ -334,6 +346,7 @@ export const teacherScheduleApi = {
       schedule_id: body.schedule_id,
       date: body.date,
       absent_student_ids: body.absent_student_ids,
+      client_timestamp: body.client_timestamp,
     })
     return {
       upsertedCount: response.data?.data?.upsertedCount ?? 0,
@@ -404,11 +417,14 @@ export const qrSkip = (payload: QrSkipPayload) =>
   api.post("/attendance/qr-skip", payload).then(() => ({ success: true as const }))
 
 export const bulkStudents = (payload: BulkStudentsPayload) =>
+  // cet endpoint est utilisé à la fois pour soumettre l'appel (teacher) et pour le pré-remplissage (student) → réponse avec un champ `success` générique pour les deux cas, 
+  // et pas d'erreur si on "soumet" un appel déjà soumis (idempotence)
   api
     .post<{ data?: { upsertedCount?: number; notifSendAfter?: number; isLocked?: boolean } }>("/attendance/students/bulk", {
       schedule_id: payload.schedule_id,
       date: payload.date,
       absent_student_ids: payload.absent_student_ids,
+      client_timestamp: payload.client_timestamp,
     })
     .then((r) => ({
       success: (r.data?.data?.upsertedCount ?? 0) >= 0,

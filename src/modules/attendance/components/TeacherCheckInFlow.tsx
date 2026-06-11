@@ -521,10 +521,12 @@ export default function TeacherCheckInFlow({ open, onClose, slot, editRollCall =
 
     try {
       let queued = false
+      const eventTimestamp = new Date().toISOString()
       await submitStudentsMutation.mutateAsync({
         schedule_id: slot.id,
         date: attendanceDate,
         absent_student_ids: absentStudentIds,
+        client_timestamp: eventTimestamp,
       }).catch((error: unknown) => {
         if (isOfflineQueued(error)) {
           queued = true

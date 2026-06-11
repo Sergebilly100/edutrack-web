@@ -84,6 +84,14 @@ const delay = (ms: number) =>
     setTimeout(resolve, ms)
   })
 
+const getHttpStatus = (error: unknown): number | undefined =>
+  (error as { response?: { status?: number } })?.response?.status
+
+const isTerminalOfflineError = (error: unknown): boolean => {
+  const status = getHttpStatus(error)
+  return status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429
+}
+
 async function processWithRetry<TData, TVariables>(
   mutationFn: (variables: TVariables) => Promise<TData>,
   variables: TVariables,
@@ -96,14 +104,15 @@ async function processWithRetry<TData, TVariables>(
     try {
       return await mutationFn(variables)
     } catch (error) {
+      // Erreur métier côté serveur (4xx sauf 429) → pas la peine de retenter
+      if (isTerminalOfflineError(error)) {
+        throw error
+      }
+
       lastError = error
       const backoffDelay = 1000 * 2 ** attempt
       attempt += 1
-
-      if (attempt >= maxRetries) {
-        break
-      }
-
+      if (attempt >= maxRetries) break
       await delay(backoffDelay)
     }
   }
@@ -206,6 +215,8 @@ export async function syncOfflineQueue(): Promise<number> {
         return 0
       }
 
+      // On trie la queue par timestamp pour garantir l'ordre de traitement des items, même si des items plus anciens sont ajoutés pendant la sync (ex : pointage d'un cours précédent). 
+      // Les nouveaux items ajoutés pendant la sync seront traités lors de la prochaine exécution de syncOfflineQueue, après leur propre délai de backoff.
       const sortedQueue = [...useOfflineStore.getState().queue].sort(
         (a, b) => a.timestamp - b.timestamp
       )
@@ -229,8 +240,11 @@ export async function syncOfflineQueue(): Promise<number> {
           continue
         }
 
+        // On traite les items séquentiellement pour éviter les conflits (ex : deux mutations sur le même planning). 
+        // En cas d'échec, on arrête la boucle pour éviter de rejouer les items suivants (potentiellement liés) dans le désordre. 
+        // Le retry avec backoff est géré dans processWithRetry, qui rejoue l'item jusqu'à maxRetries avant d'abandonner et passer au suivant.
         try {
-          const data = await processWithRetry(
+          const data = await processWithRetry( // en cas d'erreur, on réessaie jusqu'à maxRetries avec un backoff exponentiel
             processor.mutationFn,
             item.variables,
             processor.maxRetries
@@ -239,7 +253,15 @@ export async function syncOfflineQueue(): Promise<number> {
           processor.onSync?.(data)
           useOfflineStore.getState().removeFromQueue(item.id)
           syncedCount += 1
-        } catch (error) {
+        } catch (error) { // erreur après max retries - on log et on passe à l'item suivant pour éviter de bloquer toute la queue
+          if (isTerminalOfflineError(error)) {
+            console.warn(
+              `[offline-sync] Dropping terminal queue item ${item.id} (${item.queueKey}) after HTTP ${getHttpStatus(error)}`
+            )
+            useOfflineStore.getState().removeFromQueue(item.id)
+            continue
+          }
+
           console.error(
             `[offline-sync] Failed to sync queue item ${item.id} after ${processor.maxRetries} retries`,
             error

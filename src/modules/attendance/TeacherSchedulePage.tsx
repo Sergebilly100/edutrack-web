@@ -147,7 +147,7 @@ export default function TeacherSchedulePage() {
       }
 
       const attendance = attendanceBySchedule.get(slot.id)
-      if (attendance?.room_scan_end_at) {
+      if (attendance?.checked_out_at || attendance?.student_rollcall_done || attendance?.room_scan_end_at) {
         markFlowDone(slot.id, selectedDateKey)
         continue
       }

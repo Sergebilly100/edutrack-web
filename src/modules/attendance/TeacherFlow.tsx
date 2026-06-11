@@ -401,11 +401,13 @@ export default function TeacherFlow({ schedule, demoMode = false }: TeacherFlowP
       return
     }
 
+    const eventTimestamp = new Date().toISOString()
     const result = await bulkStudentsMutation
       .mutateAsync({
         schedule_id: schedule.id,
         date: new Date().toISOString().split("T")[0],
         absent_student_ids: [...absentStudentIds],
+        client_timestamp: eventTimestamp,
       })
       .catch((error: unknown) => {
         if (isOfflineQueued(error)) {

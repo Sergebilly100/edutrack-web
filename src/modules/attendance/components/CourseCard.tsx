@@ -73,13 +73,16 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
 
   const alreadyCheckedIn =
     attendance?.status === "present" || attendance?.status === "late"
+  const courseClosed = Boolean(attendance?.checked_out_at)
+  const rollCallCompleted = Boolean(attendance?.student_rollcall_done)
 
   const flowState = useRollCallStore((s) => s.getFlowState(slot.id, courseDateKey))
   const markReadyToFinishWithoutRollCall = useRollCallStore((s) => s.markReadyToFinishWithoutRollCall)
-  const rollCallPending = flowState === "rollcall_pending" // Le prof a choisi "Non, plus tard" dans la modale d'appel
-  const checkinQrDone = flowState === "checkin_qr_done" // Le prof a scanné le QR de la salle mais n'a pas fini le flow
-  const readyToFinish = flowState === "ready_to_finish" // Le prof a scanné le QR de fin ou a choisi de finir sans scan, prêt à terminer le cours
-  const readyToFinishWithoutRollCall = flowState === "ready_to_finish_without_rollcall"
+  const localFlowCanDriveUi = !courseClosed && !rollCallCompleted
+  const rollCallPending = localFlowCanDriveUi && flowState === "rollcall_pending" // Le prof a choisi "Non, plus tard" dans la modale d'appel
+  const checkinQrDone = localFlowCanDriveUi && flowState === "checkin_qr_done" // Le prof a scanné le QR de la salle mais n'a pas fini le flow
+  const readyToFinish = !courseClosed && flowState === "ready_to_finish" // Le prof a scanné le QR de fin ou a choisi de finir sans scan, prêt à terminer le cours
+  const readyToFinishWithoutRollCall = localFlowCanDriveUi && flowState === "ready_to_finish_without_rollcall"
 
   // ── Règles d'affichage des boutons ────────────────────────────────────────
 
@@ -307,7 +310,7 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
 
           {/* Modifier l'appel : appel déjà fait, fenêtre encore ouverte, cours non terminé.
               Permet de corriger un élève marqué absent qui est finalement arrivé. */}
-          {onEditRollCall && alreadyCheckedIn && !rollCallPending && !readyToFinishWithoutRollCall && rollCallStillOpen && status !== "done" ? (
+          {onEditRollCall && alreadyCheckedIn && rollCallCompleted && !courseClosed && rollCallStillOpen && status !== "done" ? (
             <Button
               type="button"
               size="sm"

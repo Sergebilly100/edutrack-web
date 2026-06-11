@@ -39,6 +39,7 @@ const QUEUE_KEY_LABELS: Record<string, string> = {
 const labelFor = (queueKey: string): string =>
   QUEUE_KEY_LABELS[queueKey] ?? queueKey
 
+// 
 export function OfflineQueueBadge() {
   const queue = useOfflineStore((state) => state.queue)
   const hasHydrated = useOfflineStore((state) => state._hasHydrated)
@@ -69,7 +70,7 @@ export function OfflineQueueBadge() {
   if (!hasHydrated || queue.length === 0) {
     return null
   }
-
+  
   const handleSyncNow = async () => {
     setSyncing(true)
     try {
