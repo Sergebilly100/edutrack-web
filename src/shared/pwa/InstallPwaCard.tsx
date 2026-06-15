@@ -156,7 +156,7 @@ export function InstallPwaCard({ audience, headline, className }: InstallPwaCard
               <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                 <p className="font-medium">L'installation iPhone se fait depuis Safari.</p>
                 <p className="mt-1 text-xs">
-                  Ouvrez <strong>ivoiredu.ci</strong> dans <strong>Safari</strong>, puis utilisez le bouton
+                  Ouvrez la <strong>page de connexion IvoirEdu</strong> dans <strong>Safari</strong>, puis utilisez le bouton
                   <strong> Partager</strong> pour l'ajouter à l'écran d'accueil.
                 </p>
               </div>
@@ -177,7 +177,7 @@ export function InstallPwaCard({ audience, headline, className }: InstallPwaCard
                 <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                   <p className="font-medium">Ce navigateur ne permet pas l'installation.</p>
                   <p className="mt-1 text-xs">
-                    Ouvrez <strong>ivoiredu.ci</strong> dans <strong>Google Chrome</strong> :
+                    Ouvrez la <strong>page de connexion IvoirEdu</strong> dans <strong>Google Chrome</strong> :
                     touchez le menu <strong>⋮</strong> puis <strong>« Ouvrir dans Chrome »</strong>,
                     ou copiez le lien et collez-le dans Chrome. L'installation y est plus simple.
                   </p>
