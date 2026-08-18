@@ -63,6 +63,16 @@ const buildBasePermissionColumns = (labels: StudentLabels) => [
     permissions: ["rooms.view", "rooms.create", "rooms.edit", "rooms.delete"],
   },
   {
+    key: "school_years",
+    label: "Années scolaires",
+    permissions: ["school_years.view", "school_years.create", "school_years.edit"],
+  },
+  {
+    key: "classes",
+    label: "Classes & niveaux",
+    permissions: ["classes.view", "classes.create", "classes.edit", "classes.delete"],
+  },
+  {
     key: "import",
     label: "Import",
     permissions: ["import.students", "import.teachers", "import.schedule"],
@@ -147,6 +157,8 @@ const CATEGORY_VIEW_PERMISSION: Readonly<Record<string, string>> = {
   salary: "salary.view",
   validations: "validations.view",
   rooms: "rooms.view",
+  school_years: "school_years.view",
+  classes: "classes.view",
   schedule: "schedule.view",
   subscriptions: "subscriptions.view",
 }
