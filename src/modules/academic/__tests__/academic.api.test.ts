@@ -42,12 +42,12 @@ describe("academic.api", () => {
 
   it("normalise les variantes snake_case des référentiels", async () => {
     getMock
-      .mockResolvedValueOnce({ data: { schoolYears: [{ id: "year-1", label: "09/2026 - 06/2027", start_date: "2026-09-01", end_date: "2027-06-30", status: "active" }] } })
+      .mockResolvedValueOnce({ data: { schoolYears: [{ id: "year-1", label: "09/2026 - 06/2027", start_date: "2026-09-01", end_date: "2027-06-30", end_of_year_review_start_date: "2027-05-31", status: "active" }] } })
       .mockResolvedValueOnce({ data: { levels: [{ id: "level-1", name: "Terminale", order_index: "12", is_exam_class: true }] } })
 
     const [years, levels] = await Promise.all([listSchoolYears(), listLevels()])
 
-    expect(years[0]).toMatchObject({ startDate: "2026-09-01", status: "active" })
+    expect(years[0]).toMatchObject({ startDate: "2026-09-01", endOfYearReviewStartDate: "2027-05-31", status: "active" })
     expect(levels[0]).toMatchObject({ orderIndex: 12, isExamClass: true })
   })
 })

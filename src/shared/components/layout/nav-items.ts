@@ -13,7 +13,7 @@ import {
   TeachersIcon,
   ClassIcon,
 } from "@/shared/components/icons"
-import { Building2, ClipboardCheck, Landmark, HandCoins, MessageSquareCode, ReceiptText, Settings2, TrendingUp, User, WalletCards } from "lucide-react"
+import { Building2, ClipboardCheck, GraduationCap, Landmark, HandCoins, MessageSquareCode, ReceiptText, Settings2, TrendingUp, User, WalletCards } from "lucide-react"
 
 import { isStaffRole, type AuthRole, type PermissionKey } from "@/shared/store/auth.store"
 
@@ -27,6 +27,7 @@ export interface NavItem {
   requiredAnyPermissions?: PermissionKey[]
   mobileVisible: boolean
   matchExact?: boolean
+  requiresEndOfYearReview?: boolean
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -68,6 +69,15 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ["director", "staff"],
     requiredAnyPermissions: ["school_years.view", "classes.view"],
     mobileVisible: false,
+  },
+  {
+    label: "Fin d’année",
+    href: "/end-of-year",
+    icon: GraduationCap,
+    roles: ["director", "staff"],
+    requiredPermissions: ["class_decisions.view"],
+    mobileVisible: false,
+    requiresEndOfYearReview: true,
   },
   {
     label: "Salaires",
@@ -245,4 +255,19 @@ export function getNavItemsByRole(
     roleItems.filter((item) => hasPermissions(item, permissionsSet)),
     studentPluralLabel,
   )
+}
+
+export function filterNavItemsByFeatures(
+  items: NavItem[],
+  features: { subscriptionsEnabled: boolean; endOfYearReviewVisible: boolean },
+): NavItem[] {
+  return items.filter((item) => {
+    if (item.href === "/subscriptions" || item.href === "/subscriptions/revenue") {
+      return features.subscriptionsEnabled
+    }
+    if (item.requiresEndOfYearReview) {
+      return features.endOfYearReviewVisible
+    }
+    return true
+  })
 }

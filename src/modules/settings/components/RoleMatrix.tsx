@@ -65,7 +65,12 @@ const buildBasePermissionColumns = (labels: StudentLabels) => [
   {
     key: "school_years",
     label: "Années scolaires",
-    permissions: ["school_years.view", "school_years.create", "school_years.edit"],
+    permissions: ["school_years.view", "school_years.edit"],
+  },
+  {
+    key: "class_decisions",
+    label: "Fin d’année",
+    permissions: ["class_decisions.view", "class_decisions.validate"],
   },
   {
     key: "classes",
@@ -95,6 +100,7 @@ const buildBasePermissionRows = (labels: StudentLabels) => [
   { key: "export", label: "Exporter" },
   { key: "approve", label: "Valider une présence" },
   { key: "reject", label: "Refuser une présence" },
+  { key: "validate", label: "Valider une décision" },
   { key: "students", label: `Importer ${labels.pluralLower}` },
   { key: "teachers", label: "Importer profs" },
   { key: "schedule", label: "Importer EDT" },
@@ -158,6 +164,7 @@ const CATEGORY_VIEW_PERMISSION: Readonly<Record<string, string>> = {
   validations: "validations.view",
   rooms: "rooms.view",
   school_years: "school_years.view",
+  class_decisions: "class_decisions.view",
   classes: "classes.view",
   schedule: "schedule.view",
   subscriptions: "subscriptions.view",
@@ -178,6 +185,7 @@ const ACTION_KEYS_REQUIRING_VIEW = new Set([
   "export",
   "approve",
   "reject",
+  "validate",
   "renew",
   "cancel",
   "revenue",

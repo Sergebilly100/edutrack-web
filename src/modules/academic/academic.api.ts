@@ -8,6 +8,7 @@ export type SchoolYear = {
   label: string
   startDate: string
   endDate: string
+  endOfYearReviewStartDate: string
   status: SchoolYearStatus
   createdAt: string
   updatedAt: string
@@ -34,12 +35,7 @@ export type SchoolClass = {
   updatedAt: string
 }
 
-export type SchoolYearPayload = {
-  label: string
-  startDate: string
-  endDate: string
-  status: SchoolYearStatus
-}
+export type SchoolYearReviewPayload = { endOfYearReviewStartDate: string }
 
 export type LevelPayload = {
   name: string
@@ -71,6 +67,7 @@ const parseSchoolYear = (value: unknown): SchoolYear => {
     label: asString(row.label),
     startDate: asString(row.startDate ?? row.start_date),
     endDate: asString(row.endDate ?? row.end_date),
+    endOfYearReviewStartDate: asString(row.endOfYearReviewStartDate ?? row.end_of_year_review_start_date),
     status: parseStatus(row.status),
     createdAt: asString(row.createdAt ?? row.created_at),
     updatedAt: asString(row.updatedAt ?? row.updated_at),
@@ -125,12 +122,7 @@ export async function listSchoolYears(): Promise<SchoolYear[]> {
   return rows.map(parseSchoolYear)
 }
 
-export async function createSchoolYear(payload: SchoolYearPayload): Promise<SchoolYear> {
-  const response = await api.post("/school-years", payload)
-  return parseSchoolYear(asRecord(response.data).schoolYear)
-}
-
-export async function updateSchoolYear(id: string, payload: SchoolYearPayload): Promise<SchoolYear> {
+export async function updateSchoolYearReviewDate(id: string, payload: SchoolYearReviewPayload): Promise<SchoolYear> {
   const response = await api.patch(`/school-years/${id}`, payload)
   return parseSchoolYear(asRecord(response.data).schoolYear)
 }

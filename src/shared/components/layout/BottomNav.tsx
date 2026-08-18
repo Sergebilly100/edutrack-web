@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query"
 
 import { cn } from "@/lib/utils"
 import { getSmsFeatureSettings } from "@/modules/subscriptions/subscriptions.api"
-import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
+import { useEndOfYearReviewStatus } from "@/modules/class-decisions/useEndOfYearReviewStatus"
+import { filterNavItemsByFeatures, getNavItemsByRole } from "@/shared/components/layout/nav-items"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
 
@@ -18,15 +19,14 @@ export function BottomNav() {
     enabled: userRole === "director" || isStaffRole(userRole),
   })
   const subscriptionsEnabled = smsFeatureQuery.data?.monetize_parent_alerts === true
-  const items = getNavItemsByRole(userRole, permissions, studentLabels.plural).filter((item) => {
-    if (!item.mobileVisible) {
-      return false
-    }
-    if (item.href === "/subscriptions" || item.href === "/subscriptions/revenue") {
-      return subscriptionsEnabled
-    }
-    return true
-  })
+  const endOfYearStatusQuery = useEndOfYearReviewStatus()
+  const items = filterNavItemsByFeatures(
+    getNavItemsByRole(userRole, permissions, studentLabels.plural),
+    {
+      subscriptionsEnabled,
+      endOfYearReviewVisible: endOfYearStatusQuery.data?.visible === true,
+    },
+  ).filter((item) => item.mobileVisible)
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 h-16 border-t bg-background/95 backdrop-blur-sm md:hidden">

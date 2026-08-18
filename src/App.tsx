@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query"
 import axios from "axios"
 
 import { getSmsFeatureSettings } from "@/modules/subscriptions/subscriptions.api"
+import { useEndOfYearReviewStatus } from "@/modules/class-decisions/useEndOfYearReviewStatus"
 import { AppShell } from "@/shared/components/layout/AppShell"
 import { TeacherTopBar } from "@/shared/components/layout/TeacherTopBar"
 import { usePermissions } from "@/shared/hooks/usePermissions"
@@ -49,6 +50,7 @@ const TeachersPage = lazy(() => import("@/modules/teachers/TeachersPage"))
 const SchoolYearsPage = lazy(() => import("@/modules/academic/SchoolYearsPage"))
 const LevelsPage = lazy(() => import("@/modules/academic/LevelsPage"))
 const ClassesPage = lazy(() => import("@/modules/academic/ClassesPage"))
+const ClassDecisionsPage = lazy(() => import("@/modules/class-decisions/ClassDecisionsPage"))
 const ValidationsPage = lazy(() => import("@/modules/validations/ValidationsPage"))
 const LoginPage = lazy(() => import("./modules/auth/LoginPage"))
 const AdminLoginPage = lazy(() => import("./modules/auth/AdminLoginPage"))
@@ -392,6 +394,18 @@ function AcademicIndexRoute() {
   return <Navigate to="/academic/classes" replace />
 }
 
+function EndOfYearAccessRoute() {
+  const statusQuery = useEndOfYearReviewStatus()
+
+  if (statusQuery.isLoading) {
+    return <SessionLoader />
+  }
+  if (statusQuery.data?.visible !== true) {
+    return <Navigate to="/dashboard" replace />
+  }
+  return <ClassDecisionsPage />
+}
+
 /**
  * Écran de chargement affiché le temps que useRestoreSession tente de
  * récupérer une session existante. Évite le flash de redirect vers /login
@@ -462,6 +476,7 @@ export default function App() {
           <Route path="/academic/school-years" element={<PermissionRoute href="/academic" requiredAnyPermissions={["school_years.view"]} element={<SchoolYearsPage />} />} />
           <Route path="/academic/levels" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<LevelsPage />} />} />
           <Route path="/academic/classes" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<ClassesPage />} />} />
+          <Route path="/end-of-year" element={<PermissionRoute href="/end-of-year" requiredAnyPermissions={["class_decisions.view"]} element={<EndOfYearAccessRoute />} />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/admin/schools" element={<AdminPage />} />
           <Route path="/admin/schools/:tenantId" element={<AdminSchoolDetailPage />} />

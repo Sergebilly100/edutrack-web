@@ -3,15 +3,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { listSchoolYearsMock, createSchoolYearMock } = vi.hoisted(() => ({
+const { listSchoolYearsMock, updateSchoolYearReviewDateMock } = vi.hoisted(() => ({
   listSchoolYearsMock: vi.fn(),
-  createSchoolYearMock: vi.fn(),
+  updateSchoolYearReviewDateMock: vi.fn(),
 }))
 
 vi.mock("@/modules/academic/academic.api", () => ({
   listSchoolYears: () => listSchoolYearsMock(),
-  createSchoolYear: (payload: unknown) => createSchoolYearMock(payload),
-  updateSchoolYear: vi.fn(),
+  updateSchoolYearReviewDate: (id: string, payload: unknown) => updateSchoolYearReviewDateMock(id, payload),
 }))
 
 vi.mock("@/shared/hooks/usePermissions", () => ({
@@ -27,6 +26,7 @@ const activeYear = {
   label: "09/2026 - 06/2027",
   startDate: "2026-09-01",
   endDate: "2027-06-30",
+  endOfYearReviewStartDate: "2027-05-31",
   status: "active" as const,
   createdAt: "2026-08-18T00:00:00.000Z",
   updatedAt: "2026-08-18T00:00:00.000Z",
@@ -35,36 +35,31 @@ const activeYear = {
 const renderPage = () => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
     <MemoryRouter initialEntries={["/academic/school-years"]}><SchoolYearsPage /></MemoryRouter>
-  </QueryClientProvider>
+  </QueryClientProvider>,
 )
 
 describe("SchoolYearsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     listSchoolYearsMock.mockResolvedValue([activeYear])
-    createSchoolYearMock.mockResolvedValue({ ...activeYear, id: "year-2", status: "draft" })
+    updateSchoolYearReviewDateMock.mockResolvedValue(activeYear)
   })
 
-  it("met clairement en avant l’année active", async () => {
+  it("met en avant l’année active sans action de création ou d’activation", async () => {
     renderPage()
     expect(await screen.findByText("Année en cours")).toBeInTheDocument()
-    expect(screen.getAllByText("09/2026 - 06/2027").length).toBeGreaterThan(0)
+    expect(screen.queryByRole("button", { name: /ajouter une année/i })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Statut")).not.toBeInTheDocument()
   })
 
-  it("crée une année scolaire avec les valeurs validées", async () => {
+  it("modifie uniquement la date de début de revue", async () => {
     renderPage()
-    await screen.findByText("Année en cours")
-    fireEvent.click(screen.getByRole("button", { name: /ajouter une année/i }))
-    fireEvent.change(screen.getByLabelText("Libellé"), { target: { value: "09/2027 - 06/2028" } })
-    fireEvent.change(screen.getByLabelText("Date de début"), { target: { value: "2027-09-01" } })
-    fireEvent.change(screen.getByLabelText("Date de fin"), { target: { value: "2028-06-30" } })
-    fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }))
+    const input = await screen.findByLabelText("Date de début de revue")
+    fireEvent.change(input, { target: { value: "2027-05-15" } })
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrer la date" }))
 
-    await waitFor(() => expect(createSchoolYearMock).toHaveBeenCalledWith({
-      label: "09/2027 - 06/2028",
-      startDate: "2027-09-01",
-      endDate: "2028-06-30",
-      status: "draft",
+    await waitFor(() => expect(updateSchoolYearReviewDateMock).toHaveBeenCalledWith("year-1", {
+      endOfYearReviewStartDate: "2027-05-15",
     }))
   })
 })

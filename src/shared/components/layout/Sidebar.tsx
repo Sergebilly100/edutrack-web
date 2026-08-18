@@ -29,10 +29,11 @@ import { cn } from "@/lib/utils"
 import { logout as logoutApi } from "@/modules/auth/auth.api"
 import { getSmsFeatureSettings } from "@/modules/subscriptions/subscriptions.api"
 import { getPendingValidationCount } from "@/modules/validations/validations.api"
+import { useEndOfYearReviewStatus } from "@/modules/class-decisions/useEndOfYearReviewStatus"
 import { LogoutOfflineGuardDialog } from "@/shared/components/LogoutOfflineGuardDialog"
 import { OfflineQueueBadge } from "@/shared/components/OfflineQueueBadge"
 import { NotificationButton } from "@/shared/components/layout/NotificationButton"
-import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
+import { filterNavItemsByFeatures, getNavItemsByRole } from "@/shared/components/layout/nav-items"
 import { useTheme } from "@/shared/hooks/useTheme"
 import {
   useLogoutWithOfflineGuard,
@@ -123,12 +124,14 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
     refetchInterval: 5 * 60_000,
     enabled: role === "director" || isStaffRole(role),
   })
-  const visibleItems = getNavItemsByRole(role, permissions, studentLabels.plural).filter((item) => {
-    if (item.href === "/subscriptions" || item.href === "/subscriptions/revenue") {
-      return subscriptionsEnabled
-    }
-    return true
-  })
+  const endOfYearStatusQuery = useEndOfYearReviewStatus()
+  const visibleItems = filterNavItemsByFeatures(
+    getNavItemsByRole(role, permissions, studentLabels.plural),
+    {
+      subscriptionsEnabled,
+      endOfYearReviewVisible: endOfYearStatusQuery.data?.visible === true,
+    },
+  )
 
   const handleTogglePinned = () => {
     if (!pinned && collapsed) {
