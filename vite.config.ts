@@ -42,37 +42,10 @@ export default defineConfig(({ mode }) => {
       : []),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "icon.svg", "apple-touch-icon.png", "icons/*.png"],
-      manifest: {
-        name: "IvoirEdu",
-        short_name: "IvoirEdu",
-        description: "Suivi des présences scolaires",
-        lang: "fr",
-        theme_color: "#3b82f6",
-        background_color: "#ffffff",
-        display: "standalone",
-        start_url: "/",
-        icons: [
-          {
-            src: "/icons/icon-192.png",
-            sizes: "192x192",
-            type: "image/png",
-            purpose: "any",
-          },
-          {
-            src: "/icons/icon-512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "any",
-          },
-          {
-            src: "/icons/icon-512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "maskable",
-          },
-        ],
-      },
+      includeAssets: ["favicon.ico", "icon.svg", "apple-touch-icon.png", "icons/*.png", "manifest*.webmanifest"],
+      // Les manifestes sont statiques pour pouvoir installer une app distincte
+      // selon l'espace qui déclenche l'installation (global / prof / parent).
+      manifest: false,
       workbox: {
         // Handlers Web Push (push / notificationclick) ajoutés au SW généré, sans
         // toucher au cache offline auto-généré. Le fichier est servi depuis public/.
@@ -292,11 +265,11 @@ export default defineConfig(({ mode }) => {
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          "react-vendor": ["react", "react-dom", "react-router-dom"],
-          "chart-vendor": ["recharts"],
-          "qr-vendor": ["html5-qrcode", "qrcode.react"],
-          "query-vendor": ["@tanstack/react-query", "@tanstack/react-table"],
+        manualChunks: (id) => {
+          if (["react", "react-dom", "react-router-dom"].some((m) => id.includes(m))) return "react-vendor"
+          if (id.includes("recharts")) return "chart-vendor"
+          if (["html5-qrcode", "qrcode.react"].some((m) => id.includes(m))) return "qr-vendor"
+          if (["@tanstack/react-query", "@tanstack/react-table"].some((m) => id.includes(m))) return "query-vendor"
         },
       },
     },

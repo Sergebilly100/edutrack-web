@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { AlertTriangle, Eye, MessageCircle, Phone, UserRound } from "lucide-react"
 
@@ -57,6 +57,8 @@ const formatRate = (value: number | null | undefined) => `${(value ?? 0).toFixed
 
 const formatPhone = (value: string | null) => (value ? `+${value}` : "-")
 
+const STATS_PAGE_SIZE = 20
+
 export default function StudentAbsencePanel() {
   const {
     queryEnabled,
@@ -74,8 +76,36 @@ export default function StudentAbsencePanel() {
   const studentLabels = useStudentLabels()
 
   const [selectedStudent, setSelectedStudent] = useState<StudentAbsenceStat | null>(null)
+  const [statsPage, setStatsPage] = useState(1)
 
-  const hasRows = (statsQuery.data?.length ?? 0) > 0
+  const statsRows = statsQuery.data ?? []
+  const hasRows = statsRows.length > 0
+  const statsTotalPages = Math.max(1, Math.ceil(statsRows.length / STATS_PAGE_SIZE))
+  const statsPageRows = useMemo(
+    () =>
+      statsRows.slice(
+        (statsPage - 1) * STATS_PAGE_SIZE,
+        statsPage * STATS_PAGE_SIZE
+      ),
+    [statsPage, statsRows]
+  )
+  const statsPageStart = statsRows.length === 0 ? 0 : (statsPage - 1) * STATS_PAGE_SIZE + 1
+  const statsPageEnd = Math.min(statsPage * STATS_PAGE_SIZE, statsRows.length)
+
+  useEffect(() => {
+    setStatsPage(1)
+  }, [
+    filters.classId,
+    filters.from,
+    filters.minAbsences,
+    filters.smsStatus,
+    filters.subject,
+    filters.to,
+  ])
+
+  useEffect(() => {
+    setStatsPage((current) => Math.min(current, statsTotalPages))
+  }, [statsTotalPages])
 
   const absencesExport = usePdfExportJob({
     fallbackFileName: `absences-eleves-${filters.from}-${filters.to}.pdf`,
@@ -242,7 +272,7 @@ export default function StudentAbsencePanel() {
             {!statsQuery.isLoading && hasRows ? (
               <>
               <div className="space-y-3 lg:hidden">
-                {statsQuery.data?.map((row) => {
+                {statsPageRows.map((row) => {
                   const rate = Math.max(0, Math.min(100, row.absenceRate ?? 0))
                   const rateColorClass =
                     rate > 20
@@ -336,7 +366,7 @@ export default function StudentAbsencePanel() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {statsQuery.data?.map((row) => {
+                    {statsPageRows.map((row) => {
                       const rate = Math.max(0, Math.min(100, row.absenceRate ?? 0))
                       const rateColorClass =
                         rate > 20
@@ -410,6 +440,33 @@ export default function StudentAbsencePanel() {
                   </TableBody>
                 </Table>
               </div>
+              {statsRows.length > STATS_PAGE_SIZE ? (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    Affichant {statsPageStart}-{statsPageEnd} sur {statsRows.length} resultats
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={statsPage <= 1}
+                      onClick={() => setStatsPage((page) => Math.max(1, page - 1))}
+                    >
+                      Précédent
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={statsPage >= statsTotalPages}
+                      onClick={() => setStatsPage((page) => Math.min(statsTotalPages, page + 1))}
+                    >
+                      Suivant
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
               </>
             ) : null}
           </CardContent>

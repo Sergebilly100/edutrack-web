@@ -1,0 +1,15 @@
+
+services:
+  angular-client:
+    image: ${APP_NAME}-frontend:${envi}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ${APP_NAME}-frontend-${envi}
+    restart: unless-stopped
+    ports:
+      - "${IP_SERVER}:${APP_PORT}:80"
+    env_file:
+      - config.env.${envi}
+    volumes:
+      - /var/log/apps/${APP_NAME}:/var/log/nginx

@@ -196,8 +196,8 @@ function TeacherRankingPanel({
   // La requête de conformité est spécifique au mois et fournit les données nécessaires pour calculer les taux de conformité et afficher le classement. 
   // Elle est séparée de la requête des professeurs pour permettre une meilleure gestion du cache et éviter les problèmes de données manquantes.
   const complianceQuery = useQuery({
-    queryKey: ["teachers", "ranking", month],
-    queryFn: () => getTeacherCompliance(month),
+    queryKey: ["teachers", "ranking", month, subject],
+    queryFn: () => getTeacherCompliance(month, subject === "all" ? undefined : subject),
     staleTime: 60_000,
     retry: false,
   })
@@ -226,9 +226,8 @@ function TeacherRankingPanel({
         ...row,
         subjects: teachersById.get(row.teacherId)?.subjects ?? [],
       }))
-      .filter((row) => subject === "all" || row.subjects.includes(subject))
       .map((row, index) => ({ ...row, rank: index + 1 }))
-  }, [complianceQuery.data, subject, teachersById])
+  }, [complianceQuery.data, teachersById])
 
   // On calcule le meilleur taux et la moyenne à partir des lignes classées pour afficher les indicateurs globaux du classement, en gérant les cas où il n'y a pas de données.
   const topRate = rankedRows[0]?.complianceRate ?? 0

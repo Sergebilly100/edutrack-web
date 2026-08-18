@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useSearchParams } from "react-router-dom"
 
-import { fetchWeeklySchedule } from "@/modules/schedule/schedule.api"
 import {
   fetchClasses,
   fetchTeacherAttendanceStats,
   fetchTeacherOptions,
+  fetchTeacherTeachingOptions,
   type TeacherAttendanceStats,
 } from "@/modules/teachers/teachers.api"
 
@@ -75,7 +75,7 @@ export const useTeacherStats = () => {
   const [formValues, setFormValues] = useState<TeacherStatsFormValues>(() =>
     toFormFromSearch(searchParams)
   )
-  const [lastAutofilledTeacherId, setLastAutofilledTeacherId] = useState<string | null>(null)
+  const [lastAutofillKey, setLastAutofillKey] = useState<string | null>(null)
 
   const classesQuery = useQuery({
     queryKey: ["classes", "teacher-analysis"],
@@ -87,42 +87,48 @@ export const useTeacherStats = () => {
     queryFn: fetchTeacherOptions,
     staleTime: 1000 * 60 * 5,
   })
-  const weeklyScheduleQuery = useQuery({
-    queryKey: ["schedule", "weekly", "teacher-analysis"],
-    queryFn: fetchWeeklySchedule,
-    staleTime: 1000 * 60 * 5,
-  })
-
   const selectedTeacher = useMemo(
     () =>
       (teachersQuery.data ?? []).find((teacher) => teacher.id === formValues.teacher_id) ?? null,
     [formValues.teacher_id, teachersQuery.data]
   )
 
+  const teacherTeachingOptionsQuery = useQuery({
+    queryKey: [
+      "teachers",
+      "teaching-options",
+      selectedTeacher?.id ?? "all",
+      formValues.from,
+      formValues.to,
+    ],
+    queryFn: () =>
+      fetchTeacherTeachingOptions({
+        from: formValues.from,
+        to: formValues.to,
+        teacher_id: selectedTeacher?.id,
+      }),
+    enabled: Boolean(selectedTeacher && formValues.from && formValues.to && formValues.from <= formValues.to),
+    staleTime: 1000 * 60 * 5,
+  })
+
   const teacherSubjectOptions = useMemo(() => {
     if (!selectedTeacher) return [] as string[]
-    return selectedTeacher.subjects
-      .map((subject) => subject.trim())
-      .filter((subject) => subject.length > 0)
-      .sort((a, b) => a.localeCompare(b, "fr"))
-  }, [selectedTeacher])
-
-  const teacherClassIds = useMemo(() => {
-    if (!selectedTeacher) return new Set<string>()
-    const ids = new Set<string>()
-    for (const row of weeklyScheduleQuery.data?.schedules ?? []) {
-      if (row.teacher.id === selectedTeacher.id) {
-        ids.add(row.class.id)
-      }
+    const values = new Set<string>()
+    const scheduledSubjects = teacherTeachingOptionsQuery.data?.subjects ?? []
+    const source = scheduledSubjects.length > 0 ? scheduledSubjects : selectedTeacher.subjects
+    for (const subject of source) {
+      const clean = subject.trim()
+      if (clean.length > 0) values.add(clean)
     }
-    return ids
-  }, [selectedTeacher, weeklyScheduleQuery.data?.schedules])
+    return Array.from(values).sort((a, b) => a.localeCompare(b, "fr"))
+  }, [selectedTeacher, teacherTeachingOptionsQuery.data?.subjects])
 
   const classOptions = useMemo(() => {
     const allClasses = classesQuery.data ?? []
     if (!selectedTeacher) return allClasses
-    return allClasses.filter((item) => teacherClassIds.has(item.id))
-  }, [classesQuery.data, selectedTeacher, teacherClassIds])
+    const scheduledClasses = teacherTeachingOptionsQuery.data?.classes ?? []
+    return scheduledClasses.length > 0 ? scheduledClasses : allClasses
+  }, [classesQuery.data, selectedTeacher, teacherTeachingOptionsQuery.data?.classes])
 
   const subjectsOptions = useMemo(() => {
     if (selectedTeacher) {
@@ -159,32 +165,36 @@ export const useTeacherStats = () => {
 
   useEffect(() => {
     if (!selectedTeacher) {
-      setLastAutofilledTeacherId(null)
+      setLastAutofillKey(null)
       return
     }
-    const nextClassId = classOptions[0]?.id ?? "all"
-    if (weeklyScheduleQuery.isLoading && nextClassId === "all") {
+    if (!teacherTeachingOptionsQuery.isSuccess) {
       return
     }
-    if (lastAutofilledTeacherId === selectedTeacher.id) {
+    const autofillKey = `${selectedTeacher.id}:${formValues.from}:${formValues.to}`
+    if (lastAutofillKey === autofillKey) {
       return
     }
 
     setFormValues((current) => {
-      const nextSubject = teacherSubjectOptions[0] ?? "all"
+      const shouldAutofill =
+        teacherSubjectOptions.length === 1 &&
+        (teacherTeachingOptionsQuery.data?.classes.length ?? 0) === 1
       return {
         ...current,
-        subject: nextSubject,
-        class_id: nextClassId,
+        subject: shouldAutofill ? teacherSubjectOptions[0] ?? "all" : "all",
+        class_id: shouldAutofill ? teacherTeachingOptionsQuery.data?.classes[0]?.id ?? "all" : "all",
       }
     })
-    setLastAutofilledTeacherId(selectedTeacher.id)
+    setLastAutofillKey(autofillKey)
   }, [
-    classOptions,
-    lastAutofilledTeacherId,
+    formValues.from,
+    formValues.to,
+    lastAutofillKey,
     selectedTeacher,
+    teacherTeachingOptionsQuery.data?.classes,
+    teacherTeachingOptionsQuery.isSuccess,
     teacherSubjectOptions,
-    weeklyScheduleQuery.isLoading,
   ])
 
   const statsQuery = useQuery<TeacherAttendanceStats[]>({
@@ -236,6 +246,7 @@ export const useTeacherStats = () => {
     filters,
     classesQuery,
     classOptions,
+    teacherTeachingOptionsQuery,
     teachersQuery,
     subjectsOptions,
     statsQuery,

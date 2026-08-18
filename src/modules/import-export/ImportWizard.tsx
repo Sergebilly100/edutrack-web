@@ -31,7 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { useConfirmImport, useDryRun } from "@/modules/import/import.hooks"
-import { downloadTemplate, type ImportIssue, type ImportMode, type ImportType } from "./import-export.api"
+import { downloadTemplate, type DryRunResponse, type ImportIssue, type ImportMode, type ImportType } from "./import-export.api"
 import { DateInput } from "@/shared/components/DateInput"
 import { DropZone } from "@/shared/components/DropZone"
 import { Spinner } from "@/shared/components/Spinner"
@@ -81,6 +81,12 @@ const importTypeValues: ImportType[] = ["students", "teachers", "schedule"]
 
 const isImportType = (value: string): value is ImportType =>
   importTypeValues.includes(value as ImportType)
+
+const isPastScheduleWarning = (issue: ImportIssue) =>
+  issue.severity === "warning" && issue.message.toLowerCase().includes("date/heure passée")
+
+const toStringRecord = (row: Record<string, unknown>): Record<string, string> =>
+  Object.fromEntries(Object.entries(row).map(([key, value]) => [key, String(value ?? "")]))
 
 function getRequestErrorMessage(error: unknown, fallback: string) {
   if (isAxiosError(error)) {
@@ -180,6 +186,7 @@ type ImportTypeTabsProps = {
   availableTypes: ImportType[]
   isDownloadingTemplate: boolean
   isFileLoading: boolean
+  dropZoneResetKey: number
   onImportTypeChange: (type: ImportType) => void
   onTemplateDownload: (type: ImportType) => Promise<void>
   onFileSelected: (file: File) => void
@@ -190,6 +197,7 @@ function ImportTypeTabs({
   availableTypes,
   isDownloadingTemplate,
   isFileLoading,
+  dropZoneResetKey,
   onImportTypeChange,
   onTemplateDownload,
   onFileSelected,
@@ -255,7 +263,7 @@ function ImportTypeTabs({
             </Button>
           </div>
 
-          <DropZone onFileSelected={onFileSelected} isLoading={isFileLoading} />
+          <DropZone key={`${type}-${dropZoneResetKey}`} onFileSelected={onFileSelected} isLoading={isFileLoading} />
         </TabsContent>
       ))}
     </Tabs>
@@ -293,6 +301,9 @@ export default function ImportWizard({
   const [weekEnd, setWeekEnd] = useState("")
   const [periodError, setPeriodError] = useState<string | null>(null)
   const [conflictAcknowledged, setConflictAcknowledged] = useState(false)
+  const [pastScheduleAcknowledged, setPastScheduleAcknowledged] = useState(false)
+  const [restoredDryRunReport, setRestoredDryRunReport] = useState<DryRunResponse | null>(null)
+  const [dropZoneResetKey, setDropZoneResetKey] = useState(0)
 
   const dryRunMutation = useDryRun()
   const confirmMutation = useConfirmImport()
@@ -306,15 +317,22 @@ export default function ImportWizard({
     deleteDraft,
   } = useImportDraft(importType)
   const [showRestoreModal, setShowRestoreModal] = useState(false)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [showPastScheduleModal, setShowPastScheduleModal] = useState(false)
 
-  const dryRunReport = dryRunMutation.data
+  const dryRunReport = dryRunMutation.data ?? restoredDryRunReport
   const confirmReport = confirmMutation.data
   const hasConflicts = (dryRunReport?.conflicts?.length ?? 0) > 0
 
   const issues = dryRunReport?.errors ?? []
   const blockingIssues = useMemo(() => issues.filter((item) => item.severity === "error"), [issues])
   const warningIssues = useMemo(() => issues.filter((item) => item.severity === "warning"), [issues])
+  const pastScheduleWarnings = useMemo(
+    () => (importType === "schedule" ? warningIssues.filter(isPastScheduleWarning) : []),
+    [importType, warningIssues]
+  )
   const blockingRowsCount = useMemo(() => new Set(blockingIssues.map((item) => item.row)).size, [blockingIssues])
+  const warningRowsCount = useMemo(() => new Set(warningIssues.map((item) => item.row)).size, [warningIssues])
 
   const blockingIssuesByRow = useMemo(() => {
     const byRow = new Map<number, ImportIssue[]>()
@@ -364,8 +382,49 @@ export default function ImportWizard({
     setTemplateError(null)
     setPeriodError(null)
     setConflictAcknowledged(false)
+    setPastScheduleAcknowledged(false)
+    setRestoredDryRunReport(null)
     dryRunMutation.reset()
     confirmMutation.reset()
+  }
+
+  const getRestorableDryRunReport = (): DryRunResponse | null => {
+    if (!draft) return null
+    if (draft.dryRunResponse) {
+      return draft.dryRunResponse
+    }
+    if (!draft.dryRunReport) {
+      return null
+    }
+
+    return {
+      valid: draft.dryRunReport.summary.validRows,
+      errors: draft.dryRunReport.issues,
+      preview: draft.dryRunReport.previewData.map(toStringRecord),
+      toAdd: [],
+      toUpdate: [],
+      toDelete: [],
+      unchanged: Math.max(0, draft.dryRunReport.summary.validRows),
+      importMode: draft.mode ?? "merge",
+      conflicts: [],
+    }
+  }
+
+  const resetWizardToStart = async () => {
+    await deleteDraft()
+    setStep(1)
+    setFile(null)
+    setTemplateError(null)
+    setPeriodError(null)
+    setImportMode("merge")
+    setWeekStart("")
+    setWeekEnd("")
+    setConflictAcknowledged(false)
+    setPastScheduleAcknowledged(false)
+    setRestoredDryRunReport(null)
+    dryRunMutation.reset()
+    confirmMutation.reset()
+    setDropZoneResetKey((value) => value + 1)
   }
 
   const restoreDraftState = async () => {
@@ -379,24 +438,28 @@ export default function ImportWizard({
       setFile(restoredFile)
 
       // Restaurer step
-      setStep(draft.step)
+      const restoredReport = getRestorableDryRunReport()
+      setRestoredDryRunReport(restoredReport)
+      setStep(draft.step >= 2 && !restoredReport ? 1 : draft.step)
 
-      // Restaurer dry-run report si step >= 2
-      if (draft.step >= 2 && draft.dryRunReport) {
-        // Simuler le résultat de la mutation dry-run
-        dryRunMutation.reset()
-        // Note: On ne peut pas vraiment restaurer l'état de la mutation TanStack Query
-        // On va juste restaurer le step et laisser l'utilisateur ré-analyser si nécessaire
-      }
+      dryRunMutation.reset()
+      confirmMutation.reset()
 
       // Restaurer mode si défini
       if (draft.mode) {
         setImportMode(draft.mode)
       }
+      if (draft.schedulePeriod) {
+        setWeekStart(draft.schedulePeriod.weekStart)
+        setWeekEnd(draft.schedulePeriod.weekEnd)
+      }
 
       toast({
         title: "Import repris",
-        description: `Vous êtes à l'étape ${draft.step}/3. Fichier : ${draft.fileName}`,
+        description:
+          draft.step >= 2 && !restoredReport
+            ? `Fichier restauré : ${draft.fileName}. Relancez la validation.`
+            : `Vous êtes à l'étape ${draft.step}/3. Fichier : ${draft.fileName}`,
       })
     } catch (error) {
       console.error("Failed to restore draft:", error)
@@ -415,6 +478,12 @@ export default function ImportWizard({
     return !Number.isNaN(date.getTime()) && date.getUTCDay() === 1
   }
 
+  const isSunday = (value: string) => {
+    if (!value) return false
+    const date = new Date(`${value}T00:00:00.000Z`)
+    return !Number.isNaN(date.getTime()) && date.getUTCDay() === 0
+  }
+
   const validateSchedulePeriod = () => {
     if (importType !== "schedule") {
       return true
@@ -425,21 +494,41 @@ export default function ImportWizard({
       return false
     }
 
-    if (!isMonday(weekStart) || !isMonday(weekEnd) || weekStart > weekEnd) {
-      setPeriodError(`Impossible de laisser une semaine sans EDT entre ${weekStart} et ${weekEnd}`)
+    if (!isMonday(weekStart) || !isSunday(weekEnd) || weekStart > weekEnd) {
+      setPeriodError(`Impossible ! Les emplois du temps doivent couvrir des semaines complètes du lundi au dimanche entre ${weekStart} et ${weekEnd}`)
       return false
     }
 
     const start = new Date(`${weekStart}T00:00:00.000Z`)
     const end = new Date(`${weekEnd}T00:00:00.000Z`)
     const diffMs = end.getTime() - start.getTime()
-    if (diffMs % (7 * 24 * 60 * 60 * 1000) !== 0) {
-      setPeriodError(`Impossible de laisser une semaine sans EDT entre ${weekStart} et ${weekEnd}`)
+    // La période couvre des semaines du lundi au dimanche inclus :
+    // on ajoute 1 jour (inclusif sur weekEnd) avant de vérifier le multiple de 7 jours
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const MS_PER_WEEK = 7 * MS_PER_DAY;
+    const inclusiveMs = diffMs + MS_PER_DAY;
+    if (inclusiveMs % MS_PER_WEEK !== 0) {
+      setPeriodError(`Impossible ! Les emplois du temps doivent couvrir des semaines complètes du lundi au dimanche entre ${weekStart} et ${weekEnd}`)
       return false
     }
 
     setPeriodError(null)
     return true
+  }
+
+  const getCurrentSchedulePeriod = () =>
+    importType === "schedule" && weekStart && weekEnd ? { weekStart, weekEnd } : null
+
+  const persistDraftOptions = async (options?: { mode?: ImportMode; schedulePeriod?: { weekStart: string; weekEnd: string } | null }) => {
+    if (!file || !draft) return
+    try {
+      await saveDraft({
+        mode: options?.mode ?? importMode,
+        schedulePeriod: options?.schedulePeriod ?? getCurrentSchedulePeriod(),
+      })
+    } catch (error) {
+      console.error("Failed to save draft options:", error)
+    }
   }
 
   const handleImportTypeValueChange = (nextType: ImportType) => {
@@ -450,7 +539,14 @@ export default function ImportWizard({
     setWeekEnd("")
     setPeriodError(null)
     setConflictAcknowledged(false)
+    setPastScheduleAcknowledged(false)
     resetAfterUploadChange()
+    setDropZoneResetKey((value) => value + 1)
+  }
+
+  const handleImportModeChange = (nextMode: ImportMode) => {
+    setImportMode(nextMode)
+    void persistDraftOptions({ mode: nextMode })
   }
 
   const handleFileSelected = async (selectedFile: File) => {
@@ -466,6 +562,8 @@ export default function ImportWizard({
         fileData: arrayBuffer,
         fileSize: selectedFile.size,
         fileMime: selectedFile.type,
+        mode: importMode,
+        schedulePeriod: getCurrentSchedulePeriod(),
       })
     } catch (error) {
       console.error("Failed to save draft:", error)
@@ -495,26 +593,28 @@ export default function ImportWizard({
     if (!file) return
     if (!validateSchedulePeriod()) return
 
+    const schedulePeriod = getCurrentSchedulePeriod() ?? undefined
+    setRestoredDryRunReport(null)
     setStep(2)
     dryRunMutation.mutate(
       {
         type: importType,
         file,
         importMode,
-        schedulePeriod:
-          importType === "schedule" && weekStart && weekEnd
-            ? { weekStart, weekEnd }
-            : undefined,
+        schedulePeriod,
       },
       {
         onSuccess: async (data) => {
           setStep(2)
+          setRestoredDryRunReport(data)
 
           // Sauvegarder draft avec rapport dry-run
           try {
             await saveDraft({
               step: 2,
               mode: importMode,
+              schedulePeriod: schedulePeriod ?? null,
+              dryRunResponse: data,
               dryRunReport: {
                 previewData: data.preview ?? [],
                 issues: data.errors ?? [],
@@ -541,9 +641,8 @@ export default function ImportWizard({
     )
   }
 
-  const handleConfirmImport = () => {
+  const runConfirmImport = () => {
     if (!file) return
-    if (importType === "schedule" && hasConflicts && !conflictAcknowledged) return
 
     setStep(3)
     confirmMutation.mutate(
@@ -584,6 +683,17 @@ export default function ImportWizard({
     )
   }
 
+  const handleConfirmImport = () => {
+    if (!file) return
+    if (importType === "schedule" && hasConflicts && !conflictAcknowledged) return
+    if (importType === "schedule" && pastScheduleWarnings.length > 0 && !pastScheduleAcknowledged) {
+      setShowPastScheduleModal(true)
+      return
+    }
+
+    runConfirmImport()
+  }
+
   const handleFinish = () => {
     setStep(1)
     const fallbackType =
@@ -599,6 +709,7 @@ export default function ImportWizard({
     setWeekStart("")
     setWeekEnd("")
     setConflictAcknowledged(false)
+    setPastScheduleAcknowledged(false)
     dryRunMutation.reset()
     confirmMutation.reset()
   }
@@ -651,6 +762,58 @@ export default function ImportWizard({
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Modal d'annulation d'import (remplace confirm()) */}
+      <AlertDialog open={showCancelModal} onOpenChange={setShowCancelModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Annuler l'import ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Le brouillon sera supprimé. Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Revenir</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                await resetWizardToStart()
+                setShowCancelModal(false)
+                toast({
+                  title: "Import annulé",
+                  description: "Vous pouvez recommencer.",
+                })
+              }}
+              disabled={dryRunMutation.isPending || confirmMutation.isPending}
+            >
+              Confirmer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showPastScheduleModal} onOpenChange={setShowPastScheduleModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Continuer sans les créneaux passés ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Le fichier contient {pastScheduleWarnings.length} ligne(s) avec des dates ou heures passées.
+              Ces occurrences ne seront pas prises en compte lors de l&apos;import. Les créneaux concernés seront appliqués uniquement à partir de leur prochaine occurrence future.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Revenir</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setPastScheduleAcknowledged(true)
+                setShowPastScheduleModal(false)
+                runConfirmImport()
+              }}
+            >
+              Continuer l&apos;import
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Card className="w-full">
         <CardHeader className="space-y-4">
           <CardTitle>Assistant d'import Excel</CardTitle>
@@ -674,6 +837,7 @@ export default function ImportWizard({
               availableTypes={availableTypes}
               isDownloadingTemplate={isDownloadingTemplate}
               isFileLoading={dryRunMutation.isPending}
+              dropZoneResetKey={dropZoneResetKey}
               onImportTypeChange={handleImportTypeValueChange}
               onTemplateDownload={handleTemplateDownload}
               onFileSelected={handleFileSelected}
@@ -686,7 +850,7 @@ export default function ImportWizard({
                   <Button
                     type="button"
                     variant={importMode === "merge" ? "default" : "outline"}
-                    onClick={() => setImportMode("merge")}
+                    onClick={() => handleImportModeChange("merge")}
                     className="min-h-[48px]"
                   >
                     Fusion
@@ -694,7 +858,7 @@ export default function ImportWizard({
                   <Button
                     type="button"
                     variant={importMode === "replace" ? "default" : "outline"}
-                    onClick={() => setImportMode("replace")}
+                    onClick={() => handleImportModeChange("replace")}
                     className="min-h-[48px]"
                   >
                     Remplacement
@@ -723,31 +887,39 @@ export default function ImportWizard({
                 <p className="text-sm font-medium">Période de validité de l&apos;emploi du temps</p>
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="week-start">Semaine de début (lundi)</Label>
+                    <Label htmlFor="week-start">Semaine (début - lundi)</Label>
                     <DateInput
-                      aria-label="Semaine de début (lundi)"
+                      aria-label="Semaine (début - lundi)"
                       value={weekStart}
                       onChange={(newStart) => {
                         setWeekStart(newStart)
+                        const nextPeriod =
+                          newStart && weekEnd && weekEnd > newStart
+                            ? { weekStart: newStart, weekEnd }
+                            : null
                         if (weekEnd && weekEnd <= newStart) {
                           setWeekEnd("")
                         }
                         setPeriodError(null)
+                        void persistDraftOptions({ schedulePeriod: nextPeriod })
                       }}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="week-end" className={!weekStart ? "text-muted-foreground" : undefined}>
-                      Semaine de fin (lundi)
+                      Semaine (fin - Dimanche)
                     </Label>
                     <DateInput
-                      aria-label="Semaine de fin (lundi)"
+                      aria-label="Semaine (fin - Dimanche)"
                       value={weekEnd}
                       min={weekStart || undefined}
                       disabled={!weekStart}
                       onChange={(value) => {
                         setWeekEnd(value)
                         setPeriodError(null)
+                        void persistDraftOptions({
+                          schedulePeriod: weekStart && value ? { weekStart, weekEnd: value } : null,
+                        })
                       }}
                     />
                     {!weekStart ? (
@@ -771,16 +943,8 @@ export default function ImportWizard({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={async () => {
-                    if (confirm("Annuler l'import en cours ? Le brouillon sera supprimé.")) {
-                      await deleteDraft()
-                      setFile(null)
-                      resetAfterUploadChange()
-                      toast({
-                        title: "Import annulé",
-                        description: "Vous pouvez recommencer.",
-                      })
-                    }
+                  onClick={() => {
+                    setShowCancelModal(true)
                   }}
                   disabled={dryRunMutation.isPending}
                   className={cn(touchFeedbackClass, "min-h-[48px]")}
@@ -829,6 +993,9 @@ export default function ImportWizard({
                 <div className="flex flex-wrap items-center gap-3 rounded-md border p-4 text-sm">
                   <p className="font-medium text-green-700">{dryRunReport.valid} lignes valides</p>
                   <p className="font-medium text-destructive">{blockingRowsCount} erreurs</p>
+                  {warningRowsCount > 0 ? (
+                    <p className="font-medium text-amber-700">{warningRowsCount} avertissements</p>
+                  ) : null}
                 </div>
 
                 {(importType === "students" || importType === "teachers") ? (
@@ -878,6 +1045,21 @@ export default function ImportWizard({
                         Je confirme vouloir remplacer l&apos;EDT existant pour ces semaines
                       </Label>
                     </div>
+                  </div>
+                ) : null}
+
+                {pastScheduleWarnings.length ? (
+                  <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                    <Alert>
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertTitle>Créneaux passés ignorés</AlertTitle>
+                      <AlertDescription>
+                        Les dates et heures passées détectées dans le fichier ne seront pas prises en compte lors de l&apos;import.
+                      </AlertDescription>
+                    </Alert>
+                    <p className="text-sm text-amber-900">
+                      Une confirmation sera demandée au moment de lancer l&apos;import.
+                    </p>
                   </div>
                 ) : null}
 
@@ -983,17 +1165,8 @@ export default function ImportWizard({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={async () => {
-                    if (confirm("Annuler l'import en cours ? Le brouillon sera supprimé.")) {
-                      await deleteDraft()
-                      setStep(1)
-                      setFile(null)
-                      resetAfterUploadChange()
-                      toast({
-                        title: "Import annulé",
-                        description: "Vous pouvez recommencer.",
-                      })
-                    }
+                  onClick={() => {
+                    setShowCancelModal(true)
                   }}
                   disabled={confirmMutation.isPending}
                   className={cn(touchFeedbackClass, "min-h-[48px]")}

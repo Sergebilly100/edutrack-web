@@ -26,7 +26,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
-import { excuseAbsence, getStudentById, retrySmsNotification, updateStudent } from "@/modules/students/students.api"
+import {
+  excuseAbsence,
+  getStudentAbsenceRecords,
+  getStudentById,
+  retrySmsNotification,
+  updateStudent,
+  type StudentAbsenceRecord,
+} from "@/modules/students/students.api"
 import { DocumentList, DocumentUpload, OfflineDisabledFieldset, PageLayout, PresenceDonut, StatCard } from "@/shared/components"
 import { BackIcon, InfoIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
@@ -45,13 +52,6 @@ const smsLabel: Record<"queued" | "sent" | "failed" | "delivered", string> = {
   delivered: "Livré",
 }
 
-const recentSmsLabel: Record<"sent" | "failed" | "not_sent" | "none", string> = {
-  sent: "Envoyé",
-  failed: "Échec",
-  not_sent: "Non envoyé",
-  none: "-",
-}
-
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat("fr-CI", {
     day: "2-digit",
@@ -66,6 +66,11 @@ const formatSlot = (startTime: string | null, endTime: string | null) => {
   return `${startTime.slice(0, 5)} - ${endTime.slice(0, 5)}`
 }
 
+const ABSENCE_HISTORY_RANGE = {
+  from: "2000-01-01",
+  to: "2100-12-31",
+} as const
+
 export default function StudentDetailPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -77,6 +82,7 @@ export default function StudentDetailPage() {
   const { hasPermission } = usePermissions()
   const canManageStudentDocuments = hasPermission("students.documents")
   const canEditStudent = hasPermission("students.edit")
+  const canViewAttendance = hasPermission("attendance.view")
   const tour = useTourGuide("student-detail", true)
 
   const [parentName, setParentName] = useState("")
@@ -105,6 +111,19 @@ export default function StudentDetailPage() {
     queryKey: ["students", "detail", studentId],
     queryFn: () => getStudentById(studentId),
     enabled: studentId.trim().length > 0,
+  })
+
+  const absenceRecordsQuery = useQuery({
+    queryKey: [
+      "students",
+      "detail",
+      studentId,
+      "absence-records",
+      ABSENCE_HISTORY_RANGE.from,
+      ABSENCE_HISTORY_RANGE.to,
+    ],
+    queryFn: () => getStudentAbsenceRecords(studentId, ABSENCE_HISTORY_RANGE),
+    enabled: canViewAttendance && studentId.trim().length > 0,
   })
 
   const saveContactsMutation = useMutation({
@@ -145,6 +164,7 @@ export default function StudentDetailPage() {
     mutationFn: (notificationId: string) => retrySmsNotification(notificationId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["students", "detail", studentId] })
+      await queryClient.invalidateQueries({ queryKey: ["students", "detail", studentId, "absence-records"] })
       toast({ title: "SMS remis en file d'envoi" })
     },
     onError: () => {
@@ -156,6 +176,7 @@ export default function StudentDetailPage() {
     mutationFn: ({ id, reason }: { id: string; reason: string }) => excuseAbsence(id, reason),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["students", "detail", studentId] })
+      await queryClient.invalidateQueries({ queryKey: ["students", "detail", studentId, "absence-records"] })
       setExcuseDialogId(null)
       setExcuseReason("")
       toast({ title: "Absence excusée" })
@@ -181,6 +202,9 @@ export default function StudentDetailPage() {
     hydratedRef.current = true
     setNoteStatus("idle")
     setRecentAbsencesPage(1)
+    setAbsenceFilterMonth("all")
+    setAbsenceFilterSubject("all")
+    setAbsenceFilterStatus("all")
   }, [studentQuery.data])
 
   useEffect(() => {
@@ -205,9 +229,37 @@ export default function StudentDetailPage() {
     return Math.max(0, schoolDaysEstimate - absences)
   }, [studentQuery.data?.absenceSummary.thisMonth])
 
+  const absenceRows = useMemo<StudentAbsenceRecord[]>(() => {
+    if (canViewAttendance) {
+      return absenceRecordsQuery.data ?? []
+    }
+
+    return (studentQuery.data?.recentAbsences ?? []).map((row) => ({
+      id: row.id,
+      date: row.date,
+      subject: row.subject,
+      teacherName: row.teacherName,
+      className: studentQuery.data?.className ?? "",
+      startTime: row.startTime ?? "-",
+      endTime: row.endTime ?? "-",
+      status: row.status,
+      excuseReason: row.excuseReason,
+      smsPhone1: {
+        phone: studentQuery.data?.parentPhone ?? null,
+        status: row.smsStatus ?? "not_sent",
+        sentAt: null,
+      },
+      smsPhone2: {
+        phone: studentQuery.data?.parentPhone2 ?? null,
+        status: "not_sent",
+        sentAt: null,
+      },
+    }))
+  }, [absenceRecordsQuery.data, canViewAttendance, studentQuery.data])
+
   const absenceMonthOptions = useMemo(() => {
     const months = new Map<string, string>()
-    for (const row of studentQuery.data?.recentAbsences ?? []) {
+    for (const row of absenceRows) {
       const key = row.date.slice(0, 7)
       if (!months.has(key)) {
         const label = new Intl.DateTimeFormat("fr-CI", { month: "long", year: "numeric" })
@@ -216,22 +268,22 @@ export default function StudentDetailPage() {
       }
     }
     return [...months.entries()].sort((a, b) => b[0].localeCompare(a[0]))
-  }, [studentQuery.data?.recentAbsences])
+  }, [absenceRows])
 
   const absenceSubjectOptions = useMemo(() => {
     const subjects = new Set<string>()
-    for (const row of studentQuery.data?.recentAbsences ?? []) subjects.add(row.subject)
+    for (const row of absenceRows) subjects.add(row.subject)
     return [...subjects].sort()
-  }, [studentQuery.data?.recentAbsences])
+  }, [absenceRows])
 
   const filteredAbsences = useMemo(() => {
-    return (studentQuery.data?.recentAbsences ?? []).filter((row) => {
+    return absenceRows.filter((row) => {
       if (absenceFilterMonth !== "all" && !row.date.startsWith(absenceFilterMonth)) return false
       if (absenceFilterSubject !== "all" && row.subject !== absenceFilterSubject) return false
       if (absenceFilterStatus !== "all" && row.status !== absenceFilterStatus) return false
       return true
     })
-  }, [studentQuery.data?.recentAbsences, absenceFilterMonth, absenceFilterSubject, absenceFilterStatus])
+  }, [absenceRows, absenceFilterMonth, absenceFilterSubject, absenceFilterStatus])
 
   const isValidOptionalEmail = (email: string) => !email.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
   const areContactsValid = isValidOptionalPhone(parentPhone) && isValidOptionalPhone(parentPhone2) && isValidOptionalEmail(parentEmail)
@@ -286,6 +338,9 @@ export default function StudentDetailPage() {
   )
 
   const canExcuse = hasPermission("students.excuse")
+  const isAbsenceTableLoading =
+    canViewAttendance && absenceRecordsQuery.isLoading && !absenceRecordsQuery.data
+  const hasAbsenceTableError = canViewAttendance && absenceRecordsQuery.isError
 
   return (
     <>
@@ -371,7 +426,7 @@ export default function StudentDetailPage() {
       </div>
 
       <Tabs defaultValue="absences" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 mt-2">
           <TabsTrigger value="absences" data-tour="student-detail-tab-absences">Absences</TabsTrigger>
           <TabsTrigger value="informations" data-tour="student-detail-tab-informations">Informations</TabsTrigger>
           {canManageStudentDocuments ? <TabsTrigger value="documents" data-tour="student-detail-tab-documents">Documents</TabsTrigger> : null}
@@ -448,7 +503,19 @@ export default function StudentDetailPage() {
                 </Select>
               </div>
 
-              {filteredAbsences.length === 0 ? (
+              {hasAbsenceTableError ? (
+                <Alert variant="destructive">
+                  <AlertDescription>Impossible de charger l&apos;historique complet des absences.</AlertDescription>
+                </Alert>
+              ) : null}
+
+              {isAbsenceTableLoading ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <Skeleton key={`student-absence-history-skeleton-${index}`} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : filteredAbsences.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Aucune absence pour ces filtres.</p>
               ) : (
                 <div className="space-y-3">
@@ -461,13 +528,11 @@ export default function StudentDetailPage() {
                           <TableHead>Matière</TableHead>
                           <TableHead>Professeur</TableHead>
                           <TableHead>Statut</TableHead>
-                          {/* <TableHead>SMS</TableHead> */}
                           {canExcuse ? <TableHead className="w-[110px] align-right">Action</TableHead> : null}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {recentAbsenceRows.map((row) => {
-                          const statusKey = row.smsStatus ?? "none"
                           return (
                             <TableRow key={row.id}>
                               <TableCell className="font-medium">{formatDate(row.date)}</TableCell>
@@ -488,11 +553,6 @@ export default function StudentDetailPage() {
                                   <p className="mt-0.5 text-xs text-muted-foreground">{row.excuseReason}</p>
                                 ) : null}
                               </TableCell>
-                              {/* <TableCell>
-                                <Badge variant={row.smsStatus === "failed" ? "destructive" : "secondary"} className="text-xs">
-                                  {recentSmsLabel[statusKey]}
-                                </Badge> 
-                              </TableCell>*/}
                               {canExcuse ? (
                                 <TableCell>
                                   {row.status === "absent" ? (

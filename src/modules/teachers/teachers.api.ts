@@ -62,11 +62,22 @@ export type TeacherOption = {
   subjects: string[]
 }
 
+export type TeacherTeachingOptions = {
+  subjects: string[]
+  classes: ClassOption[]
+}
+
 export type TeacherMonthlyAttendanceStatus =
   | "present"
   | "absent"
   | "late"
   | "not_marked"
+
+export type TeacherMonthlyValidationStatus =
+  | "not_required"
+  | "pending"
+  | "approved"
+  | "rejected"
 
 export type TeacherMonthlyAttendanceRow = {
   date: string
@@ -78,6 +89,7 @@ export type TeacherMonthlyAttendanceRow = {
   startTime: string
   endTime: string
   attendanceStatus: TeacherMonthlyAttendanceStatus
+  validationStatus: TeacherMonthlyValidationStatus | null
   checkedInAt: string | null
   checkedOutAt: string | null
   lateMinutes: number | null
@@ -442,6 +454,18 @@ const toAttendanceStatus = (value: unknown): TeacherMonthlyAttendanceStatus => {
   return "not_marked"
 }
 
+const toValidationStatus = (value: unknown): TeacherMonthlyValidationStatus | null => {
+  if (
+    value === "not_required" ||
+    value === "pending" ||
+    value === "approved" ||
+    value === "rejected"
+  ) {
+    return value
+  }
+  return null
+}
+
 export async function getTeacherMonthlyAttendance(
   teacherId: string,
   month: string
@@ -466,6 +490,7 @@ export async function getTeacherMonthlyAttendance(
       startTime: asString(row.startTime, "--"),
       endTime: asString(row.endTime, "--"),
       attendanceStatus: toAttendanceStatus(row.attendanceStatus),
+      validationStatus: toValidationStatus(row.validationStatus),
       checkedInAt: asNullableString(row.checkedInAt),
       checkedOutAt: asNullableString(row.checkedOutAt),
       lateMinutes: row.lateMinutes === null ? null : asNumber(row.lateMinutes, 0),
@@ -525,6 +550,32 @@ export const fetchTeacherAttendanceStats = async (params: {
     : Array.isArray((payload as Record<string, unknown>).data)
       ? ((payload as Record<string, unknown>).data as TeacherAttendanceStats[])
       : []
+}
+
+export const fetchTeacherTeachingOptions = async (params: {
+  from: string
+  to: string
+  teacher_id?: string
+}): Promise<TeacherTeachingOptions> => {
+  const response = await api.get("/teachers/teaching-options", { params })
+  const payload = toRecord(response.data)
+  const subjectsRaw = Array.isArray(payload.subjects) ? payload.subjects : []
+  const classesRaw = Array.isArray(payload.classes) ? payload.classes : []
+
+  return {
+    subjects: subjectsRaw
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, "fr")),
+    classes: classesRaw.map((item) => {
+      const row = toRecord(item)
+      return {
+        id: asString(row.id),
+        name: asString(row.name),
+      }
+    }).filter((item) => item.id && item.name),
+  }
 }
 
 /**

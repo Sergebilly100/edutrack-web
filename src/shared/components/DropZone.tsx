@@ -106,7 +106,7 @@ export function DropZone({
             className="min-h-[48px]"
             onClick={() => inputRef.current?.click()}
           >
-            Parcourir le fichier
+            Parcourir
           </Button>
 
           {selectedFileName ? (

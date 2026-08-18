@@ -70,7 +70,7 @@ import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { OFFLINE_QUEUE_KEYS } from "@/shared/store/offline-processors"
 import { formatFcfa } from "@/shared/utils/formatting"
-import { formatDecimalHours } from "../../../../edutrack-api/src/shared/utils/time"
+import { formatDecimalHours } from "@/shared/utils/time"
 import { salariesTourSteps } from "@/shared/lib/tour-steps"
 
 // Tooltip pour les actions qui restent online-only (exports, paiement
@@ -953,9 +953,9 @@ export default function SalariesPage() {
                 <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
                 <div className="min-w-0 space-y-1">
                   <p className="text-sm font-semibold">
-                    {validationCountQuery.data?.total ?? 0} présence(s) en attente de validation
+                    {validationCountQuery.data?.total ?? 0} présence(s) en attente de validation (HAV)
                   </p>
-                  <p className="text-sm">Les heures concernées ne sont pas encore comptabilisées.</p>
+                  <p className="text-sm">Les heures concernées ne sont pas encore comptabilisées. les HAV ne sont pas encore pris en compte pour les calculs.</p>
                 </div>
               </div>
               <Button asChild variant="outline" className="min-h-[48px] border-amber-300 bg-white">
@@ -1072,7 +1072,7 @@ export default function SalariesPage() {
                     ) : null}
                     <TableHead>Professeur</TableHead>
                     <TableHead>Progression</TableHead>
-                    <TableHead>Total</TableHead>
+                    <TableHead>Total (hors HAV)</TableHead>
                     <TableHead>Statut</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -1319,7 +1319,7 @@ export default function SalariesPage() {
                       </p>
                     </div>
                     <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                      <p className="text-xs text-green-700">Heures effectuées</p>
+                      <p className="text-xs text-green-700">Heures effectuées (hors HAV)</p>
                       <p className="text-lg font-semibold text-green-900">
                         {formatDecimalHours(detailsMutation.data.summary.hoursDone)}
                       </p>
@@ -1394,13 +1394,13 @@ export default function SalariesPage() {
                       </p>
                     </div>
                     <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                      <p className="text-xs text-green-700">Heures effectuées (hors absences)</p>
+                      <p className="text-xs text-green-700">Heures effectuées (hors absences et HAV)</p>
                       <p className="text-lg font-semibold text-green-900">
                         {formatDecimalHours(detailsMutation.data.summary.hoursDone)}
                       </p>
                     </div>
                     <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                      <p className="text-xs text-red-700">Heure d'absences constatées</p>
+                      <p className="text-xs text-red-700">Heure d'absences/Non validées</p>
                       <p className="text-lg font-semibold text-red-900">
                         {formatDecimalHours(detailsMutation.data.summary.absenceHours)}
                       </p>
@@ -1421,13 +1421,13 @@ export default function SalariesPage() {
                       <p className="text-base font-semibold text-violet-900">{toDisplayedStatus(detailsRow, detailsMutation.data)}</p>
                     </div>
                     <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                      <p className="text-xs text-emerald-700">Salaire actuel (heures effectuées)</p>
+                      <p className="text-xs text-emerald-700">Salaire actuel (heures effectuées hors HAV)</p>
                       <p className="text-base font-semibold text-emerald-900">
                         {formatFcfa(detailsMutation.data.summary.currentEarnedAmount ?? 0)}
                       </p>
                     </div>
                     <div className="rounded-lg border border-orange-200 bg-red-50 p-3">
-                      <p className="text-xs text-red-700">Montant retranché (absences)</p>
+                      <p className="text-xs text-red-700">Montant retranché (absences et heures non validées)</p>
                       <p className="text-base font-semibold text-red-900">
                         {formatFcfa(detailsMutation.data.summary.absenceAmount ?? 0)}
                       </p>

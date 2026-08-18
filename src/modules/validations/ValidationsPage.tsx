@@ -96,6 +96,8 @@ const countEligibleSessions = (teacher: MissingEndScanTeacher): number =>
     (s) => s.endScanAction === null || s.endScanActionCancelledAt !== null
   ).length
 
+const PENDING_LIMIT = 20
+
 // Garde défensive : un item provenant d'un cache stale (avant le déploiement
 // du backend multi-critères) peut ne pas avoir `kinds`. On retombe sur [kind].
 const safeKinds = (item: PendingValidationItem): typeof item.kinds =>
@@ -116,6 +118,8 @@ export default function ValidationsPage() {
 
   // Bulk selection state (Heures courtes tab)
   const bulkSelection = useBulkSelection<string>()
+  const [shortHoursPage, setShortHoursPage] = useState(1)
+  const [gpsPage, setGpsPage] = useState(1)
 
   // Escape annule la sélection bulk active
   useEffect(() => {
@@ -161,6 +165,32 @@ export default function ValidationsPage() {
 
   const groups = pendingQuery.data ?? { gps_suspicious: [], short_hours: [] }
   const total = groups.gps_suspicious.length + groups.short_hours.length
+  const shortHoursTotalPages = Math.max(1, Math.ceil(groups.short_hours.length / PENDING_LIMIT))
+  const gpsTotalPages = Math.max(1, Math.ceil(groups.gps_suspicious.length / PENDING_LIMIT))
+  const shortHoursPageItems = useMemo(
+    () =>
+      groups.short_hours.slice(
+        (shortHoursPage - 1) * PENDING_LIMIT,
+        shortHoursPage * PENDING_LIMIT
+      ),
+    [groups.short_hours, shortHoursPage]
+  )
+  const gpsPageItems = useMemo(
+    () =>
+      groups.gps_suspicious.slice(
+        (gpsPage - 1) * PENDING_LIMIT,
+        gpsPage * PENDING_LIMIT
+      ),
+    [groups.gps_suspicious, gpsPage]
+  )
+
+  useEffect(() => {
+    setShortHoursPage((current) => Math.min(current, shortHoursTotalPages))
+  }, [shortHoursTotalPages])
+
+  useEffect(() => {
+    setGpsPage((current) => Math.min(current, gpsTotalPages))
+  }, [gpsTotalPages])
 
   const invalidateQueries = async () => {
     await Promise.all([
@@ -423,6 +453,51 @@ export default function ValidationsPage() {
 
   const resetHistoryPage = () => setHistoryPage(1)
 
+  const renderPendingPagination = (
+    totalItems: number,
+    currentPage: number,
+    totalPages: number,
+    onPageChange: (updater: (page: number) => number) => void,
+    onBeforePageChange?: () => void
+  ) => {
+    if (totalItems <= PENDING_LIMIT) return null
+
+    const start = (currentPage - 1) * PENDING_LIMIT + 1
+    const end = Math.min(currentPage * PENDING_LIMIT, totalItems)
+    const goToPage = (updater: (page: number) => number) => {
+      onBeforePageChange?.()
+      onPageChange(updater)
+    }
+
+    return (
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted-foreground">
+          Affichant {start}-{end} sur {totalItems} entrées
+        </p>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={currentPage <= 1}
+            onClick={() => goToPage((page) => Math.max(1, page - 1))}
+          >
+            Précédent
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={currentPage >= totalPages}
+            onClick={() => goToPage((page) => Math.min(totalPages, page + 1))}
+          >
+            Suivant
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   const renderHistoryFilters = (kind: "short_hours" | "gps_suspicious") => (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
       <Select value={historyMonth} onValueChange={(v) => { setHistoryMonth(v); resetHistoryPage() }}>
@@ -628,7 +703,7 @@ export default function ValidationsPage() {
     )
   }
 
-  const renderGpsTable = (items: PendingValidationItem[]) => {
+  const renderGpsTable = (items: PendingValidationItem[], totalItems: number) => {
     if (pendingQuery.isLoading) return <LoadingRows />
     if (items.length === 0) {
       return <EmptyState icon={emptyStateIcons.allGood} title="Aucune présence suspecte" message="Les scans GPS hors périmètre apparaîtront ici." />
@@ -723,11 +798,12 @@ export default function ValidationsPage() {
           </TableBody>
         </Table>
       </div>
+      {renderPendingPagination(totalItems, gpsPage, gpsTotalPages, setGpsPage)}
       </>
     )
   }
 
-  const renderShortHoursTable = (items: PendingValidationItem[]) => {
+  const renderShortHoursTable = (items: PendingValidationItem[], totalItems: number) => {
     if (pendingQuery.isLoading) return <LoadingRows />
     if (items.length === 0) {
       return <EmptyState icon={emptyStateIcons.allGood} title="Aucune heure courte" message="Les cours terminés trop tôt apparaîtront ici." />
@@ -916,6 +992,13 @@ export default function ValidationsPage() {
         isLoading={bulkMutation.isPending}
         hasActualMinutes={allSelectedHaveActual}
       />
+      {renderPendingPagination(
+        totalItems,
+        shortHoursPage,
+        shortHoursTotalPages,
+        setShortHoursPage,
+        bulkSelection.clearSelection
+      )}
       </>
     )
   }
@@ -1235,7 +1318,7 @@ export default function ValidationsPage() {
           <TabsContent value="hours" className="space-y-6">
             <div className="space-y-4">
               <InfoBox>Ces enseignants ont terminé leur cours avant l'heure prévue. Choisissez les heures à accorder.</InfoBox>
-              {renderShortHoursTable(groups.short_hours)}
+              {renderShortHoursTable(shortHoursPageItems, groups.short_hours.length)}
             </div>
             <div className="space-y-4 border-t border-border pt-6" data-tour="validations-history">
               <div className="flex items-center gap-2">
@@ -1284,7 +1367,7 @@ export default function ValidationsPage() {
           <TabsContent value="gps" className="space-y-6">
             <div className="space-y-4">
               <InfoBox>Ces enseignants ont été détectés hors du périmètre de la salle au moment du scan. Vérifiez avec eux avant de valider.</InfoBox>
-              {renderGpsTable(groups.gps_suspicious)}
+              {renderGpsTable(gpsPageItems, groups.gps_suspicious.length)}
             </div>
             <div className="space-y-4 border-t border-border pt-6">
               <div className="flex items-center gap-2">

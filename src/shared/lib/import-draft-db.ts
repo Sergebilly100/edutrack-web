@@ -1,5 +1,5 @@
 import { del, get, set, createStore } from "idb-keyval"
-import type { ImportMode, ImportType } from "@/modules/import-export/import-export.api"
+import type { DryRunResponse, ImportMode, ImportType } from "@/modules/import-export/import-export.api"
 
 export type WizardStep = 1 | 2 | 3
 
@@ -28,8 +28,10 @@ export type ImportDraft = {
   fileSize: number
   fileMime: string
   dryRunReport: DryRunReport | null
+  dryRunResponse: DryRunResponse | null
   mode: ImportMode | null
   selectedColumns: string[] | null
+  schedulePeriod: { weekStart: string; weekEnd: string } | null
   createdAt: number
   updatedAt: number
 }

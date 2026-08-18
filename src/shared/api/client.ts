@@ -4,6 +4,19 @@ import type { AxiosError, InternalAxiosRequestConfig } from "axios"
 import { queryClient } from "@/shared/api/query-client"
 import { useParentAuthStore } from "@/modules/parent-portal/parent-auth.store"
 import { useAuthStore } from "@/shared/store/auth.store"
+export class ApiError extends Error {
+  readonly status?: number
+  readonly code?: string
+  readonly cause?: unknown
+
+  constructor(message: string, options?: { status?: number; code?: string; cause?: unknown }) {
+    super(message)
+    this.name = "ApiError"
+    this.status = options?.status
+    this.code = options?.code
+    this.cause = options?.cause
+  }
+}
 
 // 15s : sur réseau instable, axios attendait jusqu'à 60-120s avant d'échouer,
 // laissant l'utilisateur incertain sur l'état réel de sa requête (le bug du
@@ -145,6 +158,15 @@ apiClient.interceptors.response.use(
       }
     }
 
-    return Promise.reject(error)
+    const payload = error.response?.data as { error?: string; message?: string; code?: string } | undefined
+    const friendlyMessage = payload?.error ?? payload?.message ?? error.message
+
+    return Promise.reject(
+      new ApiError(friendlyMessage, {
+        status: error.response?.status,
+        code: payload?.code,
+        cause: error,
+      })
+    )
   }
 )

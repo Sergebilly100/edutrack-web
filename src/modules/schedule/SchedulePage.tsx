@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Navigate } from "react-router-dom"
-
+import { Navigate, useNavigate } from "react-router-dom"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertDialog,
@@ -663,6 +662,7 @@ export default function SchedulePage() {
   const mondayKey = toISODate(weekStartDate)
   const currentMondayKey = toISODate(getMonday(today))
   const todayDayValue = mondayKey === currentMondayKey ? isoDayOfWeek(today) : null
+  const navigate = useNavigate()
 
   return (
     <>
@@ -678,7 +678,8 @@ export default function SchedulePage() {
       <header className="space-y-4">
         <WeekCoverageAlert
           nextWeekHasCoverage={nextWeekCoverageQuery.data ?? true}
-          onNavigateToSchedule={() => setWeekFromIso(nextWeekMonday)}
+          btnText="Procéder à l'importation"
+          onNavigateToSchedule={() => navigate("/import")}
         />
 
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -758,17 +759,6 @@ export default function SchedulePage() {
           <div className="flex items-center rounded-md border bg-muted/40 p-0.5">
             <Button
               type="button"
-              variant={viewMode === "grid" ? "secondary" : "ghost"}
-              size="sm"
-              className="min-h-9 gap-1.5 px-2.5 text-xs"
-              onClick={() => setViewMode("grid")}
-              aria-pressed={viewMode === "grid"}
-            >
-              <LayoutGridIcon className="h-3.5 w-3.5" />
-              Grille
-            </Button>
-            <Button
-              type="button"
               variant={viewMode === "list" ? "secondary" : "ghost"}
               size="sm"
               className="min-h-9 gap-1.5 px-2.5 text-xs"
@@ -777,6 +767,17 @@ export default function SchedulePage() {
             >
               <ListIcon className="h-3.5 w-3.5" />
               Liste
+            </Button>
+            <Button
+              type="button"
+              variant={viewMode === "grid" ? "secondary" : "ghost"}
+              size="sm"
+              className="min-h-9 gap-1.5 px-2.5 text-xs"
+              onClick={() => setViewMode("grid")}
+              aria-pressed={viewMode === "grid"}
+            >
+              <LayoutGridIcon className="h-3.5 w-3.5" />
+              Grille
             </Button>
           </div>
 

@@ -21,6 +21,18 @@ type UseImportDraftReturn = {
   isSupported: boolean
 }
 
+function isValidDraft(draft: ImportDraft | null, importType: ImportType): draft is ImportDraft {
+  if (!draft) return false
+  if (draft.importType !== importType) return false
+  if (![1, 2, 3].includes(draft.step)) return false
+  if (!draft.fileName.trim()) return false
+  if (draft.fileSize <= 0) return false
+  if (!draft.fileData || draft.fileData.byteLength === 0) return false
+  if (!Number.isFinite(draft.createdAt) || draft.createdAt <= 0) return false
+  if (!Number.isFinite(draft.updatedAt) || draft.updatedAt <= 0) return false
+  return true
+}
+
 /**
  * Hook pour gérer la persistance des drafts d'import dans IndexedDB
  * Permet de reprendre un import interrompu
@@ -29,28 +41,51 @@ export function useImportDraft(importType: ImportType): UseImportDraftReturn {
   const [draft, setDraft] = useState<ImportDraft | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const isSupported = isIndexedDBSupported()
+  const currentDraft = draft?.importType === importType ? draft : null
 
   // Charger le draft au mount
   useEffect(() => {
+    let isMounted = true
+
     async function loadDraft() {
       if (!isSupported) {
-        setIsLoading(false)
+        if (isMounted) {
+          setDraft(null)
+          setIsLoading(false)
+        }
         return
       }
 
+      setDraft(null)
       setIsLoading(true)
       try {
         const existing = await getDraftByType(importType)
+        if (!isMounted) return
+        if (!isValidDraft(existing, importType)) {
+          if (existing) {
+            await deleteDraftDB(importType)
+          }
+          setDraft(null)
+          return
+        }
         setDraft(existing)
       } catch (error) {
         console.error("Error loading import draft:", error)
-        setDraft(null)
+        if (isMounted) {
+          setDraft(null)
+        }
       } finally {
-        setIsLoading(false)
+        if (isMounted) {
+          setIsLoading(false)
+        }
       }
     }
 
     void loadDraft()
+
+    return () => {
+      isMounted = false
+    }
   }, [importType, isSupported])
 
   /**
@@ -65,17 +100,19 @@ export function useImportDraft(importType: ImportType): UseImportDraftReturn {
 
       const now = Date.now()
       const updated: ImportDraft = {
-        id: draft?.id ?? generateId(),
+        id: currentDraft?.id ?? generateId(),
         importType,
-        step: data.step ?? draft?.step ?? 1,
-        fileName: data.fileName ?? draft?.fileName ?? "",
-        fileData: data.fileData ?? draft?.fileData ?? new ArrayBuffer(0),
-        fileSize: data.fileSize ?? draft?.fileSize ?? 0,
-        fileMime: data.fileMime ?? draft?.fileMime ?? "",
-        dryRunReport: data.dryRunReport ?? draft?.dryRunReport ?? null,
-        mode: data.mode ?? draft?.mode ?? null,
-        selectedColumns: data.selectedColumns ?? draft?.selectedColumns ?? null,
-        createdAt: draft?.createdAt ?? now,
+        step: data.step ?? currentDraft?.step ?? 1,
+        fileName: data.fileName ?? currentDraft?.fileName ?? "",
+        fileData: data.fileData ?? currentDraft?.fileData ?? new ArrayBuffer(0),
+        fileSize: data.fileSize ?? currentDraft?.fileSize ?? 0,
+        fileMime: data.fileMime ?? currentDraft?.fileMime ?? "",
+        dryRunReport: data.dryRunReport ?? currentDraft?.dryRunReport ?? null,
+        dryRunResponse: data.dryRunResponse ?? currentDraft?.dryRunResponse ?? null,
+        mode: data.mode ?? currentDraft?.mode ?? null,
+        selectedColumns: data.selectedColumns ?? currentDraft?.selectedColumns ?? null,
+        schedulePeriod: data.schedulePeriod ?? currentDraft?.schedulePeriod ?? null,
+        createdAt: currentDraft?.createdAt ?? now,
         updatedAt: now,
       }
 
@@ -87,7 +124,7 @@ export function useImportDraft(importType: ImportType): UseImportDraftReturn {
         throw error
       }
     },
-    [draft, importType, isSupported]
+    [currentDraft, importType, isSupported]
   )
 
   /**
@@ -105,9 +142,9 @@ export function useImportDraft(importType: ImportType): UseImportDraftReturn {
   }, [importType, isSupported])
 
   return {
-    draft,
+    draft: currentDraft,
     isLoading,
-    hasDraft: draft !== null,
+    hasDraft: currentDraft !== null,
     saveDraft,
     deleteDraft,
     isSupported,

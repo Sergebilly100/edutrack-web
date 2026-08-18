@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react"
+import { useEffect, useLayoutEffect, useState } from "react"
+
+import { setPwaManifest, type PwaInstallAudience } from "./manifest"
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>
@@ -24,7 +26,8 @@ export type UseInstallPromptResult = {
   promptInstall: () => Promise<boolean>
 }
 
-const INSTALL_STORAGE_KEY = "ivoiredu:pwa-installed"
+const getInstallStorageKey = (audience: PwaInstallAudience): string =>
+  `ivoiredu:pwa-installed:${audience}`
 
 // Navigateurs Android qui n'installent pas de PWA : navigateurs in-app (webviews
 // des réseaux sociaux) et Firefox. Sur ceux-ci, on oriente vers Chrome.
@@ -60,9 +63,9 @@ const detectPlatform = (): InstallPlatform => {
   return "other"
 }
 
-const detectStandalone = (): boolean => {
+const detectStandalone = (audience: PwaInstallAudience): boolean => {
   if (typeof window === "undefined") return false
-  const locallyInstalled = window.localStorage.getItem(INSTALL_STORAGE_KEY) === "true"
+  const locallyInstalled = window.localStorage.getItem(getInstallStorageKey(audience)) === "true"
   const standaloneDisplay =
     typeof window.matchMedia === "function" &&
     window.matchMedia("(display-mode: standalone)").matches
@@ -72,12 +75,16 @@ const detectStandalone = (): boolean => {
   return locallyInstalled || standaloneDisplay || iosStandalone
 }
 
-export const useInstallPrompt = (): UseInstallPromptResult => {
-  const [isInstalled, setIsInstalled] = useState(detectStandalone)
+export const useInstallPrompt = (audience: PwaInstallAudience): UseInstallPromptResult => {
+  const [isInstalled, setIsInstalled] = useState(() => detectStandalone(audience))
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [platform] = useState(detectPlatform)
   const [browser] = useState(detectBrowser)
   const [isUnsupportedBrowser] = useState(detectUnsupportedBrowser)
+
+  useLayoutEffect(() => {
+    setPwaManifest(audience)
+  }, [audience])
 
   useEffect(() => {
     const onBeforeInstall = (event: Event) => {
@@ -86,7 +93,7 @@ export const useInstallPrompt = (): UseInstallPromptResult => {
       setDeferredPrompt(event as BeforeInstallPromptEvent)
     }
     const onInstalled = () => {
-      window.localStorage.setItem(INSTALL_STORAGE_KEY, "true")
+      window.localStorage.setItem(getInstallStorageKey(audience), "true")
       setIsInstalled(true)
       setDeferredPrompt(null)
     }
@@ -95,7 +102,7 @@ export const useInstallPrompt = (): UseInstallPromptResult => {
         ? window.matchMedia("(display-mode: standalone)")
         : null
     const onDisplayModeChange = () => {
-      if (detectStandalone()) {
+      if (detectStandalone(audience)) {
         setIsInstalled(true)
       }
     }
@@ -111,11 +118,12 @@ export const useInstallPrompt = (): UseInstallPromptResult => {
 
   const promptInstall = async (): Promise<boolean> => {
     if (!deferredPrompt) return false
+    setPwaManifest(audience)
     await deferredPrompt.prompt()
     const choice = await deferredPrompt.userChoice
     setDeferredPrompt(null)
     if (choice.outcome === "accepted") {
-      window.localStorage.setItem(INSTALL_STORAGE_KEY, "true")
+      window.localStorage.setItem(getInstallStorageKey(audience), "true")
       setIsInstalled(true)
     }
     return choice.outcome === "accepted"

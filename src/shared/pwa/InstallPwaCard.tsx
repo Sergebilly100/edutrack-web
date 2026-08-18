@@ -33,7 +33,7 @@ type InstallPwaCardProps = {
  */
 export function InstallPwaCard({ audience, headline, className }: InstallPwaCardProps) {
   const { toast } = useToast()
-  const { isInstalled, canPromptInstall, platform, browser, isUnsupportedBrowser, promptInstall } = useInstallPrompt()
+  const { isInstalled, canPromptInstall, platform, browser, isUnsupportedBrowser, promptInstall } = useInstallPrompt(audience)
   const push = usePushNotifications(audience)
   const [howToOpen, setHowToOpen] = useState(false)
   const [dismissed, setDismissed] = useState(isInstallCardDismissed)

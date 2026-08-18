@@ -164,6 +164,12 @@ export type SchoolUsersResponse = {
   teachers: SchoolUserItem[]
 }
 
+export type UpdateSchoolDirectorPayload = {
+  name?: string
+  phone?: string | null
+  email?: string | null
+}
+
 export type PlanCatalogItem = {
   plan: TenantPlan
   monthlyPriceFcfa: number
@@ -520,6 +526,11 @@ export const getSchoolDetails = (tenantId: string) =>
 
 export const getSchoolUsers = (tenantId: string) =>
   api.get<SchoolUsersResponse>(`/admin/schools/${tenantId}/users`).then((response) => response.data)
+
+export const updateSchoolDirector = (tenantId: string, userId: string, payload: UpdateSchoolDirectorPayload) =>
+  api
+    .patch<{ director: SchoolUserItem }>(`/admin/schools/${tenantId}/users/${userId}/director`, payload)
+    .then((response) => response.data.director)
 
 export const updateSchoolConfig = (tenantId: string, payload: UpdateSchoolConfigPayload) =>
   api.patch<{ success: boolean }>(`/admin/schools/${tenantId}/config`, payload).then((response) => response.data)

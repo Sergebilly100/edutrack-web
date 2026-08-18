@@ -100,7 +100,7 @@ export const teacherDetailTourSteps: Step[] = [
   {
     target: "[data-tour='teacher-detail-salary']",
     title: "Synthèse du mois en cours",
-    content: "Ce bloc affiche pour le mois actuel : les heures prévues à l'EDT, les heures effectivement pointées, les heures d'absence, les heures restantes à faire et le statut du salaire (en attente, payé…). C'est une vue rapide avant d'aller dans le détail.",
+    content: "Ce bloc affiche pour le mois actuel : les heures prévues à l'EDT, les heures effectivement pointées, les heures d'absence, les heures restantes à faire et le statut du salaire (en attente, payé…). C'est une vue rapide avant d'aller dans le détail. NB: HAV = Heures à valider (présences pointées mais non validées par la direction).",
     placement: "bottom",
     skipBeacon: true,
   },

@@ -295,7 +295,7 @@ export default function TeacherForm({
                 />
               </FormControl>
               <p className="text-xs text-muted-foreground">
-                Séparez les matières par des virgules. Modifier cette liste n'affecte pas l'emploi du temps déjà saisi.
+                Séparez les matières par des virgules (ex: Arts Plastiques, Ecm). <br /> Modifier cette liste n'affecte pas l'emploi du temps déjà saisi.
               </p>
               <FormMessage />
             </FormItem>

@@ -79,6 +79,7 @@ const isWithinCancellationWindow = (createdAt: string | null | undefined): boole
 }
 
 type FilterStatus = "all" | SubscriptionStatus
+const SUBSCRIPTIONS_PAGE_SIZE = 20
 const toMonth = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`
 const monthLabel = (month: string) => {
   const [year, m] = month.split("-").map(Number)
@@ -206,6 +207,7 @@ export default function SubscriptionsPage() {
   const [status, setStatus] = useState<FilterStatus>("all")
   const [search, setSearch] = useState("")
   const [month, setMonth] = useState(toMonth(new Date()))
+  const [page, setPage] = useState(1)
 
   // Recale le mois sélectionné dans les bornes de l'année scolaire une fois la config chargée
   useEffect(() => {
@@ -255,9 +257,11 @@ export default function SubscriptionsPage() {
   })
 
   const parentsQuery = useQuery({
-    queryKey: ["subscriptions", "parents", status, search, month, createdBy],
+    queryKey: ["subscriptions", "parents", status, search, month, createdBy, page],
     queryFn: () =>
       listSubscriptionParents({
+        page,
+        limit: SUBSCRIPTIONS_PAGE_SIZE,
         status: status === "all" ? undefined : status,
         search: search.trim() || undefined,
         month,
@@ -345,12 +349,25 @@ export default function SubscriptionsPage() {
   }
 
   const items = parentsQuery.data?.data ?? []
+  const pagination = parentsQuery.data?.pagination
+  const totalItems = pagination?.total ?? items.length
+  const totalPages = Math.max(1, pagination?.totalPages ?? 1)
+  const pageStart = totalItems === 0 ? 0 : ((pagination?.page ?? page) - 1) * (pagination?.limit ?? SUBSCRIPTIONS_PAGE_SIZE) + 1
+  const pageEnd = Math.min((pagination?.page ?? page) * (pagination?.limit ?? SUBSCRIPTIONS_PAGE_SIZE), totalItems)
 
   const activeCount = parentsQuery.data?.data.filter((item) => item.latest_subscription?.status === "active").length ?? 0
   const monthSubscriptionsCount = useMemo(
     () => items.filter((item) => item.latest_subscription?.created_at?.startsWith(month)).length,
     [items, month]
   )
+
+  useEffect(() => {
+    setPage(1)
+  }, [createdBy, month, search, status])
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages))
+  }, [totalPages])
 
   if (featureQuery.isLoading) {
     return <PageLayout title="Abonnements parents">Chargement…</PageLayout>
@@ -378,7 +395,7 @@ export default function SubscriptionsPage() {
       />
     <PageLayout
       title="Abonnements parents"
-      subtitle={`(${activeCount} actifs)`}
+      subtitle={`(${activeCount} actifs affichés)`}
       actions={
         <div className="flex flex-wrap gap-2">
           <Button
@@ -463,14 +480,14 @@ export default function SubscriptionsPage() {
       <section className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3" data-tour="subscriptions-stats">
         <Card className="rounded-lg shadow-sm">
           <CardContent className="space-y-1 p-3 sm:p-4">
-            <p className="text-xs text-muted-foreground">Abonnements actifs</p>
+            <p className="text-xs text-muted-foreground">Actifs affichés</p>
             <p className="text-xl font-semibold tabular-nums sm:text-2xl">{activeCount}</p>
           </CardContent>
         </Card>
         <Card className="rounded-lg shadow-sm">
           <CardContent className="space-y-1 p-3 sm:p-4">
             <p className="text-xs text-muted-foreground">Parents inscrits</p>
-            <p className="text-xl font-semibold tabular-nums sm:text-2xl">{items.length}</p>
+            <p className="text-xl font-semibold tabular-nums sm:text-2xl">{totalItems}</p>
           </CardContent>
         </Card>
         <Card className="rounded-lg shadow-sm">
@@ -481,7 +498,7 @@ export default function SubscriptionsPage() {
         </Card>
         <Card className="rounded-lg shadow-sm">
           <CardContent className="space-y-1 p-3 sm:p-4">
-            <p className="text-xs text-muted-foreground">Souscriptions du mois</p>
+            <p className="text-xs text-muted-foreground">Souscriptions affichées</p>
             <p className="text-xl font-semibold tabular-nums sm:text-2xl">{monthSubscriptionsCount}</p>
           </CardContent>
         </Card>
@@ -586,6 +603,34 @@ export default function SubscriptionsPage() {
           </tbody>
         </table>
       </section>
+
+      {totalItems > SUBSCRIPTIONS_PAGE_SIZE ? (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-muted-foreground">
+            Affichant {pageStart}-{pageEnd} sur {totalItems} parents
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={page <= 1 || parentsQuery.isFetching}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+            >
+              Précédent
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages || parentsQuery.isFetching}
+              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+            >
+              Suivant
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {items.length === 0 && !parentsQuery.isLoading ? (
         <div className="space-y-3">

@@ -590,8 +590,13 @@ export const getSalarySummary = async (month: string): Promise<DashboardSalarySu
   return normalizeSalarySummary(response.data, month)
 }
 
-export const getTeacherCompliance = async (month: string): Promise<DashboardTeacherComplianceItem[]> => {
-  const response = await api.get<unknown>("/attendance/teacher-compliance", { params: { month } })
+export const getTeacherCompliance = async (
+  month: string,
+  subject?: string
+): Promise<DashboardTeacherComplianceItem[]> => {
+  const response = await api.get<unknown>("/attendance/teacher-compliance", {
+    params: { month, ...(subject ? { subject } : {}) },
+  })
   const rows = Array.isArray(response.data) ? response.data : []
 
   return rows.map((entry) => {

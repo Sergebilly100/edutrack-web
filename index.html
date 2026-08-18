@@ -7,8 +7,24 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="description" content="IvoirEdu - suivi des présences scolaires" />
     <title>IvoirEdu</title>
+    <script>
+      (function () {
+        var path = window.location.pathname;
+        var manifest = path.indexOf("/parent") === 0
+          ? "/manifest-parent.webmanifest"
+          : path.indexOf("/attendance") === 0
+            ? "/manifest-teacher.webmanifest"
+            : null;
+        if (!manifest) return;
+        var link = document.querySelector('link[rel="manifest"]') || document.createElement("link");
+        link.rel = "manifest";
+        link.href = manifest;
+        if (!link.parentNode) document.head.appendChild(link);
+      })();
+    </script>
     <script>
       (function () {
         const stored = localStorage.getItem("edutrack-theme") || "system";

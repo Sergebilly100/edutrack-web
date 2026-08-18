@@ -8,7 +8,7 @@ import { TableCell, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 import { getAvatarColor, getInitials } from "@/shared/utils/avatar"
 import { formatFcfa } from "@/shared/utils/formatting"
-import { formatDecimalHours } from "../../../../edutrack-api/src/shared/utils/time"
+import { formatDecimalHours } from "@/shared/utils/time"
 
 import type { SalaryStatus } from "@/shared/utils/salary-helpers"
 export type { SalaryStatus } from "@/shared/utils/salary-helpers"

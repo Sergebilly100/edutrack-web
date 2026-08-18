@@ -719,7 +719,7 @@ export default function DashboardPage() {
     isDirector && (commissionOverdueAlertsQuery.data?.count ?? 0) > 0 && visibleNotificationIds.has("commission-overdue-alerts")
       ? {
           id: "commission-overdue-alerts",
-          title: "Reversement commission en retard",
+          title: "Reversement com. en retard",
           message: `${commissionOverdueAlertsQuery.data?.count ?? 0} mois non soldé(s) - ${new Intl.NumberFormat("fr-FR").format(commissionOverdueAlertsQuery.data?.totalRemainingFcfa ?? 0)} FCFA à reverser à IvoirEdu.`,
           actionLabel: "Ouvrir les revenus",
           onClick: () => navigate("/subscriptions/revenue"),
@@ -875,6 +875,7 @@ export default function DashboardPage() {
         <section ref={alertsRef} className="space-y-3 animate-fade-in">
           <WeekCoverageAlert
             nextWeekHasCoverage={coverageQuery.data?.nextWeekHasCoverage ?? true}
+            btnText="Configurer l'EDT"
             onNavigateToSchedule={() => navigate("/schedule")}
           />
         </section>
@@ -892,7 +893,7 @@ export default function DashboardPage() {
                 </Badge>
               </div>
 
-              <div className="mt-4 grid gap-3 lg:grid-cols-3">
+              <div className="mt-4 grid gap-3 lg:grid-cols-4">
                 {priorityActions.map((item) => {
                   const Icon = item.icon
                   return (

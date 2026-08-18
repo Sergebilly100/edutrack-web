@@ -52,13 +52,26 @@ const AdminLoginPage = lazy(() => import("./modules/auth/AdminLoginPage"))
 const MaintenancePage = lazy(() => import("./modules/auth/MaintenancePage"))
 const MarketingHomePage = lazy(() => import("@/modules/marketing/MarketingHomePage"))
 
-const MAIN_DOMAIN_HOSTS = new Set(["ivoiredu.ci", "www.ivoiredu.ci"])
+const MAIN_DOMAIN_HOSTS = new Set([
+  "ivoiredu.ci",
+  "www.ivoiredu.ci",
+  "dev.ivoiredu.novatrixsys.com",
+])
+
+const getPublicSiteHosts = (): Set<string> => {
+  const configuredHosts = (import.meta.env.VITE_PUBLIC_SITE_HOSTS ?? "")
+    .split(",")
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean)
+
+  return new Set([...MAIN_DOMAIN_HOSTS, ...configuredHosts])
+}
 
 const isMainPublicDomain = (): boolean => {
 
   if (import.meta.env.DEV) return true
 
-  return MAIN_DOMAIN_HOSTS.has(window.location.hostname.toLowerCase())
+  return getPublicSiteHosts().has(window.location.hostname.toLowerCase())
 
 }
 
@@ -404,6 +417,7 @@ export default function App() {
     <Suspense fallback={<SessionLoader />}>
       <Routes>
         <Route path="/" element={<HomeRoute />} />
+        <Route path="/site" element={<MarketingHomePage />} />
         <Route path="/login" element={<LoginRoute />} />
         <Route path="/admin/login" element={<AdminLoginRoute />} />
         <Route path="/parent/login" element={<ParentLoginRoute />} />

@@ -154,6 +154,15 @@ export default function CreateSubscriptionModal({
       registrationNumber: item.registration_number,
     }))
   }, [classStudentsQuery.data?.data])
+  const studentPagination = classStudentsQuery.data?.pagination
+  const studentTotalPages = Math.max(1, studentPagination?.totalPages ?? 1)
+  const studentTotal = studentPagination?.total ?? 0
+  const studentPageStart =
+    studentTotal === 0 ? 0 : ((studentPagination?.page ?? studentPage) - 1) * (studentPagination?.limit ?? 25) + 1
+  const studentPageEnd = Math.min(
+    (studentPagination?.page ?? studentPage) * (studentPagination?.limit ?? 25),
+    studentTotal
+  )
 
   const canGoStep2 = fullNameValid && phoneValid && emailValid && !phoneExists
   const canGoStep3 = studentsValid && priceConfigured
@@ -373,16 +382,32 @@ export default function CreateSubscriptionModal({
                       })}
                       {classStudentsQuery.isLoading ? <p className="text-sm text-muted-foreground">Chargement…</p> : null}
                     </div>
-                    {selectedClassId && (classStudentsQuery.data?.pagination.totalPages ?? 0) > studentPage ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setStudentPage((prev) => prev + 1)}
-                        disabled={classStudentsQuery.isFetching}
-                      >
-                        Charger la page suivante
-                      </Button>
+                    {selectedClassId && studentTotal > 0 ? (
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-xs text-muted-foreground">
+                          Affichant {studentPageStart}-{studentPageEnd} sur {studentTotal} {studentLabels.pluralLower}
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setStudentPage((prev) => Math.max(1, prev - 1))}
+                            disabled={classStudentsQuery.isFetching || studentPage <= 1}
+                          >
+                            Précédent
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setStudentPage((prev) => Math.min(studentTotalPages, prev + 1))}
+                            disabled={classStudentsQuery.isFetching || studentPage >= studentTotalPages}
+                          >
+                            Suivant
+                          </Button>
+                        </div>
+                      </div>
                     ) : null}
                     {!studentsValid ? <p className="text-xs text-red-600">{`Sélectionnez au moins un ${studentLabels.singularLower}.`}</p> : null}
                   </div>
@@ -417,28 +442,36 @@ export default function CreateSubscriptionModal({
                     </div>
                   ) : null}
 
-                  <div className="space-y-2">
-                    <Label>Durée</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={120}
-                      value={String(form.duration_months)}
-                      onChange={(event) => {
-                        const value = Number(event.target.value)
-                        setForm((prev) => ({
-                          ...prev,
-                          duration_months: Number.isInteger(value) && value >= 1 ? value : 1,
-                        }))
-                      }}
-                    />
-                    <p className="text-xs text-muted-foreground">Saisissez le nombre de mois (1 à 120).</p>
+                  <div className="space-y-2 ">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <Label>Durée</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={12}
+                          value={String(form.duration_months)}
+                          onChange={(event) => {
+                            const value = Number(event.target.value)
+                            setForm((prev) => ({
+                              ...prev,
+                              duration_months: Number.isInteger(value) && value >= 1 ? value : 1,
+                            }))
+                          }}
+                        />
+                        <p className="text-xs text-muted-foreground">Saisissez le nombre de mois (1 à 12).</p>
+                      </div>
+                      <div>
+                        <Label >Tarif Total</Label>
+                        <div className="p-3 text-sm">
+                          {form.student_ids.length} × {formatFcfa(smsUnitPriceFcfa ?? 0)} × {form.duration_months} mois ={" "}
+                          <span className="font-semibold">{formatFcfa(computedTotal)}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
-                    {form.student_ids.length} {studentLabels.pluralLower} × {formatFcfa(smsUnitPriceFcfa ?? 0)} × {form.duration_months} mois ={" "}
-                    <span className="font-semibold">{formatFcfa(computedTotal)}</span>
-                  </div>
+
                 </section>
               ) : null}
 

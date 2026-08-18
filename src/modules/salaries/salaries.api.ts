@@ -50,6 +50,7 @@ export type SalarySummaryResponse = {
 }
 
 export type SalaryDetailAttendanceStatus = "present" | "absent" | "late" | "not_marked"
+export type SalaryDetailValidationStatus = "not_required" | "pending" | "approved" | "rejected"
 
 export type SalaryDetailRow = {
   date: string
@@ -58,6 +59,7 @@ export type SalaryDetailRow = {
   startTime: string
   endTime: string
   attendanceStatus: SalaryDetailAttendanceStatus
+  validationStatus: SalaryDetailValidationStatus | null
   hoursPlanned: number
   hoursDone: number
 }
@@ -212,6 +214,18 @@ const parseAttendanceStatus = (value: unknown): SalaryDetailAttendanceStatus => 
   return "not_marked"
 }
 
+const parseValidationStatus = (value: unknown): SalaryDetailValidationStatus | null => {
+  if (
+    value === "not_required" ||
+    value === "pending" ||
+    value === "approved" ||
+    value === "rejected"
+  ) {
+    return value
+  }
+  return null
+}
+
 const parseUnpaidAlertMonth = (value: unknown): SalaryUnpaidAlertMonth => {
   const row = isRecord(value) ? value : {}
 
@@ -309,6 +323,7 @@ export const getTeacherSalaryDetails = async (
         startTime: asString(row.startTime).slice(0, 5),
         endTime: asString(row.endTime).slice(0, 5),
         attendanceStatus: parseAttendanceStatus(row.attendanceStatus),
+        validationStatus: parseValidationStatus(row.validationStatus),
         hoursPlanned: asNumber(row.hoursPlanned, 0),
         hoursDone: asNumber(row.hoursDone, 0),
       }

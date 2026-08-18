@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import axios from "axios"
 import {
   AlertTriangle,
   ArrowLeft,
@@ -8,10 +9,13 @@ import {
   ChevronRight,
   Coins,
   KeyRound,
+  Pencil,
   Plus,
+  Save,
   Send,
   TrendingUp,
   Users,
+  X,
 } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -50,6 +54,7 @@ import {
   resetTenantSmsTemplate,
   sendSchoolPaymentReminder,
   syncSchoolSmsCommission,
+  updateSchoolDirector,
   updateSchoolSubscription,
   type SchoolDetailsResponse,
   type TenantPlan,
@@ -75,6 +80,7 @@ import {
 } from "./admin-school-detail.helpers"
 
 const SCHOOL_YEAR_REGEX = /^\d{2}\/\d{4} - \d{2}\/\d{4}$/
+const PHONE_CI_REGEX = /^225\d{10}$/
 
 const clampInt = (raw: string, min: number, max: number, fallback: number): number => {
   const parsed = Number.parseInt(raw, 10)
@@ -194,6 +200,12 @@ export default function AdminSchoolDetailPage() {
   })
 
   const [mrrDraft, setMrrDraft] = useState({ mrr: "", cycle: "monthly" as "monthly" | "annual" })
+  const [isDirectorEditing, setIsDirectorEditing] = useState(false)
+  const [directorDraft, setDirectorDraft] = useState({
+    name: "",
+    phone: "",
+    email: "",
+  })
 
   const [smsConfigDraft, setSmsConfigDraft] = useState({
     commissionPct: "0",
@@ -256,6 +268,16 @@ export default function AdminSchoolDetailPage() {
     })
   }, [smsFeatureStatsQuery.data])
 
+  useEffect(() => {
+    const director = schoolUsersQuery.data?.director
+    if (!director || isDirectorEditing) return
+    setDirectorDraft({
+      name: director.name,
+      phone: director.phone ?? "",
+      email: director.email ?? "",
+    })
+  }, [isDirectorEditing, schoolUsersQuery.data?.director])
+
   // ── Mutations ─────────────────────────────────────────────────────────────
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -315,6 +337,33 @@ export default function AdminSchoolDetailPage() {
     },
     onError: () => {
       toast({ title: "Erreur", description: "Impossible de mettre à jour la souscription", variant: "destructive" })
+    },
+  })
+
+  const updateDirectorMutation = useMutation({
+    mutationFn: () => {
+      const director = schoolUsersQuery.data?.director
+      if (!director) {
+        throw new Error("Aucun responsable école à modifier.")
+      }
+
+      return updateSchoolDirector(tenantId as string, director.id, {
+        name: directorDraft.name.trim(),
+        phone: directorDraft.phone.trim() || null,
+        email: directorDraft.email.trim() || null,
+      })
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin", "school-users", tenantId] })
+      setIsDirectorEditing(false)
+      toast({ title: "Responsable école mis à jour" })
+    },
+    onError: (error) => {
+      const description =
+        error instanceof Error && error.message.length > 0
+          ? error.message
+          : "Impossible de mettre à jour le responsable école."
+      toast({ title: "Erreur", description, variant: "destructive" })
     },
   })
 
@@ -479,6 +528,13 @@ export default function AdminSchoolDetailPage() {
     payment.periodFrom.length > 0 &&
     payment.periodTo.length > 0 &&
     payment.periodFrom <= payment.periodTo
+
+  const directorPhone = directorDraft.phone.trim()
+  const directorEmail = directorDraft.email.trim()
+  const isDirectorFormValid =
+    directorDraft.name.trim().length >= 2 &&
+    (directorPhone.length === 0 || PHONE_CI_REGEX.test(directorPhone)) &&
+    (directorEmail.length > 0 || directorPhone.length > 0)
 
   // ── Calendrier de paiement année scolaire ────────────────────────────────
   // Calcul global (utilisé dans le header, les badges, et le tab abonnement)
@@ -960,15 +1016,109 @@ export default function AdminSchoolDetailPage() {
 
               <Card className="shadow-sm">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <KeyRound className="h-4 w-4" />
-                    Responsable école
-                  </CardTitle>
+                  <div className="flex items-center justify-between gap-3">
+                    <CardTitle className="flex items-center gap-2">
+                      <KeyRound className="h-4 w-4" />
+                      Responsable école
+                    </CardTitle>
+                    {schoolUsersQuery.data?.director && !isDirectorEditing ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => setIsDirectorEditing(true)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Modifier
+                      </Button>
+                    ) : null}
+                  </div>
                 </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  <p>Nom: <strong>{schoolUsersQuery.data?.director?.name ?? "-"}</strong></p>
-                  <p>Téléphone: <strong>{schoolUsersQuery.data?.director?.phone ?? "-"}</strong></p>
-                  <p>Email: <strong>{schoolUsersQuery.data?.director?.email ?? "-"}</strong></p>
+                <CardContent className="space-y-4 text-sm">
+                  {!schoolUsersQuery.data?.director ? (
+                    <p className="text-muted-foreground">Aucun responsable école trouvé.</p>
+                  ) : isDirectorEditing ? (
+                    <div className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="director-name">Nom complet</Label>
+                          <Input
+                            id="director-name"
+                            value={directorDraft.name}
+                            onChange={(event) => setDirectorDraft((prev) => ({ ...prev, name: event.target.value }))}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="director-phone">Téléphone</Label>
+                          <Input
+                            id="director-phone"
+                            value={directorDraft.phone}
+                            onChange={(event) =>
+                              setDirectorDraft((prev) => ({
+                                ...prev,
+                                phone: event.target.value.replace(/\D/g, "").slice(0, 13),
+                              }))
+                            }
+                            inputMode="tel"
+                            maxLength={13}
+                            placeholder="2250700000000"
+                          />
+                          {directorPhone.length > 0 && !PHONE_CI_REGEX.test(directorPhone) ? (
+                            <p className="text-xs text-destructive">Format attendu: 225XXXXXXXXXX.</p>
+                          ) : null}
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="director-email">Email</Label>
+                          <Input
+                            id="director-email"
+                            type="email"
+                            value={directorDraft.email}
+                            onChange={(event) => setDirectorDraft((prev) => ({ ...prev, email: event.target.value }))}
+                            placeholder="responsable@ecole.ci"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          className="gap-2"
+                          disabled={updateDirectorMutation.isPending || !isDirectorFormValid}
+                          onClick={() => updateDirectorMutation.mutate()}
+                        >
+                          <Save className="h-4 w-4" />
+                          {updateDirectorMutation.isPending ? "Enregistrement..." : "Enregistrer"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="gap-2"
+                          disabled={updateDirectorMutation.isPending}
+                          onClick={() => {
+                            const director = schoolUsersQuery.data?.director
+                            setDirectorDraft({
+                              name: director?.name ?? "",
+                              phone: director?.phone ?? "",
+                              email: director?.email ?? "",
+                            })
+                            setIsDirectorEditing(false)
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                          Annuler
+                        </Button>
+                        {!isDirectorFormValid ? (
+                          <p className="text-xs text-muted-foreground">Nom et au moins un contact valide sont requis.</p>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p>Nom: <strong>{schoolUsersQuery.data.director.name}</strong></p>
+                      <p>Téléphone: <strong>{schoolUsersQuery.data.director.phone ?? "-"}</strong></p>
+                      <p>Email: <strong>{schoolUsersQuery.data.director.email ?? "-"}</strong></p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

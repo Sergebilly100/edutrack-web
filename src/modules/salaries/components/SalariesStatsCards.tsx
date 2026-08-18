@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { getSalariesStats } from "../salaries.api"
 import { formatFcfa, formatRate } from "@/shared/utils/formatting"
-import { formatDecimalHours } from "../../../../../edutrack-api/src/shared/utils/time"
+import { formatDecimalHours } from "@/shared/utils/time"
 import { cn } from "@/lib/utils"
 
 const QUERY_STALE_TIME = 5 * 60 * 1000 // 5 minutes
@@ -144,7 +144,7 @@ export function SalariesStatsCards({ month, toPayVacataire, toPayPermanent }: Sa
             <TooltipTrigger asChild>
               <div className="space-y-1 text-sm text-gray-500 cursor-help">
                 <div>Du 1er à aujourd'hui: {formatDecimalHours(stats.economy.plannedHours)}</div>
-                <div>Heures effectuées : {formatDecimalHours(stats.economy.completedHours)}</div>
+                <div>Heures effectuées (hors HAV) : {formatDecimalHours(stats.economy.completedHours)}</div>
                 <div>Heures manquées : {formatDecimalHours(stats.economy.plannedHours - stats.economy.completedHours)}</div>
                 <div className="font-semibold text-amber-900">Économie : {formatFcfa(stats.economy.savedAmount)}</div>
               </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { ChevronLeft, ChevronRight, Info } from "lucide-react"
 
@@ -33,6 +33,7 @@ const monthLabel = (month: string) => {
   )
 }
 const formatFcfa = (value: number) => `${new Intl.NumberFormat("fr-FR").format(value)} FCFA`
+const TABLE_PAGE_SIZE = 20
 
 export default function SubscriptionRevenuePage() {
   const studentLabels = useStudentLabels()
@@ -43,6 +44,8 @@ export default function SubscriptionRevenuePage() {
   const [exportOpen, setExportOpen] = useState(false)
   const [exportFromMonth, setExportFromMonth] = useState(toMonth(new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - 2, 1))))
   const [exportToMonth, setExportToMonth] = useState(toMonth(new Date()))
+  const [subscriptionsPage, setSubscriptionsPage] = useState(1)
+  const [paymentsPage, setPaymentsPage] = useState(1)
 
   const month = useMemo(() => toMonth(monthCursor), [monthCursor])
 
@@ -80,7 +83,78 @@ export default function SubscriptionRevenuePage() {
   const summary = summaryQuery.data
   const history = historyQuery.data ?? []
   const monthSubscriptions = monthSubscriptionsQuery.data ?? []
+  const payments = paymentsQuery.data ?? []
   const monthSubscriptionsCollected = monthSubscriptions.reduce((sum, item) => sum + item.amount_fcfa, 0)
+  const subscriptionsTotalPages = Math.max(1, Math.ceil(monthSubscriptions.length / TABLE_PAGE_SIZE))
+  const paymentsTotalPages = Math.max(1, Math.ceil(payments.length / TABLE_PAGE_SIZE))
+  const monthSubscriptionRows = useMemo(
+    () =>
+      monthSubscriptions.slice(
+        (subscriptionsPage - 1) * TABLE_PAGE_SIZE,
+        subscriptionsPage * TABLE_PAGE_SIZE
+      ),
+    [monthSubscriptions, subscriptionsPage]
+  )
+  const paymentRows = useMemo(
+    () =>
+      payments.slice(
+        (paymentsPage - 1) * TABLE_PAGE_SIZE,
+        paymentsPage * TABLE_PAGE_SIZE
+      ),
+    [payments, paymentsPage]
+  )
+
+  useEffect(() => {
+    setSubscriptionsPage(1)
+    setPaymentsPage(1)
+  }, [month])
+
+  useEffect(() => {
+    setSubscriptionsPage((current) => Math.min(current, subscriptionsTotalPages))
+  }, [subscriptionsTotalPages])
+
+  useEffect(() => {
+    setPaymentsPage((current) => Math.min(current, paymentsTotalPages))
+  }, [paymentsTotalPages])
+
+  const renderPagination = (
+    totalItems: number,
+    currentPage: number,
+    totalPages: number,
+    onPageChange: (updater: (page: number) => number) => void
+  ) => {
+    if (totalItems <= TABLE_PAGE_SIZE) return null
+
+    const start = (currentPage - 1) * TABLE_PAGE_SIZE + 1
+    const end = Math.min(currentPage * TABLE_PAGE_SIZE, totalItems)
+    return (
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs text-muted-foreground">
+          Affichant {start}-{end} sur {totalItems} résultats
+        </p>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={currentPage <= 1}
+            onClick={() => onPageChange((page) => Math.max(1, page - 1))}
+          >
+            Précédent
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={currentPage >= totalPages}
+            onClick={() => onPageChange((page) => Math.min(totalPages, page + 1))}
+          >
+            Suivant
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   const today = toMonth(new Date())
   const canGoPrev = !schoolYear.bounds || month > schoolYear.bounds.minMonth
@@ -213,7 +287,7 @@ export default function SubscriptionRevenuePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-	                {monthSubscriptions.map((item) => (
+	                {monthSubscriptionRows.map((item) => (
 	                  <TableRow key={item.payment_id}>
 	                    <TableCell>{item.full_name}</TableCell>
 	                    <TableCell>{item.phone}</TableCell>
@@ -228,22 +302,28 @@ export default function SubscriptionRevenuePage() {
               </TableBody>
             </Table>
           )}
+          {renderPagination(
+            monthSubscriptions.length,
+            subscriptionsPage,
+            subscriptionsTotalPages,
+            setSubscriptionsPage
+          )}
         </TabsContent>
         <TabsContent value="payments" className="rounded-lg border p-4">
           <h2 className="mb-3 text-sm font-semibold">Historique des reversements du mois</h2>
           <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-md border p-3 text-sm">
               <p className="text-muted-foreground">Nombre de reversements</p>
-              <p className="text-lg font-semibold">{(paymentsQuery.data ?? []).length}</p>
+              <p className="text-lg font-semibold">{payments.length}</p>
             </div>
             <div className="rounded-md border p-3 text-sm">
               <p className="text-muted-foreground">Total reversé sur le mois</p>
               <p className="text-lg font-semibold">
-                {formatFcfa((paymentsQuery.data ?? []).reduce((acc, item) => acc + item.amount_fcfa, 0))}
+                {formatFcfa(payments.reduce((acc, item) => acc + item.amount_fcfa, 0))}
               </p>
             </div>
           </div>
-          {(paymentsQuery.data ?? []).length === 0 ? (
+          {payments.length === 0 ? (
             <EmptyState title="Aucun reversement" message="Aucun reversement enregistré sur ce mois." />
           ) : (
             <Table>
@@ -257,7 +337,7 @@ export default function SubscriptionRevenuePage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(paymentsQuery.data ?? []).map((item) => {
+              {paymentRows.map((item) => {
                 return (
                   <TableRow key={item.id}>
                     <TableCell>{new Date(item.created_at).toLocaleString("fr-FR")}</TableCell>
@@ -271,6 +351,7 @@ export default function SubscriptionRevenuePage() {
             </TableBody>
             </Table>
           )}
+          {renderPagination(payments.length, paymentsPage, paymentsTotalPages, setPaymentsPage)}
         </TabsContent>
       </Tabs>
 

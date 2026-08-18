@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { AlertTriangle, CheckCircle2, Clock3, DoorOpen, ListChecks } from "lucide-react"
 
@@ -29,9 +30,10 @@ import { useTeacherStats } from "@/modules/teachers/hooks/useTeacherStats"
 import { exportTeacherAttendanceStats } from "@/modules/teachers/teachers.api"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
-import { formatDecimalHours } from "../../../../../edutrack-api/src/shared/utils/time"
+import { formatDecimalHours } from "@/shared/utils/time"
 
 const formatHours = (value: number) => formatDecimalHours(value)
+const STATS_PAGE_SIZE = 20
 
 export default function TeacherAnalysisPanel() {
   const {
@@ -48,6 +50,35 @@ export default function TeacherAnalysisPanel() {
   } = useTeacherStats()
   const location = useLocation()
   const studentLabels = useStudentLabels()
+  const [statsPage, setStatsPage] = useState(1)
+
+  const statsRows = statsQuery.data ?? []
+  const statsTotalPages = Math.max(1, Math.ceil(statsRows.length / STATS_PAGE_SIZE))
+  const statsPageRows = useMemo(
+    () =>
+      statsRows.slice(
+        (statsPage - 1) * STATS_PAGE_SIZE,
+        statsPage * STATS_PAGE_SIZE
+      ),
+    [statsPage, statsRows]
+  )
+  const statsPageStart = statsRows.length === 0 ? 0 : (statsPage - 1) * STATS_PAGE_SIZE + 1
+  const statsPageEnd = Math.min(statsPage * STATS_PAGE_SIZE, statsRows.length)
+
+  useEffect(() => {
+    setStatsPage(1)
+  }, [
+    filters.class_id,
+    filters.from,
+    filters.status_filter,
+    filters.subject,
+    filters.teacher_id,
+    filters.to,
+  ])
+
+  useEffect(() => {
+    setStatsPage((current) => Math.min(current, statsTotalPages))
+  }, [statsTotalPages])
 
   const attendanceExport = usePdfExportJob({
     fallbackFileName: `presence-profs-${filters.from}-${filters.to}.pdf`,
@@ -121,12 +152,8 @@ export default function TeacherAnalysisPanel() {
                   setFormValues((current) => ({
                     ...current,
                     teacher_id: value,
-                    ...(value === "all"
-                      ? {
-                          subject: "all",
-                          class_id: "all",
-                        }
-                      : {}),
+                    subject: "all",
+                    class_id: "all",
                   }))
                 }
               >
@@ -204,7 +231,7 @@ export default function TeacherAnalysisPanel() {
       {queryEnabled ? (
         <Card>
           <CardContent className="space-y-4 p-4">
-            {Array.isArray(statsQuery.data) && statsQuery.data.length > 0 ? (
+            {statsRows.length > 0 ? (
               <div className="flex justify-end">
                 <Button
                   className="min-h-12"
@@ -225,17 +252,17 @@ export default function TeacherAnalysisPanel() {
               </div>
             ) : null}
 
-            {!statsQuery.isLoading && (statsQuery.data?.length ?? 0) === 0 ? (
+            {!statsQuery.isLoading && statsRows.length === 0 ? (
               <EmptyState
                 title="Aucune donnée sur cette période"
                 message="Ajustez les filtres ou élargissez la période pour afficher des résultats."
               />
             ) : null}
 
-            {!statsQuery.isLoading && (statsQuery.data?.length ?? 0) > 0 ? (
+            {!statsQuery.isLoading && statsRows.length > 0 ? (
               <>
                 <div className="space-y-3 lg:hidden">
-                  {statsQuery.data?.map((row) => {
+                  {statsPageRows.map((row) => {
                     const rate = Math.max(0, Math.min(100, row.attendance_rate))
                     const rateTone =
                       rate >= 80
@@ -326,7 +353,7 @@ export default function TeacherAnalysisPanel() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {statsQuery.data?.map((row) => {
+                      {statsPageRows.map((row) => {
                         const rate = Math.max(0, Math.min(100, row.attendance_rate))
                         const rateColorClass =
                           rate >= 80
@@ -415,6 +442,33 @@ export default function TeacherAnalysisPanel() {
                     </TableBody>
                   </Table>
                 </div>
+                {statsRows.length > STATS_PAGE_SIZE ? (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      Affichant {statsPageStart}-{statsPageEnd} sur {statsRows.length} résultats
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={statsPage <= 1}
+                        onClick={() => setStatsPage((page) => Math.max(1, page - 1))}
+                      >
+                        Précédent
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={statsPage >= statsTotalPages}
+                        onClick={() => setStatsPage((page) => Math.min(statsTotalPages, page + 1))}
+                      >
+                        Suivant
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
               </>
             ) : null}
           </CardContent>

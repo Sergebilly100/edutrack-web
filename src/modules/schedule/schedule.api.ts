@@ -2,7 +2,7 @@ import { z } from "zod"
 
 import type { TeacherSchedule } from "@/modules/attendance/TeacherFlow"
 import { apiClient as api } from "@/shared/api/client"
-import { normalizeTime } from "../../../../edutrack-api/src/shared/utils/time"
+import { normalizeTime } from "@/shared/utils/time"
 
 // ─── Types publics ─────────────────────────────────────────────────────────────
 

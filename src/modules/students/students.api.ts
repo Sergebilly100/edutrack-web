@@ -185,6 +185,7 @@ export type StudentAbsenceRecord = {
   id: string
   date: string
   subject: string
+  teacherName: string
   className: string
   startTime: string
   endTime: string

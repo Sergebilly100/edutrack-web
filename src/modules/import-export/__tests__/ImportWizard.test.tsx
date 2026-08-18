@@ -78,10 +78,24 @@ const DRY_RUN_CONFLICTS = {
     {
       periodName: "Semaine du 2026-06-01",
       weekStart: "2026-06-01",
-      weekEnd: "2026-06-08",
+      weekEnd: "2026-06-07",
       message: "La semaine du 01/06/2026 a déjà un EDT.",
     },
   ],
+}
+
+const DRY_RUN_PAST_WARNINGS = {
+  ...DRY_RUN_OK,
+  valid: 1,
+  errors: [
+    {
+      row: 2,
+      column: "Jour*",
+      message: "Créneau sur une date/heure passée: il ne sera pas pris en compte lors de l'import.",
+      severity: "warning",
+    },
+  ],
+  conflicts: [],
 }
 
 const CONFIRM_OK = {
@@ -197,8 +211,8 @@ describe("ImportWizard - step 1 (upload)", () => {
 
   it("shows schedule period fields only for schedule type", () => {
     renderWizard({ selectedImportType: "schedule" })
-    expect(screen.getByLabelText(/Semaine de début/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/Semaine de fin/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Semaine \(début - lundi\)/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Semaine \(fin - Dimanche\)/i)).toBeInTheDocument()
     expect(screen.queryByText("Mode de mise à jour")).not.toBeInTheDocument()
   })
 
@@ -212,6 +226,26 @@ describe("ImportWizard - step 1 (upload)", () => {
     renderWizard()
     fireEvent.click(screen.getByRole("button", { name: "Remplacement" }))
     expect(screen.getByText(/Mode sensible: remplacement/i)).toBeInTheDocument()
+  })
+
+  it("clears the selected file when cancelling an import from step 1", async () => {
+    renderWizard()
+
+    const file = makeXlsxFile("students.xlsx")
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    Object.defineProperty(fileInput, "files", { value: [file], writable: false })
+    fireEvent.change(fileInput)
+
+    expect(await screen.findByText("students.xlsx")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Suivant/i })).not.toBeDisabled()
+
+    fireEvent.click(screen.getByRole("button", { name: /Annuler/i }))
+    fireEvent.click(await screen.findByRole("button", { name: /Confirmer/i }))
+
+    await waitFor(() => {
+      expect(screen.queryByText("students.xlsx")).not.toBeInTheDocument()
+      expect(screen.getByRole("button", { name: /Suivant/i })).toBeDisabled()
+    })
   })
 })
 
@@ -288,10 +322,10 @@ describe("ImportWizard - step 2 (validation)", () => {
     renderWizard({ selectedImportType: "schedule" })
 
     // Set schedule period dates
-    const startInput = screen.getByLabelText(/Semaine de début/i) as HTMLInputElement
-    const endInput = screen.getByLabelText(/Semaine de fin/i) as HTMLInputElement
+    const startInput = screen.getByLabelText(/Semaine \(début - lundi\)/i) as HTMLInputElement
+    const endInput = screen.getByLabelText(/Semaine \(fin - Dimanche\)/i) as HTMLInputElement
     fireEvent.change(startInput, { target: { value: "2026-06-01" } })
-    fireEvent.change(endInput, { target: { value: "2026-06-08" } })
+    fireEvent.change(endInput, { target: { value: "2026-06-07" } })
 
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
     if (fileInput) {
@@ -315,6 +349,46 @@ describe("ImportWizard - step 2 (validation)", () => {
 
     await waitFor(() => {
       expect(importBtn).not.toBeDisabled()
+    })
+  })
+
+  it("opens confirmation modal before importing schedule with past slot warnings", async () => {
+    server.use(
+      http.post("*/import/schedule/dry-run", () => HttpResponse.json(DRY_RUN_PAST_WARNINGS)),
+      http.post("*/import/schedule/confirm", () => HttpResponse.json(CONFIRM_OK))
+    )
+    renderWizard({ selectedImportType: "schedule" })
+
+    const startInput = screen.getByLabelText(/Semaine \(début - lundi\)/i) as HTMLInputElement
+    const endInput = screen.getByLabelText(/Semaine \(fin - Dimanche\)/i) as HTMLInputElement
+    fireEvent.change(startInput, { target: { value: "2026-06-01" } })
+    fireEvent.change(endInput, { target: { value: "2026-06-07" } })
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    if (fileInput) {
+      Object.defineProperty(fileInput, "files", { value: [makeXlsxFile("schedule.xlsx")], writable: false })
+      fireEvent.change(fileInput)
+    }
+    fireEvent.click(screen.getByRole("button", { name: /Suivant/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Créneaux passés ignorés/i)).toBeInTheDocument()
+      expect(screen.getByText(/1 avertissements/i)).toBeInTheDocument()
+    })
+
+    const importBtn = screen.getByRole("button", { name: /Importer/i })
+    expect(importBtn).not.toBeDisabled()
+
+    fireEvent.click(importBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText(/Continuer sans les créneaux passés/i)).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: /Continuer l'import/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/enregistrements importés avec succès/i)).toBeInTheDocument()
     })
   })
 
@@ -372,6 +446,69 @@ describe("ImportWizard - step 2 (validation)", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Télécharger le modèle/i)).toBeInTheDocument()
+    })
+  })
+
+  it("restores an interrupted dry-run with visible data", async () => {
+    const { saveDraft } = await import("@/shared/lib/import-draft-db")
+    const file = makeXlsxFile("students-draft.xlsx")
+
+    await saveDraft({
+      id: "draft-students-test",
+      importType: "students",
+      step: 2,
+      fileName: file.name,
+      fileData: await file.arrayBuffer(),
+      fileSize: file.size,
+      fileMime: file.type,
+      dryRunReport: null,
+      dryRunResponse: DRY_RUN_OK,
+      mode: "merge",
+      selectedColumns: null,
+      schedulePeriod: null,
+      createdAt: Date.UTC(2026, 5, 1),
+      updatedAt: Date.UTC(2026, 5, 1),
+    })
+
+    renderWizard()
+
+    fireEvent.click(await screen.findByRole("button", { name: /Reprendre/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/3 lignes valides/i)).toBeInTheDocument()
+      expect(screen.getByText("Alice")).toBeInTheDocument()
+      expect(screen.getByText("Dupont")).toBeInTheDocument()
+    })
+  })
+
+  it("restores a schedule draft with its selected period", async () => {
+    const { saveDraft } = await import("@/shared/lib/import-draft-db")
+    const file = makeXlsxFile("schedule-draft.xlsx")
+
+    await saveDraft({
+      id: "draft-schedule-test",
+      importType: "schedule",
+      step: 1,
+      fileName: file.name,
+      fileData: await file.arrayBuffer(),
+      fileSize: file.size,
+      fileMime: file.type,
+      dryRunReport: null,
+      dryRunResponse: null,
+      mode: "merge",
+      selectedColumns: null,
+      schedulePeriod: { weekStart: "2026-06-01", weekEnd: "2026-06-07" },
+      createdAt: Date.UTC(2026, 5, 1),
+      updatedAt: Date.UTC(2026, 5, 1),
+    })
+
+    renderWizard({ selectedImportType: "schedule" })
+
+    fireEvent.click(await screen.findByRole("button", { name: /Reprendre/i }))
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("2026-06-01")).toBeInTheDocument()
+      expect(screen.getByDisplayValue("2026-06-07")).toBeInTheDocument()
     })
   })
 })
@@ -608,7 +745,7 @@ describe("import-export.api - dryRun", () => {
     // If week_start/week_end were missing, the backend would 400 - here we just
     // assert it resolves without throwing (API layer builds FormData correctly)
     const result = await dryRun("schedule", file, {
-      schedulePeriod: { weekStart: "2026-06-01", weekEnd: "2026-06-08" },
+      schedulePeriod: { weekStart: "2026-06-01", weekEnd: "2026-06-07" },
     })
     expect(result.valid).toBe(3)
   })
@@ -624,7 +761,7 @@ describe("import-export.api - confirmImport", () => {
     const file = makeXlsxFile("schedule.xlsx")
     // If conflict_acknowledged were absent, backend returns 400 - here we assert it resolves
     const result = await confirmImport("schedule", file, {
-      schedulePeriod: { weekStart: "2026-07-07", weekEnd: "2026-07-14" },
+      schedulePeriod: { weekStart: "2026-07-06", weekEnd: "2026-07-12" },
       conflictAcknowledged: true,
     })
     expect(result.imported).toBe(3)

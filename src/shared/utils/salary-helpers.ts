@@ -17,17 +17,40 @@ export const toSortableTime = (value: string): string => {
 }
 
 export const computeAbsenceHours = (
-  rows: Array<{ date: string; endTime: string; attendanceStatus: string; hoursPlanned: number }>,
+  rows: Array<{
+    date: string
+    endTime: string
+    attendanceStatus: string
+    validationStatus?: string | null
+    hoursPlanned: number
+    hoursDone?: number
+  }>,
   now: Date
 ): number =>
   rows.reduce((acc, row) => {
     const rowDateTime = new Date(`${row.date}T${toSortableTime(row.endTime)}:00`)
-    if (
-      rowDateTime.getTime() <= now.getTime() &&
-      (row.attendanceStatus === "absent" || row.attendanceStatus === "not_marked")
-    ) {
+    if (rowDateTime.getTime() > now.getTime()) {
+      return acc
+    }
+
+    if (row.attendanceStatus === "absent" || row.attendanceStatus === "not_marked") {
       return acc + row.hoursPlanned
     }
+
+    if (row.validationStatus === "pending") {
+      return acc
+    }
+
+    if (row.validationStatus !== "approved" && row.validationStatus !== "rejected") {
+      return acc
+    }
+
+    const hoursDone = row.hoursDone ?? row.hoursPlanned
+    const missingHours = Math.max(0, row.hoursPlanned - hoursDone)
+    if (missingHours > 0) {
+      return acc + missingHours
+    }
+
     return acc
   }, 0)
 

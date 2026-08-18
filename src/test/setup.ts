@@ -14,6 +14,7 @@ vi.mock("idb-keyval", () => ({
   del: vi.fn(async (key: string) => {
     idbKeyvalStore.delete(key)
   }),
+  createStore: vi.fn(() => ({})),
 }))
 
 vi.mock("@/shared/hooks/useStudentLabel", () => {
@@ -129,12 +130,21 @@ const indexedDBMock = {
 
 global.indexedDB = indexedDBMock as unknown as IDBFactory
 
+if (typeof File !== "undefined" && !File.prototype.arrayBuffer) {
+  Object.defineProperty(File.prototype, "arrayBuffer", {
+    value: function arrayBuffer() {
+      return Promise.resolve(new ArrayBuffer(this.size))
+    },
+  })
+}
+
 beforeAll(() => {
   server.listen({ onUnhandledRequest: "bypass" })
 })
 
 afterEach(() => {
   server.resetHandlers()
+  idbKeyvalStore.clear()
 })
 
 afterAll(() => {

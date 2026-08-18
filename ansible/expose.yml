@@ -1,0 +1,111 @@
+---
+- name: Expose application via HAProxy
+  hosts: reverse_proxy
+  become: true
+
+  vars:
+    haproxy_cfg: /etc/haproxy/haproxy.cfg
+    haproxy_confd: /etc/haproxy/conf.d
+    backend_name: "bk_{{ app_name | replace('-', '_') }}_{{ environ }}"
+    use_backend_line: "    use_backend {{ backend_name }} if { hdr(host) -i {{ domain_name }} }"
+    cfg_file: "{{ haproxy_confd }}/https-web-backend-{{ environ }}.cfg"
+    cert_script_path: /usr/local/sbin/manage-cert
+    email: admin@novatrixsys.com
+
+  tasks:
+
+    # ------------------------------------------------------------------
+    # 1. Vérifier que conf.d existe
+    # ------------------------------------------------------------------
+    - name: Créer le dossier conf.d si absent
+      ansible.builtin.file:
+        path: "{{ haproxy_confd }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    # ------------------------------------------------------------------
+    # 2. Créer le fichier d'environnement si absent
+    # ------------------------------------------------------------------
+    - name: Créer le fichier {{ environ }}.cfg si absent
+      ansible.builtin.copy:
+        content: "# HAProxy backends - {{ environ }}\n"
+        dest: "{{ cfg_file }}"
+        owner: root
+        group: root
+        mode: "0644"
+        force: false
+
+    # ------------------------------------------------------------------
+    # 3. Ajouter/Mettre à jour le bloc backend de l'app
+    # ------------------------------------------------------------------
+    - name: Ajouter ou mettre à jour le backend {{ app_name }} dans {{ environ }}.cfg
+      ansible.builtin.blockinfile:
+        path: "{{ cfg_file }}"
+        marker: "# {mark} BACKEND {{ app_name }}"
+        block: |
+          backend {{ backend_name }}
+              mode http
+              http-request set-header X-Forwarded-Port %[dst_port]
+              http-request add-header X-Forwarded-Proto https if { ssl_fc }
+              balance roundrobin
+              timeout check 5s
+              option httpchk GET /
+              http-check expect status 200
+              server-template srv 1-20 {{ app_name }}-{{ environ }}.service.consul:{{ app_port }} check resolvers consul_dns resolve-prefer ipv4 init-addr none
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Valider et recharger HAProxy
+
+    - name: Génération du certificat ssl
+      ansible.builtin.command:
+        cmd: "{{ cert_script_path }} {{ domain_name }} {{ email }}"
+      register: cert_results
+      changed_when: >
+        'Certificat généré avec succès' in cert_results.stdout or
+        'Fichier PEM mis à jour' in cert_results.stdout or
+        'HAProxy rechargé avec succès' in cert_results.stdout
+      failed_when: cert_results.rc != 0
+
+    # # ------------------------------------------------------------------
+    # # 3. Vérifier si le use_backend existe déjà dans haproxy.cfg
+    # # ------------------------------------------------------------------
+    # - name: Vérifier si use_backend est déjà présent
+    #   ansible.builtin.command:
+    #     cmd: grep -qF "{{ backend_name }}" {{ haproxy_cfg }}
+    #   register: use_backend_check
+    #   failed_when: false
+    #   changed_when: false
+
+    # # ------------------------------------------------------------------
+    # # 4. Insérer le use_backend dans https_web si absent
+    # # ------------------------------------------------------------------
+    # - name: Insérer use_backend dans frontend https_web
+    #   ansible.builtin.lineinfile:
+    #     path: "{{ haproxy_cfg }}"
+    #     insertbefore: "^    default_backend bk_deny"
+    #     line: "{{ use_backend_line }}"
+    #     state: present
+    #   when: use_backend_check.rc != 0
+    #   notify: Valider et recharger HAProxy
+
+  # ------------------------------------------------------------------
+  # HANDLERS
+  # ------------------------------------------------------------------
+  handlers:
+
+    - name: Valider la configuration HAProxy
+      ansible.builtin.command:
+        cmd: haproxy -c -f {{ haproxy_cfg }} -f {{ haproxy_confd }}/
+      register: haproxy_check
+      changed_when: false
+      failed_when: haproxy_check.rc != 0
+      listen: "Valider et recharger HAProxy"
+
+    - name: Recharger HAProxy
+      ansible.builtin.systemd:
+        name: haproxy
+        state: reloaded
+      listen: "Valider et recharger HAProxy"

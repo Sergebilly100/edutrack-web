@@ -58,7 +58,7 @@ import { teacherDetailTourSteps } from "@/shared/lib/tour-steps"
 import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
 import { getCurrentMonth, formatMonthLabel } from "@/shared/utils/month"
 import { computeAbsenceHours, computeRemainingHours, toDisplayedStatus, toSortableTime } from "@/shared/utils/salary-helpers"
-import { formatDecimalHours } from "../../../../edutrack-api/src/shared/utils/time"
+import { formatDecimalHours } from "@/shared/utils/time"
 
 const updateTeacherErrorMessages: Record<string, string> = {
   TEACHER_TYPE_CHANGE_BLOCKED:
@@ -302,7 +302,7 @@ function AttendancePanel({ teacherId, canViewAttendance }: { teacherId: string; 
         </Card>
         <Card>
           <CardContent className="pt-4">
-            <p className="text-xs text-muted-foreground">Heures faites</p>
+            <p className="text-xs text-muted-foreground">Heures faites (heures à valider non incluses)</p>
             <p className="text-lg font-semibold tabular-nums">
               {formatDecimalHours(data.summary.hoursDone)}
             </p>
@@ -747,7 +747,7 @@ function SyntheseInfos({ teacherId, canViewSalary }: { teacherId: string; canVie
         <p className="mt-1 text-lg font-semibold tabular-nums">{formatDecimalHours(data.summary.hoursPlanned)}</p>
       </div>
       <div className="bg-background px-4 py-3">
-        <p className="text-[11px] font-medium uppercase text-muted-foreground">Heures faites</p>
+        <p className="text-[11px] font-medium uppercase text-muted-foreground">Heures faites (HAV non incluses)</p>
         <p className="mt-1 text-lg font-semibold tabular-nums">{formatDecimalHours(data.summary.hoursDone)}</p>
       </div>
       <div className="bg-background px-4 py-3">

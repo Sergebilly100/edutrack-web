@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { getDashboardStats } from "../dashboard.api"
 import { formatFcfa, formatRate } from "@/shared/utils/formatting"
-import { formatDecimalHours } from "../../../../../edutrack-api/src/shared/utils/time"
+import { formatDecimalHours } from "@/shared/utils/time"
 import { cn } from "@/lib/utils"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { attendanceTone, statusToneIconBg, statusToneText } from "@/shared/utils/status-tone"
@@ -250,7 +250,7 @@ export function DashboardStatsCards({
                 Heures prévues : {formatDecimalHours(stats.salaries.economy.plannedHours)}
               </p>
               <p>
-                Heures effectuées : {formatDecimalHours(stats.salaries.economy.completedHours)}
+                Heures effectuées (hors HAV) : {formatDecimalHours(stats.salaries.economy.completedHours)}
               </p>
             </div>
             <div className="font-semibold">

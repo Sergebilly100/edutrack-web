@@ -1,43 +1,6 @@
 import axios from "axios"
 import { apiClient } from "@/shared/api/client"
-
-const SUBDOMAIN_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
-
-const resolveTenantSubdomainFromHost = (): string | undefined => {
-  const hostname = window.location.hostname.toLowerCase()
-  if (hostname === "localhost" || hostname === "127.0.0.1") {
-    return undefined
-  }
-  const labels = hostname.split(".").filter(Boolean)
-  if (labels.length < 3) {
-    return undefined
-  }
-  const subdomain = labels[0]
-  if (!subdomain || subdomain === "www" || subdomain === "admin") {
-    return undefined
-  }
-  return SUBDOMAIN_REGEX.test(subdomain) ? subdomain : undefined
-}
-
-const buildParentTenantHeaders = (): Record<string, string> | undefined => {
-  const tenantSubdomain = resolveTenantSubdomainFromHost()
-  const hostname = window.location.hostname.toLowerCase()
-  const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1"
-  const fallbackSchema =
-    import.meta.env.VITE_DEFAULT_TENANT_SCHEMA ??
-    import.meta.env.VITE_E2E_SCHEMA_NAME ??
-    "school_sainte_marie"
-
-  if (tenantSubdomain) {
-    return { "x-tenant-subdomain": tenantSubdomain }
-  }
-
-  if (isLocalhost) {
-    return { "x-tenant-schema": fallbackSchema }
-  }
-
-  return undefined
-}
+import { buildTenantContextHeaders } from "@/shared/tenancy/tenant-host"
 
 const parseApiError = (error: unknown, fallback: string): string => {
   if (axios.isAxiosError(error)) {
@@ -127,7 +90,7 @@ export const parentLogin = async (payload: { phone: string; password: string }) 
       "/auth/login/parent",
       payload,
       {
-        headers: buildParentTenantHeaders(),
+        headers: buildTenantContextHeaders(),
       }
     ) 
     return response.data
@@ -178,7 +141,7 @@ export const changeParentPassword = async (payload: {
 
 export const fetchParentSchoolInfo = async (): Promise<{ name: string }> => {
   const response = await apiClient.get<{ name?: string }>("/school/public-info", {
-    headers: buildParentTenantHeaders(),
+    headers: buildTenantContextHeaders(),
   })
   return { name: response.data.name ?? "Votre école" }
 }

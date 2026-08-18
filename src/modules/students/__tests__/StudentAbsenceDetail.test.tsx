@@ -34,6 +34,7 @@ const baseAbsence = {
   id: "att-1",
   date: "2026-05-05",
   subject: "Maths",
+  teacherName: "Professeur Test",
   className: "3ème A",
   startTime: "07:30:00",
   endTime: "09:00:00",

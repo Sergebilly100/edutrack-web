@@ -14,20 +14,6 @@ import { useAuthStore } from '@/shared/store/auth.store';
 
 import { login } from './auth.api';
 
-const SUBDOMAIN_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
-const resolveTenantSubdomainFromHost = (): string | undefined => {
-  const hostname = window.location.hostname.toLowerCase();
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return undefined;
-  }
-  const labels = hostname.split('.').filter(Boolean);
-  if (labels.length < 3) return undefined;
-  const subdomain = labels[0];
-  if (!subdomain || subdomain === 'www' || subdomain === 'admin') return undefined;
-  return SUBDOMAIN_REGEX.test(subdomain) ? subdomain : undefined;
-};
-
 const resolveDirectorPostLoginRoute = async (): Promise<'/dashboard' | '/onboarding'> => {
   const school = await fetchSchoolInfo();
   return school.onboarding_completed === true ? '/dashboard' : '/onboarding';
@@ -57,8 +43,7 @@ export default function LoginPage() {
     clearDashboardDismissedNotifications();
 
     try {
-      const tenantSubdomain = resolveTenantSubdomainFromHost();
-      const result = await login(identifier, password, tenantSubdomain);
+      const result = await login(identifier, password);
       const schemaNameFromToken = (() => {
         try {
           const tokenPart = result.accessToken.split('.')[1] ?? '';

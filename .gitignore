@@ -12,12 +12,14 @@ build
 .env.*
 .env.local
 .env.production
+.env.development
+.env.staging
 .env.production.local
 .env.development.local
 !.env.example
 
 # Test output
-e2e/.auth/
+e2e/
 playwright-report/
 test-results/
 coverage/

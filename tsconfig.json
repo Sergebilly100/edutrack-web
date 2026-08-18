@@ -17,5 +17,12 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "vite.config.ts", "../edutrack-api/src/shared/utils/time.ts"]
+  "include": ["src", "vite.config.ts", "@/shared/utils/time.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/__tests__/**"
+  ]
 }

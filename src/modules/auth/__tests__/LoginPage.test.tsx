@@ -88,7 +88,7 @@ describe("LoginPage", () => {
     fireEvent.submit(screen.getByRole("button", { name: /se connecter/i }).closest("form")!)
 
     await waitFor(() => {
-      expect(loginMock).toHaveBeenCalledWith("yao.mar", "pass123", undefined)
+      expect(loginMock).toHaveBeenCalledWith("yao.mar", "pass123")
     })
   })
 

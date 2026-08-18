@@ -1,4 +1,5 @@
 import { apiClient as api } from '@/shared/api/client';
+import { buildTenantContextHeaders } from '@/shared/tenancy/tenant-host';
 import type { PermissionKey } from '@/shared/store/auth.store';
 
 type LoginResponse = {
@@ -20,30 +21,15 @@ type LoginResponse = {
   };
 };
 
-// le tenantSubdomain est optionnel car on peut être en localhost ou sur le domaine principal ivoiredu.ci, 
-// auquel cas on utilise le header x-tenant-schema à la place pour faire du fallback vers une école par défaut 
-// (configurable via les variables d'environnement VITE_DEFAULT_TENANT_SCHEMA ou VITE_E2E_SCHEMA_NAME)
 export const login = async (
   identifier: string,
-  password: string,
-  tenantSubdomain?: string
+  password: string
 ): Promise<LoginResponse> => {
-  const hostname = typeof window !== "undefined" ? window.location.hostname : ""
-  const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1"
-  const fallbackSchema =
-    import.meta.env.VITE_DEFAULT_TENANT_SCHEMA ??
-    import.meta.env.VITE_E2E_SCHEMA_NAME ??
-    "school_sainte_marie"
-
   const response = await api.post<LoginResponse>(
     '/auth/login/teacher',
     { identifier, password },
     {
-      headers: tenantSubdomain
-        ? { "x-tenant-subdomain": tenantSubdomain }
-        : isLocalhost
-          ? { "x-tenant-schema": fallbackSchema }
-          : undefined,
+      headers: buildTenantContextHeaders(),
     }
   );
 
