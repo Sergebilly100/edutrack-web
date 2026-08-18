@@ -117,6 +117,13 @@ export type ConfirmImportResponse = {
   preview: Record<string, string>[]
   deactivated: number
   importMode: ImportMode
+  pendingParentAccess: PendingParentAccess[]
+}
+
+export type PendingParentAccess = {
+  parentId: string
+  fullName: string
+  phone: string
 }
 
 type RawImportIssue = {
@@ -190,6 +197,15 @@ const ConfirmResponseSchema = z.object({
   preview: z.array(z.record(z.string(), z.string())).default([]),
   deactivated: z.number().default(0),
   importMode: z.enum(["merge", "replace"]).default("merge"),
+  pendingParentAccess: z
+    .array(
+      z.object({
+        parentId: z.string(),
+        fullName: z.string(),
+        phone: z.string(),
+      })
+    )
+    .default([]),
 })
 
 const toSeverity = (issue: RawImportIssue): "error" | "warning" => {
@@ -299,5 +315,6 @@ export async function confirmImport(
     errors: parsed.errors.map(normalizeIssue),
     deactivated: parsed.deactivated,
     importMode: parsed.importMode,
+    pendingParentAccess: parsed.pendingParentAccess,
   }
 }

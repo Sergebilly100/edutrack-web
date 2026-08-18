@@ -11,7 +11,7 @@ import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
 import { useAutoSync } from "@/shared/hooks/useAutoSync"
 import { useRestoreSession } from "@/shared/hooks/useRestoreSession"
 import { queryCacheRestorePromise } from "@/shared/api/query-client"
-import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
+import { isStaffRole, useAuthStore, type PermissionKey } from "@/shared/store/auth.store"
 import { useParentAuthStore } from "@/modules/parent-portal/parent-auth.store"
 
 const AdminPage = lazy(() => import("@/modules/admin/AdminPage"))
@@ -46,6 +46,9 @@ const StudentDetailPage = lazy(() => import("@/modules/students/StudentDetailPag
 const StudentsPage = lazy(() => import("@/modules/students/StudentsPage"))
 const TeacherDetailPage = lazy(() => import("@/modules/teachers/TeacherDetailPage"))
 const TeachersPage = lazy(() => import("@/modules/teachers/TeachersPage"))
+const SchoolYearsPage = lazy(() => import("@/modules/academic/SchoolYearsPage"))
+const LevelsPage = lazy(() => import("@/modules/academic/LevelsPage"))
+const ClassesPage = lazy(() => import("@/modules/academic/ClassesPage"))
 const ValidationsPage = lazy(() => import("@/modules/validations/ValidationsPage"))
 const LoginPage = lazy(() => import("./modules/auth/LoginPage"))
 const AdminLoginPage = lazy(() => import("./modules/auth/AdminLoginPage"))
@@ -324,7 +327,15 @@ function PlaceholderPage({ title }: { title: string }) {
   )
 }
 
-function PermissionRoute({ href, element }: { href: string; element: ReactElement }) {
+function PermissionRoute({
+  href,
+  element,
+  requiredAnyPermissions,
+}: {
+  href: string
+  element: ReactElement
+  requiredAnyPermissions?: PermissionKey[]
+}) {
   const user = useAuthStore((state) => state.user)
   const permissions = useAuthStore((state) => state.permissions)
   const isSubscriptionRoute = href === "/subscriptions" || href === "/subscriptions/revenue"
@@ -347,7 +358,11 @@ function PermissionRoute({ href, element }: { href: string; element: ReactElemen
 
   const allowed = getNavItemsByRole(user.role, permissions)
   const canAccess = allowed.some((item) => item.href === href)
-  if (canAccess) {
+  const hasRequiredPermission =
+    !isStaffRole(user.role) ||
+    !requiredAnyPermissions ||
+    requiredAnyPermissions.some((permission) => permissions.includes(permission))
+  if (canAccess && hasRequiredPermission) {
     if (shouldCheckSubscriptionsFeature) {
       if (subscriptionFeatureQuery.isLoading) {
         return <SessionLoader />
@@ -365,6 +380,16 @@ function PermissionRoute({ href, element }: { href: string; element: ReactElemen
 
   const fallback = user.role === "teacher" ? "/attendance" : allowed[0]?.href ?? "/dashboard"
   return <Navigate to={fallback} replace />
+}
+
+function AcademicIndexRoute() {
+  const user = useAuthStore((state) => state.user)
+  const permissions = useAuthStore((state) => state.permissions)
+
+  if (user?.role === "director" || permissions.includes("school_years.view")) {
+    return <Navigate to="/academic/school-years" replace />
+  }
+  return <Navigate to="/academic/classes" replace />
 }
 
 /**
@@ -433,6 +458,10 @@ export default function App() {
           <Route path="/teachers/:teacherId" element={<PermissionRoute href="/teachers" element={<TeacherDetailPage />} />} />
           <Route path="/students" element={<PermissionRoute href="/students" element={<StudentsPage />} />} />
           <Route path="/students/:studentId" element={<PermissionRoute href="/students" element={<StudentDetailPage />} />} />
+          <Route path="/academic" element={<PermissionRoute href="/academic" element={<AcademicIndexRoute />} />} />
+          <Route path="/academic/school-years" element={<PermissionRoute href="/academic" requiredAnyPermissions={["school_years.view"]} element={<SchoolYearsPage />} />} />
+          <Route path="/academic/levels" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<LevelsPage />} />} />
+          <Route path="/academic/classes" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<ClassesPage />} />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/admin/schools" element={<AdminPage />} />
           <Route path="/admin/schools/:tenantId" element={<AdminSchoolDetailPage />} />

@@ -11,6 +11,7 @@ import {
   SettingsIcon,
   StudentsIcon,
   TeachersIcon,
+  ClassIcon,
 } from "@/shared/components/icons"
 import { Building2, ClipboardCheck, Landmark, HandCoins, MessageSquareCode, ReceiptText, Settings2, TrendingUp, User, WalletCards } from "lucide-react"
 
@@ -58,6 +59,14 @@ export const NAV_ITEMS: NavItem[] = [
     icon: StudentsIcon,
     roles: ["director", "staff"],
     requiredPermissions: ["students.view"],
+    mobileVisible: false,
+  },
+  {
+    label: "Structure scolaire",
+    href: "/academic",
+    icon: ClassIcon,
+    roles: ["director", "staff"],
+    requiredAnyPermissions: ["school_years.view", "classes.view"],
     mobileVisible: false,
   },
   {

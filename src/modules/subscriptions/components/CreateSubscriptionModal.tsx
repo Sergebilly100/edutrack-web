@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { CheckCircle2, Copy, Lock, Search, TriangleAlert } from "lucide-react"
+import { CheckCircle2, Copy, Lock, Search, TriangleAlert, UserCheck, UserPlus } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -25,9 +25,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import { cn } from "@/lib/utils"
 import {
   listSubscriptionClasses,
   listSubscriptionClassStudents,
+  listSubscriptionParents,
+  type SubscriptionListItem,
 } from "@/modules/subscriptions/subscriptions.api"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 
@@ -54,7 +57,7 @@ type CreateSubscriptionPayload = {
 type CreateSubscriptionSuccess = {
   parent: { id: string; full_name: string; phone: string }
   subscription: { id: string; total_amount_fcfa: number; starts_at: string; ends_at: string }
-  credentials: { phone: string; temp_password: string }
+  credentials: { phone: string; temp_password: string } | null
 }
 
 type CreateSubscriptionModalProps = {
@@ -62,7 +65,6 @@ type CreateSubscriptionModalProps = {
   onOpenChange: (open: boolean) => void
   smsUnitPriceFcfa: number | null
   isSubmitting?: boolean
-  existingPhones?: string[]
   onSubmit: (payload: CreateSubscriptionPayload) => Promise<CreateSubscriptionSuccess>
   onGoToSettings?: () => void
 }
@@ -93,7 +95,6 @@ export default function CreateSubscriptionModal({
   onOpenChange,
   smsUnitPriceFcfa,
   isSubmitting = false,
-  existingPhones = [],
   onSubmit,
   onGoToSettings,
 }: CreateSubscriptionModalProps) {
@@ -106,11 +107,13 @@ export default function CreateSubscriptionModal({
   const [selectedStudentMap, setSelectedStudentMap] = useState<Record<string, StudentOption>>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [success, setSuccess] = useState<CreateSubscriptionSuccess | null>(null)
+  const [parentMode, setParentMode] = useState<"existing" | "new">("existing")
+  const [parentSearch, setParentSearch] = useState("")
+  const [selectedParent, setSelectedParent] = useState<SubscriptionListItem | null>(null)
 
   const fullNameValid = form.full_name.trim().length >= 2
   const phoneValid = PHONE_REGEX.test(form.phone.trim())
   const emailValid = form.email.trim().length === 0 || /.+@.+\..+/.test(form.email.trim())
-  const phoneExists = existingPhones.includes(form.phone.trim())
   const studentsValid = form.student_ids.length > 0
   const priceConfigured = typeof smsUnitPriceFcfa === "number" && smsUnitPriceFcfa > 0
 
@@ -125,6 +128,17 @@ export default function CreateSubscriptionModal({
     queryKey: ["subscriptions", "classes", "modal"],
     queryFn: () => listSubscriptionClasses(),
     enabled: open,
+  })
+
+  const existingParentsQuery = useQuery({
+    queryKey: ["subscriptions", "parents", "create-modal", parentSearch],
+    queryFn: () =>
+      listSubscriptionParents({
+        page: 1,
+        limit: 20,
+        search: parentSearch.trim() || undefined,
+      }),
+    enabled: open && step === 1 && parentMode === "existing",
   })
 
   const classStudentsQuery = useQuery({
@@ -163,8 +177,14 @@ export default function CreateSubscriptionModal({
     (studentPagination?.page ?? studentPage) * (studentPagination?.limit ?? 25),
     studentTotal
   )
+  const eligibleExistingParents = (existingParentsQuery.data?.data ?? []).filter(
+    (parent) => parent.latest_subscription === null
+  )
 
-  const canGoStep2 = fullNameValid && phoneValid && emailValid && !phoneExists
+  const canGoStep2 =
+    parentMode === "existing"
+      ? selectedParent !== null
+      : fullNameValid && phoneValid && emailValid
   const canGoStep3 = studentsValid && priceConfigured
 
   const resetState = () => {
@@ -176,6 +196,9 @@ export default function CreateSubscriptionModal({
     setStudentSearch("")
     setStudentPage(1)
     setSelectedStudentMap({})
+    setParentMode("existing")
+    setParentSearch("")
+    setSelectedParent(null)
   }
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -208,9 +231,11 @@ export default function CreateSubscriptionModal({
     setSubmitError(null)
     try {
       const result = await onSubmit({
-        full_name: form.full_name.trim(),
-        phone: form.phone.trim(),
-        ...(form.email.trim().length > 0 ? { email: form.email.trim() } : {}),
+        full_name: selectedParent?.full_name ?? form.full_name.trim(),
+        phone: selectedParent?.phone ?? form.phone.trim(),
+        ...((selectedParent?.email ?? form.email).trim().length > 0
+          ? { email: (selectedParent?.email ?? form.email).trim() }
+          : {}),
         student_ids: form.student_ids,
         duration_months: form.duration_months,
         payment_method: form.payment_method,
@@ -224,7 +249,7 @@ export default function CreateSubscriptionModal({
   }
 
   const copyCredentials = async () => {
-    if (!success) {
+    if (!success?.credentials) {
       return
     }
 
@@ -261,44 +286,135 @@ export default function CreateSubscriptionModal({
 
               {step === 1 ? (
                 <section className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="parent-full-name">Nom complet</Label>
-                    <Input
-                      id="parent-full-name"
-                      value={form.full_name}
-                      onChange={(event) => setForm((prev) => ({ ...prev, full_name: event.target.value }))}
-                      placeholder="Nom et prénom du parent"
-                    />
-                    {!fullNameValid ? <p className="text-xs text-red-600">Minimum 2 caractères requis.</p> : null}
+                  <div className="grid gap-2 sm:grid-cols-2" aria-label="Choix du parent">
+                    <Button
+                      type="button"
+                      variant={parentMode === "existing" ? "default" : "outline"}
+                      className="min-h-[48px] justify-start gap-2"
+                      onClick={() => setParentMode("existing")}
+                    >
+                      <UserCheck className="h-4 w-4" /> Parent déjà enregistré
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={parentMode === "new" ? "default" : "outline"}
+                      className="min-h-[48px] justify-start gap-2"
+                      onClick={() => {
+                        setParentMode("new")
+                        setSelectedParent(null)
+                        setForm((current) => ({ ...current, student_ids: [] }))
+                        setSelectedStudentMap({})
+                      }}
+                    >
+                      <UserPlus className="h-4 w-4" /> Ajouter un autre parent
+                    </Button>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="parent-phone">Téléphone</Label>
-                    <Input
-                      id="parent-phone"
-                      value={form.phone}
-                      onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value.replace(/\s+/g, "") }))}
-                      placeholder="2250700000000"
-                    />
-                    {!phoneValid ? <p className="text-xs text-red-600">Format requis: 225 + 10 chiffres.</p> : null}
-                    {phoneExists ? (
-                      <p className="text-xs text-amber-900">
-                        Ce numéro est déjà enregistré. Utiliser Renouveler à la place.
-                      </p>
-                    ) : null}
-                  </div>
+                  {parentMode === "existing" ? (
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="existing-parent-search">Rechercher un parent lié à un élève</Label>
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            id="existing-parent-search"
+                            className="pl-9"
+                            value={parentSearch}
+                            onChange={(event) => setParentSearch(event.target.value)}
+                            placeholder="Nom ou téléphone"
+                          />
+                        </div>
+                      </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="parent-email">Email (optionnel)</Label>
-                    <Input
-                      id="parent-email"
-                      type="email"
-                      value={form.email}
-                      onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
-                      placeholder="parent@email.ci"
-                    />
-                    {!emailValid ? <p className="text-xs text-red-600">Email invalide.</p> : null}
-                  </div>
+                      <div className="max-h-64 divide-y overflow-y-auto rounded-lg border border-border">
+                        {existingParentsQuery.isLoading ? (
+                          <p className="p-4 text-sm text-muted-foreground">Chargement des parents…</p>
+                        ) : null}
+                        {!existingParentsQuery.isLoading && eligibleExistingParents.length === 0 ? (
+                          <p className="p-4 text-sm text-muted-foreground">
+                            Aucun parent sans abonnement trouvé. Choisissez « Ajouter un autre parent ».
+                          </p>
+                        ) : null}
+                        {eligibleExistingParents.map((parent) => {
+                          const selected = selectedParent?.parent_id === parent.parent_id
+                          return (
+                            <Button
+                              key={parent.parent_id}
+                              type="button"
+                              variant="ghost"
+                              className={cn(
+                                "h-auto min-h-[56px] w-full justify-start rounded-none px-3 py-2 text-left",
+                                selected && "bg-primary/10 text-primary hover:bg-primary/10"
+                              )}
+                              onClick={() => {
+                                setSelectedParent(parent)
+                                setForm((current) => ({
+                                  ...current,
+                                  student_ids: parent.students.map((student) => student.id),
+                                }))
+                                setSelectedStudentMap(
+                                  Object.fromEntries(
+                                    parent.students.map((student) => [
+                                      student.id,
+                                      {
+                                        id: student.id,
+                                        fullName: student.full_name,
+                                        className: "",
+                                        registrationNumber: null,
+                                      },
+                                    ])
+                                  )
+                                )
+                              }}
+                            >
+                              <span className="min-w-0">
+                                <span className="block truncate font-medium">{parent.full_name}</span>
+                                <span className="block truncate text-xs text-muted-foreground">
+                                  {parent.phone} · {parent.students.map((student) => student.full_name).join(", ") || "Aucun élève lié"}
+                                </span>
+                              </span>
+                            </Button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="parent-full-name">Nom complet</Label>
+                        <Input
+                          id="parent-full-name"
+                          value={form.full_name}
+                          onChange={(event) => setForm((prev) => ({ ...prev, full_name: event.target.value }))}
+                          placeholder="Nom et prénom du parent"
+                        />
+                        {!fullNameValid ? <p className="text-xs text-red-600">Minimum 2 caractères requis.</p> : null}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="parent-phone">Téléphone</Label>
+                        <Input
+                          id="parent-phone"
+                          value={form.phone}
+                          onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value.replace(/\s+/g, "") }))}
+                          placeholder="2250700000000"
+                        />
+                        {!phoneValid ? <p className="text-xs text-red-600">Format requis: 225 + 10 chiffres.</p> : null}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="parent-email">Email (optionnel)</Label>
+                        <Input
+                          id="parent-email"
+                          type="email"
+                          value={form.email}
+                          onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+                          placeholder="parent@email.ci"
+                        />
+                        {!emailValid ? <p className="text-xs text-red-600">Email invalide.</p> : null}
+                      </div>
+                    </div>
+                  )}
                 </section>
               ) : null}
 
@@ -507,7 +623,7 @@ export default function CreateSubscriptionModal({
                   <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3 text-sm">
                     <p className="font-medium">Récapitulatif</p>
                     <Separator />
-                    <p>Parent: {form.full_name || "-"}</p>
+                    <p>Parent: {selectedParent?.full_name ?? form.full_name ?? "-"}</p>
                     <p>{`${studentLabels.plural}: ${form.student_ids.length}`}</p>
                     <p>Durée: {form.duration_months} mois</p>
                     <p>Méthode: {paymentMethodLabels[form.payment_method]}</p>
@@ -560,16 +676,24 @@ export default function CreateSubscriptionModal({
                 <p className="text-base font-semibold">Abonnement créé avec succès</p>
               </div>
 
-              <div className="rounded-lg border border-green-300 bg-white p-3 text-sm text-slate-800 dark:border-green-900/40 dark:bg-slate-900 dark:text-slate-100">
-                <p className="mb-2 font-medium">Accès parent</p>
-                <p>Téléphone : {success.credentials.phone}</p>
-                <p>Mot de passe : {success.credentials.temp_password}</p>
-              </div>
+              {success.credentials ? (
+                <div className="rounded-lg border border-green-300 bg-white p-3 text-sm text-slate-800 dark:border-green-900/40 dark:bg-slate-900 dark:text-slate-100">
+                  <p className="mb-2 font-medium">Accès parent créé</p>
+                  <p>Téléphone : {success.credentials.phone}</p>
+                  <p>Mot de passe : {success.credentials.temp_password}</p>
+                </div>
+              ) : (
+                <p className="text-sm">
+                  Le compte parent existant a été réutilisé. Ses identifiants de connexion restent inchangés.
+                </p>
+              )}
 
               <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                <Button type="button" variant="outline" onClick={copyCredentials} className="gap-2">
-                  <Copy className="h-4 w-4" /> Copier les accès
-                </Button>
+                {success.credentials ? (
+                  <Button type="button" variant="outline" onClick={copyCredentials} className="min-h-[48px] gap-2">
+                    <Copy className="h-4 w-4" /> Copier les accès
+                  </Button>
+                ) : null}
                 <Button type="button" onClick={() => handleOpenChange(false)}>
                   Fermer
                 </Button>

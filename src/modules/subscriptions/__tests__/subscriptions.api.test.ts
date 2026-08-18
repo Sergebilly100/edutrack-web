@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { getMock } = vi.hoisted(() => ({
+const { getMock, postMock } = vi.hoisted(() => ({
   getMock: vi.fn(),
+  postMock: vi.fn(),
 }))
 
 vi.mock("@/shared/api/client", () => {
   return {
     apiClient: {
       get: getMock,
+      post: postMock,
     },
   }
 })
@@ -16,6 +18,7 @@ import {
   getSubscriptionsRevenueStats,
   listSubscriptionCreators,
   listSubscriptionParents,
+  sendPendingParentAccess,
 } from "@/modules/subscriptions/subscriptions.api"
 
 describe("subscriptions.api", () => {
@@ -56,6 +59,19 @@ describe("subscriptions.api", () => {
       expect(getMock).toHaveBeenCalledWith("/subscriptions/creators")
       expect(result).toEqual([{ id: "u-1", name: "Awa" }, { id: "u-2", name: "Brou" }])
     })
+  })
+
+  it("envoie uniquement les IDs de parents sélectionnés", async () => {
+    postMock.mockResolvedValueOnce({
+      data: { queued: 1, items: [{ parentId: "parent-1", status: "queued" }] },
+    })
+
+    const result = await sendPendingParentAccess(["parent-1"])
+
+    expect(postMock).toHaveBeenCalledWith("/subscriptions/parents/access/send", {
+      parent_ids: ["parent-1"],
+    })
+    expect(result.queued).toBe(1)
   })
 
   it("requests revenue stats for the selected month and normalizes missing fields", async () => {

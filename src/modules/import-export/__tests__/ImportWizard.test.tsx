@@ -125,6 +125,14 @@ const CONFIRM_REPLACE = {
   importMode: "replace",
 }
 
+const CONFIRM_WITH_PENDING_PARENTS = {
+  ...CONFIRM_OK,
+  pendingParentAccess: [
+    { parentId: "parent-1", fullName: "Awa Kouassi", phone: "2250700000001" },
+    { parentId: "parent-2", fullName: "Mariam Koné", phone: "2250700000002" },
+  ],
+}
+
 // ---------------------------------------------------------------------------
 // Helpers to set up MSW handlers
 // ---------------------------------------------------------------------------
@@ -551,6 +559,40 @@ describe("ImportWizard - step 3 (confirmation)", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /Terminer/i })).toBeInTheDocument()
     })
+  })
+
+  it("lists parents created by the current import and sends the selected access", async () => {
+    mockDryRunOk()
+    let sentParentIds: string[] = []
+    server.use(
+      http.post("*/import/students/confirm", () => HttpResponse.json(CONFIRM_WITH_PENDING_PARENTS)),
+      http.post("*/subscriptions/parents/access/send", async ({ request }) => {
+        const body = (await request.json()) as { parent_ids: string[] }
+        sentParentIds = body.parent_ids
+        return HttpResponse.json({
+          queued: body.parent_ids.length,
+          items: body.parent_ids.map((parentId) => ({ parentId, status: "queued" })),
+        })
+      })
+    )
+    renderWizard()
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    Object.defineProperty(fileInput, "files", { value: [makeXlsxFile()], writable: false })
+    fireEvent.change(fileInput)
+    fireEvent.click(screen.getByRole("button", { name: /Suivant/i }))
+    await waitFor(() => expect(screen.getByRole("button", { name: /Importer/i })).toBeEnabled())
+    fireEvent.click(screen.getByRole("button", { name: /Importer/i }))
+
+    expect(await screen.findByText("Envoyer les accès parents")).toBeInTheDocument()
+    expect(screen.getByText("Awa Kouassi")).toBeInTheDocument()
+    expect(screen.getByText("Mariam Koné")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Sélectionner Mariam Koné" }))
+    fireEvent.click(screen.getByRole("button", { name: "Envoyer la sélection (1)" }))
+
+    await waitFor(() => expect(sentParentIds).toEqual(["parent-1"]))
+    expect(await screen.findByText("Envoi programmé")).toBeInTheDocument()
   })
 
   it("clicking 'Terminer' resets wizard to step 1", async () => {

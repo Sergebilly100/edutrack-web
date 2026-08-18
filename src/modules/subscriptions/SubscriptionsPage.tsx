@@ -690,7 +690,6 @@ export default function SubscriptionsPage() {
         open={createOpen}
         onOpenChange={setCreateOpen}
         smsUnitPriceFcfa={featureQuery.data?.sms_unit_price_fcfa ?? 0}
-        existingPhones={items.map((item) => item.phone)}
         onSubmit={async (payload) => createMutation.mutateAsync(payload)}
       />
 

@@ -10,6 +10,8 @@ test.describe("Souscriptions - création", () => {
     await page.getByRole("button", { name: "Nouvel abonnement" }).click()
     await expect(page.getByRole("dialog", { name: "Nouvel abonnement parent" })).toBeVisible()
 
+    await page.getByRole("button", { name: "Ajouter un autre parent" }).click()
+
     await page.getByLabel("Nom complet").fill("Parent Modal Test")
     await page.getByLabel("Téléphone").fill("0700")
     await expect(page.getByText("Format requis: 225 + 10 chiffres.")).toBeVisible()
@@ -47,6 +49,8 @@ test.describe("Souscriptions - création", () => {
 
     await page.getByRole("button", { name: "Nouvel abonnement" }).click()
 
+    await page.getByRole("button", { name: "Ajouter un autre parent" }).click()
+
     await page.getByLabel("Nom complet").fill("Parent Validation")
 
     // Numéro trop court
@@ -68,6 +72,7 @@ test.describe("Souscriptions - création", () => {
     await page.goto("/subscriptions")
 
     await page.getByRole("button", { name: "Nouvel abonnement" }).click()
+    await page.getByRole("button", { name: "Ajouter un autre parent" }).click()
     await page.getByLabel("Nom complet").fill("Parent À Effacer")
     await page.keyboard.press("Escape")
 

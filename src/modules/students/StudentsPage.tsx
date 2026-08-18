@@ -94,7 +94,10 @@ export default function StudentsPage() {
     lastName: "",
     matricule: "",
     birthDate: "",
+    parentName: "",
     parentPhone: "",
+    parentEmail: "",
+    parentName2: "",
     parentPhone2: "",
   })
 
@@ -105,7 +108,10 @@ export default function StudentsPage() {
       lastName: "",
       matricule: "",
       birthDate: "",
+      parentName: "",
       parentPhone: "",
+      parentEmail: "",
+      parentName2: "",
       parentPhone2: "",
     })
   }
@@ -234,7 +240,10 @@ export default function StudentsPage() {
     newStudent.firstName.trim().length > 0 &&
     newStudent.lastName.trim().length > 0 &&
     isValidOptionalPhone(newStudent.parentPhone) &&
-    isValidOptionalPhone(newStudent.parentPhone2)
+    isValidOptionalPhone(newStudent.parentPhone2) &&
+    (newStudent.parentEmail.trim().length === 0 || /.+@.+\..+/.test(newStudent.parentEmail.trim())) &&
+    ((newStudent.parentName.trim().length === 0 && newStudent.parentPhone.trim().length === 0) ||
+      (newStudent.parentName.trim().length >= 2 && newStudent.parentPhone.trim().length > 0))
 
   const columns = useMemo<ColumnDef<StudentTableRow>[]>(
     () => [
@@ -611,7 +620,25 @@ export default function StudentsPage() {
               </div>
             </div>
 
+            <Alert>
+              <InfoIcon className="h-4 w-4" />
+              <AlertDescription>
+                Si vous renseignez le parent principal, son compte sera créé ou réutilisé. Les accès d’un nouveau compte seront envoyés par SMS.
+              </AlertDescription>
+            </Alert>
+
             <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="student-parent-name">Nom parent principal</Label>
+                <Input
+                  id="student-parent-name"
+                  value={newStudent.parentName}
+                  placeholder="Nom et prénom"
+                  onChange={(event) =>
+                    setNewStudent((current) => ({ ...current, parentName: event.target.value }))
+                  }
+                />
+              </div>
               <div className="space-y-1">
                 <Label htmlFor="student-parent-phone">Téléphone parent 1</Label>
                 <Input
@@ -625,6 +652,33 @@ export default function StudentsPage() {
                   }
                 />
                 <p className="text-xs text-muted-foreground">Format attendu: 225XXXXXXXXXX.</p>
+              </div>
+              <div className="space-y-1 sm:col-span-2">
+                <Label htmlFor="student-parent-email">Email parent principal (optionnel)</Label>
+                <Input
+                  id="student-parent-email"
+                  type="email"
+                  inputMode="email"
+                  value={newStudent.parentEmail}
+                  placeholder="parent@exemple.com"
+                  onChange={(event) =>
+                    setNewStudent((current) => ({ ...current, parentEmail: event.target.value }))
+                  }
+                />
+                {newStudent.parentEmail.trim().length > 0 && !/.+@.+\..+/.test(newStudent.parentEmail.trim()) ? (
+                  <p className="text-xs text-destructive">Format email invalide.</p>
+                ) : null}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="student-parent-name-2">Nom parent 2</Label>
+                <Input
+                  id="student-parent-name-2"
+                  value={newStudent.parentName2}
+                  placeholder="Nom et prénom"
+                  onChange={(event) =>
+                    setNewStudent((current) => ({ ...current, parentName2: event.target.value }))
+                  }
+                />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="student-parent-phone-2">Téléphone parent 2</Label>
@@ -645,6 +699,12 @@ export default function StudentsPage() {
                 <AlertDescription>Les numéros doivent respecter le format 225XXXXXXXXXX.</AlertDescription>
               </Alert>
             ) : null}
+            {(newStudent.parentName.trim().length > 0 || newStudent.parentPhone.trim().length > 0) &&
+            (newStudent.parentName.trim().length < 2 || newStudent.parentPhone.trim().length === 0) ? (
+              <Alert variant="destructive">
+                <AlertDescription>Le nom et le téléphone du parent principal sont requis ensemble.</AlertDescription>
+              </Alert>
+            ) : null}
           </div>
 
           <DialogFooter>
@@ -660,7 +720,10 @@ export default function StudentsPage() {
                   lastName: newStudent.lastName.trim(),
                   matricule: newStudent.matricule.trim() || null,
                   birthDate: newStudent.birthDate || null,
+                  parentName: newStudent.parentName.trim() || null,
                   parentPhone: newStudent.parentPhone.trim() || null,
+                  parentEmail: newStudent.parentEmail.trim() || null,
+                  parentName2: newStudent.parentName2.trim() || null,
                   parentPhone2: newStudent.parentPhone2.trim() || null,
                 })
               }

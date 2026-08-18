@@ -614,6 +614,11 @@ export default function StudentDetailPage() {
               <CardTitle className="text-base">Contacts parents</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <Alert>
+                <AlertDescription>
+                  Le parent principal correspond à un compte réel. Le compte est créé ou réutilisé selon le téléphone ; les accès sont envoyés uniquement lorsqu’un nouveau compte est créé.
+                </AlertDescription>
+              </Alert>
               <div className="grid gap-2 md:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="student-parent-name">Nom parent 1</Label>

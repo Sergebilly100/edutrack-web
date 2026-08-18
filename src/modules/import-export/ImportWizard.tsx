@@ -6,6 +6,7 @@ import {
   Check,
   Download,
   GraduationCap,
+  Send,
   type LucideIcon,
   UserSquare,
 } from "lucide-react"
@@ -32,6 +33,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { useConfirmImport, useDryRun } from "@/modules/import/import.hooks"
 import { downloadTemplate, type DryRunResponse, type ImportIssue, type ImportMode, type ImportType } from "./import-export.api"
+import { sendPendingParentAccess } from "@/modules/subscriptions/subscriptions.api"
 import { DateInput } from "@/shared/components/DateInput"
 import { DropZone } from "@/shared/components/DropZone"
 import { Spinner } from "@/shared/components/Spinner"
@@ -304,6 +306,10 @@ export default function ImportWizard({
   const [pastScheduleAcknowledged, setPastScheduleAcknowledged] = useState(false)
   const [restoredDryRunReport, setRestoredDryRunReport] = useState<DryRunResponse | null>(null)
   const [dropZoneResetKey, setDropZoneResetKey] = useState(0)
+  const [selectedParentIds, setSelectedParentIds] = useState<string[]>([])
+  const [parentAccessStatuses, setParentAccessStatuses] = useState<Record<string, "queued" | "failed">>({})
+  const [isSendingParentAccess, setIsSendingParentAccess] = useState(false)
+  const [parentAccessError, setParentAccessError] = useState<string | null>(null)
 
   const dryRunMutation = useDryRun()
   const confirmMutation = useConfirmImport()
@@ -323,6 +329,13 @@ export default function ImportWizard({
   const dryRunReport = dryRunMutation.data ?? restoredDryRunReport
   const confirmReport = confirmMutation.data
   const hasConflicts = (dryRunReport?.conflicts?.length ?? 0) > 0
+
+  useEffect(() => {
+    const parentIds = confirmReport?.pendingParentAccess.map((parent) => parent.parentId) ?? []
+    setSelectedParentIds(parentIds)
+    setParentAccessStatuses({})
+    setParentAccessError(null)
+  }, [confirmReport])
 
   const issues = dryRunReport?.errors ?? []
   const blockingIssues = useMemo(() => issues.filter((item) => item.severity === "error"), [issues])
@@ -386,6 +399,9 @@ export default function ImportWizard({
     setRestoredDryRunReport(null)
     dryRunMutation.reset()
     confirmMutation.reset()
+    setSelectedParentIds([])
+    setParentAccessStatuses({})
+    setParentAccessError(null)
   }
 
   const getRestorableDryRunReport = (): DryRunResponse | null => {
@@ -694,6 +710,38 @@ export default function ImportWizard({
     runConfirmImport()
   }
 
+  const handleSendParentAccess = async (parentIds: string[]) => {
+    if (parentIds.length === 0) return
+
+    setIsSendingParentAccess(true)
+    setParentAccessError(null)
+    try {
+      const result = await sendPendingParentAccess(parentIds)
+      const nextStatuses = result.items.reduce<Record<string, "queued" | "failed">>((acc, item) => {
+        if (item.status === "queued" || item.status === "already_sent") {
+          acc[item.parentId] = "queued"
+        } else {
+          acc[item.parentId] = "failed"
+        }
+        return acc
+      }, {})
+      setParentAccessStatuses((current) => ({ ...current, ...nextStatuses }))
+      setSelectedParentIds((current) => current.filter((id) => nextStatuses[id] !== "queued"))
+      const failedCount = result.items.filter((item) => item.status === "failed" || item.status === "not_found").length
+      toast({
+        title: result.queued > 0 ? `${result.queued} envoi(s) programmé(s)` : "Aucun nouvel envoi programmé",
+        description: failedCount > 0 ? `${failedCount} accès n'ont pas pu être programmés.` : undefined,
+        variant: failedCount > 0 ? "destructive" : "default",
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Impossible d'envoyer les accès parents."
+      setParentAccessError(message)
+      toast({ title: "Envoi impossible", description: message, variant: "destructive" })
+    } finally {
+      setIsSendingParentAccess(false)
+    }
+  }
+
   const handleFinish = () => {
     setStep(1)
     const fallbackType =
@@ -712,6 +760,9 @@ export default function ImportWizard({
     setPastScheduleAcknowledged(false)
     dryRunMutation.reset()
     confirmMutation.reset()
+    setSelectedParentIds([])
+    setParentAccessStatuses({})
+    setParentAccessError(null)
   }
 
   const getIssuesForPreviewRow = (rowIndex: number) => {
@@ -1242,6 +1293,103 @@ export default function ImportWizard({
                     <p className="text-sm font-medium">Détail des erreurs</p>
                     <ErrorList issues={confirmReport.errors} />
                   </div>
+                ) : null}
+
+                {importType === "students" && confirmReport.pendingParentAccess.length > 0 ? (
+                  <section className="space-y-4 rounded-lg border border-border p-4" aria-labelledby="parent-access-title">
+                    <div className="space-y-1">
+                      <h3 id="parent-access-title" className="text-base font-semibold">
+                        Envoyer les accès parents
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        Ces comptes ont été créés pendant cet import. Aucun SMS n&apos;a encore été envoyé.
+                      </p>
+                    </div>
+
+                    <label className="flex min-h-[48px] items-center gap-3 rounded-lg border border-border px-3 py-2">
+                      <Checkbox
+                        aria-label="Sélectionner tous les parents en attente"
+                        checked={
+                          confirmReport.pendingParentAccess.every(
+                            (parent) =>
+                              parentAccessStatuses[parent.parentId] === "queued" ||
+                              selectedParentIds.includes(parent.parentId)
+                          )
+                        }
+                        onCheckedChange={(checked) =>
+                          setSelectedParentIds(
+                            checked
+                              ? confirmReport.pendingParentAccess
+                                  .filter((parent) => parentAccessStatuses[parent.parentId] !== "queued")
+                                  .map((parent) => parent.parentId)
+                              : []
+                          )
+                        }
+                      />
+                      <span className="text-sm font-medium">Sélectionner tous les accès en attente</span>
+                    </label>
+
+                    <div className="divide-y rounded-lg border border-border">
+                      {confirmReport.pendingParentAccess.map((parent) => {
+                        const status = parentAccessStatuses[parent.parentId]
+                        const isQueued = status === "queued"
+                        return (
+                          <div key={parent.parentId} className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
+                            <label className="flex min-h-[48px] min-w-0 flex-1 items-center gap-3">
+                              <Checkbox
+                                aria-label={`Sélectionner ${parent.fullName}`}
+                                checked={selectedParentIds.includes(parent.parentId)}
+                                disabled={isQueued || isSendingParentAccess}
+                                onCheckedChange={(checked) =>
+                                  setSelectedParentIds((current) =>
+                                    checked
+                                      ? [...new Set([...current, parent.parentId])]
+                                      : current.filter((id) => id !== parent.parentId)
+                                  )
+                                }
+                              />
+                              <span className="min-w-0">
+                                <span className="block truncate text-sm font-medium">{parent.fullName}</span>
+                                <span className="block text-xs text-muted-foreground">{parent.phone}</span>
+                              </span>
+                            </label>
+                            {isQueued ? (
+                              <Badge variant="outline" className="w-fit border-green-200 bg-green-50 text-green-700">
+                                Envoi programmé
+                              </Badge>
+                            ) : (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="min-h-[48px] gap-2"
+                                disabled={isSendingParentAccess}
+                                onClick={() => void handleSendParentAccess([parent.parentId])}
+                              >
+                                <Send className="h-4 w-4" /> Envoyer
+                              </Button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {parentAccessError ? (
+                      <Alert variant="destructive">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription>{parentAccessError}</AlertDescription>
+                      </Alert>
+                    ) : null}
+
+                    <Button
+                      type="button"
+                      className="min-h-[48px] w-full gap-2 sm:w-auto"
+                      disabled={isSendingParentAccess || selectedParentIds.length === 0}
+                      onClick={() => void handleSendParentAccess(selectedParentIds)}
+                    >
+                      {isSendingParentAccess ? <Spinner size="sm" /> : <Send className="h-4 w-4" />}
+                      Envoyer la sélection ({selectedParentIds.length})
+                    </Button>
+                  </section>
                 ) : null}
               </>
             ) : null}

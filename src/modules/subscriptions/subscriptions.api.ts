@@ -27,6 +27,7 @@ export type SubscriptionListItem = {
   full_name: string
   phone: string
   email: string | null
+  access_sent_at: string | null
   created_by: string | null
   created_by_name: string | null
   latest_subscription: {
@@ -70,7 +71,17 @@ export type CreateSubscriptionPayload = {
 export type CreateSubscriptionResult = {
   parent: { id: string; full_name: string; phone: string }
   subscription: { id: string; total_amount_fcfa: number; starts_at: string; ends_at: string }
-  credentials: { phone: string; temp_password: string }
+  credentials: { phone: string; temp_password: string } | null
+}
+
+export type ParentAccessDispatchItem = {
+  parentId: string
+  status: "queued" | "already_sent" | "not_found" | "failed"
+}
+
+export type ParentAccessDispatchResult = {
+  items: ParentAccessDispatchItem[]
+  queued: number
 }
 
 export type RenewSubscriptionPayload = {
@@ -287,6 +298,20 @@ export const resetParentSubscriptionPassword = async (
     return response.data
   } catch (error) {
     throw new Error(parseApiError(error, "Impossible de réinitialiser le mot de passe."))
+  }
+}
+
+export const sendPendingParentAccess = async (
+  parentIds: string[]
+): Promise<ParentAccessDispatchResult> => {
+  try {
+    const response = await apiClient.post<ParentAccessDispatchResult>(
+      "/subscriptions/parents/access/send",
+      { parent_ids: parentIds }
+    )
+    return response.data
+  } catch (error) {
+    throw new Error(parseApiError(error, "Impossible d'envoyer les accès parents."))
   }
 }
 
