@@ -1278,6 +1278,18 @@ export default function ImportWizard({
                         {confirmReport.deactivated} enregistrements absents du fichier ont été désactivés.
                       </p>
                     ) : null}
+                    {importType === "students" && confirmReport.parentAccountsCreated > 0 ? (
+                      <p className="text-sm">
+                        {confirmReport.parentAccountsCreated} compte
+                        {confirmReport.parentAccountsCreated > 1 ? "s parents créés" : " parent créé"}.
+                      </p>
+                    ) : null}
+                    {importType === "students" && confirmReport.parentAccountsReused > 0 ? (
+                      <p className="text-sm">
+                        {confirmReport.parentAccountsReused} parent
+                        {confirmReport.parentAccountsReused > 1 ? "s réutilisés" : " réutilisé"} par dédoublonnage.
+                      </p>
+                    ) : null}
                   </div>
                 ) : (
                   <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-amber-800">

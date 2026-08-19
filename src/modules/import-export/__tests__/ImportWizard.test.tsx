@@ -127,6 +127,8 @@ const CONFIRM_REPLACE = {
 
 const CONFIRM_WITH_PENDING_PARENTS = {
   ...CONFIRM_OK,
+  parentAccountsCreated: 2,
+  parentAccountsReused: 1,
   pendingParentAccess: [
     { parentId: "parent-1", fullName: "Awa Kouassi", phone: "2250700000001" },
     { parentId: "parent-2", fullName: "Mariam Koné", phone: "2250700000002" },
@@ -660,6 +662,29 @@ describe("ImportWizard - step 3 (confirmation)", () => {
     })
   })
 
+  it("shows created and reused parent account counts after a student import", async () => {
+    mockDryRunOk()
+    server.use(
+      http.post("*/import/students/confirm", () => HttpResponse.json(CONFIRM_WITH_PENDING_PARENTS))
+    )
+    renderWizard()
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    Object.defineProperty(fileInput, "files", { value: [makeXlsxFile()], writable: false })
+    fireEvent.change(fileInput)
+    fireEvent.click(screen.getByRole("button", { name: /Suivant/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Importer/i })).not.toBeDisabled()
+    })
+    fireEvent.click(screen.getByRole("button", { name: /Importer/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText("2 comptes parents créés.")).toBeInTheDocument()
+      expect(screen.getByText("1 parent réutilisé par dédoublonnage.")).toBeInTheDocument()
+    })
+  })
+
   it("shows error alert when confirm API returns 400", async () => {
     mockDryRunOk()
     server.use(
@@ -820,5 +845,17 @@ describe("import-export.api - confirmImport", () => {
 
     expect(result.deactivated).toBe(2)
     expect(result.importMode).toBe("replace")
+  })
+
+  it("maps parent account counters from response", async () => {
+    server.use(
+      http.post("*/import/students/confirm", () => HttpResponse.json(CONFIRM_WITH_PENDING_PARENTS))
+    )
+
+    const { confirmImport } = await import("../import-export.api")
+    const result = await confirmImport("students", makeXlsxFile())
+
+    expect(result.parentAccountsCreated).toBe(2)
+    expect(result.parentAccountsReused).toBe(1)
   })
 })

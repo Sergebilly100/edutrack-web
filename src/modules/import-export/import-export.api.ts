@@ -117,6 +117,8 @@ export type ConfirmImportResponse = {
   preview: Record<string, string>[]
   deactivated: number
   importMode: ImportMode
+  parentAccountsCreated: number
+  parentAccountsReused: number
   pendingParentAccess: PendingParentAccess[]
 }
 
@@ -197,6 +199,8 @@ const ConfirmResponseSchema = z.object({
   preview: z.array(z.record(z.string(), z.string())).default([]),
   deactivated: z.number().default(0),
   importMode: z.enum(["merge", "replace"]).default("merge"),
+  parentAccountsCreated: z.number().default(0),
+  parentAccountsReused: z.number().default(0),
   pendingParentAccess: z
     .array(
       z.object({
@@ -315,6 +319,8 @@ export async function confirmImport(
     errors: parsed.errors.map(normalizeIssue),
     deactivated: parsed.deactivated,
     importMode: parsed.importMode,
+    parentAccountsCreated: parsed.parentAccountsCreated,
+    parentAccountsReused: parsed.parentAccountsReused,
     pendingParentAccess: parsed.pendingParentAccess,
   }
 }
