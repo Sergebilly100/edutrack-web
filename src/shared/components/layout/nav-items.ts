@@ -13,7 +13,7 @@ import {
   TeachersIcon,
   ClassIcon,
 } from "@/shared/components/icons"
-import { Building2, ClipboardCheck, GraduationCap, Landmark, HandCoins, MessageSquareCode, ReceiptText, Settings2, TrendingUp, User, WalletCards } from "lucide-react"
+import { Building2, ClipboardCheck, FileCheck2, GraduationCap, Landmark, HandCoins, MessageSquareCode, ReceiptText, Settings2, TrendingUp, User, WalletCards } from "lucide-react"
 
 import { isStaffRole, type AuthRole, type PermissionKey } from "@/shared/store/auth.store"
 
@@ -78,6 +78,14 @@ export const NAV_ITEMS: NavItem[] = [
     requiredPermissions: ["class_decisions.view"],
     mobileVisible: false,
     requiresEndOfYearReview: true,
+  },
+  {
+    label: "Inscriptions",
+    href: "/enrollments",
+    icon: FileCheck2,
+    roles: ["director", "staff"],
+    requiredAnyPermissions: ["enrollments.view", "enrollments.create", "enrollments.edit", "enrollments.confirm_payment"],
+    mobileVisible: true,
   },
   {
     label: "Salaires",

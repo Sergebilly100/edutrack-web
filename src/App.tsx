@@ -51,6 +51,10 @@ const SchoolYearsPage = lazy(() => import("@/modules/academic/SchoolYearsPage"))
 const LevelsPage = lazy(() => import("@/modules/academic/LevelsPage"))
 const ClassesPage = lazy(() => import("@/modules/academic/ClassesPage"))
 const ClassDecisionsPage = lazy(() => import("@/modules/class-decisions/ClassDecisionsPage"))
+const EnrollmentsPage = lazy(() => import("@/modules/enrollments/EnrollmentsPage"))
+const NewEnrollmentPage = lazy(() => import("@/modules/enrollments/NewEnrollmentPage"))
+const EnrollmentDocumentsPage = lazy(() => import("@/modules/enrollments/EnrollmentDocumentsPage"))
+const EnrollmentPaymentPage = lazy(() => import("@/modules/enrollments/EnrollmentPaymentPage"))
 const ValidationsPage = lazy(() => import("@/modules/validations/ValidationsPage"))
 const LoginPage = lazy(() => import("./modules/auth/LoginPage"))
 const AdminLoginPage = lazy(() => import("./modules/auth/AdminLoginPage"))
@@ -477,6 +481,10 @@ export default function App() {
           <Route path="/academic/levels" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<LevelsPage />} />} />
           <Route path="/academic/classes" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<ClassesPage />} />} />
           <Route path="/end-of-year" element={<PermissionRoute href="/end-of-year" requiredAnyPermissions={["class_decisions.view"]} element={<EndOfYearAccessRoute />} />} />
+          <Route path="/enrollments" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.view", "enrollments.create", "enrollments.edit", "enrollments.confirm_payment"]} element={<EnrollmentsPage />} />} />
+          <Route path="/enrollments/new" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.create"]} element={<NewEnrollmentPage />} />} />
+          <Route path="/enrollments/students/:studentId/documents" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.view", "enrollments.edit"]} element={<EnrollmentDocumentsPage />} />} />
+          <Route path="/enrollments/:enrollmentId/payment" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.confirm_payment"]} element={<EnrollmentPaymentPage />} />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/admin/schools" element={<AdminPage />} />
           <Route path="/admin/schools/:tenantId" element={<AdminSchoolDetailPage />} />

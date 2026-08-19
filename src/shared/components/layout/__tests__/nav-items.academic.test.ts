@@ -31,3 +31,12 @@ describe("navigation de fin d’année", () => {
     })).toEqual(expect.arrayContaining([expect.objectContaining({ href: "/end-of-year" })]))
   })
 })
+
+describe("navigation des inscriptions", () => {
+  it("est visible avec une permission du workflow et masquée sans permission", () => {
+    expect(getNavItemsByRole("staff", ["enrollments.edit"]))
+      .toEqual(expect.arrayContaining([expect.objectContaining({ href: "/enrollments" })]))
+    expect(getNavItemsByRole("staff", ["students.view"]))
+      .not.toEqual(expect.arrayContaining([expect.objectContaining({ href: "/enrollments" })]))
+  })
+})
