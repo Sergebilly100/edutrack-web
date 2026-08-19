@@ -957,7 +957,6 @@ export default function ValidationsPage() {
                         }
                       >
                         Accorder {formatMinutes(item.scheduleDurationMinutes)}
-                        {plannedAmount !== null ? ` - ${formatFcfa(plannedAmount)}` : ""}
                       </Button>
                       <Button
                         type="button"
@@ -974,7 +973,6 @@ export default function ValidationsPage() {
                         }
                       >
                         Accorder {formatMinutes(item.actualMinutes)}
-                        {actualAmount !== null ? ` - ${formatFcfa(actualAmount)}` : ""}
                       </Button>
                     </div>
                   </TableCell>
