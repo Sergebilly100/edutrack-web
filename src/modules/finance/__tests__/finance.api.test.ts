@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const { getMock, postMock, putMock } = vi.hoisted(() => ({ getMock: vi.fn(), postMock: vi.fn(), putMock: vi.fn() }))
 vi.mock("@/shared/api/client", () => ({ apiClient: { get: getMock, post: postMock, put: putMock } }))
 
-import { getParentPaymentOptions, listPayments, listTuitionPlans, saveProviderSetting } from "../finance.api"
+import { getCashJournal, getParentPaymentOptions, getStudentAccountStatement, listPayments, listTuitionPlans, saveProviderSetting } from "../finance.api"
 
 describe("finance.api", () => {
   beforeEach(() => vi.clearAllMocks())
@@ -44,5 +44,28 @@ describe("finance.api", () => {
       inAppPaymentActive: false,
       manualPaymentChannels: [{ provider: "orange_money", merchantNumber: "0700000000" }],
     })
+  })
+
+  it("normalise le journal filtré et les soldes successifs du compte élève", async () => {
+    getMock.mockResolvedValueOnce({ data: { journal: {
+      count: 1,
+      totals: { cash: "25000", mobile_money: 0, bank_transfer: 0, grandTotal: "25000" },
+      entries: [{
+        id: "payment-1", amount: "25000", method: "cash", source: "bulk_import", status: "confirmed",
+        paymentDate: "2026-08-19", createdAt: "2026-08-19T12:00:00Z", studentName: "Awa Koné",
+        studentMatricule: "EL-1", classId: "class-1", className: "6ème A",
+      }],
+    } } })
+    const journal = await getCashJournal({ schoolYearId: "year-1", from: "2026-08-01", to: "2026-08-31", method: "cash" })
+    expect(journal.totals.grandTotal).toBe(25000)
+    expect(journal.entries[0]).toMatchObject({ studentName: "Awa Koné", paymentDate: "2026-08-19" })
+
+    getMock.mockResolvedValueOnce({ data: { statement: {
+      student: { id: "student-1", name: "Awa Koné", classId: "class-1", className: "6ème A" },
+      schoolYearId: "year-1", currency: "FCFA", totalDue: "100000",
+      movements: [{ id: "payment-1", amount: "25000", method: "cash", status: "confirmed", paymentDate: "2026-08-19", runningPaid: "25000", balanceAfter: "75000" }],
+    } } })
+    const statement = await getStudentAccountStatement("student-1", "year-1")
+    expect(statement.movements[0]).toMatchObject({ runningPaid: 25000, balanceAfter: 75000 })
   })
 })

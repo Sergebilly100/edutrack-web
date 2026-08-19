@@ -14,7 +14,7 @@ import { fetchParentSchoolConfig, listParentStudents } from "./parent.api"
 import {
   getParentFinancialStatus,
   getParentPaymentOptions,
-  listParentPayments,
+  getParentAccountStatement,
   requestParentPaymentReceipt,
   type Payment,
   type PaymentProvider,
@@ -49,12 +49,12 @@ export default function ParentPaymentsPage() {
     enabled: Boolean(studentId && schoolYearId),
   })
   const paymentsQuery = useQuery({
-    queryKey: ["parent", "payments", studentId, schoolYearId],
-    queryFn: () => listParentPayments(studentId, schoolYearId),
+    queryKey: ["parent", "account-statement", studentId, schoolYearId],
+    queryFn: () => getParentAccountStatement(studentId, schoolYearId),
     enabled: Boolean(studentId && schoolYearId),
   })
   const receipt = usePdfExportJob({ fallbackFileName: "recu-paiement.pdf", startedMessage: "Votre reçu est en cours de préparation.", successMessage: "Reçu téléchargé" })
-  const payments = paymentsQuery.data ?? []
+  const payments = paymentsQuery.data?.movements ?? []
 
   return (
     <div className="animate-fade-in space-y-5 py-5 sm:py-6">
@@ -86,7 +86,7 @@ export default function ParentPaymentsPage() {
         {!paymentsQuery.isLoading && payments.length === 0 && !paymentsQuery.isError ? <EmptyState icon={ReceiptText} title="Aucun paiement enregistré" message="Les versements reconnus par l’établissement apparaîtront ici." /> : null}
         {payments.map((payment) => (
           <div key={payment.id} className="flex flex-col gap-3 rounded-lg border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-lg font-semibold tabular-nums">{formatFcfa(payment.amount)}</p>{payment.status === "cancelled" ? <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">Annulé</Badge> : <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700"><CheckCircle2 className="mr-1 h-3 w-3" />Confirmé</Badge>}</div><p className="mt-1 text-sm text-muted-foreground">{formatDate(payment.createdAt)} · {methodLabels[payment.method]}</p><p className="mt-1 text-xs text-muted-foreground">Reçu {payment.receiptNumber}</p>{payment.cancellationReason ? <p className="mt-2 text-sm text-red-700">Motif : {payment.cancellationReason}</p> : null}</div>
+            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-lg font-semibold tabular-nums">{formatFcfa(payment.amount)}</p>{payment.status === "cancelled" ? <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">Annulé</Badge> : <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700"><CheckCircle2 className="mr-1 h-3 w-3" />Confirmé</Badge>}</div><p className="mt-1 text-sm text-muted-foreground">{formatDate(`${payment.paymentDate}T00:00:00`)} · {methodLabels[payment.method]}</p><p className="mt-1 text-xs text-muted-foreground">Reçu {payment.receiptNumber}</p><p className="mt-2 text-sm font-medium text-blue-800 dark:text-blue-200">Reste après ce paiement : {formatFcfa(payment.balanceAfter)}</p>{payment.cancellationReason ? <p className="mt-2 text-sm text-red-700">Motif : {payment.cancellationReason}</p> : null}</div>
             {payment.status !== "cancelled" ? <Button type="button" variant="outline" className="min-h-12 shrink-0" disabled={receipt.isRunning} onClick={() => void receipt.launch(() => requestParentPaymentReceipt(studentId, payment.id))}>{receipt.isRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Télécharger le reçu</Button> : null}
           </div>
         ))}

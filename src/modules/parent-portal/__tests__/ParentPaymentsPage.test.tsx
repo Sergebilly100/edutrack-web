@@ -8,7 +8,7 @@ const financeMocks = vi.hoisted(() => ({
 vi.mock("@/modules/finance/finance.api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/modules/finance/finance.api")>()),
   getParentFinancialStatus: financeMocks.status,
-  listParentPayments: financeMocks.payments,
+  getParentAccountStatement: financeMocks.payments,
   getParentPaymentOptions: financeMocks.options,
   requestParentPaymentReceipt: financeMocks.receipt,
 }))
@@ -25,7 +25,7 @@ describe("ParentPaymentsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     financeMocks.status.mockResolvedValue({ totalDue: 100000, confirmedPaid: 25000, remainingDue: 75000, cumulativeExpectedAtDate: 20000, standing: "up_to_date", currency: "FCFA" })
-    financeMocks.payments.mockResolvedValue([{ id: "payment-1", amount: 25000, method: "cash", status: "confirmed", receiptNumber: "REC-1", createdAt: "2026-08-19T10:00:00.000Z" }])
+    financeMocks.payments.mockResolvedValue({ movements: [{ id: "payment-1", amount: 25000, method: "cash", status: "confirmed", receiptNumber: "REC-1", paymentDate: "2026-08-19", createdAt: "2026-08-19T10:00:00.000Z", balanceAfter: 75000 }] })
     financeMocks.options.mockResolvedValue({ inAppPaymentActive: false, disabledReason: "temporarily_disabled", manualPaymentChannels: [{ provider: "orange_money", merchantNumber: "0700000000" }] })
   })
 

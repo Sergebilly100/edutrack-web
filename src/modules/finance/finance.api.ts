@@ -31,7 +31,64 @@ export type Payment = {
   receiptNumber: string
   cancelledAt: string | null
   cancellationReason: string | null
+  paymentDate: string
   createdAt: string
+}
+
+export type StudentAccountStatement = {
+  student: { id: string; name: string; classId: string; className: string }
+  schoolYearId: string
+  currency: string
+  totalDue: number
+  movements: Array<Payment & { runningPaid: number; balanceAfter: number }>
+}
+
+export type CashJournalFilter = {
+  schoolYearId?: string
+  from?: string
+  to?: string
+  classId?: string
+  method?: PaymentMethod
+}
+
+export type CashJournal = {
+  entries: Array<Payment & { studentMatricule: string | null; studentName: string; classId: string; className: string }>
+  totals: Record<PaymentMethod, number> & { grandTotal: number }
+  count: number
+}
+
+export type PaymentMappingField = {
+  id?: string
+  sourceColumnLabel: string
+  targetField: "matricule" | "montant" | "date" | "reference" | "method"
+  isRequired: boolean
+  translations: Array<{ sourceValue: string; targetValue: PaymentMethod }>
+}
+
+export type PaymentMappingProfile = {
+  id: string
+  importType: string
+  label: string | null
+  isActive: boolean
+  fields: PaymentMappingField[]
+}
+
+export type PaymentImportAnalysis = {
+  headers: string[]
+  rowCount: number
+  sampleRows: Array<{ rowNumber: number; values: Record<string, string | number> }>
+  profile: PaymentMappingProfile | null
+  matchedFields: PaymentMappingField[]
+  unmatchedHeaders: string[]
+  missingRequiredTargets: string[]
+  distinctValuesByColumn: Record<string, string[]>
+}
+
+export type PaymentImportPreview = {
+  schoolYearId: string
+  validRows: Array<{ rowNumber: number; matricule: string; studentName: string; className: string; amount: number; paymentDate: string; reference: string; method: PaymentMethod }>
+  errors: Array<{ rowNumber: number; reason: string }>
+  totalRows: number
 }
 
 export type TuitionScheduleStep = {
@@ -112,8 +169,98 @@ const parsePayment = (value: unknown): Payment => {
     receiptNumber: asString(row.receiptNumber),
     cancelledAt: asNullableString(row.cancelledAt),
     cancellationReason: asNullableString(row.cancellationReason),
+    paymentDate: asString(row.paymentDate ?? row.payment_date ?? row.createdAt ?? row.created_at).slice(0, 10),
     createdAt: asString(row.createdAt),
   }
+}
+
+const journalParams = (filter: CashJournalFilter) => ({
+  school_year_id: filter.schoolYearId,
+  from: filter.from,
+  to: filter.to,
+  class_id: filter.classId,
+  method: filter.method,
+})
+
+const parseStatement = (value: unknown): StudentAccountStatement => {
+  const row = record(value)
+  const student = record(row.student)
+  return {
+    student: { id: asString(student.id), name: asString(student.name), classId: asString(student.classId), className: asString(student.className) },
+    schoolYearId: asString(row.schoolYearId),
+    currency: asString(row.currency, "FCFA"),
+    totalDue: asNumber(row.totalDue),
+    movements: (Array.isArray(row.movements) ? row.movements : []).map((item) => {
+      const movement = record(item)
+      return { ...parsePayment(item), runningPaid: asNumber(movement.runningPaid), balanceAfter: asNumber(movement.balanceAfter) }
+    }),
+  }
+}
+
+export async function getStudentAccountStatement(studentId: string, schoolYearId: string): Promise<StudentAccountStatement> {
+  const response = await apiClient.get(`/students/${studentId}/account-statement`, { params: { school_year_id: schoolYearId } })
+  return parseStatement(response.data.statement)
+}
+
+export async function getParentAccountStatement(studentId: string, schoolYearId: string): Promise<StudentAccountStatement> {
+  const response = await apiClient.get(`/parent/students/${studentId}/account-statement`, { params: { school_year_id: schoolYearId } })
+  return parseStatement(response.data.statement)
+}
+
+export async function getCashJournal(filter: CashJournalFilter): Promise<CashJournal> {
+  const response = await apiClient.get("/payments/cash-journal", { params: journalParams(filter) })
+  const journal = record(response.data.journal)
+  const totals = record(journal.totals)
+  return {
+    entries: (Array.isArray(journal.entries) ? journal.entries : []).map((item) => {
+      const row = record(item)
+      return { ...parsePayment(item), studentMatricule: asNullableString(row.studentMatricule), studentName: asString(row.studentName), classId: asString(row.classId), className: asString(row.className) }
+    }),
+    totals: { cash: asNumber(totals.cash), mobile_money: asNumber(totals.mobile_money), bank_transfer: asNumber(totals.bank_transfer), grandTotal: asNumber(totals.grandTotal) },
+    count: asNumber(journal.count),
+  }
+}
+
+export async function exportCashJournalPdf(filter: CashJournalFilter): Promise<{ jobId: string }> {
+  const response = await apiClient.get("/payments/cash-journal/export", { params: { ...journalParams(filter), format: "pdf" } })
+  return { jobId: String(response.data.jobId) }
+}
+
+export async function exportCashJournalExcel(filter: CashJournalFilter): Promise<void> {
+  const response = await apiClient.get("/payments/cash-journal/export", { params: { ...journalParams(filter), format: "xlsx" }, responseType: "blob" })
+  const url = URL.createObjectURL(response.data as Blob)
+  const anchor = document.createElement("a")
+  anchor.href = url
+  anchor.download = "journal-caisse.xlsx"
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
+const fileForm = (file: File): FormData => { const form = new FormData(); form.append("file", file); return form }
+
+export async function analyzePaymentImport(file: File): Promise<PaymentImportAnalysis> {
+  const response = await apiClient.post("/payment-import/analyze", fileForm(file))
+  return response.data as PaymentImportAnalysis
+}
+
+export async function previewPaymentImport(file: File): Promise<PaymentImportPreview> {
+  const response = await apiClient.post("/payment-import/preview", fileForm(file))
+  return response.data as PaymentImportPreview
+}
+
+export async function confirmPaymentImport(file: File): Promise<{ createdCount: number; errors: PaymentImportPreview["errors"]; totalRows: number }> {
+  const response = await apiClient.post("/payment-import/confirm", fileForm(file))
+  return response.data
+}
+
+export async function getPaymentMappingProfile(): Promise<PaymentMappingProfile | null> {
+  const response = await apiClient.get("/payment-import/profile")
+  return response.data.profile as PaymentMappingProfile | null
+}
+
+export async function savePaymentMappingProfile(input: { label?: string; fields: PaymentMappingField[] }): Promise<PaymentMappingProfile> {
+  const response = await apiClient.put("/payment-import/profile", { label: input.label, fields: input.fields.map(({ sourceColumnLabel, targetField, translations }) => ({ sourceColumnLabel, targetField, translations })) })
+  return response.data.profile as PaymentMappingProfile
 }
 
 const parseTuitionPlan = (value: unknown): TuitionPlan => {

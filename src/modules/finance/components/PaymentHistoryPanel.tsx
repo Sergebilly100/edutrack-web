@@ -14,7 +14,7 @@ import { EmptyState } from "@/shared/components/EmptyState"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
 import { formatFcfa } from "@/shared/utils/formatting"
-import { cancelPayment, getFinancialStatus, listPayments, requestPaymentReceipt, type Payment } from "../finance.api"
+import { cancelPayment, getFinancialStatus, getStudentAccountStatement, requestPaymentReceipt, type Payment } from "../finance.api"
 import { StudentSearch } from "./StudentSearch"
 
 const methodLabels: Record<Payment["method"], string> = {
@@ -51,8 +51,8 @@ export function PaymentHistoryPanel({ schoolYearId, schoolYearLabel, canCancel }
     enabled: Boolean(student && schoolYearId),
   })
   const paymentsQuery = useQuery({
-    queryKey: ["finance", "payments", student?.id, schoolYearId],
-    queryFn: () => listPayments(student!.id, schoolYearId),
+    queryKey: ["finance", "account-statement", student?.id, schoolYearId],
+    queryFn: () => getStudentAccountStatement(student!.id, schoolYearId),
     enabled: Boolean(student && schoolYearId),
   })
   const receipt = usePdfExportJob({
@@ -65,7 +65,7 @@ export function PaymentHistoryPanel({ schoolYearId, schoolYearLabel, canCancel }
     mutationFn: ({ id, reason: cancellationReason }: { id: string; reason: string }) => cancelPayment(id, cancellationReason),
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["finance", "payments", student?.id, schoolYearId] }),
+        queryClient.invalidateQueries({ queryKey: ["finance", "account-statement", student?.id, schoolYearId] }),
         queryClient.invalidateQueries({ queryKey: ["finance", "financial-status", student?.id, schoolYearId] }),
       ])
       setCancelTarget(null)
@@ -74,7 +74,7 @@ export function PaymentHistoryPanel({ schoolYearId, schoolYearLabel, canCancel }
     },
     onError: (error) => toast({ title: "Annulation impossible", description: error instanceof Error ? error.message : "Réessayez.", variant: "destructive" }),
   })
-  const payments = paymentsQuery.data ?? []
+  const payments = paymentsQuery.data?.movements ?? []
 
   return (
     <section className="space-y-5">
@@ -123,8 +123,9 @@ export function PaymentHistoryPanel({ schoolYearId, schoolYearLabel, canCancel }
                       <p className="text-lg font-semibold tabular-nums">{formatFcfa(payment.amount)}</p>
                       <Badge variant="outline" className={payment.status === "cancelled" ? "border-red-200 bg-red-50 text-red-700" : "border-green-200 bg-green-50 text-green-700"}>{payment.status === "cancelled" ? "Annulé" : "Confirmé"}</Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">{formatDate(payment.createdAt)} · {methodLabels[payment.method]} · {sourceLabels[payment.source]}</p>
+                    <p className="text-sm text-muted-foreground">{formatDate(`${payment.paymentDate}T00:00:00`)} · {methodLabels[payment.method]} · {sourceLabels[payment.source]}</p>
                     <p className="text-xs text-muted-foreground">Reçu {payment.receiptNumber}{payment.schoolReceiptReference ? ` · Réf. école ${payment.schoolReceiptReference}` : ""}</p>
+                    <p className="text-sm font-medium text-blue-800 dark:text-blue-200">Solde après mouvement : {formatFcfa(payment.balanceAfter)}</p>
                     {payment.cancellationReason ? <p className="mt-2 text-sm text-red-700">Motif d’annulation : {payment.cancellationReason}</p> : null}
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
