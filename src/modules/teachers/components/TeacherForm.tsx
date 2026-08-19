@@ -48,9 +48,22 @@ const teacherFormSchema = z
     const parsedSalary = Number(value.monthlySalary)
     const hasSalary = value.monthlySalary.length > 0
 
+    if (!value.phone && !value.email) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["phone"],
+        message: "Renseignez au moins un téléphone ou un email",
+      })
+      ctx.addIssue({
+        code: "custom",
+        path: ["email"],
+        message: "Renseignez au moins un téléphone ou un email",
+      })
+    } 
+
     if (value.type === "vacataire" && !hasRate) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["hourlyRate"],
         message: "Le taux horaire est requis pour un vacataire",
       })
@@ -59,7 +72,7 @@ const teacherFormSchema = z
 
     if (value.type === "vacataire" && (!Number.isInteger(parsedRate) || parsedRate <= 0)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["hourlyRate"],
         message: "Le taux horaire doit être un entier positif",
       })
@@ -67,7 +80,7 @@ const teacherFormSchema = z
 
     if (value.type === "permanent" && !hasSalary) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["monthlySalary"],
         message: "Le salaire fixe est requis pour un permanent",
       })
@@ -76,7 +89,7 @@ const teacherFormSchema = z
 
     if (value.type === "permanent" && (!Number.isInteger(parsedSalary) || parsedSalary <= 0)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["monthlySalary"],
         message: "Le salaire fixe doit être un entier positif",
       })
