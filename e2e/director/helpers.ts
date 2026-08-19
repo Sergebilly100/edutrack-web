@@ -42,6 +42,9 @@ export const mockDirectorAuth = async (page: Page) => {
           "import.students", "import.teachers", "import.schedule",
           "settings.school", "settings.positions", "settings.sms_templates",
           "subscriptions.view", "subscriptions.revenue",
+          "tuition.view", "tuition.edit", "tuition.grant_discount",
+          "payments.view", "payments.record", "payments.cancel",
+          "subscription_plans.view", "subscription_plans.edit",
         ],
       }),
     })

@@ -88,6 +88,14 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: true,
   },
   {
+    label: "Frais & paiements",
+    href: "/finance",
+    icon: ReceiptText,
+    roles: ["director", "staff"],
+    requiredAnyPermissions: ["tuition.view", "tuition.edit", "tuition.grant_discount", "payments.view", "payments.record", "payments.cancel", "subscription_plans.view", "subscription_plans.edit", "settings.school"],
+    mobileVisible: true,
+  },
+  {
     label: "Salaires",
     href: "/salaries",
     icon: SalaryIcon,

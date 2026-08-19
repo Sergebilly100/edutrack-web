@@ -40,6 +40,8 @@ export type RequiredDocumentType = {
 
 export type CreateEnrollmentResult = {
   enrollment: Enrollment
+  payment?: { id: string; receiptNumber?: string }
+  receiptJobId?: string
   missingMandatoryDocuments: StudentDocument[]
   documentWarning: string | null
 }
@@ -67,8 +69,25 @@ export async function createEnrollment(payload: {
   return response.data
 }
 
-export async function confirmEnrollmentPayment(id: string): Promise<CreateEnrollmentResult> {
-  const response = await apiClient.post<CreateEnrollmentResult>(`/enrollments/${id}/confirm-payment`)
+export type EnrollmentPaymentSummary = {
+  enrollment: Enrollment
+  amountDue: number
+  currency: string
+  totalDue: number
+  confirmedPaid: number
+}
+
+export async function getEnrollmentPaymentSummary(id: string): Promise<EnrollmentPaymentSummary> {
+  const response = await apiClient.get<EnrollmentPaymentSummary>(`/enrollments/${id}/payment-summary`)
+  return response.data
+}
+
+export async function confirmEnrollmentPayment(id: string, payload: {
+  method: "mobile_money" | "cash" | "bank_transfer"
+  providerReference?: string
+  schoolReceiptReference?: string
+}): Promise<CreateEnrollmentResult> {
+  const response = await apiClient.post<CreateEnrollmentResult>(`/enrollments/${id}/confirm-payment`, payload)
   return response.data
 }
 

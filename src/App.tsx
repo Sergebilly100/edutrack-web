@@ -43,6 +43,7 @@ const ParentDashboardPage = lazy(() => import("@/modules/parent-portal/ParentDas
 const ParentSchedulePage = lazy(() => import("@/modules/parent-portal/ParentSchedulePage"))
 const ParentAbsenceHistoryPage = lazy(() => import("@/modules/parent-portal/ParentAbsenceHistoryPage"))
 const ParentAccountPage = lazy(() => import("@/modules/parent-portal/ParentAccountPage"))
+const ParentPaymentsPage = lazy(() => import("@/modules/parent-portal/ParentPaymentsPage"))
 const StudentDetailPage = lazy(() => import("@/modules/students/StudentDetailPage"))
 const StudentsPage = lazy(() => import("@/modules/students/StudentsPage"))
 const TeacherDetailPage = lazy(() => import("@/modules/teachers/TeacherDetailPage"))
@@ -55,6 +56,7 @@ const EnrollmentsPage = lazy(() => import("@/modules/enrollments/EnrollmentsPage
 const NewEnrollmentPage = lazy(() => import("@/modules/enrollments/NewEnrollmentPage"))
 const EnrollmentDocumentsPage = lazy(() => import("@/modules/enrollments/EnrollmentDocumentsPage"))
 const EnrollmentPaymentPage = lazy(() => import("@/modules/enrollments/EnrollmentPaymentPage"))
+const FinancePage = lazy(() => import("@/modules/finance/FinancePage"))
 const ValidationsPage = lazy(() => import("@/modules/validations/ValidationsPage"))
 const LoginPage = lazy(() => import("./modules/auth/LoginPage"))
 const AdminLoginPage = lazy(() => import("./modules/auth/AdminLoginPage"))
@@ -485,6 +487,7 @@ export default function App() {
           <Route path="/enrollments/new" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.create"]} element={<NewEnrollmentPage />} />} />
           <Route path="/enrollments/students/:studentId/documents" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.view", "enrollments.edit"]} element={<EnrollmentDocumentsPage />} />} />
           <Route path="/enrollments/:enrollmentId/payment" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.confirm_payment"]} element={<EnrollmentPaymentPage />} />} />
+          <Route path="/finance" element={<PermissionRoute href="/finance" requiredAnyPermissions={["tuition.view", "tuition.edit", "tuition.grant_discount", "payments.view", "payments.record", "payments.cancel", "subscription_plans.view", "subscription_plans.edit", "settings.school"]} element={<FinancePage />} />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/admin/schools" element={<AdminPage />} />
           <Route path="/admin/schools/:tenantId" element={<AdminSchoolDetailPage />} />
@@ -510,6 +513,7 @@ export default function App() {
           <Route path="dashboard" element={<ParentDashboardPage />} />
           <Route path="absences" element={<ParentAbsenceHistoryPage />} />
           <Route path="schedule" element={<ParentSchedulePage />} />
+          <Route path="payments" element={<ParentPaymentsPage />} />
           <Route path="account" element={<ParentAccountPage />} />
         </Route>
 

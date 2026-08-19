@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
-import { CalendarDays, CalendarX2, Info, GraduationCap, Home, LogOut, Moon, Sun, UserCircle2 } from "lucide-react"
+import { CalendarDays, CalendarX2, Info, GraduationCap, Home, LogOut, Moon, ReceiptText, Sun, UserCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { logout as logoutRequest } from "@/modules/auth/auth.api"
@@ -16,6 +16,7 @@ const tabs = [
   { href: "/parent/dashboard", label: "Accueil", icon: Home, dataTour: "",},
   { href: "/parent/absences", label: "Absences", icon: CalendarX2, dataTour: "parent-absences-tab", },
   { href: "/parent/schedule", label: "EDT", icon: CalendarDays, dataTour: "parent-schedule-tab", },
+  { href: "/parent/payments", label: "Paiements", icon: ReceiptText, dataTour: "parent-payments-tab", },
   { href: "/parent/account", label: "Mon compte", icon: UserCircle2, dataTour: "parent-account-tab", },
 ]
 
@@ -126,7 +127,7 @@ export default function ParentPortalLayout() {
           aria-label="Navigation principale"
           className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur-sm lg:static lg:bg-background"
         >
-          <div className="mx-auto grid h-14 w-full max-w-3xl grid-cols-4 px-2 lg:max-w-5xl">
+          <div className="mx-auto grid h-14 w-full max-w-3xl grid-cols-5 px-2 lg:max-w-5xl">
             {tabs.map((tab) => {
               const Icon = tab.icon
               return (

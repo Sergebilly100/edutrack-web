@@ -1,0 +1,79 @@
+import { useEffect, useMemo, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { BookOpenCheck, History, ReceiptText, Settings2 } from "lucide-react"
+
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { listSchoolYears } from "@/modules/academic/academic.api"
+import { PageLayout } from "@/shared/components/PageLayout"
+import { QueryErrorState } from "@/shared/components/QueryErrorState"
+import { usePermissions } from "@/shared/hooks/usePermissions"
+import { FinanceSettings } from "./components/FinanceSettings"
+import { PaymentHistoryPanel } from "./components/PaymentHistoryPanel"
+import { QuickPaymentEntry } from "./components/QuickPaymentEntry"
+import { TuitionConfiguration } from "./components/TuitionConfiguration"
+
+type FinanceTab = "entry" | "history" | "tuition" | "settings"
+
+export default function FinancePage() {
+  const { hasPermission } = usePermissions()
+  const yearsQuery = useQuery({ queryKey: ["academic", "school-years"], queryFn: listSchoolYears })
+  const [schoolYearId, setSchoolYearId] = useState("")
+  const canRecord = hasPermission("payments.record")
+  const canViewPayments = hasPermission("payments.view")
+  const canViewTuition = hasPermission("tuition.view") || hasPermission("tuition.edit") || hasPermission("tuition.grant_discount")
+  const canManageProviders = hasPermission("settings.school")
+  const canManagePlans = hasPermission("subscription_plans.view") || hasPermission("subscription_plans.edit")
+  const availableTabs = useMemo<FinanceTab[]>(() => [
+    ...(canRecord ? ["entry" as const] : []),
+    ...(canViewPayments ? ["history" as const] : []),
+    ...(canViewTuition ? ["tuition" as const] : []),
+    ...(canManageProviders || canManagePlans ? ["settings" as const] : []),
+  ], [canManagePlans, canManageProviders, canRecord, canViewPayments, canViewTuition])
+  const [tab, setTab] = useState<FinanceTab>(availableTabs[0] ?? "history")
+
+  useEffect(() => {
+    const years = yearsQuery.data ?? []
+    if (!schoolYearId && years.length > 0) setSchoolYearId((years.find((year) => year.status === "active") ?? years[0]).id)
+  }, [schoolYearId, yearsQuery.data])
+
+  useEffect(() => {
+    if (!availableTabs.includes(tab) && availableTabs[0]) setTab(availableTabs[0])
+  }, [availableTabs, tab])
+
+  const selectedYear = yearsQuery.data?.find((year) => year.id === schoolYearId)
+
+  if (yearsQuery.isError) {
+    return <PageLayout title="Frais et paiements"><QueryErrorState message="Impossible de charger les années scolaires." onRetry={() => void yearsQuery.refetch()} /></PageLayout>
+  }
+
+  return (
+    <PageLayout
+      title="Frais et paiements"
+      subtitle="Enregistrez les versements, suivez les cumuls et configurez les frais de scolarité."
+      actions={
+        <Select value={schoolYearId} onValueChange={setSchoolYearId}>
+          <SelectTrigger className="min-h-12 w-full sm:w-64" aria-label="Année scolaire"><SelectValue placeholder="Année scolaire" /></SelectTrigger>
+          <SelectContent>{yearsQuery.data?.map((year) => <SelectItem key={year.id} value={year.id}>{year.label}{year.status === "active" ? " · Active" : ""}</SelectItem>)}</SelectContent>
+        </Select>
+      }
+    >
+      {schoolYearId && selectedYear ? (
+        <Tabs value={tab} onValueChange={(value) => setTab(value as FinanceTab)} className="space-y-5">
+          <div className="overflow-x-auto pb-1">
+            <TabsList className="h-auto min-w-max justify-start">
+              {canRecord ? <TabsTrigger value="entry" className="min-h-10"><ReceiptText className="mr-2 h-4 w-4" />Saisie rapide</TabsTrigger> : null}
+              {canViewPayments ? <TabsTrigger value="history" className="min-h-10"><History className="mr-2 h-4 w-4" />Historique</TabsTrigger> : null}
+              {canViewTuition ? <TabsTrigger value="tuition" className="min-h-10"><BookOpenCheck className="mr-2 h-4 w-4" />Frais</TabsTrigger> : null}
+              {canManageProviders || canManagePlans ? <TabsTrigger value="settings" className="min-h-10"><Settings2 className="mr-2 h-4 w-4" />Paramètres</TabsTrigger> : null}
+            </TabsList>
+          </div>
+          {canRecord ? <TabsContent value="entry"><QuickPaymentEntry schoolYearId={schoolYearId} schoolYearLabel={selectedYear.label} /></TabsContent> : null}
+          {canViewPayments ? <TabsContent value="history"><PaymentHistoryPanel schoolYearId={schoolYearId} schoolYearLabel={selectedYear.label} canCancel={hasPermission("payments.cancel")} /></TabsContent> : null}
+          {canViewTuition ? <TabsContent value="tuition"><TuitionConfiguration schoolYearId={schoolYearId} canEdit={hasPermission("tuition.edit")} canGrantDiscount={hasPermission("tuition.grant_discount")} /></TabsContent> : null}
+          {canManageProviders || canManagePlans ? <TabsContent value="settings"><FinanceSettings canManageProviders={canManageProviders} canViewPlans={canManagePlans} canEditPlans={hasPermission("subscription_plans.edit")} /></TabsContent> : null}
+        </Tabs>
+      ) : null}
+    </PageLayout>
+  )
+}
