@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Bell, CheckCircle2, ChevronRight, CircleX, ClipboardCheck, Flag, GraduationCap, Info, MapPin, RefreshCw, Users, Wallet } from "lucide-react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { AlertCircle, Bell, CheckCircle2, ChevronRight, CircleX, ClipboardCheck, Flag, GraduationCap, Info, MapPin, RefreshCw, Users, Wallet } from "lucide-react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -679,56 +679,72 @@ export default function DashboardPage() {
     }
   }, [dispatchMobileHeaderState, handleDashboardRefresh])
 
-  const priorityActions = [
-    weeklyAbsenceCount > 3 && visibleNotificationIds.has("teacher-absences-week")
-      ? {
-          id: "teacher-absences-week",
-          title: "Absences profs élevées",
-          message: `${weeklyAbsenceCount} absence(s) sur les 7 derniers jours.`,
-          actionLabel: "Ouvrir les professeurs",
-          onClick: () => navigate("/teachers"),
-          onDismiss: () => dismissNotification("teacher-absences-week"),
-          icon: Users,
-          className: statusToneBadge.warning,
-        }
-      : null,
-    (salaryUnpaidAlertsQuery.data?.count ?? 0) > 0 && visibleNotificationIds.has("salary-unpaid-alerts")
-      ? {
-          id: "salary-unpaid-alerts",
-          title: "Salaires à terminer",
-          message: `${salaryUnpaidAlertsQuery.data?.count ?? 0} fiche(s) en retard, ${new Intl.NumberFormat("fr-FR").format(salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0)} FCFA à solder.`,
-          actionLabel: "Ouvrir les salaires",
-          onClick: () => navigate("/salaries"),
-          onDismiss: () => dismissNotification("salary-unpaid-alerts"),
-          icon: Wallet,
-          className: statusToneBadge.warning,
-        }
-      : null,
-    canViewValidations && (validationCountQuery.data?.total ?? 0) > 0
-      ? {
-          id: "validations",
-          title: "Validations en attente",
-          message: `${validationCountQuery.data?.total ?? 0} décision(s) à prendre sur les pointages.`,
-          actionLabel: "Ouvrir les validations",
-          onClick: () => navigate("/validations"),
-          onDismiss: null,
-          icon: ClipboardCheck,
-          className: statusToneBadge.info,
-        }
-      : null,
-    isDirector && (commissionOverdueAlertsQuery.data?.count ?? 0) > 0 && visibleNotificationIds.has("commission-overdue-alerts")
-      ? {
-          id: "commission-overdue-alerts",
-          title: "Reversement com. en retard",
-          message: `${commissionOverdueAlertsQuery.data?.count ?? 0} mois non soldé(s) - ${new Intl.NumberFormat("fr-FR").format(commissionOverdueAlertsQuery.data?.totalRemainingFcfa ?? 0)} FCFA à reverser à IvoirEdu.`,
-          actionLabel: "Ouvrir les revenus",
-          onClick: () => navigate("/subscriptions/revenue"),
-          onDismiss: () => dismissNotification("commission-overdue-alerts"),
-          icon: Wallet,
-          className: statusToneBadge.danger,
-        }
-      : null,
-  ].filter((item): item is NonNullable<typeof item> => item !== null)
+  // Tâche 7d : "Priorités du jour" lues depuis dashboard_action_items (7b).
+  // Dismiss persisté serveur via POST /action-items/:id/resolve.
+  const ACTION_ROUTES: Record<string, { href: string; label: string }> = {
+    teacher_absences_high: { href: "/teachers", label: "Ouvrir les professeurs" },
+    salary_pending: { href: "/salaries", label: "Ouvrir les salaires" },
+    validations_pending: { href: "/validations", label: "Traiter les validations" },
+    commission_overdue: { href: "/subscriptions/revenue", label: "Ouvrir les revenus" },
+    payment_reminder_needed: { href: "/finance", label: "Ouvrir la finance" },
+    report_cards_blocked: { href: "/academic/completion", label: "Voir la complétude" },
+    student_at_risk: { href: "/students", label: "Voir les élèves" },
+    dossier_incomplete: { href: "/enrollments", label: "Voir les inscriptions" },
+  }
+
+  const actionItemsQuery = useQuery({
+    queryKey: ["dashboard", "action-items"],
+    queryFn: async () => {
+      const { apiClient } = await import("@/shared/api/client")
+      const response = await apiClient.get<{ items: Array<Record<string, unknown>> }>(
+        "/dashboard/action-items",
+      )
+      return response.data.items ?? []
+    },
+    enabled: isDirector || canViewValidations,
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+  })
+
+  const resolveItemMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { apiClient } = await import("@/shared/api/client")
+      return apiClient.post(`/dashboard/action-items/${id}/resolve`)
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "action-items"] })
+    },
+  })
+
+  const priorityActions = (actionItemsQuery.data ?? []).map((item) => {
+    const type = String(item.type)
+    const route = ACTION_ROUTES[type] ?? { href: "/dashboard", label: "Consulter" }
+    const referenceId = item.reference_id === null || item.reference_id === undefined ? "" : String(item.reference_id)
+    return {
+      id: `${type}-${referenceId || "global"}`,
+      serverId: String(item.id),
+      title:
+        type === "teacher_absences_high" ? "Absences profs élevées"
+        : type === "salary_pending" ? "Salaires à terminer"
+        : type === "validations_pending" ? "Validations en attente"
+        : type === "commission_overdue" ? "Reversement com. en retard"
+        : type === "student_at_risk" ? "Élèves à risque"
+        : type === "report_cards_blocked" ? "Bulletins bloqués"
+        : type === "payment_reminder_needed" ? "Relances paiements"
+        : "Dossier incomplet",
+      message: typeof item.message === "string" && item.message.length > 0
+        ? item.message
+        : "À traiter.",
+      actionLabel: route.label,
+      className: String(item.priority) === "high"
+        ? "border-red-200 bg-red-50 text-red-700"
+        : String(item.priority) === "medium"
+          ? "border-amber-200 bg-amber-50 text-amber-800"
+          : "border-slate-200 bg-slate-50 text-slate-700",
+      onClick: () => navigate(route.href),
+      onDismiss: () => resolveItemMutation.mutate(String(item.id)),
+    }
+  }).filter((item) => canViewValidations || !item.id.startsWith("validations_pending"))
 
   if (isInitialLoading) {
     return (
@@ -895,7 +911,6 @@ export default function DashboardPage() {
 
               <div className="mt-4 grid gap-3 lg:grid-cols-4">
                 {priorityActions.map((item) => {
-                  const Icon = item.icon
                   return (
                     <article
                       key={item.id}
@@ -903,7 +918,7 @@ export default function DashboardPage() {
                     >
                       <div className="flex items-start gap-3">
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background/70">
-                          <Icon className="h-4 w-4" />
+                          <AlertCircle className="h-4 w-4" />
                         </div>
                         <div className="min-w-0 flex-1">
                           <h3 className="text-sm font-semibold">{item.title}</h3>

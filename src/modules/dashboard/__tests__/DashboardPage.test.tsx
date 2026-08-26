@@ -8,6 +8,30 @@ import type { PermissionKey } from "@/shared/store/auth.store"
 
 const { navigateMock } = vi.hoisted(() => ({ navigateMock: vi.fn() }))
 
+vi.mock("@/shared/api/client", () => ({
+  apiClient: {
+    get: vi.fn((url: string) => {
+      if (url === "/dashboard/action-items") {
+        return Promise.resolve({
+          data: {
+            items: [
+              {
+                id: "item-1",
+                type: "validations_pending",
+                reference_id: null,
+                priority: "high",
+                message: "2 décision(s) à prendre sur les pointages.",
+              },
+            ],
+          },
+        })
+      }
+      return Promise.resolve({ data: {} })
+    }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+  },
+}))
+
 const getTodayAttendanceMock = vi.fn()
 const getAttendanceHistoryMock = vi.fn()
 const getDashboardCountsMock = vi.fn()
