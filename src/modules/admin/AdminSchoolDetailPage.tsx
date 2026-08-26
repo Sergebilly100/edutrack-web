@@ -5,6 +5,7 @@ import axios from "axios"
 import {
   AlertTriangle,
   ArrowLeft,
+  CalendarClock,
   ChevronLeft,
   ChevronRight,
   Coins,
@@ -50,6 +51,8 @@ import {
   getSchoolDetails,
   getSchoolPayments,
   getSchoolUsers,
+  getSchoolYearStatus,
+  openSchoolYear,
   recordSchoolCommissionReceived,
   resetTenantSmsTemplate,
   sendSchoolPaymentReminder,
@@ -172,6 +175,11 @@ export default function AdminSchoolDetailPage() {
     queryFn: () => getSchoolSmsFeatureStats(tenantId as string),
     enabled: Boolean(tenantId),
   })
+  const schoolYearQuery = useQuery({
+    queryKey: ["admin", "school-year-status", tenantId],
+    queryFn: () => getSchoolYearStatus(tenantId as string),
+    enabled: Boolean(tenantId),
+  })
 
   // ── États locaux ─────────────────────────────────────────────────────────
   const [config, setConfig] = useState({
@@ -224,6 +232,15 @@ export default function AdminSchoolDetailPage() {
   const [smsFeatureToggleOpen, setSmsFeatureToggleOpen] = useState(false)
   const [smsFeatureToggleNextValue, setSmsFeatureToggleNextValue] = useState<boolean | null>(null)
   const [reversementOpen, setReversementOpen] = useState(false)
+
+  // Ouverture d'une nouvelle année scolaire (super admin)
+  const [openYearForm, setOpenYearForm] = useState({
+    label: "",
+    startDate: "",
+    endDate: "",
+    reviewDate: "",
+  })
+  const [confirmOpenYearOpen, setConfirmOpenYearOpen] = useState(false)
   const [reversementPeriodMonth, setReversementPeriodMonth] = useState("")
   const [reversementAmount, setReversementAmount] = useState("")
   const [reversementMethod, setReversementMethod] = useState<"cash" | "momo_mtn" | "momo_orange" | "bank_transfer">("cash")
@@ -474,6 +491,45 @@ export default function AdminSchoolDetailPage() {
   })
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+  const isYearFormValid =
+    openYearForm.label.trim().length > 0 &&
+    /^\d{4}-\d{2}-\d{2}$/.test(openYearForm.startDate) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(openYearForm.endDate) &&
+    (openYearForm.reviewDate === "" || /^\d{4}-\d{2}-\d{2}$/.test(openYearForm.reviewDate)) &&
+    openYearForm.startDate < openYearForm.endDate &&
+    (openYearForm.reviewDate === "" || openYearForm.reviewDate < openYearForm.endDate)
+
+  const openYearMutation = useMutation({
+    mutationFn: () =>
+      openSchoolYear(tenantId as string, {
+        label: openYearForm.label.trim(),
+        start_date: openYearForm.startDate,
+        end_date: openYearForm.endDate,
+        ...(openYearForm.reviewDate ? { end_of_year_review_start_date: openYearForm.reviewDate } : {}),
+      }),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ["admin", "school-year-status", tenantId] })
+      await queryClient.invalidateQueries({ queryKey: ["admin", "school-detail", tenantId] })
+      setConfirmOpenYearOpen(false)
+      setOpenYearForm({ label: "", startDate: "", endDate: "", reviewDate: "" })
+      toast({
+        title: `Année ${result.label} ouverte`,
+        description:
+          result.closedPreviousLabel
+            ? `L'année ${result.closedPreviousLabel} est passée à "closed".`
+            : "Aucune année active précédente.",
+      })
+    },
+    onError: (error) => {
+      setConfirmOpenYearOpen(false)
+      const description =
+        error instanceof Error && error.message.length > 0
+          ? error.message
+          : "Impossible d'ouvrir la nouvelle année scolaire."
+      toast({ title: "Erreur", description, variant: "destructive" })
+    },
+  })
+
   const openReversementDialog = (prefillMonth?: string) => {
     setReversementPeriodMonth(prefillMonth ?? reversementMonth)
     setReversementAmount("")
@@ -723,6 +779,7 @@ export default function AdminSchoolDetailPage() {
             <TabsList className="flex h-auto flex-wrap">
               <TabsTrigger value="config">Configuration</TabsTrigger>
               <TabsTrigger value="users">Utilisateurs</TabsTrigger>
+              <TabsTrigger value="school-year">Année scolaire</TabsTrigger>
               <TabsTrigger value="abonnement">Abonnement & Facturation</TabsTrigger>
               <TabsTrigger value="sms-revenus">
                 SMS & Revenus
@@ -1197,6 +1254,156 @@ export default function AdminSchoolDetailPage() {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* ══════════════════════════════════════════════════
+                ONGLET 3bis - ANNÉE SCOLAIRE (action super admin)
+            ══════════════════════════════════════════════════ */}
+            <TabsContent value="school-year" className="space-y-5">
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CalendarClock className="h-4 w-4" />
+                    Année scolaire active
+                  </CardTitle>
+                  <CardDescription>
+                    Seul IvoirEdu peut basculer l&apos;école sur une nouvelle année. Le responsable école
+                    configure la revue de fin d&apos;année et les décisions de passage, mais ne peut pas ouvrir
+                    une nouvelle année.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {schoolYearQuery.isLoading ? (
+                    <Skeleton className="h-16 w-full rounded-lg" />
+                  ) : schoolYearQuery.isError ? (
+                    <Alert variant="destructive">
+                      <AlertDescription>Impossible de charger l&apos;année scolaire.</AlertDescription>
+                    </Alert>
+                  ) : schoolYearQuery.data?.hasActiveYear ? (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="min-w-40 space-y-1">
+                        <p className="text-xs text-muted-foreground">Libellé</p>
+                        <p className="font-semibold">{schoolYearQuery.data.activeYear?.label}</p>
+                      </div>
+                      <div className="min-w-40 space-y-1">
+                        <p className="text-xs text-muted-foreground">Période</p>
+                        <p className="text-sm">
+                          {formatDate(schoolYearQuery.data.activeYear?.startDate ?? "")} →{" "}
+                          {formatDate(schoolYearQuery.data.activeYear?.endDate ?? "")}
+                        </p>
+                      </div>
+                      {schoolYearQuery.data.activeYear?.endOfYearReviewStartDate ? (
+                        <div className="min-w-40 space-y-1">
+                          <p className="text-xs text-muted-foreground">Revue de fin d&apos;année</p>
+                          <p className="text-sm">{formatDate(schoolYearQuery.data.activeYear.endOfYearReviewStartDate)}</p>
+                        </div>
+                      ) : null}
+                      <Badge
+                        variant="outline"
+                        className={
+                          schoolYearQuery.data.isEndOfYearWindowOpen
+                            ? "border-green-200 bg-green-50 text-green-700"
+                            : "border-slate-200 bg-slate-50 text-slate-700"
+                        }
+                      >
+                        {schoolYearQuery.data.isEndOfYearWindowOpen
+                          ? "Fenêtre de fin d'année ouverte"
+                          : "Fenêtre de fin d'année fermée"}
+                      </Badge>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Aucune année scolaire active pour cette école.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle>Ouvrir la nouvelle année scolaire</CardTitle>
+                  <CardDescription>
+                    Action à fort impact : la nouvelle année devient active et l&apos;année active actuelle passe
+                    définitivement au statut &laquo;&nbsp;closé&nbsp;&raquo;.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="open-year-label">Libellé</Label>
+                      <Input
+                        id="open-year-label"
+                        placeholder="2026-2027"
+                        maxLength={25}
+                        value={openYearForm.label}
+                        onChange={(e) => setOpenYearForm((p) => ({ ...p, label: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="open-year-start">Date de début</Label>
+                      <Input
+                        id="open-year-start"
+                        type="date"
+                        value={openYearForm.startDate}
+                        onChange={(e) => setOpenYearForm((p) => ({ ...p, startDate: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="open-year-end">Date de fin</Label>
+                      <Input
+                        id="open-year-end"
+                        type="date"
+                        value={openYearForm.endDate}
+                        onChange={(e) => setOpenYearForm((p) => ({ ...p, endDate: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="open-year-review">Début revue de fin d&apos;année</Label>
+                      <Input
+                        id="open-year-review"
+                        type="date"
+                        value={openYearForm.reviewDate}
+                        onChange={(e) => setOpenYearForm((p) => ({ ...p, reviewDate: e.target.value }))}
+                      />
+                      <p className="text-xs text-muted-foreground">Vide = 30 jours avant la date de fin.</p>
+                    </div>
+                  </div>
+                  {!isYearFormValid ? (
+                    <p className="text-xs text-muted-foreground">
+                      Libellé requis, début strictement antérieure à la fin, revue avant la fin si renseignée.
+                    </p>
+                  ) : null}
+                  <Button
+                    type="button"
+                    disabled={!isYearFormValid || openYearMutation.isPending}
+                    onClick={() => setConfirmOpenYearOpen(true)}
+                  >
+                    {openYearMutation.isPending ? "Ouverture..." : "Ouvrir la nouvelle année scolaire"}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <AlertDialog open={confirmOpenYearOpen} onOpenChange={setConfirmOpenYearOpen}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Confirmer l&apos;ouverture de l&apos;année ?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      L&apos;année {openYearForm.label || "saisie"} deviendra active immédiatement.
+                      {schoolYearQuery.data?.activeYear
+                        ? ` L'année ${schoolYearQuery.data.activeYear.label} passera à "closed" et ne pourra plus être utilisée pour les pointages.`
+                        : ""}{" "}
+                      Cette opération est difficilement réversible.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annuler</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => openYearMutation.mutate()}
+                      disabled={openYearMutation.isPending}
+                    >
+                      {openYearMutation.isPending ? "Ouverture..." : "Confirmer l'ouverture"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </TabsContent>
 
             {/* ══════════════════════════════════════════════════

@@ -524,6 +524,43 @@ export const createSchool = (payload: CreateSchoolPayload) =>
 export const getSchoolDetails = (tenantId: string) =>
   api.get<SchoolDetailsResponse>(`/admin/schools/${tenantId}`).then((response) => response.data)
 
+export type SchoolYearStatusResponse = {
+  hasActiveYear: boolean
+  activeYear: {
+    id: string
+    label: string
+    startDate: string
+    endDate: string
+    endOfYearReviewStartDate: string | null
+  } | null
+  isEndOfYearWindowOpen: boolean
+}
+
+export type OpenSchoolYearPayload = {
+  label: string
+  start_date: string
+  end_date: string
+  end_of_year_review_start_date?: string
+}
+
+export type OpenedSchoolYearResponse = {
+  id: string
+  label: string
+  startDate: string
+  endDate: string
+  endOfYearReviewStartDate: string | null
+  status: "active"
+  closedPreviousLabel: string | null
+}
+
+export const getSchoolYearStatus = (tenantId: string) =>
+  api.get<SchoolYearStatusResponse>(`/admin/schools/${tenantId}/school-year`).then((response) => response.data)
+
+export const openSchoolYear = (tenantId: string, payload: OpenSchoolYearPayload) =>
+  api
+    .post<OpenedSchoolYearResponse>(`/admin/schools/${tenantId}/school-year/open`, payload)
+    .then((response) => response.data)
+
 export const getSchoolUsers = (tenantId: string) =>
   api.get<SchoolUsersResponse>(`/admin/schools/${tenantId}/users`).then((response) => response.data)
 
