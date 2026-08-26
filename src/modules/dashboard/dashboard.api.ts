@@ -652,45 +652,26 @@ const getTeacherSalaryDetails = async (
   return normalizeTeacherSalaryDetails(response.data)
 }
 
-export const getTopRiskTeachers = async (month: string): Promise<DashboardRiskTeacher[]> => {
-  const salarySummary = await getSalarySummary(month)
-  const teacherRows = salarySummary.items.filter((item) => item.teacherId)
-
-  const details = await Promise.all(
-    teacherRows.map(async (teacher) => {
-      const payload = await getTeacherSalaryDetails(teacher.teacherId, month)
-      const now = new Date()
-      const effectiveRows = payload.rows.filter((row) => {
-        const [year, monthRaw, day] = row.date.split("-").map((part: string) => Number(part))
-        const rowDate = new Date(year ?? 1970, (monthRaw ?? 1) - 1, day ?? 1)
-        return rowDate.getTime() <= now.getTime()
-      })
-
-      const totalRows = effectiveRows.length
-      const absenceCount = effectiveRows.filter((row) => row.attendanceStatus === "absent").length
-      const presentLikeCount = effectiveRows.filter(
-        (row) => row.attendanceStatus === "present" || row.attendanceStatus === "late" || row.attendanceStatus === "excused"
-      ).length
-
-      const attendanceRate = totalRows > 0 ? (presentLikeCount / totalRows) * 100 : 0
-
-      return {
-        teacherId: teacher.teacherId,
-        teacherName: teacher.teacherName,
-        absenceCount,
-        attendanceRate,
-      } satisfies DashboardRiskTeacher
-    })
-  )
-
-  return details
-    .sort((a, b) => {
-      if (b.absenceCount !== a.absenceCount) {
-        return b.absenceCount - a.absenceCount
-      }
-
-      return a.attendanceRate - b.attendanceRate
-    })
+/**
+ * Profs à risque : désormais calculés côté serveur (Tâche 7a, table
+ * teacher_risk_status, seuil paramétrable risk_alert_rules). Le paramètre
+ * `month` reste accepté pour compatibilité d'appel mais n'est plus utilisé :
+ * la fenêtre glissante est définie par la règle de l'école (30 jours par défaut).
+ */
+export const getTopRiskTeachers = async (_month: string): Promise<DashboardRiskTeacher[]> => {
+  const response = await api.get("/risk/teachers")
+  const payload = isRecord(response.data) ? response.data : {}
+  const rows = Array.isArray((payload as { teachers?: unknown }).teachers)
+    ? ((payload as { teachers: Record<string, unknown>[] }).teachers)
+    : []
+  return rows
+    .map((row) => ({
+      teacherId: asString(row.teacher_id),
+      teacherName: asString(row.teacher_name),
+      absenceCount: asNumber(row.absence_count),
+      attendanceRate: asNumber(row.attendance_rate),
+    }))
+    .filter((teacher) => teacher.teacherId.length > 0)
     .slice(0, 5)
 }
 

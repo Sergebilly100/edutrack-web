@@ -17,7 +17,7 @@ import {
   getTodayAttendance,
   getTopRiskTeachers,
 } from "@/modules/dashboard/dashboard.api"
-import { getTodayAbsences, getStudentAbsenceStats } from "@/modules/students/students.api"
+import { getTodayAbsences } from "@/modules/students/students.api"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import {
   TodayPresenceList,
@@ -97,14 +97,15 @@ export function AttendanceTab({
     enabled: canViewStudents,
   })
 
+  // Tâche 7a : risque élève calculé côté serveur (student_risk_status).
   const riskStudentsQuery = useQuery({
-    queryKey: ["dashboard", "risk-students", currentMonthRange.from, currentMonthRange.to],
-    queryFn: () =>
-      getStudentAbsenceStats({
-        from: currentMonthRange.from,
-        to: currentMonthRange.to,
-        minAbsences: 1,
-      }),
+    queryKey: ["dashboard", "risk-students-v2"],
+    queryFn: async () => {
+      const { apiClient } = await import("@/shared/api/client")
+      const response = await apiClient.get<{ students: Array<Record<string, unknown>> }>("/risk/students")
+      const payload = response.data ?? {}
+      return Array.isArray(payload.students) ? payload.students : []
+    },
     staleTime: QUERY_STALE_TIME,
     refetchInterval: TODAY_REFETCH_INTERVAL,
     retry: false,
@@ -126,7 +127,14 @@ export function AttendanceTab({
 
   const topRiskStudents = useMemo(() => {
     return (riskStudentsQuery.data ?? [])
-      .sort((a, b) => b.absenceCount - a.absenceCount)
+      .filter((student) => Number(student.risk_score ?? 0) > 0)
+      .map((student) => ({
+        studentId: String(student.student_id),
+        studentName: String(student.student_name),
+        className: String(student.class_name ?? ""),
+        absenceCount: Number(student.absence_count ?? 0),
+        absenceRate: Number(student.absence_rate ?? 0),
+      }))
       .slice(0, 5)
   }, [riskStudentsQuery.data])
 
