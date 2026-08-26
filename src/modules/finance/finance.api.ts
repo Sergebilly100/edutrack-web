@@ -442,3 +442,88 @@ export async function requestParentPaymentReceipt(studentId: string, paymentId: 
   const response = await apiClient.post(`/parent/students/${studentId}/payments/${paymentId}/receipt`)
   return { jobId: String(response.data.jobId) }
 }
+
+// ── Dashboard financier + relances (Vague 6) ────────────────────────────────
+
+export type SchoolFinancialSummary = {
+  total_expected_to_date: string;
+  total_paid: string;
+  recovery_rate: string;
+  students_up_to_date_count: number;
+  students_late_count: number;
+  previous_period_total_paid: string;
+  last_computed_at: string;
+} | null;
+
+export type ClassFinancialSummaryRow = {
+  class_id: string;
+  class_name: string;
+  total_expected_to_date: string;
+  total_paid: string;
+  students_up_to_date_count: number;
+  students_late_count: number;
+  last_computed_at: string;
+};
+
+export const fetchFinancialSummary = async (): Promise<{
+  school: SchoolFinancialSummary;
+  classes: ClassFinancialSummaryRow[];
+}> => {
+  const response = await apiClient.get("/finance/financial-summary");
+  const payload = response.data ?? {};
+  return { school: payload.school ?? null, classes: Array.isArray(payload.classes) ? payload.classes : [] };
+};
+
+export type ClassStudentStatusRow = {
+  student_id: string;
+  full_name: string;
+  matricule: string | null;
+  total_expected_to_date: string;
+  total_paid: string;
+  total_due_year: string;
+  status: "up_to_date" | "late" | "waived";
+  days_late: number | null;
+};
+
+export const fetchClassStudentsStatus = async (classId: string): Promise<ClassStudentStatusRow[]> => {
+  const response = await apiClient.get<{ students: ClassStudentStatusRow[] }>(
+    "/finance/class-students-status",
+    { params: { class_id: classId } },
+  );
+  return response.data.students ?? [];
+};
+
+export type FinancialAlertRuleRow = {
+  id?: string;
+  type: "preventive" | "late" | "severe_late";
+  daysOffset?: number;
+  days_offset?: number;
+  channel?: "sms" | "in_app" | "both";
+  isActive?: boolean;
+  is_active?: boolean;
+};
+
+export const fetchFinancialAlertRules = async (): Promise<FinancialAlertRuleRow[]> => {
+  const response = await apiClient.get<{ rules: FinancialAlertRuleRow[] }>("/financial-alert-rules");
+  return response.data.rules ?? [];
+};
+
+export const saveFinancialAlertRule = async (
+  type: FinancialAlertRuleRow["type"],
+  payload: { daysOffset: number; channel: "sms" | "in_app" | "both"; isActive: boolean },
+): Promise<void> => {
+  await apiClient.put(`/financial-alert-rules/${type}`, {
+    daysOffset: payload.daysOffset,
+    channel: payload.channel,
+    isActive: payload.isActive,
+  });
+}
+
+export const fetchFinancialAlertLogs = async (): Promise<
+  Array<{ id: string; student_name: string; rule_type: string; channel: string; status: string; sent_at: string }>
+> => {
+  const response = await apiClient.get<{ logs: Array<{ id: string; student_name: string; rule_type: string; channel: string; status: string; sent_at: string }> }>(
+    "/financial-alert-logs",
+  );
+  return response.data.logs ?? [];
+}
