@@ -37,10 +37,6 @@ vi.mock("@/shared/store/auth.store", () => ({
   },
 }))
 
-vi.mock("@/shared/lib/dashboard-notifications", () => ({
-  clearDashboardDismissedNotifications: vi.fn(),
-}))
-
 import LoginPage from "@/modules/auth/LoginPage"
 
 const createQueryClient = () =>

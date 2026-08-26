@@ -12,15 +12,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { fetchSchoolInfo } from "@/modules/onboarding/onboarding.api"
 import { getStudentAbsenceStats, getTodayAbsences, type StudentAbsenceStat } from "@/modules/students/students.api"
-import { getSalaryUnpaidAlerts } from "@/modules/salaries/salaries.api"
-import { getCommissionOverdueAlerts } from "@/modules/subscriptions/subscriptions.api"
 import {
   getAttendanceHistory,
   getCurrentMonthKey,
   getDashboardCounts,
-  getSMSLog,
+  getDashboardActionItems,
   getNextWeekCoverageState,
   getPreviousMonthKey,
+  resolveDashboardActionItem,
   getSalarySummary,
   getTeacherCompliance,
   getTeacherTrendFromSummaries,
@@ -30,7 +29,6 @@ import {
   type DashboardCourseItem,
   type DashboardSalarySummaryItem,
 } from "@/modules/dashboard/dashboard.api"
-import { getPendingValidationCount } from "@/modules/validations/validations.api"
 import { EmptyState, emptyStateIcons } from "@/shared/components/EmptyState"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { OfflineGuard } from "@/shared/components/OfflineGuard"
@@ -41,11 +39,7 @@ import { StatCard } from "@/shared/components/StatCard"
 import { WeekCoverageAlert } from "@/shared/components/WeekCoverageAlert"
 import { NotificationsPanel, type NotificationPanelItem } from "@/shared/components/layout/NotificationsPanel"
 import { DashboardStatsCards } from "./components/DashboardStatsCards"
-import {
-  buildDirectorDashboardNotifications,
-  readDashboardDismissedNotificationIds,
-  writeDashboardDismissedNotificationIds,
-} from "@/shared/lib/dashboard-notifications"
+import { actionItemToNotification } from "./dashboard-action-notifications"
 import { useAuthStore } from "@/shared/store/auth.store"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { getInitials } from "@/shared/utils/avatar"
@@ -273,7 +267,6 @@ export default function DashboardPage() {
   const [showAllTodayPresence, setShowAllTodayPresence] = useState(false)
   const [showAllTodayStudentAbsences, setShowAllTodayStudentAbsences] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const [dismissedNotificationIds, setDismissedNotificationIds] = useState<Set<string>>(readDashboardDismissedNotificationIds)
   const [activeTab, setActiveTab] = useState<"overview" | "attendance" | "salaries">("overview")
   const user = useAuthStore((state) => state.user)
   const permissions = useAuthStore((state) => state.permissions)
@@ -334,30 +327,6 @@ export default function DashboardPage() {
     enabled: canViewSalary && (activeTab === "overview" || activeTab === "salaries"),
   })
 
-  const salaryUnpaidAlertsQuery = useQuery({
-    queryKey: ["dashboard", "salary-unpaid-alerts", currentMonth],
-    queryFn: () => getSalaryUnpaidAlerts(currentMonth),
-    staleTime: QUERY_STALE_TIME,
-    retry: false,
-    enabled: canViewSalary && (activeTab === "overview" || activeTab === "salaries"),
-  })
-
-  const commissionOverdueAlertsQuery = useQuery({
-    queryKey: ["dashboard", "commission-overdue-alerts"],
-    queryFn: getCommissionOverdueAlerts,
-    staleTime: QUERY_STALE_TIME,
-    retry: false,
-    enabled: isDirector,
-  })
-
-  const smsLogQuery = useQuery({
-    queryKey: ["dashboard", "sms-log", "notifications"],
-    queryFn: () => getSMSLog(8),
-    staleTime: QUERY_STALE_TIME,
-    retry: false,
-    enabled: isDirector,
-  })
-
   const previousSalarySummaryQuery = useQuery({
     queryKey: ["dashboard", "salary-summary-v3", previousMonth],
     queryFn: () => getSalarySummary(previousMonth),
@@ -387,15 +356,6 @@ export default function DashboardPage() {
     staleTime: QUERY_STALE_TIME,
     retry: false,
     enabled: canViewTeachers && activeTab === "attendance",
-  })
-
-  const validationCountQuery = useQuery({
-    queryKey: ["validations", "pending", "count", "dashboard"],
-    queryFn: getPendingValidationCount,
-    staleTime: QUERY_STALE_TIME,
-    refetchInterval: 5 * 60_000,
-    retry: false,
-    enabled: canViewValidations && (activeTab === "overview" || activeTab === "salaries"),
   })
 
   const todayStudentAbsencesQuery = useQuery({
@@ -525,63 +485,6 @@ export default function DashboardPage() {
   )
   const canToggleTodayPresence = (todayQuery.data?.courses ?? []).length > 5
   const canToggleTodayStudentAbsences = todayStudentAbsenceItems.length > 5
-  const notificationItems = useMemo<NotificationPanelItem[]>(() => {
-    return buildDirectorDashboardNotifications({
-      nextWeekHasCoverage: coverageQuery.data?.nextWeekHasCoverage,
-      weeklyAbsenceCount,
-      salaryUnpaidCount: salaryUnpaidAlertsQuery.data?.count ?? 0,
-      salaryUnpaidTotalFcfa: salaryUnpaidAlertsQuery.data?.totalRemainingFcfa ?? 0,
-      commissionOverdueCount: commissionOverdueAlertsQuery.data?.count ?? 0,
-      commissionOverdueTotalFcfa: commissionOverdueAlertsQuery.data?.totalRemainingFcfa ?? 0,
-      pendingValidationCount: validationCountQuery.data?.total ?? 0,
-      smsLog: smsLogQuery.data ?? [],
-      capabilities: {
-        canViewSchedule,
-        canViewTeachers,
-        canViewValidations,
-        canViewSalary,
-        canViewSubscriptionRevenue: isDirector,
-        canViewSmsLog: isDirector,
-        canViewStudents,
-      },
-    })
-  }, [
-    coverageQuery.data?.nextWeekHasCoverage,
-    salaryUnpaidAlertsQuery.data?.count,
-    salaryUnpaidAlertsQuery.data?.totalRemainingFcfa,
-    commissionOverdueAlertsQuery.data?.count,
-    commissionOverdueAlertsQuery.data?.totalRemainingFcfa,
-    smsLogQuery.data,
-    validationCountQuery.data?.total,
-    weeklyAbsenceCount,
-    canViewSchedule,
-    canViewTeachers,
-    canViewValidations,
-    canViewSalary,
-    canViewStudents,
-    isDirector,
-  ])
-  const visibleNotifications = useMemo(
-    () => notificationItems.filter((item) => !dismissedNotificationIds.has(item.id)),
-    [dismissedNotificationIds, notificationItems]
-  )
-  const visibleNotificationIds = useMemo(
-    () => new Set(visibleNotifications.map((item) => item.id)),
-    [visibleNotifications]
-  )
-  const activeAlertsCount = visibleNotifications.length
-  const dismissNotification = useCallback((id: string) => {
-    setDismissedNotificationIds((current) => {
-      const next = new Set(current)
-      next.add(id)
-      return next
-    })
-  }, [])
-
-  useEffect(() => {
-    writeDashboardDismissedNotificationIds(dismissedNotificationIds)
-  }, [dismissedNotificationIds])
-
   useEffect(() => {
     const state = location.state as { openNotifications?: boolean } | null
     if (!state?.openNotifications) {
@@ -613,7 +516,6 @@ export default function DashboardPage() {
         previousSalarySummaryQuery.refetch(),
         riskTeachersQuery.refetch(),
         teacherComplianceQuery.refetch(),
-        validationCountQuery.refetch(),
         schoolQuery.refetch(),
         todayStudentAbsencesQuery.refetch(),
         riskStudentsQuery.refetch(),
@@ -635,8 +537,36 @@ export default function DashboardPage() {
     teacherComplianceQuery,
     todayQuery,
     todayStudentAbsencesQuery,
-    validationCountQuery,
   ])
+
+  const actionItemsQuery = useQuery({
+    queryKey: ["dashboard", "action-items"],
+    queryFn: getDashboardActionItems,
+    enabled: isDirector || canViewValidations,
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+  })
+
+  const resolveItemMutation = useMutation({
+    mutationFn: resolveDashboardActionItem,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "action-items"] })
+    },
+  })
+
+  // La cloche et « Priorités du jour » dérivent strictement de la même liste
+  // d'items ouverts. Une résolution serveur les retire des deux surfaces.
+  const notificationItems = useMemo<NotificationPanelItem[]>(
+    () => (actionItemsQuery.data ?? []).map(actionItemToNotification),
+    [actionItemsQuery.data]
+  )
+  const activeAlertsCount = notificationItems.length
+  const dismissNotification = useCallback((id: string) => {
+    resolveItemMutation.mutate(id)
+  }, [resolveItemMutation])
+  const dismissAllNotifications = useCallback(() => {
+    void Promise.all(notificationItems.map((item) => resolveItemMutation.mutateAsync(item.id)))
+  }, [notificationItems, resolveItemMutation])
 
   const dispatchMobileHeaderState = useCallback(() => {
     const detail = {
@@ -679,72 +609,25 @@ export default function DashboardPage() {
     }
   }, [dispatchMobileHeaderState, handleDashboardRefresh])
 
-  // Tâche 7d : "Priorités du jour" lues depuis dashboard_action_items (7b).
-  // Dismiss persisté serveur via POST /action-items/:id/resolve.
-  const ACTION_ROUTES: Record<string, { href: string; label: string }> = {
-    teacher_absences_high: { href: "/teachers", label: "Ouvrir les professeurs" },
-    salary_pending: { href: "/salaries", label: "Ouvrir les salaires" },
-    validations_pending: { href: "/validations", label: "Traiter les validations" },
-    commission_overdue: { href: "/subscriptions/revenue", label: "Ouvrir les revenus" },
-    payment_reminder_needed: { href: "/finance", label: "Ouvrir la finance" },
-    report_cards_blocked: { href: "/academic/completion", label: "Voir la complétude" },
-    student_at_risk: { href: "/students", label: "Voir les élèves" },
-    dossier_incomplete: { href: "/enrollments", label: "Voir les inscriptions" },
-  }
-
-  const actionItemsQuery = useQuery({
-    queryKey: ["dashboard", "action-items"],
-    queryFn: async () => {
-      const { apiClient } = await import("@/shared/api/client")
-      const response = await apiClient.get<{ items: Array<Record<string, unknown>> }>(
-        "/dashboard/action-items",
-      )
-      return response.data.items ?? []
-    },
-    enabled: isDirector || canViewValidations,
-    staleTime: 60_000,
-    refetchInterval: 5 * 60_000,
-  })
-
-  const resolveItemMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { apiClient } = await import("@/shared/api/client")
-      return apiClient.post(`/dashboard/action-items/${id}/resolve`)
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboard", "action-items"] })
-    },
-  })
-
-  const priorityActions = (actionItemsQuery.data ?? []).map((item) => {
-    const type = String(item.type)
-    const route = ACTION_ROUTES[type] ?? { href: "/dashboard", label: "Consulter" }
-    const referenceId = item.reference_id === null || item.reference_id === undefined ? "" : String(item.reference_id)
+  const priorityActions = (actionItemsQuery.data ?? [])
+    .filter((item) => canViewValidations || item.type !== "validations_pending")
+    .map((item) => {
+    const notification = actionItemToNotification(item)
     return {
-      id: `${type}-${referenceId || "global"}`,
-      serverId: String(item.id),
-      title:
-        type === "teacher_absences_high" ? "Absences profs élevées"
-        : type === "salary_pending" ? "Salaires à terminer"
-        : type === "validations_pending" ? "Validations en attente"
-        : type === "commission_overdue" ? "Reversement com. en retard"
-        : type === "student_at_risk" ? "Élèves à risque"
-        : type === "report_cards_blocked" ? "Bulletins bloqués"
-        : type === "payment_reminder_needed" ? "Relances paiements"
-        : "Dossier incomplet",
-      message: typeof item.message === "string" && item.message.length > 0
-        ? item.message
-        : "À traiter.",
-      actionLabel: route.label,
-      className: String(item.priority) === "high"
+      id: item.id,
+      serverId: item.id,
+      title: notification.title,
+      message: notification.message,
+      actionLabel: notification.actionLabel,
+      className: item.priority === "high"
         ? "border-red-200 bg-red-50 text-red-700"
-        : String(item.priority) === "medium"
+        : item.priority === "medium"
           ? "border-amber-200 bg-amber-50 text-amber-800"
           : "border-slate-200 bg-slate-50 text-slate-700",
-      onClick: () => navigate(route.href),
-      onDismiss: () => resolveItemMutation.mutate(String(item.id)),
+      onClick: () => navigate(notification.targetHref ?? "/dashboard"),
+      onDismiss: () => dismissNotification(item.id),
     }
-  }).filter((item) => canViewValidations || !item.id.startsWith("validations_pending"))
+  })
 
   if (isInitialLoading) {
     return (
@@ -877,9 +760,11 @@ export default function DashboardPage() {
 
         {notificationsOpen ? (
           <NotificationsPanel
-            notifications={visibleNotifications}
+            notifications={notificationItems}
+            isLoading={actionItemsQuery.isLoading}
+            isError={actionItemsQuery.isError}
             onDismiss={dismissNotification}
-            onDismissAll={() => setDismissedNotificationIds(new Set(notificationItems.map((item) => item.id)))}
+            onDismissAll={dismissAllNotifications}
             onClose={() => setNotificationsOpen(false)}
             onNavigate={(href) => {
               setNotificationsOpen(false)
@@ -1017,4 +902,3 @@ export default function DashboardPage() {
     </>
   )
 }
-

@@ -1,6 +1,6 @@
 import { type ReactNode } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 
@@ -35,7 +35,8 @@ vi.mock("@/shared/api/client", () => ({
 const getTodayAttendanceMock = vi.fn()
 const getAttendanceHistoryMock = vi.fn()
 const getDashboardCountsMock = vi.fn()
-const getSMSLogMock = vi.fn()
+const getDashboardActionItemsMock = vi.fn()
+const resolveDashboardActionItemMock = vi.fn()
 const getNextWeekCoverageStateMock = vi.fn()
 const getSalarySummaryMock = vi.fn()
 const getTopRiskTeachersMock = vi.fn()
@@ -48,9 +49,6 @@ const getDashboardStatsMock = vi.fn()
 const fetchSchoolInfoMock = vi.fn()
 const getTodayAbsencesMock = vi.fn()
 const getStudentAbsenceStatsMock = vi.fn()
-const getSalaryUnpaidAlertsMock = vi.fn()
-const getCommissionOverdueAlertsMock = vi.fn()
-const getPendingValidationCountMock = vi.fn()
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom")
@@ -66,7 +64,8 @@ vi.mock("@/modules/dashboard/dashboard.api", () => {
     getAttendanceHistory: (days: number) => getAttendanceHistoryMock(days),
     getDashboardCounts: () => getDashboardCountsMock(),
     getDashboardStats: () => getDashboardStatsMock(),
-    getSMSLog: (limit: number) => getSMSLogMock(limit),
+    getDashboardActionItems: () => getDashboardActionItemsMock(),
+    resolveDashboardActionItem: (id: string) => resolveDashboardActionItemMock(id),
     getNextWeekCoverageState: () => getNextWeekCoverageStateMock(),
     getSalarySummary: (month: string) => getSalarySummaryMock(month),
     getTopRiskTeachers: (month: string) => getTopRiskTeachersMock(month),
@@ -89,24 +88,6 @@ vi.mock("@/modules/students/students.api", () => {
   return {
     getTodayAbsences: () => getTodayAbsencesMock(),
     getStudentAbsenceStats: () => getStudentAbsenceStatsMock(),
-  }
-})
-
-vi.mock("@/modules/salaries/salaries.api", () => {
-  return {
-    getSalaryUnpaidAlerts: (month: string) => getSalaryUnpaidAlertsMock(month),
-  }
-})
-
-vi.mock("@/modules/subscriptions/subscriptions.api", () => {
-  return {
-    getCommissionOverdueAlerts: () => getCommissionOverdueAlertsMock(),
-  }
-})
-
-vi.mock("@/modules/validations/validations.api", () => {
-  return {
-    getPendingValidationCount: () => getPendingValidationCountMock(),
   }
 })
 
@@ -194,7 +175,17 @@ describe("DashboardPage", () => {
         expectedAmount: 0,
       },
     })
-    getSMSLogMock.mockResolvedValue([])
+    getDashboardActionItemsMock.mockResolvedValue([
+      {
+        id: "item-1",
+        type: "validations_pending",
+        referenceId: null,
+        priority: "high",
+        message: "2 décision(s) à prendre sur les pointages.",
+        generatedAt: "2026-05-12T08:00:00.000Z",
+      },
+    ])
+    resolveDashboardActionItemMock.mockResolvedValue(undefined)
     getNextWeekCoverageStateMock.mockResolvedValue({ nextWeekHasCoverage: true })
     getSalarySummaryMock.mockResolvedValue({ items: [] })
     getTopRiskTeachersMock.mockResolvedValue([])
@@ -205,14 +196,6 @@ describe("DashboardPage", () => {
     getTotalPendingSalariesMock.mockReturnValue({ totalFcfa: 1000000, count: 8 })
     getTodayAbsencesMock.mockResolvedValue([])
     getStudentAbsenceStatsMock.mockResolvedValue([])
-    getSalaryUnpaidAlertsMock.mockResolvedValue({ count: 0, totalRemainingFcfa: 0 })
-    getCommissionOverdueAlertsMock.mockResolvedValue({ count: 0, totalRemainingFcfa: 0 })
-    getPendingValidationCountMock.mockResolvedValue({
-      total: 0,
-      gps_suspicious: 0,
-      short_hours: 0,
-      missing_end_scan: 0,
-    })
     fetchSchoolInfoMock.mockResolvedValue({
       id: "school-1",
       name: "École Sainte Marie",
@@ -241,14 +224,49 @@ describe("DashboardPage", () => {
     expect(await screen.findByText(SALARY_SECTION)).toBeInTheDocument()
   })
 
+  it("garde la cloche et les priorités synchronisées après une résolution serveur", async () => {
+    const actions = [
+      {
+        id: "absence-item",
+        type: "teacher_absences_high",
+        referenceId: null,
+        priority: "high" as const,
+        message: "4 absences de professeurs sur les 7 derniers jours",
+        generatedAt: "2026-05-12T08:00:00.000Z",
+      },
+      {
+        id: "salary-item",
+        type: "salary_pending",
+        referenceId: null,
+        priority: "medium" as const,
+        message: "1 fiche de salaire à terminer",
+        generatedAt: "2026-05-12T08:00:00.000Z",
+      },
+    ]
+    getDashboardActionItemsMock
+      .mockResolvedValueOnce(actions)
+      .mockResolvedValueOnce([actions[1]])
+
+    renderWithQueryClient(<DashboardPage />)
+
+    expect(await screen.findByText("Absences profs élevées")).toBeInTheDocument()
+    const notificationButton = screen.getByRole("button", { name: "Voir les notifications" })
+    expect(notificationButton.querySelector("span")?.textContent).toBe("2")
+    fireEvent.click(notificationButton)
+    expect(await screen.findByText("2 point(s) à suivre")).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Masquer cette notification" })[0]!)
+
+    await waitFor(() => {
+      expect(resolveDashboardActionItemMock).toHaveBeenCalledWith("absence-item")
+      expect(screen.queryByText("Absences profs élevées")).not.toBeInTheDocument()
+    })
+    expect(screen.getByText("1 point(s) à suivre")).toBeInTheDocument()
+    expect(notificationButton.querySelector("span")?.textContent).toBe("1")
+  })
+
   it("masque les données non autorisées pour un staff (validations seulement)", async () => {
     setAuth("staff", ["validations.view"])
-    getPendingValidationCountMock.mockResolvedValue({
-      total: 5,
-      gps_suspicious: 2,
-      short_hours: 2,
-      missing_end_scan: 1,
-    })
     renderWithQueryClient(<DashboardPage />)
 
     expect(await screen.findByText("Bonjour, Staff Test")).toBeInTheDocument()
@@ -265,12 +283,6 @@ describe("DashboardPage", () => {
 
   it("affiche le résumé salaires pour un staff avec salary.view", async () => {
     setAuth("staff", ["salary.view"])
-    getPendingValidationCountMock.mockResolvedValue({
-      total: 5,
-      gps_suspicious: 2,
-      short_hours: 2,
-      missing_end_scan: 1,
-    })
     renderWithQueryClient(<DashboardPage />)
 
     expect(await screen.findByText("Bonjour, Staff Test")).toBeInTheDocument()
@@ -292,6 +304,5 @@ describe("DashboardPage", () => {
     await screen.findByText("Aucune fiche salaire")
     // Les requêtes salaires sont gardées par enabled:canViewSalary → jamais appelées.
     expect(getSalarySummaryMock).not.toHaveBeenCalled()
-    expect(getSalaryUnpaidAlertsMock).not.toHaveBeenCalled()
   })
 })

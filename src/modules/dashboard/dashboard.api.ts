@@ -165,6 +165,15 @@ export type DashboardSmsItem = {
   createdAt: string | null
 }
 
+export type DashboardActionItem = {
+  id: string
+  type: string
+  referenceId: string | null
+  priority: "low" | "medium" | "high"
+  message: string | null
+  generatedAt: string | null
+}
+
 export type DashboardQRAlertType =
   | "teacher_qr_mismatch"
   | "teacher_qr_missing_scan"
@@ -741,6 +750,31 @@ export const buildCurrentMonthParam = (date = new Date()): string => toMonthStar
 export const getSMSLog = async (limit = 10): Promise<DashboardSmsItem[]> => {
   const response = await api.get("/notifications/log", { params: { limit } })
   return normalizeSmsLog(response.data)
+}
+
+export const getDashboardActionItems = async (): Promise<DashboardActionItem[]> => {
+  const response = await api.get<{ items?: unknown }>("/dashboard/action-items")
+  const payload = resolvePayload(response.data)
+  const rows = isRecord(payload) ? firstNonEmptyArray<unknown>(payload.items, payload.data) : []
+
+  return rows.map((item) => {
+    const row = isRecord(item) ? item : {}
+    const priority = asString(row.priority)
+    const normalizedPriority: DashboardActionItem["priority"] =
+      priority === "high" || priority === "medium" || priority === "low" ? priority : "low"
+    return {
+      id: asString(row.id),
+      type: asString(row.type),
+      referenceId: asNullableString(row.referenceId ?? row.reference_id),
+      priority: normalizedPriority,
+      message: asNullableString(row.message),
+      generatedAt: asNullableString(row.generatedAt ?? row.generated_at),
+    }
+  }).filter((item) => item.id.length > 0 && item.type.length > 0)
+}
+
+export const resolveDashboardActionItem = async (id: string): Promise<void> => {
+  await api.post(`/dashboard/action-items/${id}/resolve`)
 }
 
 export const getQRAlerts = async (limit = 20): Promise<DashboardQRAlertItem[]> => {

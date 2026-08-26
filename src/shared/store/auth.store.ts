@@ -1,6 +1,5 @@
 import { create } from "zustand"
 
-import { clearDashboardDismissedNotifications } from "@/shared/lib/dashboard-notifications"
 import { resetInstallCardDismiss } from "@/shared/pwa/install-dismiss"
 import { useOfflineStore } from "@/shared/store/offline.store"
 
@@ -215,7 +214,6 @@ export const useAuthStore = create<AuthState>()((setState) => ({
     // la redirection après logout est gérée dans App.tsx en écoutant les changements de user dans le store auth, et elle redirige vers la page de login classique pour les enseignants et les admins
   logout: (options?: { keepOfflineQueue?: boolean }) =>
     setState(() => {
-      clearDashboardDismissedNotifications()
       resetInstallCardDismiss()
       // Ne purger la queue offline que lors d'un logout volontaire.
       // Lors d'une session expirée (401), on garde la queue pour la rejouer

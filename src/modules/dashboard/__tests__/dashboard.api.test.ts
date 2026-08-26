@@ -1,23 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { getMock } = vi.hoisted(() => ({
+const { getMock, postMock } = vi.hoisted(() => ({
   getMock: vi.fn(),
+  postMock: vi.fn(),
 }))
 
 vi.mock("@/shared/api/client", () => {
   return {
     apiClient: {
       get: getMock,
+      post: postMock,
     },
   }
 })
 
 import {
   getDashboardStats,
+  getDashboardActionItems,
   getAttendanceHistory,
   getQRAlerts,
   getSMSLog,
   getTodayAttendance,
+  resolveDashboardActionItem,
 } from "@/modules/dashboard/dashboard.api"
 
 describe("dashboard.api", () => {
@@ -96,6 +100,33 @@ describe("dashboard.api", () => {
       status: "sent",
       recipientPhone: "2250700000000",
     })
+  })
+
+  it("reads open action items and resolves them through the shared endpoint", async () => {
+    getMock.mockResolvedValueOnce({
+      data: {
+        items: [
+          {
+            id: "d1b9a7d1-59fa-4b85-8387-000000000001",
+            type: "salary_pending",
+            referenceId: null,
+            priority: "medium",
+            message: "2 fiches à terminer",
+            generatedAt: "2026-05-12T08:00:00.000Z",
+          },
+        ],
+      },
+    })
+    postMock.mockResolvedValueOnce({ data: { resolved: true } })
+
+    const items = await getDashboardActionItems()
+    await resolveDashboardActionItem(items[0]!.id)
+
+    expect(items).toEqual([
+      expect.objectContaining({ type: "salary_pending", priority: "medium", referenceId: null }),
+    ])
+    expect(getMock).toHaveBeenCalledWith("/dashboard/action-items")
+    expect(postMock).toHaveBeenCalledWith(`/dashboard/action-items/${items[0]!.id}/resolve`)
   })
 
   it("normalizes dashboard stats financial fields", async () => {
