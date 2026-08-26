@@ -573,8 +573,10 @@ function DemoForm() {
     setStatus("loading")
     // EmailJS integration point - remplacer VOTRE_CLE, VOTRE_SERVICE_ID, VOTRE_TEMPLATE_ID
     try {
-      if (typeof (window as any).emailjs !== "undefined") {
-        await (window as any).emailjs.send(
+      const emailjsGlobal = (window as unknown as { emailjs?: { send: (...args: unknown[]) => Promise<unknown> } })
+        .emailjs
+      if (typeof emailjsGlobal !== "undefined") {
+        await emailjsGlobal.send(
           "VOTRE_SERVICE_ID",
           "VOTRE_TEMPLATE_ID",
           { ...form }

@@ -1,6 +1,6 @@
 import { type ReactNode } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 
@@ -25,6 +25,7 @@ const fetchSchoolInfoMock = vi.fn()
 const getTodayAbsencesMock = vi.fn()
 const getStudentAbsenceStatsMock = vi.fn()
 const getSalaryUnpaidAlertsMock = vi.fn()
+const getCommissionOverdueAlertsMock = vi.fn()
 const getPendingValidationCountMock = vi.fn()
 
 vi.mock("react-router-dom", async () => {
@@ -70,6 +71,12 @@ vi.mock("@/modules/students/students.api", () => {
 vi.mock("@/modules/salaries/salaries.api", () => {
   return {
     getSalaryUnpaidAlerts: (month: string) => getSalaryUnpaidAlertsMock(month),
+  }
+})
+
+vi.mock("@/modules/subscriptions/subscriptions.api", () => {
+  return {
+    getCommissionOverdueAlerts: () => getCommissionOverdueAlertsMock(),
   }
 })
 
@@ -119,8 +126,13 @@ function setAuth(role: "director" | "staff", permissions: PermissionKey[] = []) 
 }
 
 const SALARY_SECTION = "Résumé salaires du mois"
-const VALIDATIONS_SECTION = "Validations en attente"
+const VALIDATIONS_PRIORITY = "Validations en attente"
 const TEACHER_PRESENCE_SECTION = "Présences professeurs aujourd'hui"
+
+// Radix Tabs active l'onglet sur mouseDown (pas onClick).
+function openTab(name: RegExp) {
+  fireEvent.mouseDown(screen.getByRole("tab", { name }))
+}
 
 describe("DashboardPage", () => {
   beforeEach(() => {
@@ -170,6 +182,7 @@ describe("DashboardPage", () => {
     getTodayAbsencesMock.mockResolvedValue([])
     getStudentAbsenceStatsMock.mockResolvedValue([])
     getSalaryUnpaidAlertsMock.mockResolvedValue({ count: 0, totalRemainingFcfa: 0 })
+    getCommissionOverdueAlertsMock.mockResolvedValue({ count: 0, totalRemainingFcfa: 0 })
     getPendingValidationCountMock.mockResolvedValue({
       total: 0,
       gps_suspicious: 0,
@@ -190,39 +203,70 @@ describe("DashboardPage", () => {
     renderWithQueryClient(<DashboardPage />)
 
     expect(await screen.findByText("Bonjour, Directeur Test")).toBeInTheDocument()
-    // Le directeur voit toutes les sections sensibles.
+    // Le directeur voit les trois onglets du tableau de bord.
+    expect(screen.getByRole("tab", { name: /Vue d'ensemble/ })).toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: /Présences/ })).toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: /Salaires/ })).toBeInTheDocument()
+
+    // Onglet Présences : présence professeurs du jour.
+    openTab(/Présences/)
     expect(await screen.findByText(TEACHER_PRESENCE_SECTION)).toBeInTheDocument()
-    expect(await screen.findByText(VALIDATIONS_SECTION)).toBeInTheDocument()
+
+    // Onglet Salaires : résumé salaires du mois.
+    openTab(/Salaires/)
     expect(await screen.findByText(SALARY_SECTION)).toBeInTheDocument()
   })
 
-  it("masque les sections non autorisées pour un staff (validations seulement)", async () => {
+  it("masque les données non autorisées pour un staff (validations seulement)", async () => {
     setAuth("staff", ["validations.view"])
+    getPendingValidationCountMock.mockResolvedValue({
+      total: 5,
+      gps_suspicious: 2,
+      short_hours: 2,
+      missing_end_scan: 1,
+    })
     renderWithQueryClient(<DashboardPage />)
 
     expect(await screen.findByText("Bonjour, Staff Test")).toBeInTheDocument()
-    // Section autorisée présente…
-    expect(await screen.findByText(VALIDATIONS_SECTION)).toBeInTheDocument()
-    // …et les sections sensibles non autorisées sont absentes.
-    expect(screen.queryByText(SALARY_SECTION)).not.toBeInTheDocument()
+    // Action prioritaire validations visible (validations.view présent)…
+    expect(await screen.findByText(VALIDATIONS_PRIORITY)).toBeInTheDocument()
+    // …et la requête salaire reste désactivée.
+    expect(getSalarySummaryMock).not.toHaveBeenCalled()
+
+    // Onglet Présences : sections sensibles absentes sans attendance.view / teachers.view.
+    openTab(/Présences/)
     expect(screen.queryByText(TEACHER_PRESENCE_SECTION)).not.toBeInTheDocument()
+    expect(screen.queryByText(/à risque/)).not.toBeInTheDocument()
   })
 
   it("affiche le résumé salaires pour un staff avec salary.view", async () => {
     setAuth("staff", ["salary.view"])
+    getPendingValidationCountMock.mockResolvedValue({
+      total: 5,
+      gps_suspicious: 2,
+      short_hours: 2,
+      missing_end_scan: 1,
+    })
     renderWithQueryClient(<DashboardPage />)
 
+    expect(await screen.findByText("Bonjour, Staff Test")).toBeInTheDocument()
+    // Sans validations.view, l'action prioritaire validations reste masquée.
+    expect(screen.queryByText(VALIDATIONS_PRIORITY)).not.toBeInTheDocument()
+
+    openTab(/Salaires/)
     expect(await screen.findByText(SALARY_SECTION)).toBeInTheDocument()
-    // Sans validations.view, la section validations reste masquée.
-    expect(screen.queryByText(VALIDATIONS_SECTION)).not.toBeInTheDocument()
   })
 
   it("ne déclenche pas la requête salaires pour un staff sans salary.view", async () => {
     setAuth("staff", ["validations.view"])
     renderWithQueryClient(<DashboardPage />)
 
-    await screen.findByText(VALIDATIONS_SECTION)
-    // La requête salaire est gardée par enabled:canViewSalary → jamais appelée.
+    await screen.findByText("Bonjour, Staff Test")
+    openTab(/Salaires/)
+
+    // L'onglet s'affiche en état vide : aucune requête salaire n'a été lancée.
+    await screen.findByText("Aucune fiche salaire")
+    // Les requêtes salaires sont gardées par enabled:canViewSalary → jamais appelées.
     expect(getSalarySummaryMock).not.toHaveBeenCalled()
     expect(getSalaryUnpaidAlertsMock).not.toHaveBeenCalled()
   })

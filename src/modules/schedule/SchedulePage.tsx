@@ -655,6 +655,8 @@ export default function SchedulePage() {
     await deleteMutation.mutateAsync(values)
   }
 
+  const navigate = useNavigate()
+
   if (!user) return <Navigate to="/" replace />
 
   const weekStartDate = fromISODate(selectedWeekMonday)
@@ -662,7 +664,6 @@ export default function SchedulePage() {
   const mondayKey = toISODate(weekStartDate)
   const currentMondayKey = toISODate(getMonday(today))
   const todayDayValue = mondayKey === currentMondayKey ? isoDayOfWeek(today) : null
-  const navigate = useNavigate()
 
   return (
     <>

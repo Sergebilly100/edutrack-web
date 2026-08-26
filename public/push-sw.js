@@ -1,4 +1,3 @@
-/* eslint-disable no-undef */
 // Handlers Web Push, chargés dans le Service Worker généré par Workbox via
 // workbox.importScripts (vite.config). On garde ainsi tout le cache offline
 // auto-généré et on n'ajoute QUE la couche push.
