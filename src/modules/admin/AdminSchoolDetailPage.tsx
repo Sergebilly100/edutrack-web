@@ -68,6 +68,7 @@ import {
   updateSchoolSmsFeatureConfig,
 } from "@/modules/admin/admin.api"
 import { OfflineDisabledFieldset, OfflineIndicator, StatCard } from "@/shared/components"
+import { MidyearImportPanel } from "./components/MidyearImportPanel"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 import {
@@ -1430,22 +1431,7 @@ export default function AdminSchoolDetailPage() {
             ══════════════════════════════════════════════════ */}
             {config.midYearOnboarding ? (
               <TabsContent value="import-midyear" className="space-y-5">
-                <Card className="shadow-sm">
-                  <CardHeader className="pb-3">
-                    <CardTitle>Import &laquo;&nbsp;prise en main&nbsp;&raquo;</CardTitle>
-                    <CardDescription>
-                      Imports successifs réservés à IvoirEdu : niveaux, matières, salles,
-                      classes, élèves/parents puis finances de départ. Les fichiers modèles
-                      arrivent avec la prochaine itération (Tâche 8b).
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      Structure en place : activez ce flag pour une école reprise en cours
-                      d&apos;année afin d&apos;ouvrir l&apos;assistant d&apos;import.
-                    </p>
-                  </CardContent>
-                </Card>
+                <MidyearImportPanel tenantId={tenantId as string} />
               </TabsContent>
             ) : null}
 
