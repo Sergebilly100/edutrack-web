@@ -1,6 +1,7 @@
 import { useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
+import axios from "axios"
 import { ShieldCheck } from "lucide-react"
 import { useForm, useWatch } from "react-hook-form"
 import { z } from "zod"
@@ -125,10 +126,15 @@ export default function PositionFormModal({
         title: isEditMode ? "Poste mis à jour" : "Poste créé",
       })
     },
-    onError: () => {
+    onError: (error) => {
+      // Surface le message métier du backend (ex. exclusivité conduct.finalize).
+      const detail =
+        axios.isAxiosError(error)
+          ? (error.response?.data as { error?: string } | undefined)?.error
+          : undefined
       toast({
         title: "Erreur",
-        description: "Impossible d'enregistrer le poste.",
+        description: detail ?? "Impossible d'enregistrer le poste.",
         variant: "destructive",
       })
     },

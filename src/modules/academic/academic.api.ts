@@ -175,3 +175,132 @@ export async function archiveClass(id: string): Promise<SchoolClass> {
   const response = await api.delete(`/classes/${id}`)
   return parseClass(asRecord(response.data).class)
 }
+
+// ── Notes / Évaluations (espace prof, Tâche 5d) ─────────────────────────────
+
+export type EvaluationType = "scheduled" | "spontaneous"
+
+export type EvaluationGradeItem = {
+  studentId: string
+  score: number
+  maxScore: number
+  comment: string | null
+}
+
+export type EvaluationWithGrades = {
+  id: string
+  label: string
+  type: EvaluationType
+  coefficient: number
+  subjectId: string | null
+  subjectName: string | null
+  grades: EvaluationGradeItem[]
+}
+
+export type LessonSlot = {
+  id: string
+  dayOfWeek: number
+  startTime: string
+  endTime: string
+  subjectName: string
+}
+
+export type EvaluationsScope = {
+  lessonSlots: LessonSlot[]
+  subjects: Array<{ id: string; name: string; coefficient: number }>
+  evaluations: EvaluationWithGrades[]
+}
+
+const DAY_LABELS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
+
+export const dayLabel = (day: number): string => DAY_LABELS[day] ?? `Jour ${day}`
+
+export const fetchEvaluationsScope = (classId: string, gradingPeriodId: string) =>
+  api
+    .get<EvaluationsScope>("/evaluations/scope", { params: { classId, gradingPeriodId } })
+    .then((response) => response.data)
+
+export const createEvaluation = (payload: {
+  lessonSlotId: string
+  subjectId: string
+  classId: string
+  gradingPeriodId: string
+  type: EvaluationType
+  coefficient: number
+  label: string
+}) => api.post<{ evaluation: { id: string } }>("/evaluations", payload).then((r) => r.data.evaluation)
+
+export const upsertEvaluationGrade = (
+  evaluationId: string,
+  payload: { studentId: string; score: number; maxScore: number; comment?: string | null }
+) => api.put(`/evaluations/${evaluationId}/grades`, payload).then((r) => r.data)
+
+export const markSubjectCompleted = (payload: {
+  classId: string
+  subjectId: string
+  gradingPeriodId: string
+  status: "in_progress" | "completed"
+}) => api.put("/class-subject-completion", payload).then((r) => r.data)
+
+// ── Conduite (Tâche 5b) ─────────────────────────────────────────────────────
+
+export const submitConductInput = (payload: {
+  student_id: string
+  grading_period_id: string
+  note: number
+  observation?: string
+}) => api.post("/conduct/inputs", payload).then((r) => r.data)
+
+export type ConductOverviewResponse = {
+  student: { id: string; fullName: string; className: string }
+  gradingPeriod: { id: string; label: string }
+  teacherInputs: Array<{
+    id: string
+    teacherName: string
+    subjectLabel: string | null
+    note: number
+    observation: string | null
+    createdAt: string
+  }>
+  spontaneousEvaluations: Array<{
+    id: string
+    label: string
+    score: number
+    maxScore: number
+    comment: string | null
+    createdAt: string
+  }>
+  finalGrade: { note: number; coefficient: number; decidedByUserId: string; decidedAt: string } | null
+}
+
+export const fetchConductOverview = (studentId: string, gradingPeriodId: string) =>
+  api
+    .get<ConductOverviewResponse>(`/conduct/students/${studentId}/overview`, {
+      params: { grading_period_id: gradingPeriodId },
+    })
+    .then((response) => response.data)
+
+export const decideConductGrade = (payload: {
+  student_id: string
+  grading_period_id: string
+  note: number
+  coefficient?: number
+}) => api.put("/conduct/grades", payload).then((r) => r.data)
+
+// ── Suivi de complétude (direction) ─────────────────────────────────────────
+
+export type CompletionSubject = {
+  subjectId: string
+  subjectName: string
+  subjectCoefficient: number
+  status: "in_progress" | "completed"
+  completedAt: string | null
+  teacher: { id: string; name: string } | null
+}
+
+export const fetchClassCompletion = (classId: string, gradingPeriodId: string) =>
+  api
+    .get<{ subjects: CompletionSubject[] }>("/report-cards/completion", {
+      params: { classId, gradingPeriodId },
+    })
+    .then((response) => response.data)
