@@ -423,3 +423,14 @@ export const updatePosition = async (payload: {
   const envelope = isRecord(response.data) ? response.data : {}
   return parsePosition(envelope["position"])
 }
+
+/** Upload du cachet ou de la signature (bulletins PDF). kind = stamp | signature */
+export const uploadSchoolSeal = async (kind: "stamp" | "signature", file: File): Promise<string> => {
+  const formData = new FormData()
+  formData.append("file", file)
+  const response = await apiClient.post<{ url: string }>("/permissions/config/school/seal", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+    params: { kind },
+  })
+  return response.data.url
+}

@@ -17,6 +17,7 @@ const tabs = [
   { href: "/parent/absences", label: "Absences", icon: CalendarX2, dataTour: "parent-absences-tab", },
   { href: "/parent/schedule", label: "EDT", icon: CalendarDays, dataTour: "parent-schedule-tab", },
   { href: "/parent/payments", label: "Paiements", icon: ReceiptText, dataTour: "parent-payments-tab", },
+  { href: "/parent/report-cards", label: "Bulletins", icon: GraduationCap, dataTour: "", },
   { href: "/parent/account", label: "Mon compte", icon: UserCircle2, dataTour: "parent-account-tab", },
 ]
 

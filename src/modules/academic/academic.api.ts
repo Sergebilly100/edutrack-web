@@ -304,3 +304,40 @@ export const fetchClassCompletion = (classId: string, gradingPeriodId: string) =
       params: { classId, gradingPeriodId },
     })
     .then((response) => response.data)
+
+// ── Bulletins côté direction (Tâche 5e) ─────────────────────────────────────
+
+export type ReportCardSummary = {
+  id: string
+  studentName: string
+  generalAverage: number
+  rank: number
+  status: "generated" | "published"
+}
+
+export const fetchClassReportCards = (classId: string, gradingPeriodId: string) =>
+  api
+    .get<{ reportCards: ReportCardSummary[] }>(`/report-cards/class/${classId}`, {
+      params: { grading_period_id: gradingPeriodId },
+    })
+    .then((response) => response.data.reportCards)
+
+export const fetchReadiness = (gradingPeriodId: string) =>
+  api
+    .get<{ classes: Array<{ classId: string; className: string; headcount: number; studentsWithGeneralAverage: number; readyToGenerate: boolean }> }>(
+      "/report-cards/readiness",
+      { params: { grading_period_id: gradingPeriodId } },
+    )
+    .then((response) => response.data.classes)
+
+export const generateReportCards = (payload: { class_id: string; grading_period_id: string }) =>
+  api.post<{ generatedCount: number }>("/report-cards/generate", payload).then((r) => r.data)
+
+export const publishReportCard = (cardId: string) =>
+  api.post(`/report-cards/${cardId}/publish`).then((r) => r.data)
+
+export const publishBulkReportCards = (payload: { class_id: string; grading_period_id: string }) =>
+  api.post<{ publishedCount: number }>("/report-cards/publish-bulk", payload).then((r) => r.data)
+
+export const requestReportCardPdf = (cardId: string) =>
+  api.post<{ jobId: string }>(`/report-cards/${cardId}/pdf`).then((r) => r.data.jobId)

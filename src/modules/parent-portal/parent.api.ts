@@ -150,3 +150,32 @@ export const fetchParentSchoolConfig = async (): Promise<{ activeSchoolYear: str
   const response = await apiClient.get<{ activeSchoolYear?: string | null }>("/parent/school-config")
   return { activeSchoolYear: response.data.activeSchoolYear ?? null }
 }
+
+// ── Bulletins publiés (Tâche 5e) ────────────────────────────────────────────
+
+export type ParentReportCardSummary = {
+  id: string
+  periodLabel: string
+  schoolYearLabel: string
+  generalAverage: number
+  rank: number
+  classHeadcount: number
+  publishedAt: string
+}
+
+export const listParentReportCards = async (studentId: string): Promise<ParentReportCardSummary[]> => {
+  const response = await apiClient.get<{ reportCards: ParentReportCardSummary[] }>(
+    `/parent/students/${studentId}/report-cards`,
+  )
+  return response.data.reportCards
+}
+
+export const requestParentReportCardPdf = async (
+  studentId: string,
+  cardId: string,
+): Promise<string> => {
+  const response = await apiClient.post<{ jobId: string }>(
+    `/parent/students/${studentId}/report-cards/${cardId}/pdf`,
+  )
+  return response.data.jobId
+}

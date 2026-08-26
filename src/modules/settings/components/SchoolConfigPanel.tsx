@@ -63,6 +63,8 @@ import { zodResolver } from "@hookform/resolvers/zod/dist/zod.js"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
+import { SealsUploadCard } from "./SealsUploadCard"
+
 const SETTINGS_QUERY_KEY = ["settings", "school-config"] as const
 const PHONE_CI_REGEX = /^225\d{10}$/
 
@@ -706,6 +708,8 @@ export default function SchoolConfigPanel() {
                   </Button>
                 </div>
               </div>
+
+              <SealsUploadCard />
             </div>
             <div className="mt-8 rounded-lg border border-border bg-background p-4" data-tour="settings-qr-skip-policy">
               <div className="space-y-3">
