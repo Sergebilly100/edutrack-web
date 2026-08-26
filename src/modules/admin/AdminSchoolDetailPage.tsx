@@ -44,6 +44,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import {
   activateSchoolSmsFeature,
+  setMidYearFlag,
   addSchoolPayment,
   deactivateSchoolSmsFeature,
   getSchoolSmsFeatureStats,
@@ -196,6 +197,7 @@ export default function AdminSchoolDetailPage() {
     maxSmsPerMonth: 0,
     canEditSmsTemplate: false,
     canExportData: true,
+    midYearOnboarding: false,
   })
 
   const [payment, setPayment] = useState({
@@ -205,6 +207,19 @@ export default function AdminSchoolDetailPage() {
     reference: "",
     periodFrom: "",
     periodTo: "",
+  })
+
+  const [midYearEnabled, setMidYearEnabled] = useState(false)
+  const midYearMutation = useMutation({
+    mutationFn: () => setMidYearFlag(tenantId as string, !midYearEnabled),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin", "school-detail", tenantId] })
+      setMidYearEnabled((value) => !value)
+      toast({
+        title: !midYearEnabled ? "Import prise en main activé" : "Import prise en main désactivé",
+      })
+    },
+    onError: () => toast({ title: "Erreur", description: "Impossible de modifier le flag.", variant: "destructive" }),
   })
 
   const [mrrDraft, setMrrDraft] = useState({ mrr: "", cycle: "monthly" as "monthly" | "annual" })
@@ -271,6 +286,7 @@ export default function AdminSchoolDetailPage() {
       maxSmsPerMonth: metadata.maxSmsPerMonth,
       canEditSmsTemplate: metadata.canEditSmsTemplate,
       canExportData: metadata.canExportData,
+      midYearOnboarding: metadata.midYearOnboarding ?? false,
     })
   }, [schoolQuery.data])
 
@@ -780,6 +796,9 @@ export default function AdminSchoolDetailPage() {
               <TabsTrigger value="config">Configuration</TabsTrigger>
               <TabsTrigger value="users">Utilisateurs</TabsTrigger>
               <TabsTrigger value="school-year">Année scolaire</TabsTrigger>
+              {config.midYearOnboarding ? (
+                <TabsTrigger value="import-midyear">Import prise en main</TabsTrigger>
+              ) : null}
               <TabsTrigger value="abonnement">Abonnement & Facturation</TabsTrigger>
               <TabsTrigger value="sms-revenus">
                 SMS & Revenus
@@ -1405,6 +1424,30 @@ export default function AdminSchoolDetailPage() {
                 </AlertDialogContent>
               </AlertDialog>
             </TabsContent>
+
+            {/* ══════════════════════════════════════════════════
+                ONGLET - IMPORT PRISE EN MAIN (8a, conditionnel)
+            ══════════════════════════════════════════════════ */}
+            {config.midYearOnboarding ? (
+              <TabsContent value="import-midyear" className="space-y-5">
+                <Card className="shadow-sm">
+                  <CardHeader className="pb-3">
+                    <CardTitle>Import &laquo;&nbsp;prise en main&nbsp;&raquo;</CardTitle>
+                    <CardDescription>
+                      Imports successifs réservés à IvoirEdu : niveaux, matières, salles,
+                      classes, élèves/parents puis finances de départ. Les fichiers modèles
+                      arrivent avec la prochaine itération (Tâche 8b).
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      Structure en place : activez ce flag pour une école reprise en cours
+                      d&apos;année afin d&apos;ouvrir l&apos;assistant d&apos;import.
+                    </p>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            ) : null}
 
             {/* ══════════════════════════════════════════════════
                 ONGLET 3 - ABONNEMENT & FACTURATION

@@ -100,6 +100,7 @@ export type SchoolDetailsResponse = {
     directorTitle: string | null
     canEditSmsTemplate: boolean
     canExportData: boolean
+    midYearOnboarding: boolean
     activeSchoolYear: string | null
     logoUrl: string | null
     createdAt: string
@@ -765,3 +766,7 @@ export const getSmsFeatureGlobalStats = (month?: string) =>
       params: month ? { month } : undefined,
     })
     .then((response) => response.data.items)
+
+export const setMidYearFlag = async (tenantId: string, enabled: boolean): Promise<void> => {
+  await api.patch<{ success: boolean }>(`/admin/schools/${tenantId}/mid-year-flag`, { enabled })
+}
