@@ -179,3 +179,34 @@ export const requestParentReportCardPdf = async (
   )
   return response.data.jobId
 }
+
+// ── Vue d'ensemble enrichie (17b) ───────────────────────────────────────────
+
+export type ParentFinancialPreview = {
+  status: "up_to_date" | "late" | "waived"
+  daysLate: number | null
+  totalPaid: number
+  totalDueYear: number
+  remainingDue: number
+  lastComputedAt: string
+}
+
+export type ParentLatestReportCard = {
+  id: string
+  periodLabel: string
+  schoolYearLabel: string
+  generalAverage: number
+  rank: number
+  classHeadcount: number
+  publishedAt: string
+}
+
+export type ParentOverview = {
+  financial: ParentFinancialPreview | null
+  latestPublishedReportCard: ParentLatestReportCard | null
+}
+
+export const getParentOverview = async (studentId: string): Promise<ParentOverview> => {
+  const response = await apiClient.get<ParentOverview>(`/parent/students/${studentId}/overview`)
+  return response.data
+}

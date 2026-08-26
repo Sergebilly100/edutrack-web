@@ -9,12 +9,14 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
+  GraduationCap,
   Info,
   MinusCircle,
   PieChart,
   XCircle,
   CircleX
 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { Link } from "react-router-dom"
 
 import { EmptyState, OfflineIndicator } from "@/shared/components"
@@ -24,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import {
   getParentAbsences,
+  getParentOverview,
   getParentSchedule,
   getParentStats,
   getParentSubscriptionStatus,
@@ -127,6 +130,11 @@ export default function ParentDashboardPage() {
   const statsQuery = useQuery({
     queryKey: ["parent", "stats", selectedStudentId],
     queryFn: () => getParentStats(selectedStudentId),
+    enabled: selectedStudentId.length > 0,
+  })
+  const overviewQuery = useQuery({
+    queryKey: ["parent", "overview", selectedStudentId],
+    queryFn: () => getParentOverview(selectedStudentId),
     enabled: selectedStudentId.length > 0,
   })
 
@@ -330,6 +338,67 @@ export default function ParentDashboardPage() {
           </div>
         </div>
       </section>
+
+      {/* Vue d'ensemble enrichie (17b) : finances + bulletin publié, par enfant */}
+      {selectedStudentId ? (
+        <section className="grid grid-cols-1 gap-2.5 sm:gap-3" data-tour="parent-overview">
+          {overviewQuery.isLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-20 w-full rounded-xl" />
+            </div>
+          ) : null}
+
+          {overviewQuery.data?.latestPublishedReportCard ? (
+            <Link
+              to="/parent/report-cards"
+              className="flex items-center gap-3 rounded-xl border bg-blue-50 p-4 shadow-card transition-colors hover:bg-blue-100/60 dark:border-blue-900 dark:bg-blue-950/30"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-700 text-white">
+                <GraduationCap className="h-5 w-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-blue-900 dark:text-blue-100">
+                  Bulletin du {overviewQuery.data.latestPublishedReportCard.periodLabel} disponible
+                </span>
+                <span className="block truncate text-xs text-blue-800/80 dark:text-blue-200/80">
+                  Moyenne {overviewQuery.data.latestPublishedReportCard.generalAverage.toFixed(2)}/20 · rang{" "}
+                  {overviewQuery.data.latestPublishedReportCard.rank}/{overviewQuery.data.latestPublishedReportCard.classHeadcount}
+                </span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-blue-700" />
+            </Link>
+          ) : null}
+
+          {overviewQuery.data?.financial ? (
+            <div
+              className={cn(
+                "rounded-xl border bg-card p-4 shadow-card",
+                overviewQuery.data.financial.status === "late" ? "border-red-200 dark:border-red-900" : "border-border"
+              )}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold">Situation de scolarité</p>
+                {overviewQuery.data.financial.status === "up_to_date" ? (
+                  <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">À jour</Badge>
+                ) : overviewQuery.data.financial.status === "waived" ? (
+                  <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">Toléré</Badge>
+                ) : (
+                  <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+                    En retard{overviewQuery.data.financial.daysLate !== null ? ` (${overviewQuery.data.financial.daysLate} j)` : ""}
+                  </Badge>
+                )}
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <p className="text-lg font-semibold">
+                  {new Intl.NumberFormat("fr-FR").format(Math.round(overviewQuery.data.financial.remainingDue))} FCFA
+                </p>
+                <p className="text-xs text-muted-foreground">restant dû sur l'année</p>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
 
       <section className="grid grid-cols-2 gap-2.5 sm:gap-3" data-tour="parent-stats">
         <div className="rounded-xl border bg-card p-3 shadow-card sm:p-4">
