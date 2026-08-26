@@ -11,6 +11,9 @@ import { Form, FormControl, FormField, FormItem, FormMessage } from "@/component
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Link } from "react-router-dom"
+import { ChevronRight } from "lucide-react"
 import SchoolConfigPanel from "@/modules/settings/components/SchoolConfigPanel"
 import SmsTemplatePanel from "@/modules/settings/components/SmsTemplatePanel"
 import {
@@ -204,25 +207,77 @@ export default function SettingsPage() {
         </Alert>
       ) : null}
 
+      <Tabs defaultValue="general" className="space-y-4">
+      <TabsList className="h-auto flex-wrap">
+        <TabsTrigger value="general">Général</TabsTrigger>
+        <TabsTrigger value="scolarite">Scolarité</TabsTrigger>
+        <TabsTrigger value="abonnements">Abonnements</TabsTrigger>
+        <TabsTrigger value="documents">Documents</TabsTrigger>
+        <TabsTrigger value="alertes">Alertes</TabsTrigger>
+        <TabsTrigger value="personnel">Personnel</TabsTrigger>
+      </TabsList>
       {canManagePositions ? (
-        <div data-tour="settings-school-panel">
+        <TabsContent value="general" data-tour="settings-school-panel">
         <OfflineDisabledFieldset notice="Configuration école indisponible hors ligne. Reconnectez-vous pour modifier ces paramètres.">
           <SchoolConfigPanel />
         </OfflineDisabledFieldset>
-        </div>
+        </TabsContent>
       ) : null}
 
+      <TabsContent value="scolarite" className="grid gap-3 sm:grid-cols-2">
+        {[
+          { href: "/academic/notes", label: "Notes & évaluations", desc: "Espace professeur" },
+          { href: "/academic/completion", label: "Suivi de complétude", desc: "Bulletins par classe/matière" },
+          { href: "/academic/report-cards", label: "Bulletins", desc: "Génération et publication" },
+          { href: "/academic/conduct", label: "Conduite", desc: "Saisie prof / décision éducateur" },
+        ].map((item) => (
+          <Link key={item.href} to={item.href}
+            className="min-h-12 rounded-lg border bg-card p-3 shadow-sm transition-colors hover:bg-accent/50"
+          >
+            <span className="block text-sm font-medium">{item.label}</span>
+            <span className="block text-xs text-muted-foreground">{item.desc}</span>
+          </Link>
+        ))}
+      </TabsContent>
+
+      <TabsContent value="alertes" className="space-y-3">
+        <Link to="/finance"
+          className="flex min-h-12 items-center justify-between rounded-lg border bg-card p-3 shadow-sm transition-colors hover:bg-accent/50"
+        >
+          <span>
+            <span className="block text-sm font-medium">Règles de relance paiements</span>
+            <span className="block text-xs text-muted-foreground">Préventive, retard, retard important</span>
+          </span>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </Link>
+      </TabsContent>
+
+      <TabsContent value="documents" className="space-y-3">
+        <Link to="/enrollments"
+          className="flex min-h-12 items-center justify-between rounded-lg border bg-card p-3 shadow-sm transition-colors hover:bg-accent/50"
+        >
+          <span>
+            <span className="block text-sm font-medium">Documents requis (inscriptions)</span>
+            <span className="block text-xs text-muted-foreground">Pièces du dossier élève</span>
+          </span>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </Link>
+      </TabsContent>
+
       {canAccessSmsTemplate ? (
-        <div data-tour="settings-sms-templates-panel">
+        <TabsContent value="personnel" data-tour="settings-sms-templates-panel">
         <OfflineDisabledFieldset notice="Templates SMS indisponibles hors ligne.">
           <SmsTemplatePanel />
         </OfflineDisabledFieldset>
-        </div>
+        </TabsContent>
       ) : null}
+
+      </Tabs>
       {/* Section masquée tant que l'école ne monétise pas les alertes parents :
           le tarif/abonnement parent n'a aucun sens sans monétisation (cohérent avec les
           menus Abonnements/Revenus et la colonne Abonnements de la matrice de rôles). */}
       {canManageSchoolSettings && parentSmsMonetized ? (
+        <TabsContent value="abonnements">
         <section className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/70 dark:bg-emerald-950/20" data-tour="settings-sms">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -295,6 +350,7 @@ export default function SettingsPage() {
             </ContextualHelp>
           )}
         </section>
+        </TabsContent>
       ) : null}
 
       {!canManagePositions && !canManageSchoolSettings && !canAccessSmsTemplate ? (
