@@ -39,8 +39,11 @@ import { useAuthStore } from "@/shared/store/auth.store"
 const SCHOOL_YEARS_KEY = ["academic", "school-years"] as const
 const LEVELS_KEY = ["academic", "levels"] as const
 const apiErrorMessage = (error: unknown, fallback: string) =>
-  error instanceof Error && error.message ? error.message :
-    axios.isAxiosError(error) && typeof error.response?.data?.error === "string" ? error.response.data.error : fallback
+  axios.isAxiosError(error) && typeof error.response?.data?.error === "string"
+    ? error.response.data.error
+    : error instanceof Error && error.message
+      ? error.message
+      : fallback
 
 export default function ClassesPage() {
   const queryClient = useQueryClient()
