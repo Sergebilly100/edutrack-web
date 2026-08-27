@@ -10,9 +10,10 @@ describe("enrollment helpers", () => {
   it("compte seulement les pièces obligatoires non fournies", () => {
     const base = { studentId: "student", fileUrl: null, r2Key: null, providedAt: null, notes: null }
     expect(countMissingMandatoryDocuments([
-      { ...base, id: "1", documentTypeId: "a", documentTypeName: "Extrait", isMandatory: true, status: "missing" },
-      { ...base, id: "2", documentTypeId: "b", documentTypeName: "Photo", isMandatory: true, status: "provided" },
-      { ...base, id: "3", documentTypeId: "c", documentTypeName: "Carnet", isMandatory: false, status: "to_renew" },
+      { ...base, id: "1", documentTypeId: "a", documentTypeName: "Extrait", isMandatory: true, isActive: true, status: "missing" },
+      { ...base, id: "2", documentTypeId: "b", documentTypeName: "Photo", isMandatory: true, isActive: true, status: "provided" },
+      { ...base, id: "3", documentTypeId: "c", documentTypeName: "Carnet", isMandatory: false, isActive: true, status: "to_renew" },
+      { ...base, id: "4", documentTypeId: "d", documentTypeName: "Ancienne pièce", isMandatory: true, isActive: false, status: "missing" },
     ])).toBe(1)
   })
 })

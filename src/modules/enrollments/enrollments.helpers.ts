@@ -8,7 +8,7 @@ export const enrollmentStatusLabel: Record<EnrollmentStatus, string> = {
 }
 
 export const countMissingMandatoryDocuments = (documents: StudentDocument[]): number =>
-  documents.filter((document) => document.isMandatory && document.status !== "provided").length
+  documents.filter((document) => document.isActive !== false && document.isMandatory && document.status !== "provided").length
 
 export const getScaledDimensions = (
   width: number,

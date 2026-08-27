@@ -67,7 +67,7 @@ export default function NewEnrollmentPage() {
         parentName2: form.parentName2.trim() || null,
         parentPhone2: form.parentPhone2.trim() || null,
       })
-      return createEnrollment({ studentId: student.id, classId, schoolYearId, type: "new_registration", hasPreviousYearUnpaid: false })
+      return createEnrollment({ studentId: student.id, classId, schoolYearId, type: "new_registration" })
     },
     onSuccess: async (result) => {
       setEnrollment(result.enrollment)

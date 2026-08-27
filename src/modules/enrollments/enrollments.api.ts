@@ -1,4 +1,5 @@
 import { apiClient } from "@/shared/api/client"
+import { asBoolean, asString, isRecord } from "@/shared/utils/parsers"
 
 export type EnrollmentStatus = "pending_cashier" | "pending_dossier" | "confirmed" | "blocked_unpaid"
 export type EnrollmentType = "new_registration" | "re_registration"
@@ -15,6 +16,8 @@ export type Enrollment = {
   status: EnrollmentStatus
   enrolledAt: string
   confirmedByUserId: string | null
+  documentStatus: "not_configured" | "complete" | "incomplete"
+  missingMandatoryDocumentCount: number
 }
 
 export type StudentDocument = {
@@ -23,6 +26,7 @@ export type StudentDocument = {
   documentTypeId: string
   documentTypeName: string
   isMandatory: boolean
+  isActive: boolean
   status: StudentDocumentStatus
   fileUrl: string | null
   r2Key: string | null
@@ -32,10 +36,23 @@ export type StudentDocument = {
 
 export type RequiredDocumentType = {
   id: string
-  level_id: string
-  level_name: string
+  levelId: string
+  levelName: string
   name: string
-  is_mandatory: boolean
+  isMandatory: boolean
+  isActive: boolean
+}
+
+const parseRequiredDocumentType = (value: unknown): RequiredDocumentType => {
+  const row = isRecord(value) ? value : {}
+  return {
+    id: asString(row.id),
+    levelId: asString(row.levelId ?? row.level_id),
+    levelName: asString(row.levelName ?? row.level_name),
+    name: asString(row.name),
+    isMandatory: asBoolean(row.isMandatory ?? row.is_mandatory),
+    isActive: asBoolean(row.isActive ?? row.is_active),
+  }
 }
 
 export type CreateEnrollmentResult = {
@@ -63,7 +80,7 @@ export async function createEnrollment(payload: {
   classId: string
   schoolYearId: string
   type: EnrollmentType
-  hasPreviousYearUnpaid: boolean
+  hasPreviousYearUnpaid?: boolean
 }): Promise<CreateEnrollmentResult> {
   const response = await apiClient.post<CreateEnrollmentResult>("/enrollments", payload)
   return response.data
@@ -92,10 +109,39 @@ export async function confirmEnrollmentPayment(id: string, payload: {
 }
 
 export async function listRequiredDocumentTypes(levelId: string): Promise<RequiredDocumentType[]> {
-  const response = await apiClient.get<{ documentTypes: RequiredDocumentType[] }>("/required-document-types", {
+  const response = await apiClient.get<{ documentTypes: unknown[] }>("/required-document-types", {
     params: { level_id: levelId },
   })
-  return response.data.documentTypes
+  return response.data.documentTypes.map(parseRequiredDocumentType)
+}
+
+export async function listRequiredDocumentLevels(): Promise<Array<{ id: string; name: string }>> {
+  const response = await apiClient.get<{ levels: unknown[] }>("/required-document-levels")
+  return response.data.levels.map((value) => {
+    const row = isRecord(value) ? value : {}
+    return { id: asString(row.id), name: asString(row.name) }
+  })
+}
+
+export async function createRequiredDocumentType(payload: {
+  levelId: string
+  name: string
+  isMandatory: boolean
+}): Promise<RequiredDocumentType> {
+  const response = await apiClient.post<{ documentType: unknown }>("/required-document-types", payload)
+  return parseRequiredDocumentType(response.data.documentType)
+}
+
+export async function updateRequiredDocumentType(
+  id: string,
+  payload: { name?: string; isMandatory?: boolean; isActive?: boolean },
+): Promise<RequiredDocumentType> {
+  const response = await apiClient.patch<{ documentType: unknown }>(`/required-document-types/${id}`, payload)
+  return parseRequiredDocumentType(response.data.documentType)
+}
+
+export async function archiveRequiredDocumentType(id: string): Promise<void> {
+  await apiClient.delete(`/required-document-types/${id}`)
 }
 
 export async function listStudentDocuments(studentId: string): Promise<StudentDocument[]> {

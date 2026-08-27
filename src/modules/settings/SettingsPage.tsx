@@ -16,6 +16,7 @@ import { Link } from "react-router-dom"
 import { ChevronRight } from "lucide-react"
 import SchoolConfigPanel from "@/modules/settings/components/SchoolConfigPanel"
 import SmsTemplatePanel from "@/modules/settings/components/SmsTemplatePanel"
+import { RequiredDocumentsSettings } from "@/modules/settings/components/RequiredDocumentsSettings"
 import {
   fetchSchoolConfig,
   getSchoolSmsFeatureSettings,
@@ -48,6 +49,8 @@ export default function SettingsPage() {
   const canManageSchoolSettings = user?.role === "director" || hasPermission("settings.school")
   const tour = useTourGuide("settings", user?.role === "director")
   const canAccessSmsTemplate = user?.role === "director" || hasPermission("settings.sms_templates")
+  const canViewRequiredDocuments = user?.role === "director" || hasPermission("enrollments.view")
+  const canEditRequiredDocuments = user?.role === "director" || hasPermission("enrollments.edit")
   const schoolConfigQuery = useQuery({
     queryKey: ["settings", "school-config", "access-gate"],
     queryFn: fetchSchoolConfig,
@@ -113,7 +116,11 @@ export default function SettingsPage() {
         ? "Activé"
         : "Non activé"
   const canManageGeneralSettings = canManagePositions || canManageSchoolSettings
-  const defaultTab = canManageGeneralSettings ? "general" : canAccessSmsTemplate ? "personnel" : "scolarite"
+  const defaultTab = canManageGeneralSettings
+    ? "general"
+    : canViewRequiredDocuments
+      ? "documents"
+      : canAccessSmsTemplate ? "personnel" : "scolarite"
 
   return (
     <>
@@ -214,7 +221,7 @@ export default function SettingsPage() {
         {canManageGeneralSettings ? <TabsTrigger value="general">Général</TabsTrigger> : null}
         <TabsTrigger value="scolarite">Scolarité</TabsTrigger>
         {canManageSchoolSettings && parentSmsMonetized ? <TabsTrigger value="abonnements">Abonnements</TabsTrigger> : null}
-        <TabsTrigger value="documents">Documents</TabsTrigger>
+        {canViewRequiredDocuments ? <TabsTrigger value="documents">Documents</TabsTrigger> : null}
         <TabsTrigger value="alertes">Alertes</TabsTrigger>
         <TabsTrigger value="personnel">Personnel</TabsTrigger>
       </TabsList>
@@ -254,17 +261,13 @@ export default function SettingsPage() {
         </Link>
       </TabsContent>
 
-      <TabsContent value="documents" className="space-y-3">
-        <Link to="/enrollments"
-          className="flex min-h-12 items-center justify-between rounded-lg border bg-card p-3 shadow-sm transition-colors hover:bg-accent/50"
-        >
-          <span>
-            <span className="block text-sm font-medium">Documents requis (inscriptions)</span>
-            <span className="block text-xs text-muted-foreground">Pièces du dossier élève</span>
-          </span>
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-        </Link>
-      </TabsContent>
+      {canViewRequiredDocuments ? (
+        <TabsContent value="documents" className="space-y-3">
+          <OfflineDisabledFieldset notice="Configuration des documents indisponible hors ligne.">
+            <RequiredDocumentsSettings canEdit={canEditRequiredDocuments} />
+          </OfflineDisabledFieldset>
+        </TabsContent>
+      ) : null}
 
       {canAccessSmsTemplate ? (
         <TabsContent value="personnel" data-tour="settings-sms-templates-panel">
@@ -353,7 +356,7 @@ export default function SettingsPage() {
 
       </Tabs>
 
-      {!canManagePositions && !canManageSchoolSettings && !canAccessSmsTemplate ? (
+      {!canManagePositions && !canManageSchoolSettings && !canAccessSmsTemplate && !canViewRequiredDocuments ? (
         <ContextualHelp title="Paramètres non disponibles" tone="warning">
           Votre poste ne donne pas accès à la configuration école. Demandez au directeur les droits paramètres école, postes ou templates Alertes Parents selon la tâche à réaliser.
         </ContextualHelp>

@@ -7,7 +7,6 @@ import axios from "axios"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -26,13 +25,24 @@ const statusClassName: Record<Enrollment["status"], string> = {
   blocked_unpaid: "border-red-200 bg-red-50 text-red-800",
 }
 
+function EnrollmentDocumentBadge({ enrollment }: { enrollment: Enrollment }) {
+  return (
+    <Badge variant="outline" className={enrollment.documentStatus === "complete" ? "border-green-200 bg-green-50 text-green-700" : enrollment.documentStatus === "incomplete" ? "border-amber-200 bg-amber-50 text-amber-700" : "text-muted-foreground"}>
+      {enrollment.documentStatus === "complete"
+        ? "Dossier complet"
+        : enrollment.documentStatus === "incomplete"
+          ? `${enrollment.missingMandatoryDocumentCount} pièce${enrollment.missingMandatoryDocumentCount > 1 ? "s" : ""} manquante${enrollment.missingMandatoryDocumentCount > 1 ? "s" : ""}`
+          : "Documents non configurés"}
+    </Badge>
+  )
+}
+
 export default function EnrollmentsPage() {
   const { hasPermission } = usePermissions()
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const [targetYearId, setTargetYearId] = useState("")
   const [classSelections, setClassSelections] = useState<Record<string, string>>({})
-  const [unpaidStudents, setUnpaidStudents] = useState<Record<string, boolean>>({})
 
   const enrollmentsQuery = useQuery({ queryKey: ["enrollments", "list"], queryFn: () => listEnrollments() })
   const decisionsQuery = useQuery({ queryKey: ["class-decisions", "enrollment-candidates"], queryFn: listClassDecisions })
@@ -48,7 +58,6 @@ export default function EnrollmentsPage() {
       classId,
       schoolYearId: targetYearId,
       type: "re_registration",
-      hasPreviousYearUnpaid: unpaidStudents[studentId] === true,
     }),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ["enrollments"] })
@@ -88,6 +97,7 @@ export default function EnrollmentsPage() {
               <div key={enrollment.id} className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center">
                 <div className="min-w-0 flex-1"><p className="font-medium">{decision ? `${decision.studentLastName} ${decision.studentFirstName}` : `Élève ${enrollment.studentId.slice(0, 8)}`}</p><p className="text-sm text-muted-foreground">{enrollment.className} · {enrollment.schoolYearLabel} · {enrollment.type === "re_registration" ? "Réinscription" : "Nouvelle inscription"}</p></div>
                 <Badge className={`w-fit border ${statusClassName[enrollment.status]}`}>{enrollmentStatusLabel[enrollment.status]}</Badge>
+                <EnrollmentDocumentBadge enrollment={enrollment} />
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" asChild><Link to={`/enrollments/students/${enrollment.studentId}/documents`}>Vérifier le dossier</Link></Button>
                   {hasPermission("enrollments.confirm_payment") && enrollment.status !== "confirmed" && enrollment.status !== "blocked_unpaid" ? <Button asChild><Link to={`/enrollments/${enrollment.id}/payment`}>Caisse<ArrowRight className="ml-2 h-4 w-4" /></Link></Button> : null}
@@ -98,7 +108,7 @@ export default function EnrollmentsPage() {
         </TabsContent>
 
         <TabsContent value="re-enrollment" className="space-y-5">
-          <div className="rounded-lg border bg-card p-4"><div className="max-w-sm space-y-2"><Label>Nouvelle année scolaire</Label><Select value={targetYearId} onValueChange={(value) => { setTargetYearId(value); setClassSelections({}) }}><SelectTrigger className="min-h-12"><SelectValue placeholder={yearsQuery.isLoading ? "Chargement…" : "Choisir l’année cible"} /></SelectTrigger><SelectContent>{(yearsQuery.data ?? []).map((year) => <SelectItem key={year.id} value={year.id}>{year.label}</SelectItem>)}</SelectContent></Select></div></div>
+          <div className="rounded-lg border bg-card p-4"><div className="max-w-sm space-y-2"><Label>Nouvelle année scolaire</Label><Select value={targetYearId} onValueChange={(value) => { setTargetYearId(value); setClassSelections({}) }}><SelectTrigger className="min-h-12"><SelectValue placeholder={yearsQuery.isLoading ? "Chargement…" : "Choisir l’année cible"} /></SelectTrigger><SelectContent>{(yearsQuery.data ?? []).map((year) => <SelectItem key={year.id} value={year.id}>{year.label}</SelectItem>)}</SelectContent></Select></div><p className="mt-3 text-sm text-muted-foreground">Les impayés de l’année précédente sont vérifiés automatiquement lors de la réinscription. Aucune saisie manuelle n’est nécessaire.</p></div>
           {decisionsQuery.isError ? <Alert variant="destructive"><AlertDescription>Les décisions finales ne sont pas accessibles. La revue de fin d’année doit être ouverte et validée avant les réinscriptions.</AlertDescription></Alert> : null}
           {!targetYearId ? <Alert><AlertDescription>Sélectionnez l’année scolaire cible pour afficher les classes compatibles avec chaque décision.</AlertDescription></Alert> : null}
           <div className="divide-y rounded-lg border bg-card">
@@ -107,12 +117,11 @@ export default function EnrollmentsPage() {
               const eligibleClasses = (classesQuery.data?.classes ?? []).filter((item) => item.level.id === decision.nextLevelId)
               return (
                 <div key={decision.studentId} className="space-y-4 p-4">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><p className="font-medium">{decision.studentLastName} {decision.studentFirstName}</p><p className="text-sm text-muted-foreground">{decision.className} · Décision: {decision.finalDecision === "promoted" ? "Admis(e)" : decision.finalDecision === "repeat" ? "Redouble" : "Exclu(e)"} · Niveau proposé: {decision.nextLevelName ?? "non défini"}</p></div>{existing ? <Badge className={`w-fit border ${statusClassName[existing.status]}`}>{enrollmentStatusLabel[existing.status]}</Badge> : <Badge variant="outline">À traiter</Badge>}</div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><p className="font-medium">{decision.studentLastName} {decision.studentFirstName}</p><p className="text-sm text-muted-foreground">{decision.className} · Décision: {decision.finalDecision === "promoted" ? "Admis(e)" : decision.finalDecision === "repeat" ? "Redouble" : "Exclu(e)"} · Niveau proposé: {decision.nextLevelName ?? "non défini"}</p></div>{existing ? <div className="flex flex-wrap gap-2"><Badge className={`w-fit border ${statusClassName[existing.status]}`}>{enrollmentStatusLabel[existing.status]}</Badge><EnrollmentDocumentBadge enrollment={existing} /></div> : <Badge variant="outline">À traiter</Badge>}</div>
                   {existing?.status === "blocked_unpaid" ? <Alert variant="destructive"><AlertDescription>La réinscription en ligne est bloquée pour impayé. Le parent doit se présenter dans l’établissement.</AlertDescription></Alert> : null}
                   {!existing && decision.finalDecision !== "expelled" && targetYearId ? (
-                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-end">
+                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
                       <div className="space-y-2"><Label>Classe proposée</Label><Select value={classSelections[decision.studentId] ?? ""} onValueChange={(value) => setClassSelections((current) => ({ ...current, [decision.studentId]: value }))}><SelectTrigger className="min-h-12"><SelectValue placeholder={classesQuery.isLoading ? "Chargement…" : eligibleClasses.length ? "Choisir la classe" : "Aucune classe compatible"} /></SelectTrigger><SelectContent>{eligibleClasses.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>
-                      <label className="flex min-h-12 items-center gap-3 rounded-lg border px-3 text-sm"><Checkbox checked={unpaidStudents[decision.studentId] === true} onCheckedChange={(checked) => setUnpaidStudents((current) => ({ ...current, [decision.studentId]: checked === true }))} />Impayé antérieur</label>
                       <Button className="min-h-12" disabled={!classSelections[decision.studentId] || reEnrollmentMutation.isPending} onClick={() => reEnrollmentMutation.mutate({ studentId: decision.studentId, classId: classSelections[decision.studentId]! })}>{reEnrollmentMutation.isPending && reEnrollmentMutation.variables?.studentId === decision.studentId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Réinscrire</Button>
                     </div>
                   ) : null}

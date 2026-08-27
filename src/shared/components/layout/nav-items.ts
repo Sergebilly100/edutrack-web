@@ -149,7 +149,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/settings",
     icon: SettingsIcon,
     roles: ["director", "staff"],
-    requiredAnyPermissions: ["settings.positions", "settings.school", "settings.sms_templates"],
+    requiredAnyPermissions: ["settings.positions", "settings.school", "settings.sms_templates", "enrollments.view"],
     mobileVisible: false,
   },
   {

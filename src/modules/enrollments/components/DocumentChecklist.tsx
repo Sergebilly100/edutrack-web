@@ -92,7 +92,7 @@ export function DocumentChecklist({
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-medium">{document.documentTypeName}</p>
-                  {document.isMandatory ? <Badge variant="outline">Obligatoire</Badge> : <Badge variant="secondary">Facultatif</Badge>}
+                  {document.isActive === false ? <Badge variant="secondary">Archivée</Badge> : document.isMandatory ? <Badge variant="outline">Obligatoire</Badge> : <Badge variant="secondary">Facultatif</Badge>}
                   <Badge className={cn(
                     "border",
                     document.status === "provided" ? "border-green-200 bg-green-50 text-green-700" : "border-amber-200 bg-amber-50 text-amber-700",
@@ -102,7 +102,7 @@ export function DocumentChecklist({
                 </div>
                 {document.providedAt ? <p className="mt-1 text-xs text-muted-foreground">Ajoutée le {new Date(document.providedAt).toLocaleDateString("fr-FR")}</p> : null}
               </div>
-              {canEdit ? (
+              {canEdit && document.isActive !== false ? (
                 <div className="flex flex-wrap gap-2">
                   <input
                     ref={(node) => { inputRefs.current[document.id] = node }}
