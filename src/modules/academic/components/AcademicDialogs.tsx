@@ -22,6 +22,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -240,7 +241,7 @@ export function ClassDialog({
               )}
             />
             <div className="space-y-2">
-              <FormLabel htmlFor="teacher-search">Rechercher un professeur principal</FormLabel>
+              <Label htmlFor="teacher-search">Rechercher un professeur principal</Label>
               <Input
                 id="teacher-search"
                 value={teacherSearch}
