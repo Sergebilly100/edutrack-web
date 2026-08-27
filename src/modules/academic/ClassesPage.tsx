@@ -34,35 +34,50 @@ import { getTeachers } from "@/modules/teachers/teachers.api"
 import { DataTable, EmptyState, PageLayout, QueryErrorState, Spinner } from "@/shared/components"
 import { AddIcon, ClassIcon, DeleteIcon, EditIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { useAuthStore } from "@/shared/store/auth.store"
 
 const SCHOOL_YEARS_KEY = ["academic", "school-years"] as const
 const LEVELS_KEY = ["academic", "levels"] as const
 const apiErrorMessage = (error: unknown, fallback: string) =>
-  axios.isAxiosError(error) && typeof error.response?.data?.error === "string" ? error.response.data.error : fallback
+  error instanceof Error && error.message ? error.message :
+    axios.isAxiosError(error) && typeof error.response?.data?.error === "string" ? error.response.data.error : fallback
 
 export default function ClassesPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
+  const user = useAuthStore((state) => state.user)
   const { hasPermission } = usePermissions()
-  const canCreate = hasPermission("classes.create")
-  const canEdit = hasPermission("classes.edit")
-  const canArchive = hasPermission("classes.delete")
+  const isDirector = user?.role === "director"
+  const canCreate = isDirector || hasPermission("classes.create")
+  const canEdit = isDirector || hasPermission("classes.edit")
+  const canArchive = isDirector || hasPermission("classes.delete")
+  const canViewSchoolYears = isDirector || hasPermission("school_years.view")
   const [selectedSchoolYearId, setSelectedSchoolYearId] = useState("")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedClass, setSelectedClass] = useState<SchoolClass | null>(null)
   const [classPendingArchive, setClassPendingArchive] = useState<SchoolClass | null>(null)
 
-  const schoolYearsQuery = useQuery({ queryKey: SCHOOL_YEARS_KEY, queryFn: listSchoolYears })
+  const schoolYearsQuery = useQuery({
+    queryKey: SCHOOL_YEARS_KEY,
+    queryFn: listSchoolYears,
+    enabled: canViewSchoolYears,
+  })
   const levelsQuery = useQuery({ queryKey: LEVELS_KEY, queryFn: listLevels })
-  const activeSchoolYear = schoolYearsQuery.data?.find((year) => year.status === "active") ?? null
-  const activeSchoolYearId = activeSchoolYear?.id
-  const effectiveSchoolYearId = selectedSchoolYearId || activeSchoolYear?.id || schoolYearsQuery.data?.[0]?.id || ""
-  const classesKey = ["academic", "classes", effectiveSchoolYearId] as const
+  const classesKey = ["academic", "classes", selectedSchoolYearId || "active"] as const
   const classesQuery = useQuery({
     queryKey: classesKey,
-    queryFn: () => listClasses(effectiveSchoolYearId || undefined),
-    enabled: schoolYearsQuery.isSuccess,
+    queryFn: () => listClasses(selectedSchoolYearId || undefined),
   })
+  const activeSchoolYear =
+    classesQuery.data?.activeSchoolYear ??
+    schoolYearsQuery.data?.find((year) => year.status === "active") ??
+    null
+  const activeSchoolYearId = activeSchoolYear?.id
+  const effectiveSchoolYearId =
+    selectedSchoolYearId ||
+    classesQuery.data?.schoolYear?.id ||
+    activeSchoolYear?.id ||
+    ""
   const teachersQuery = useQuery({
     queryKey: ["teachers", "academic", "homeroom-options"],
     queryFn: () => getTeachers({ page: 1, limit: 200 }),
@@ -112,8 +127,11 @@ export default function ClassesPage() {
     },
   ], [activeSchoolYearId, canArchive, canEdit])
 
-  const pageError = schoolYearsQuery.isError || levelsQuery.isError
-  const selectedYear = schoolYearsQuery.data?.find((year) => year.id === effectiveSchoolYearId) ?? null
+  const pageError = (canViewSchoolYears && schoolYearsQuery.isError) || levelsQuery.isError
+  const selectedYear =
+    schoolYearsQuery.data?.find((year) => year.id === effectiveSchoolYearId) ??
+    classesQuery.data?.schoolYear ??
+    null
 
   return (
     <PageLayout
@@ -124,24 +142,30 @@ export default function ClassesPage() {
       <AcademicNavigation />
       <div className="flex flex-col gap-2 sm:max-w-sm">
         <Label htmlFor="school-year-filter">Année scolaire</Label>
-        <Select value={effectiveSchoolYearId} onValueChange={setSelectedSchoolYearId} disabled={schoolYearsQuery.isLoading || (schoolYearsQuery.data?.length ?? 0) === 0}>
-          <SelectTrigger id="school-year-filter"><SelectValue placeholder="Sélectionner une année" /></SelectTrigger>
-          <SelectContent>
-            {(schoolYearsQuery.data ?? []).map((year) => <SelectItem key={year.id} value={year.id}>{year.label}{year.status === "active" ? " (active)" : ""}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        {canViewSchoolYears ? (
+          <Select value={effectiveSchoolYearId} onValueChange={setSelectedSchoolYearId} disabled={schoolYearsQuery.isLoading || (schoolYearsQuery.data?.length ?? 0) === 0}>
+            <SelectTrigger id="school-year-filter"><SelectValue placeholder="Sélectionner une année" /></SelectTrigger>
+            <SelectContent>
+              {(schoolYearsQuery.data ?? []).map((year) => <SelectItem key={year.id} value={year.id}>{year.label}{year.status === "active" ? " (active)" : ""}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        ) : (
+          <div className="flex min-h-10 items-center rounded-md border bg-muted/30 px-3 text-sm" aria-live="polite">
+            {classesQuery.isLoading ? "Chargement de l’année active…" : activeSchoolYear?.label ?? "Aucune année scolaire active"}
+          </div>
+        )}
         {selectedYear && selectedYear.status !== "active" ? <p className="text-xs text-muted-foreground">Les classes d’une année non active sont disponibles en lecture seule.</p> : null}
       </div>
 
       {pageError ? (
-        <QueryErrorState onRetry={() => { void schoolYearsQuery.refetch(); void levelsQuery.refetch() }} isRetrying={schoolYearsQuery.isFetching || levelsQuery.isFetching} message="Impossible de charger les référentiels scolaires." />
+        <QueryErrorState onRetry={() => { if (canViewSchoolYears) void schoolYearsQuery.refetch(); void levelsQuery.refetch() }} isRetrying={schoolYearsQuery.isFetching || levelsQuery.isFetching} message="Impossible de charger les référentiels scolaires." />
       ) : classesQuery.isError ? (
         <QueryErrorState onRetry={() => void classesQuery.refetch()} isRetrying={classesQuery.isFetching} message="Impossible de charger les classes de cette année." />
       ) : (
         <DataTable
           columns={columns}
           data={classesQuery.data?.classes ?? []}
-          isLoading={schoolYearsQuery.isLoading || classesQuery.isLoading}
+          isLoading={classesQuery.isLoading || levelsQuery.isLoading || (canViewSchoolYears && schoolYearsQuery.isLoading)}
           searchKey="name"
           searchPlaceholder="Rechercher une classe…"
           emptyState={<EmptyState icon={ClassIcon} title="Aucune classe" message={activeSchoolYear ? "Aucune classe n’est enregistrée pour cette année scolaire." : "Activez une année scolaire avant d’ajouter des classes."} action={canCreate && activeSchoolYear ? { label: "Ajouter une classe", onClick: openCreate, icon: AddIcon } : undefined} />}

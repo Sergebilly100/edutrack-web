@@ -51,7 +51,7 @@ export default function SettingsPage() {
   const schoolConfigQuery = useQuery({
     queryKey: ["settings", "school-config", "access-gate"],
     queryFn: fetchSchoolConfig,
-    enabled: canManagePositions,
+    enabled: canManagePositions || canManageSchoolSettings,
   })
   const smsFeatureQuery = useQuery({
     queryKey: ["settings", "sms-feature"],
@@ -112,6 +112,8 @@ export default function SettingsPage() {
       : parentSmsMonetized
         ? "Activé"
         : "Non activé"
+  const canManageGeneralSettings = canManagePositions || canManageSchoolSettings
+  const defaultTab = canManageGeneralSettings ? "general" : canAccessSmsTemplate ? "personnel" : "scolarite"
 
   return (
     <>
@@ -207,16 +209,16 @@ export default function SettingsPage() {
         </Alert>
       ) : null}
 
-      <Tabs defaultValue="general" className="space-y-4">
+      <Tabs defaultValue={defaultTab} className="space-y-4">
       <TabsList className="h-auto flex-wrap">
-        <TabsTrigger value="general">Général</TabsTrigger>
+        {canManageGeneralSettings ? <TabsTrigger value="general">Général</TabsTrigger> : null}
         <TabsTrigger value="scolarite">Scolarité</TabsTrigger>
-        <TabsTrigger value="abonnements">Abonnements</TabsTrigger>
+        {canManageSchoolSettings && parentSmsMonetized ? <TabsTrigger value="abonnements">Abonnements</TabsTrigger> : null}
         <TabsTrigger value="documents">Documents</TabsTrigger>
         <TabsTrigger value="alertes">Alertes</TabsTrigger>
         <TabsTrigger value="personnel">Personnel</TabsTrigger>
       </TabsList>
-      {canManagePositions ? (
+      {canManageGeneralSettings ? (
         <TabsContent value="general" data-tour="settings-school-panel">
         <OfflineDisabledFieldset notice="Configuration école indisponible hors ligne. Reconnectez-vous pour modifier ces paramètres.">
           <SchoolConfigPanel />
@@ -272,10 +274,6 @@ export default function SettingsPage() {
         </TabsContent>
       ) : null}
 
-      </Tabs>
-      {/* Section masquée tant que l'école ne monétise pas les alertes parents :
-          le tarif/abonnement parent n'a aucun sens sans monétisation (cohérent avec les
-          menus Abonnements/Revenus et la colonne Abonnements de la matrice de rôles). */}
       {canManageSchoolSettings && parentSmsMonetized ? (
         <TabsContent value="abonnements">
         <section className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/70 dark:bg-emerald-950/20" data-tour="settings-sms">
@@ -352,6 +350,8 @@ export default function SettingsPage() {
         </section>
         </TabsContent>
       ) : null}
+
+      </Tabs>
 
       {!canManagePositions && !canManageSchoolSettings && !canAccessSmsTemplate ? (
         <ContextualHelp title="Paramètres non disponibles" tone="warning">
