@@ -494,6 +494,7 @@ export default function App() {
           <Route path="/end-of-year" element={<PermissionRoute href="/end-of-year" requiredAnyPermissions={["class_decisions.view"]} element={<EndOfYearAccessRoute />} />} />
           <Route path="/enrollments" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.view", "enrollments.create", "enrollments.edit", "enrollments.confirm_payment"]} element={<EnrollmentsPage />} />} />
           <Route path="/enrollments/new" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.create"]} element={<NewEnrollmentPage />} />} />
+          <Route path="/enrollments/:enrollmentId/edit" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.edit", "students.edit"]} element={<NewEnrollmentPage />} />} />
           <Route path="/enrollments/students/:studentId/documents" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.view", "enrollments.edit"]} element={<EnrollmentDocumentsPage />} />} />
           <Route path="/enrollments/:enrollmentId/payment" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.confirm_payment"]} element={<EnrollmentPaymentPage />} />} />
           <Route path="/finance" element={<PermissionRoute href="/finance" requiredAnyPermissions={["tuition.view", "tuition.edit", "tuition.grant_discount", "payments.view", "payments.record", "payments.cancel", "subscription_plans.view", "subscription_plans.edit", "settings.school"]} element={<FinancePage />} />} />

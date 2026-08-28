@@ -1,11 +1,11 @@
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-const STEPS = ["Élève et classe", "Documents", "Caisse"]
+const STEPS = ["Élève et classe", "Documents"]
 
 export function EnrollmentProgress({ currentStep }: { currentStep: number }) {
   return (
-    <ol className="grid grid-cols-3 gap-2" aria-label="Progression de l’inscription">
+    <ol className="grid grid-cols-2 gap-3" aria-label="Progression de l’inscription">
       {STEPS.map((label, index) => {
         const step = index + 1
         const complete = step < currentStep

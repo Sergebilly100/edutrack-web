@@ -13,7 +13,6 @@ import {
   listStudentDocuments,
   updateStudentDocument,
   uploadStudentDocument,
-  verifyStudentDocuments,
   type StudentDocument,
 } from "../enrollments.api"
 
@@ -26,11 +25,9 @@ function errorMessage(error: unknown): string {
 export function DocumentChecklist({
   studentId,
   canEdit,
-  onVerified,
 }: {
   studentId: string
   canEdit: boolean
-  onVerified?: () => void
 }) {
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -54,21 +51,6 @@ export function DocumentChecklist({
     mutationFn: ({ id, status }: { id: string; status: "missing" | "to_renew" }) => updateStudentDocument(id, { status }),
     onSuccess: async () => queryClient.invalidateQueries({ queryKey }),
     onError: (error) => toast({ title: "Mise à jour impossible", description: errorMessage(error), variant: "destructive" }),
-  })
-
-  const verifyMutation = useMutation({
-    mutationFn: () => verifyStudentDocuments(studentId),
-    onSuccess: async (result) => {
-      await queryClient.invalidateQueries({ queryKey })
-      toast({
-        title: result.dossierComplete ? "Dossier complet" : "Vérification enregistrée",
-        description: result.notificationQueued
-          ? "Le parent a été notifié des pièces obligatoires manquantes."
-          : result.dossierComplete ? "Toutes les pièces obligatoires sont fournies." : "Aucun numéro de parent n’est disponible pour le SMS.",
-      })
-      onVerified?.()
-    },
-    onError: (error) => toast({ title: "Vérification impossible", description: errorMessage(error), variant: "destructive" }),
   })
 
   if (documentsQuery.isLoading) {
@@ -130,15 +112,9 @@ export function DocumentChecklist({
         })}
       </div>
       {canEdit ? (
-        <div className="flex flex-col gap-3 rounded-lg bg-muted/60 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            {missingCount > 0 ? <FileWarning className="mt-0.5 h-5 w-5 text-amber-700" /> : <CheckCircle2 className="mt-0.5 h-5 w-5 text-green-700" />}
-            <div><p className="font-medium">{missingCount > 0 ? `${missingCount} pièce${missingCount > 1 ? "s" : ""} obligatoire${missingCount > 1 ? "s" : ""} manquante${missingCount > 1 ? "s" : ""}` : "Dossier documentaire complet"}</p><p className="text-sm text-muted-foreground">La validation ne bloque jamais le passage en caisse.</p></div>
-          </div>
-          <Button type="button" className="min-h-12 shrink-0" disabled={verifyMutation.isPending} onClick={() => verifyMutation.mutate()}>
-            {verifyMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Valider la vérification
-          </Button>
+        <div className="flex items-start gap-3 rounded-lg bg-muted/60 p-4">
+          {missingCount > 0 ? <FileWarning className="mt-0.5 h-5 w-5 text-amber-700" /> : <CheckCircle2 className="mt-0.5 h-5 w-5 text-green-700" />}
+          <div><p className="font-medium">{missingCount > 0 ? `${missingCount} pièce${missingCount > 1 ? "s" : ""} obligatoire${missingCount > 1 ? "s" : ""} manquante${missingCount > 1 ? "s" : ""}` : "Dossier documentaire complet"}</p><p className="text-sm text-muted-foreground">État calculé à partir des pièces actuellement enregistrées.</p></div>
         </div>
       ) : null}
     </div>

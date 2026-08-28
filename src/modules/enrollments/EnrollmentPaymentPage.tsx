@@ -25,6 +25,7 @@ export default function EnrollmentPaymentPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const [method, setMethod] = useState<PaymentMethod>("cash")
+  const [amount, setAmount] = useState("")
   const [providerReference, setProviderReference] = useState("")
   const [schoolReceiptReference, setSchoolReceiptReference] = useState("")
   const summaryQuery = useQuery({
@@ -34,9 +35,10 @@ export default function EnrollmentPaymentPage() {
   })
   const mutation = useMutation({
     mutationFn: () => confirmEnrollmentPayment(enrollmentId!, {
+      amount: Number(amount),
       method,
       ...(providerReference.trim() ? { providerReference: providerReference.trim() } : {}),
-      ...(schoolReceiptReference.trim() ? { schoolReceiptReference: schoolReceiptReference.trim() } : {}),
+      schoolReceiptReference: schoolReceiptReference.trim(),
     }),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ["enrollments"] })
@@ -47,11 +49,14 @@ export default function EnrollmentPaymentPage() {
   })
   const summary = summaryQuery.data
   const enrollment = summary?.enrollment
+  const paymentAmount = Number(amount)
+  const amountIsValid = Number.isFinite(paymentAmount) && paymentAmount > 0 && Boolean(summary) && paymentAmount <= summary!.amountDue
+  const receiptReferenceIsValid = schoolReceiptReference.trim().length > 0
 
   return (
     <PageLayout
       title="Confirmation caisse"
-      subtitle="Contrôlez le montant réellement dû et le mode de règlement avant validation."
+      subtitle="Enregistrez le paiement déjà effectué par le parent à partir du reçu présenté."
       actions={<Button variant="outline" asChild className="min-h-12"><Link to="/enrollments"><ArrowLeft className="mr-2 h-4 w-4" />Retour</Link></Button>}
     >
       <Card className="mx-auto max-w-2xl">
@@ -64,7 +69,7 @@ export default function EnrollmentPaymentPage() {
                 <div className="bg-card p-4"><p className="text-sm text-muted-foreground">Classe</p><p className="font-medium">{enrollment?.className}</p></div>
                 <div className="bg-card p-4"><p className="text-sm text-muted-foreground">Année scolaire</p><p className="font-medium">{enrollment?.schoolYearLabel}</p></div>
                 <div className="bg-card p-4"><p className="text-sm text-muted-foreground">Statut</p><Badge variant="outline" className="mt-1">{enrollment ? enrollmentStatusLabel[enrollment.status] : ""}</Badge></div>
-                <div className="bg-blue-700 p-4 text-blue-50"><p className="text-sm text-blue-100">Montant à encaisser</p><p className="mt-1 text-2xl font-semibold tabular-nums">{formatFcfa(summary.amountDue)}</p>{summary.confirmedPaid > 0 ? <p className="mt-1 text-xs text-blue-100">{formatFcfa(summary.confirmedPaid)} déjà versés</p> : null}</div>
+                <div className="bg-blue-700 p-4 text-blue-50"><p className="text-sm text-blue-100">Reste de scolarité</p><p className="mt-1 text-2xl font-semibold tabular-nums">{formatFcfa(summary.amountDue)}</p>{summary.confirmedPaid > 0 ? <p className="mt-1 text-xs text-blue-100">{formatFcfa(summary.confirmedPaid)} déjà versés</p> : <p className="mt-1 text-xs text-blue-100">Scolarité totale : {formatFcfa(summary.totalDue)}</p>}</div>
               </div>
 
               {enrollment?.status === "blocked_unpaid" ? (
@@ -73,10 +78,16 @@ export default function EnrollmentPaymentPage() {
                 <Alert><CheckCircle2 className="h-4 w-4" /><AlertDescription>Le paiement de cette inscription est déjà confirmé.</AlertDescription></Alert>
               ) : (
                 <>
+                  <div className="space-y-2">
+                    <Label htmlFor="enrollment-payment-amount">Montant reçu *</Label>
+                    <div className="relative"><Input id="enrollment-payment-amount" inputMode="numeric" className="min-h-12 pr-16 text-lg font-semibold tabular-nums" value={amount} onChange={(event) => setAmount(event.target.value.replace(/\D/g, ""))} placeholder="Ex. 25000" aria-describedby="enrollment-payment-amount-help" /><span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">FCFA</span></div>
+                    <p id="enrollment-payment-amount-help" className="text-sm text-muted-foreground">Tout montant positif jusqu’à {formatFcfa(summary.amountDue)} est accepté.</p>
+                    {paymentAmount > summary.amountDue ? <p className="text-sm text-destructive" role="alert">Le montant saisi dépasse le reste de scolarité.</p> : null}
+                  </div>
                   <div className="space-y-2"><Label htmlFor="enrollment-payment-method">Mode de paiement</Label><Select value={method} onValueChange={(value) => setMethod(value as PaymentMethod)}><SelectTrigger id="enrollment-payment-method" className="min-h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="cash">Espèces</SelectItem><SelectItem value="mobile_money">Mobile Money vérifié en caisse</SelectItem><SelectItem value="bank_transfer">Virement bancaire</SelectItem></SelectContent></Select></div>
-                  {method !== "cash" ? <div className="space-y-2"><Label htmlFor="provider-reference">Référence du versement</Label><Input id="provider-reference" className="min-h-12" value={providerReference} onChange={(event) => setProviderReference(event.target.value)} placeholder="Référence opérateur ou bancaire" /></div> : null}
-                  <div className="space-y-2"><Label htmlFor="school-receipt-reference">Référence du carnet de caisse (facultatif)</Label><Input id="school-receipt-reference" className="min-h-12" value={schoolReceiptReference} onChange={(event) => setSchoolReceiptReference(event.target.value)} placeholder="Ex. CARNET-042" /></div>
-                  <Button className="min-h-12 w-full" disabled={mutation.isPending || summary.amountDue <= 0 || (method !== "cash" && !providerReference.trim())} onClick={() => mutation.mutate()}>{mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}{mutation.isPending ? "Confirmation…" : `Confirmer ${formatFcfa(summary.amountDue)}`}</Button>
+                  <div className="space-y-2"><Label htmlFor="school-receipt-reference">Référence du reçu de caisse *</Label><Input id="school-receipt-reference" className="min-h-12" value={schoolReceiptReference} onChange={(event) => setSchoolReceiptReference(event.target.value)} placeholder="Ex. RC-2026-0042" autoComplete="off" /><p className="text-sm text-muted-foreground">Recopiez la référence du reçu présenté par le parent.</p></div>
+                  <div className="space-y-2"><Label htmlFor="provider-reference">Référence du versement (facultative)</Label><Input id="provider-reference" className="min-h-12" value={providerReference} onChange={(event) => setProviderReference(event.target.value)} placeholder={method === "mobile_money" ? "Référence de transaction Mobile Money" : method === "bank_transfer" ? "Référence du virement bancaire" : "Référence complémentaire, si disponible"} /></div>
+                  <Button className="min-h-12 w-full" disabled={mutation.isPending || !amountIsValid || !receiptReferenceIsValid} onClick={() => mutation.mutate()}>{mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}{mutation.isPending ? "Enregistrement…" : amountIsValid ? `Enregistrer ${formatFcfa(paymentAmount)}` : "Saisir le montant reçu"}</Button>
                 </>
               )}
             </>

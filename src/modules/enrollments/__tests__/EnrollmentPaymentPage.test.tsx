@@ -35,7 +35,7 @@ describe("EnrollmentPaymentPage", () => {
     apiMocks.confirm.mockResolvedValue({ enrollment: { id: "enrollment-1", status: "confirmed" } })
   })
 
-  it("affiche le vrai reste dû et confirme une transaction financière", async () => {
+  it("saisit et confirme un paiement partiel sans imposer le solde", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
     render(
       <QueryClientProvider client={client}>
@@ -45,10 +45,18 @@ describe("EnrollmentPaymentPage", () => {
       </QueryClientProvider>,
     )
 
-    expect(await screen.findByRole("button", { name: /Confirmer 125\s*000 FCFA/ })).toBeInTheDocument()
+    expect((await screen.findAllByText(/125\s*000 FCFA/)).length).toBeGreaterThan(0)
     expect(screen.getByText(/25\s*000 FCFA déjà versés/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Saisir le montant reçu" })).toBeDisabled()
 
-    fireEvent.click(screen.getByRole("button", { name: /Confirmer 125\s*000 FCFA/ }))
-    await waitFor(() => expect(apiMocks.confirm).toHaveBeenCalledWith("enrollment-1", { method: "cash" }))
+    fireEvent.change(screen.getByLabelText("Montant reçu *"), { target: { value: "30000" } })
+    expect(screen.getByRole("button", { name: /Enregistrer 30\s*000 FCFA/ })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText("Référence du reçu de caisse *"), { target: { value: "RC-2026-0042" } })
+    fireEvent.click(screen.getByRole("button", { name: /Enregistrer 30\s*000 FCFA/ }))
+    await waitFor(() => expect(apiMocks.confirm).toHaveBeenCalledWith("enrollment-1", {
+      amount: 30000,
+      method: "cash",
+      schoolReceiptReference: "RC-2026-0042",
+    }))
   })
 })

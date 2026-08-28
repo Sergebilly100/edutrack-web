@@ -1414,7 +1414,7 @@ export default function ValidationsPage() {
                   <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>
                     Cette présence cumule plusieurs critères. Cet accord lève également
-                    l'alerte GPS suspect en plus des heures.
+                    l'alerte GPS suspect en plus des heures. Convoquez cet enseignant pour en savoir plus avant de valider cette présence.
                   </span>
                 </div>
               ) : null}

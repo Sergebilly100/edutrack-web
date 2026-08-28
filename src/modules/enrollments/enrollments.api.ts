@@ -10,6 +10,8 @@ export type Enrollment = {
   studentId: string
   classId: string
   className: string
+  studentFirstName: string
+  studentLastName: string
   schoolYearId: string
   schoolYearLabel: string
   type: EnrollmentType
@@ -75,6 +77,11 @@ export async function getEnrollment(id: string): Promise<Enrollment> {
   return response.data.enrollment
 }
 
+export async function updateEnrollment(id: string, payload: { classId: string }): Promise<Enrollment> {
+  const response = await apiClient.patch<{ enrollment: Enrollment }>(`/enrollments/${id}`, payload)
+  return response.data.enrollment
+}
+
 export async function createEnrollment(payload: {
   studentId: string
   classId: string
@@ -100,18 +107,38 @@ export async function getEnrollmentPaymentSummary(id: string): Promise<Enrollmen
 }
 
 export async function confirmEnrollmentPayment(id: string, payload: {
+  amount: number
   method: "mobile_money" | "cash" | "bank_transfer"
   providerReference?: string
-  schoolReceiptReference?: string
+  schoolReceiptReference: string
 }): Promise<CreateEnrollmentResult> {
   const response = await apiClient.post<CreateEnrollmentResult>(`/enrollments/${id}/confirm-payment`, payload)
   return response.data
 }
 
-export async function listRequiredDocumentTypes(levelId: string): Promise<RequiredDocumentType[]> {
+export async function listRequiredDocumentTypes(levelId?: string): Promise<RequiredDocumentType[]> {
   const response = await apiClient.get<{ documentTypes: unknown[] }>("/required-document-types", {
-    params: { level_id: levelId },
+    params: levelId ? { level_id: levelId } : undefined,
   })
+  return response.data.documentTypes.map(parseRequiredDocumentType)
+}
+
+export async function createRequiredDocumentTypes(payload: {
+  levelIds: string[]
+  name: string
+  isMandatory: boolean
+}): Promise<RequiredDocumentType[]> {
+  const response = await apiClient.post<{ documentTypes: unknown[] }>("/required-document-types/bulk", payload)
+  return response.data.documentTypes.map(parseRequiredDocumentType)
+}
+
+export async function syncRequiredDocumentTypes(payload: {
+  documentTypeIds: string[]
+  levelIds: string[]
+  name: string
+  isMandatory: boolean
+}): Promise<RequiredDocumentType[]> {
+  const response = await apiClient.put<{ documentTypes: unknown[] }>("/required-document-types/bulk", payload)
   return response.data.documentTypes.map(parseRequiredDocumentType)
 }
 

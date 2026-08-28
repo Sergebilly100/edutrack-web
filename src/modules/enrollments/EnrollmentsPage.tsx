@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowRight, FileCheck2, Loader2, Plus, RefreshCw } from "lucide-react"
+import { ArrowRight, FileCheck2, Loader2, Pencil, Plus, RefreshCw } from "lucide-react"
 import { Link } from "react-router-dom"
 import axios from "axios"
 
@@ -39,6 +39,7 @@ function EnrollmentDocumentBadge({ enrollment }: { enrollment: Enrollment }) {
 
 export default function EnrollmentsPage() {
   const { hasPermission } = usePermissions()
+  const canEditDraft = hasPermission("enrollments.edit") && hasPermission("students.edit")
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const [targetYearId, setTargetYearId] = useState("")
@@ -95,10 +96,11 @@ export default function EnrollmentsPage() {
           <div className="divide-y rounded-lg border bg-card">
             {namedEnrollments.map(({ enrollment, decision }) => (
               <div key={enrollment.id} className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center">
-                <div className="min-w-0 flex-1"><p className="font-medium">{decision ? `${decision.studentLastName} ${decision.studentFirstName}` : `Élève ${enrollment.studentId.slice(0, 8)}`}</p><p className="text-sm text-muted-foreground">{enrollment.className} · {enrollment.schoolYearLabel} · {enrollment.type === "re_registration" ? "Réinscription" : "Nouvelle inscription"}</p></div>
+                <div className="min-w-0 flex-1"><p className="font-medium">{decision ? `${decision.studentLastName} ${decision.studentFirstName}` : `${enrollment.studentLastName} ${enrollment.studentFirstName}`}</p><p className="text-sm text-muted-foreground">{enrollment.className} · {enrollment.schoolYearLabel} · {enrollment.type === "re_registration" ? "Réinscription" : "Nouvelle inscription"}</p></div>
                 <Badge className={`w-fit border ${statusClassName[enrollment.status]}`}>{enrollmentStatusLabel[enrollment.status]}</Badge>
                 <EnrollmentDocumentBadge enrollment={enrollment} />
                 <div className="flex flex-wrap gap-2">
+                  {canEditDraft && enrollment.status !== "confirmed" ? <Button variant="outline" asChild><Link to={`/enrollments/${enrollment.id}/edit`}><Pencil className="mr-2 h-4 w-4" />Modifier</Link></Button> : null}
                   <Button variant="outline" asChild><Link to={`/enrollments/students/${enrollment.studentId}/documents`}>Vérifier le dossier</Link></Button>
                   {hasPermission("enrollments.confirm_payment") && enrollment.status !== "confirmed" && enrollment.status !== "blocked_unpaid" ? <Button asChild><Link to={`/enrollments/${enrollment.id}/payment`}>Caisse<ArrowRight className="ml-2 h-4 w-4" /></Link></Button> : null}
                 </div>
