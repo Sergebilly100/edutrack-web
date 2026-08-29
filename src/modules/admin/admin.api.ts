@@ -46,6 +46,7 @@ export type CreateSchoolPayload = {
   director_phone: string
   director_email?: string
   monetizeParentAlerts?: boolean
+  midYearOnboarding?: boolean
 }
 
 export type CreateSchoolResponse = {
@@ -769,4 +770,68 @@ export const getSmsFeatureGlobalStats = (month?: string) =>
 
 export const setMidYearFlag = async (tenantId: string, enabled: boolean): Promise<void> => {
   await api.patch<{ success: boolean }>(`/admin/schools/${tenantId}/mid-year-flag`, { enabled })
+}
+
+export type MidyearImportType = "levels" | "subjects" | "rooms" | "classes" | "students" | "payments"
+
+export type MidyearMappingField = {
+  sourceColumnLabel: string
+  targetField: string
+  isRequired: boolean
+  translations: Array<{ sourceValue: string; targetValue: string }>
+}
+
+export type MidyearMappingProfile = {
+  id: string
+  importType: string
+  label: string | null
+  isActive: boolean
+  fields: MidyearMappingField[]
+}
+
+export type MidyearImportAnalysis = {
+  headers: string[]
+  rowCount: number
+  matchedFields: MidyearMappingField[]
+  missingTargets: string[]
+  profile: MidyearMappingProfile | null
+}
+
+const midyearImportUrl = (tenantId: string, importType: MidyearImportType, suffix: string) =>
+  `/admin/schools/${tenantId}/midyear-import/${importType}/${suffix}`
+
+const midyearFileForm = (file: File): FormData => {
+  const form = new FormData()
+  form.append("file", file)
+  return form
+}
+
+export const getMidyearMappingProfile = async (tenantId: string, importType: MidyearImportType): Promise<MidyearMappingProfile | null> => {
+  const response = await api.get<{ profile: MidyearMappingProfile | null }>(midyearImportUrl(tenantId, importType, "profile"))
+  return response.data.profile
+}
+
+export const saveMidyearMappingProfile = async (
+  tenantId: string,
+  importType: MidyearImportType,
+  input: { label?: string; fields: MidyearMappingField[] }
+): Promise<MidyearMappingProfile> => {
+  const response = await api.put<{ profile: MidyearMappingProfile }>(midyearImportUrl(tenantId, importType, "profile"), {
+    label: input.label,
+    fields: input.fields.map(({ sourceColumnLabel, targetField, translations }) => ({ sourceColumnLabel, targetField, translations })),
+  })
+  return response.data.profile
+}
+
+export const analyzeMidyearImport = async (tenantId: string, importType: MidyearImportType, file: File): Promise<MidyearImportAnalysis> => {
+  const response = await api.post<MidyearImportAnalysis>(midyearImportUrl(tenantId, importType, "analyze"), midyearFileForm(file))
+  return response.data
+}
+
+export const confirmMidyearImport = async (tenantId: string, importType: MidyearImportType, file: File) => {
+  const response = await api.post<{ createdCount: number; errors: Array<{ rowNumber: number; reason: string }>; totalRows: number }>(
+    midyearImportUrl(tenantId, importType, "confirm"),
+    midyearFileForm(file)
+  )
+  return response.data
 }

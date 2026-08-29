@@ -210,14 +210,14 @@ export default function AdminSchoolDetailPage() {
     periodTo: "",
   })
 
-  const [midYearEnabled, setMidYearEnabled] = useState(false)
   const midYearMutation = useMutation({
-    mutationFn: () => setMidYearFlag(tenantId as string, !midYearEnabled),
-    onSuccess: async () => {
+    mutationFn: (enabled: boolean) => setMidYearFlag(tenantId as string, enabled),
+    onSuccess: async (_response, enabled) => {
       await queryClient.invalidateQueries({ queryKey: ["admin", "school-detail", tenantId] })
-      setMidYearEnabled((value) => !value)
+      setConfig((current) => ({ ...current, midYearOnboarding: enabled }))
+      if (enabled) setActiveTab("import-midyear")
       toast({
-        title: !midYearEnabled ? "Import prise en main activé" : "Import prise en main désactivé",
+        title: enabled ? "Import prise en main activé" : "Import prise en main désactivé",
       })
     },
     onError: () => toast({ title: "Erreur", description: "Impossible de modifier le flag.", variant: "destructive" }),
@@ -876,6 +876,30 @@ export default function AdminSchoolDetailPage() {
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>{STATUS_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                     </Select>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle>Reprise de données</CardTitle>
+                  <CardDescription>
+                    Activez ce flux lorsqu&apos;une école créée en cours d&apos;année doit reprendre ses données existantes.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex items-start gap-3">
+                  <Checkbox
+                    id="midyear-onboarding"
+                    checked={config.midYearOnboarding}
+                    disabled={midYearMutation.isPending}
+                    onCheckedChange={(checked) => midYearMutation.mutate(Boolean(checked))}
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="midyear-onboarding">Activer l&apos;import prise en main</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Rend l&apos;onglet d&apos;import disponible pour les niveaux, matières, salles, classes, élèves et situation financière initiale.
+                    </p>
+                    {midYearMutation.isPending ? <p className="text-xs text-muted-foreground">Mise à jour en cours...</p> : null}
                   </div>
                 </CardContent>
               </Card>
