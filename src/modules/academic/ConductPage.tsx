@@ -21,7 +21,9 @@ import { listStudents } from "@/modules/students/students.api"
 
 const CONDUCT_MAX = 20
 
-export default function ConductPage() {
+type ConductView = "teacher" | "decision" | "all"
+
+export default function ConductPage({ view = "all" }: { view?: ConductView }) {
   const user = useAuthStore((state) => state.user)
   const permissions = useAuthStore((state) => state.permissions)
   const isTeacher = user?.role === "teacher" || user?.role === "director"
@@ -37,9 +39,9 @@ export default function ConductPage() {
         </p>
       </header>
 
-      {isTeacher ? <TeacherConductSection /> : null}
-      {canFinalize ? <EducatorDecisionSection /> : null}
-      {!isTeacher && !canFinalize ? (
+      {view !== "decision" && isTeacher ? <TeacherConductSection /> : null}
+      {view !== "teacher" && canFinalize ? <EducatorDecisionSection /> : null}
+      {((view === "teacher" && !isTeacher) || (view === "decision" && !canFinalize) || (view === "all" && !isTeacher && !canFinalize)) ? (
         <EmptyState
           title="Accès non configuré"
           description="Ni la saisie professeur ni la décision éducateur ne sont disponibles pour votre compte."

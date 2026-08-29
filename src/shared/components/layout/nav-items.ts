@@ -13,7 +13,7 @@ import {
   TeachersIcon,
   ClassIcon,
 } from "@/shared/components/icons"
-import { Building2, ClipboardCheck, FileCheck2, GraduationCap, Landmark, HandCoins, MessageSquareCode, ReceiptText, Settings2, TrendingUp, User, WalletCards } from "lucide-react"
+import { Building2, ClipboardCheck, FileCheck2, GraduationCap, Landmark, HandCoins, MessageSquareCode, MessageSquareText, NotebookPen, ReceiptText, Settings2, TrendingUp, User, WalletCards } from "lucide-react"
 
 import { isStaffRole, type AuthRole, type PermissionKey } from "@/shared/store/auth.store"
 
@@ -160,6 +160,28 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: true,
   },
   {
+    label: "Évaluations & notes",
+    href: "/academic/notes",
+    icon: NotebookPen,
+    roles: ["teacher"],
+    mobileVisible: true,
+  },
+  {
+    label: "Conduite",
+    href: "/academic/conduct",
+    icon: MessageSquareText,
+    roles: ["teacher"],
+    mobileVisible: true,
+  },
+  {
+    label: "Décision finale de conduite",
+    href: "/academic/conduct/decision",
+    icon: ClipboardCheck,
+    roles: ["teacher", "staff"],
+    requiredPermissions: ["conduct.finalize"],
+    mobileVisible: true,
+  },
+  {
     label: "Dashboard",
     href: "/admin",
     icon: AdminIcon,
@@ -258,11 +280,11 @@ export function getNavItemsByRole(
   }
 
   const roleItems = NAV_ITEMS.filter((item) => item.roles.includes(role))
-  if (role === "director" || role === "super_admin" || role === "teacher") {
+  if (role === "director" || role === "super_admin") {
     return withStudentLabel(roleItems, studentPluralLabel)
   }
 
-  if (!isStaffRole(role)) {
+  if (!isStaffRole(role) && role !== "teacher") {
     return withStudentLabel(roleItems, studentPluralLabel)
   }
 

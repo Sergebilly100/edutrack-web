@@ -40,3 +40,19 @@ describe("navigation des inscriptions", () => {
       .not.toEqual(expect.arrayContaining([expect.objectContaining({ href: "/enrollments" })]))
   })
 })
+
+describe("navigation académique professeur", () => {
+  it("expose notes et conduite à tout professeur", () => {
+    expect(getNavItemsByRole("teacher").map((item) => item.label)).toEqual([
+      "Mon planning",
+      "Évaluations & notes",
+      "Conduite",
+    ])
+  })
+
+  it("n'expose la décision finale qu'au détenteur de conduct.finalize", () => {
+    expect(getNavItemsByRole("teacher").map((item) => item.href)).not.toContain("/academic/conduct/decision")
+    expect(getNavItemsByRole("teacher", ["conduct.finalize"]).map((item) => item.href)).toContain("/academic/conduct/decision")
+    expect(getNavItemsByRole("staff", ["conduct.finalize"]).map((item) => item.href)).toContain("/academic/conduct/decision")
+  })
+})

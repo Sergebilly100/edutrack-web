@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useState, type ReactElement } from "react"
-import { Navigate, Route, Routes, useSearchParams } from "react-router-dom"
+import { Navigate, NavLink, Outlet, Route, Routes, useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import axios from "axios"
 
@@ -260,10 +260,41 @@ function TeacherShell({ element }: { element: ReactElement }) {
   return (
     <div className="flex h-screen flex-col bg-background">
       <TeacherTopBar />
+      <TeacherNavigation />
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-lg px-4 py-4 lg:max-w-4xl lg:py-6">{element}</div>
       </main>
     </div>
+  )
+}
+
+function TeacherNavigation() {
+  const user = useAuthStore((state) => state.user)
+  const permissions = useAuthStore((state) => state.permissions)
+  const items = getNavItemsByRole(user?.role, permissions)
+
+  return (
+    <nav aria-label="Navigation professeur" className="border-b bg-[var(--surface-chrome)]">
+      <div className="flex min-h-12 gap-1 overflow-x-auto px-3 py-1">
+        {items.map((item) => {
+          const Icon = item.icon
+          return (
+            <NavLink
+              key={item.href}
+              to={item.href}
+              className={({ isActive }) =>
+                `flex min-h-12 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors ${
+                  isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                }`
+              }
+            >
+              <Icon className="h-4 w-4" />
+              {item.label}
+            </NavLink>
+          )
+        })}
+      </div>
+    </nav>
   )
 }
 
@@ -312,6 +343,24 @@ function NonTeacherShellRoute() {
 
   if (user.role === "teacher") {
     return <Navigate to="/attendance" replace />
+  }
+
+  return <AppShell />
+}
+
+export function TeacherAcademicShellRoute() {
+  const user = useAuthStore((state) => state.user)
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (user.mustChangePassword) {
+    return <Navigate to="/account/first-login-password" replace />
+  }
+
+  if (user.role === "teacher") {
+    return <TeacherShell element={<Outlet />} />
   }
 
   return <AppShell />
@@ -487,8 +536,6 @@ export default function App() {
           <Route path="/academic/school-years" element={<PermissionRoute href="/academic" requiredAnyPermissions={["school_years.view"]} element={<SchoolYearsPage />} />} />
           <Route path="/academic/levels" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<LevelsPage />} />} />
           <Route path="/academic/classes" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<ClassesPage />} />} />
-          <Route path="/academic/notes" element={<NotesPage />} />
-          <Route path="/academic/conduct" element={<ConductPage />} />
           <Route path="/academic/completion" element={<PermissionRoute href="/academic" requiredAnyPermissions={["report_cards.view"]} element={<CompletionTrackingPage />} />} />
           <Route path="/academic/report-cards" element={<PermissionRoute href="/academic" requiredAnyPermissions={["report_cards.view", "report_cards.publish"]} element={<ReportCardsPage />} />} />
           <Route path="/end-of-year" element={<PermissionRoute href="/end-of-year" requiredAnyPermissions={["class_decisions.view"]} element={<EndOfYearAccessRoute />} />} />
@@ -516,6 +563,12 @@ export default function App() {
           <Route path="/subscriptions/revenue" element={<PermissionRoute href="/subscriptions/revenue" element={<SubscriptionRevenuePage />} />} />
           <Route path="/settings" element={<PermissionRoute href="/settings" element={<SettingsPage />} />} />
           <Route path="/account" element={<AccountPage />} />
+        </Route>
+
+        <Route element={<TeacherAcademicShellRoute />}>
+          <Route path="/academic/notes" element={<NotesPage />} />
+          <Route path="/academic/conduct" element={<ConductPage view="teacher" />} />
+          <Route path="/academic/conduct/decision" element={<ConductPage view="decision" />} />
         </Route>
 
         <Route path="/parent" element={<ParentPortalLayout />}>
