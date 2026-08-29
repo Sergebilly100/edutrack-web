@@ -1,10 +1,12 @@
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Gavel, Loader2, MessageSquareText } from "lucide-react"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -14,7 +16,10 @@ import { useAuthStore } from "@/shared/store/auth.store"
 import {
   decideConductGrade,
   fetchConductOverview,
+  fetchTeacherAcademicContext,
+  fetchTeacherConductScope,
   listClasses,
+  submitBulkConductInputs,
   submitConductInput,
 } from "./academic.api"
 import { listStudents } from "@/modules/students/students.api"
@@ -54,26 +59,30 @@ export default function ConductPage({ view = "all" }: { view?: ConductView }) {
 function TeacherConductSection() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [classId, setClassId] = useState("")
   const [gradingPeriodId, setGradingPeriodId] = useState("")
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([])
+  const [bulkNote, setBulkNote] = useState("")
+  const [bulkObservation, setBulkObservation] = useState("")
 
-  const classesQuery = useQuery({
-    queryKey: ["academic", "classes-for-conduct"],
-    queryFn: () => listClasses(),
+  const contextQuery = useQuery({
+    queryKey: ["academic", "teacher-context"],
+    queryFn: fetchTeacherAcademicContext,
   })
-  const periodsQuery = useQuery({
-    queryKey: ["academic", "grading-periods"],
-    queryFn: async () => {
-      const { apiClient } = await import("@/shared/api/client")
-      return apiClient
-        .get<{ gradingPeriods: Array<{ id: string; label: string }> }>("/grading-periods")
-        .then((r) => r.data.gradingPeriods)
-    },
-  })
-  const studentsQuery = useQuery({
-    queryKey: ["students-list", classId],
-    queryFn: () => listStudents({ classId, isActive: true, limit: 200 }),
-    enabled: Boolean(classId),
+  const selectedClass = contextQuery.data?.classes.find((item) => item.id === classId)
+  const periods = (contextQuery.data?.gradingPeriods ?? []).filter(
+    (period) => !selectedClass || period.schoolYearId === selectedClass.schoolYearId,
+  )
+  const selectedPeriod = periods.find((period) => period.id === gradingPeriodId)
+  const periodEnded = Boolean(
+    selectedPeriod && new Date().toISOString().slice(0, 10) > selectedPeriod.endDate,
+  )
+  const scopeQuery = useQuery({
+    queryKey: ["conduct-input-scope", classId, gradingPeriodId],
+    queryFn: () => fetchTeacherConductScope(classId, gradingPeriodId),
+    enabled: Boolean(classId) && Boolean(gradingPeriodId),
   })
 
   const submitMutation = useMutation({
@@ -84,7 +93,10 @@ function TeacherConductSection() {
         note: input.note,
         observation: input.observation,
       }),
-    onSuccess: () => toast({ title: "Note de conduite enregistrée", duration: 3000 }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["conduct-input-scope", classId, gradingPeriodId] })
+      toast({ title: "Note de conduite enregistrée", duration: 3000 })
+    },
     onError: (error) =>
       toast({
         title: "Enregistrement impossible",
@@ -94,6 +106,33 @@ function TeacherConductSection() {
       }),
   })
 
+  const bulkMutation = useMutation({
+    mutationFn: () => submitBulkConductInputs({
+      class_id: classId,
+      student_ids: selectedStudentIds,
+      grading_period_id: gradingPeriodId,
+      note: Number(bulkNote.replace(",", ".")),
+      observation: bulkObservation.trim() || undefined,
+    }),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ["conduct-input-scope", classId, gradingPeriodId] })
+      setSelectedStudentIds([])
+      setBulkNote("")
+      setBulkObservation("")
+      toast({ title: `${result.savedCount} note(s) de conduite enregistrée(s)` })
+    },
+    onError: (error) => toast({
+      title: "Saisie en lot impossible",
+      description: error instanceof Error ? error.message : undefined,
+      variant: "destructive",
+    }),
+  })
+
+  const availableStudents = (scopeQuery.data?.students ?? []).filter((student) => student.input === null)
+  const parsedBulkNote = Number(bulkNote.replace(",", "."))
+  const bulkValid = selectedStudentIds.length > 0 && bulkNote !== ""
+    && Number.isFinite(parsedBulkNote) && parsedBulkNote >= 0 && parsedBulkNote <= CONDUCT_MAX
+
   return (
     <Card className="shadow-sm">
       <CardHeader className="pb-3">
@@ -102,19 +141,22 @@ function TeacherConductSection() {
           Saisie professeur
         </CardTitle>
         <CardDescription>
-          Une seule note de conduite par élève et par période. Une fois enregistrée, la ligne est
-          verrouillée.
+          Une note par élève et par période. Vous pouvez saisir individuellement ou appliquer une même note à plusieurs élèves.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>Classe</Label>
-            <Select value={classId || "none"} onValueChange={(value) => setClassId(value === "none" ? "" : value)}>
-              <SelectTrigger className="min-h-12"><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
+            <Select value={classId || "none"} onValueChange={(value) => {
+              setClassId(value === "none" ? "" : value)
+              setGradingPeriodId("")
+              setSelectedStudentIds([])
+            }}>
+              <SelectTrigger className="min-h-12" aria-label="Classe"><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
               <SelectContent>
-                {(classesQuery.data?.classes ?? []).map((klass) => (
-                  <SelectItem key={klass.id} value={klass.id}>{klass.name}</SelectItem>
+                {(contextQuery.data?.classes ?? []).map((klass) => (
+                  <SelectItem key={klass.id} value={klass.id}>{klass.name} · {klass.levelName}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -125,9 +167,9 @@ function TeacherConductSection() {
               value={gradingPeriodId || "none"}
               onValueChange={(value) => setGradingPeriodId(value === "none" ? "" : value)}
             >
-              <SelectTrigger className="min-h-12"><SelectValue placeholder="Choisir une période" /></SelectTrigger>
+              <SelectTrigger className="min-h-12" aria-label="Période"><SelectValue placeholder="Choisir une période" /></SelectTrigger>
               <SelectContent>
-                {(periodsQuery.data ?? []).map((period) => (
+                {periods.map((period) => (
                   <SelectItem key={period.id} value={period.id}>{period.label}</SelectItem>
                 ))}
               </SelectContent>
@@ -135,21 +177,64 @@ function TeacherConductSection() {
           </div>
         </div>
 
-        {classId && gradingPeriodId ? (
-          <div className="space-y-3">
-            {(studentsQuery.data?.data ?? []).map((student) => (
+        {classId && gradingPeriodId ? periodEnded ? (
+          <EmptyState
+            title="Période terminée"
+            description="Les notes de conduite de cette période sont verrouillées et ne peuvent plus être ajoutées ou modifiées."
+          />
+        ) : scopeQuery.isLoading ? (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Chargement des élèves…</p>
+        ) : scopeQuery.isError ? (
+          <p className="text-sm text-destructive">Impossible de charger les élèves de cette classe.</p>
+        ) : scopeQuery.data?.isAvailable === false ? (
+          <EmptyState
+            title="Conduite pas encore ouverte"
+            description="Passez d’abord au calcul des moyennes pour cette classe et cette période depuis Évaluations & notes."
+            action={{
+              label: "Passer au calcul des moyennes",
+              onClick: () => navigate(`/academic/notes?classId=${encodeURIComponent(classId)}&gradingPeriodId=${encodeURIComponent(gradingPeriodId)}`),
+            }}
+          />
+        ) : (
+          <div className="space-y-5">
+            {availableStudents.length > 0 ? (
+              <div className="space-y-3 rounded-lg border p-4">
+                <div>
+                  <p className="font-medium">Attribution en masse</p>
+                  <p className="text-sm text-muted-foreground">Sélectionnez tous les élèves concernés, puis appliquez la même note.</p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button type="button" variant="outline" className="min-h-12" onClick={() => setSelectedStudentIds(availableStudents.map((student) => student.studentId))}>Sélectionner tous</Button>
+                  <Button type="button" variant="ghost" className="min-h-12" onClick={() => setSelectedStudentIds([])}>Effacer la sélection</Button>
+                  <Badge variant="secondary" className="min-h-12 px-3">{selectedStudentIds.length} sélectionné(s)</Badge>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-[120px_1fr_auto] sm:items-end">
+                  <div className="space-y-1"><Label htmlFor="bulk-conduct-note">Note / 20</Label><Input id="bulk-conduct-note" type="number" min={0} max={20} step={0.5} value={bulkNote} onChange={(event) => setBulkNote(event.target.value)} /></div>
+                  <div className="space-y-1"><Label htmlFor="bulk-conduct-observation">Observation commune</Label><Input id="bulk-conduct-observation" placeholder="Optionnel" value={bulkObservation} onChange={(event) => setBulkObservation(event.target.value)} /></div>
+                  <Button type="button" className="min-h-12" disabled={!bulkValid || bulkMutation.isPending} onClick={() => bulkMutation.mutate()}>{bulkMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Appliquer à la sélection</Button>
+                </div>
+              </div>
+            ) : null}
+            {(scopeQuery.data?.students ?? []).map((student) => (
               <ConductInputRow
-                key={student.id}
-                fullName={`${student.firstName} ${student.lastName}`}
+                key={student.studentId}
+                studentId={student.studentId}
+                fullName={student.fullName}
+                existingInput={student.input}
+                selected={selectedStudentIds.includes(student.studentId)}
+                onSelectedChange={(selected) => setSelectedStudentIds((current) => selected
+                  ? [...current, student.studentId]
+                  : current.filter((id) => id !== student.studentId))}
+                returnTo={`${location.pathname}${location.search}`}
                 onSave={(note, observation) => {
                   void submitMutation
-                    .mutateAsync({ studentId: student.id, note, observation })
-                    .then(() => queryClient.invalidateQueries({ queryKey: ["conduct-overview", student.id] }))
+                    .mutateAsync({ studentId: student.studentId, note, observation })
+                    .then(() => queryClient.invalidateQueries({ queryKey: ["conduct-overview", student.studentId] }))
                 }}
               />
             ))}
-            {(studentsQuery.data?.data.length ?? 0) === 0 && !studentsQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">Aucun élève actif dans cette classe.</p>
+            {(scopeQuery.data?.students.length ?? 0) === 0 ? (
+              <EmptyState title="Aucun élève actif" description="La classe ne contient aucun élève disponible pour la saisie." />
             ) : null}
           </div>
         ) : null}
@@ -159,11 +244,21 @@ function TeacherConductSection() {
 }
 
 function ConductInputRow({
+  studentId,
   fullName,
+  existingInput,
+  selected,
+  onSelectedChange,
   onSave,
+  returnTo,
 }: {
+  studentId: string
   fullName: string
+  existingInput: { note: number; observation: string | null; createdAt: string } | null
+  selected: boolean
+  onSelectedChange: (selected: boolean) => void
   onSave: (note: number, observation?: string) => void
+  returnTo: string
 }) {
   const [note, setNote] = useState("")
   const [observation, setObservation] = useState("")
@@ -171,8 +266,9 @@ function ConductInputRow({
   const valid = note !== "" && Number.isFinite(parsed) && parsed >= 0 && parsed <= CONDUCT_MAX
 
   return (
-    <div className="grid items-end gap-3 rounded-lg border p-3 sm:grid-cols-[1fr_100px_1fr_auto]">
-      <p className="min-h-12 flex items-center font-medium">{fullName}</p>
+    <div className="grid items-end gap-3 rounded-lg border p-3 sm:grid-cols-[48px_1fr_100px_1fr_auto_auto]">
+      <div className="flex min-h-12 items-center"><Checkbox aria-label={`Sélectionner ${fullName}`} checked={selected} disabled={existingInput !== null} onCheckedChange={(checked) => onSelectedChange(checked === true)} /></div>
+      <div className="min-h-12 flex flex-col justify-center"><p className="font-medium">{fullName}</p>{existingInput ? <p className="text-xs text-muted-foreground">Déjà saisie : {existingInput.note}/20{existingInput.observation ? ` · ${existingInput.observation}` : ""}</p> : null}</div>
       <div className="space-y-1">
         <Label className="sr-only">Note</Label>
         <Input
@@ -182,6 +278,7 @@ function ConductInputRow({
           step={0.5}
           placeholder={`/${CONDUCT_MAX}`}
           value={note}
+          disabled={existingInput !== null}
           onChange={(event) => setNote(event.target.value)}
         />
       </div>
@@ -190,6 +287,7 @@ function ConductInputRow({
         <Input
           placeholder="Observation (optionnel)"
           value={observation}
+          disabled={existingInput !== null}
           onChange={(event) => setObservation(event.target.value)}
         />
       </div>
@@ -197,10 +295,13 @@ function ConductInputRow({
         type="button"
         variant="outline"
         className="min-h-12"
-        disabled={!valid}
+        disabled={!valid || existingInput !== null}
         onClick={() => onSave(parsed, observation.trim() || undefined)}
       >
         Enregistrer
+      </Button>
+      <Button variant="ghost" className="min-h-12" asChild>
+        <Link to={`/academic/students/${studentId}/dossier`} state={{ from: returnTo }}>Dossier</Link>
       </Button>
     </div>
   )

@@ -6,7 +6,7 @@ vi.mock("@/shared/api/client", () => ({
   apiClient: { get: getMock, post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }))
 
-import { listClasses, listLevels, listSchoolYears } from "@/modules/academic/academic.api"
+import { fetchTeacherAcademicContext, listClasses, listLevels, listSchoolYears } from "@/modules/academic/academic.api"
 
 describe("academic.api", () => {
   beforeEach(() => vi.clearAllMocks())
@@ -49,5 +49,13 @@ describe("academic.api", () => {
 
     expect(years[0]).toMatchObject({ startDate: "2026-09-01", endOfYearReviewStartDate: "2027-05-31", status: "active" })
     expect(levels[0]).toMatchObject({ orderIndex: 12, isExamClass: true })
+  })
+
+  it("charge le référentiel académique dédié au professeur sans permission staff", async () => {
+    const payload = { classes: [{ id: "c1", name: "6ème A" }], gradingPeriods: [{ id: "p1", label: "T1" }] }
+    getMock.mockResolvedValueOnce({ data: payload })
+
+    await expect(fetchTeacherAcademicContext()).resolves.toEqual(payload)
+    expect(getMock).toHaveBeenCalledWith("/academic/teacher-context")
   })
 })

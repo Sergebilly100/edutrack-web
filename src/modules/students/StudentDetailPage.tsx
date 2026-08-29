@@ -35,6 +35,7 @@ import {
   type StudentAbsenceRecord,
 } from "@/modules/students/students.api"
 import { DocumentList, DocumentUpload, OfflineDisabledFieldset, PageLayout, PresenceDonut, StatCard } from "@/shared/components"
+import { StudentDossierTimeline } from "@/modules/students/components/StudentDossierTimeline"
 import { BackIcon, InfoIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabel, useStudentLabels } from "@/shared/hooks/useStudentLabel"
@@ -426,8 +427,9 @@ export default function StudentDetailPage() {
       </div>
 
       <Tabs defaultValue="absences" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 mt-2">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mt-2">
           <TabsTrigger value="absences" data-tour="student-detail-tab-absences">Absences</TabsTrigger>
+          <TabsTrigger value="dossier">Dossier</TabsTrigger>
           <TabsTrigger value="informations" data-tour="student-detail-tab-informations">Informations</TabsTrigger>
           {canManageStudentDocuments ? <TabsTrigger value="documents" data-tour="student-detail-tab-documents">Documents</TabsTrigger> : null}
           <TabsTrigger value="sms" data-tour="student-detail-tab-sms">Notifications Parents</TabsTrigger>
@@ -606,6 +608,10 @@ export default function StudentDetailPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="dossier" className="space-y-4">
+          <StudentDossierTimeline studentId={student.id} />
         </TabsContent>
         
         <TabsContent value="informations" className="space-y-4">

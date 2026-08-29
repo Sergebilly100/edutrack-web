@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { Link } from "react-router-dom"
 import type { ScheduleSlot, TeacherAttendance } from "@/modules/attendance/attendance.api"
 import { AbsentIcon, LateIcon, PresentIcon, RoomIcon } from "@/shared/components/icons"
 import { useRollCallStore } from "@/shared/store/rollCall.store"
@@ -136,6 +137,9 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
     // endQrDone && // Le QR de fin a été validé ou on est dans le cas readyToFinishWithoutRollCall (flow terminé sans scan), et que la fenêtre de finish est encore ouverte
     // finishWindowOpen && // La fenêtre de finish est encore ouverte
     // !attendance?.checked_out_at 
+
+  const canAddSpontaneousGrade =
+    !courseClosed && (status === "now" || status === "starting_soon" || alreadyCheckedIn)
 
   const handleFinishWithoutRollCall = () => {
     markReadyToFinishWithoutRollCall(slot.id, courseDateKey)
@@ -307,6 +311,21 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
               onClick={() => onEditRollCall(slot)}
             >
               Modifier l'appel
+            </Button>
+          ) : null}
+
+          {canAddSpontaneousGrade ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="w-full sm:w-auto"
+              data-testid={`teacher-spontaneous-grade-${slot.id}`}
+              asChild
+            >
+              <Link to={`/academic/notes?classId=${encodeURIComponent(slot.class_id)}&lessonSlotId=${encodeURIComponent(slot.id)}`}>
+                Note spontanée
+              </Link>
             </Button>
           ) : null}
 

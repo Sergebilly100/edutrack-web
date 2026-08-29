@@ -209,7 +209,29 @@ export type EvaluationsScope = {
   lessonSlots: LessonSlot[]
   subjects: Array<{ id: string; name: string; coefficient: number }>
   evaluations: EvaluationWithGrades[]
+  completion: CompletionSubject[]
 }
+
+export type TeacherAcademicContext = {
+  classes: Array<{
+    id: string
+    name: string
+    levelId: string
+    levelName: string
+    schoolYearId: string
+    schoolYearLabel: string
+  }>
+  gradingPeriods: Array<{
+    id: string
+    schoolYearId: string
+    label: string
+    startDate: string
+    endDate: string
+  }>
+}
+
+export const fetchTeacherAcademicContext = () =>
+  api.get<TeacherAcademicContext>("/academic/teacher-context").then((response) => response.data)
 
 const DAY_LABELS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
 
@@ -229,6 +251,16 @@ export const createEvaluation = (payload: {
   coefficient: number
   label: string
 }) => api.post<{ evaluation: { id: string } }>("/evaluations", payload).then((r) => r.data.evaluation)
+
+export const createSpontaneousGrade = (payload: {
+  lessonSlotId: string
+  subjectId: string
+  classId: string
+  gradingPeriodId: string
+  studentId: string
+  polarity: "positive" | "negative"
+  comment: string
+}) => api.post("/evaluations/spontaneous", payload).then((response) => response.data)
 
 export const upsertEvaluationGrade = (
   evaluationId: string,
@@ -250,6 +282,28 @@ export const submitConductInput = (payload: {
   note: number
   observation?: string
 }) => api.post("/conduct/inputs", payload).then((r) => r.data)
+
+export type TeacherConductScopeItem = {
+  studentId: string
+  fullName: string
+  matricule: string | null
+  input: { note: number; observation: string | null; createdAt: string } | null
+}
+
+export const fetchTeacherConductScope = (classId: string, gradingPeriodId: string) =>
+  api
+    .get<{ isAvailable: boolean; students: TeacherConductScopeItem[] }>("/conduct/inputs/scope", {
+      params: { class_id: classId, grading_period_id: gradingPeriodId },
+    })
+    .then((response) => response.data)
+
+export const submitBulkConductInputs = (payload: {
+  class_id: string
+  student_ids: string[]
+  grading_period_id: string
+  note: number
+  observation?: string
+}) => api.post<{ savedCount: number }>("/conduct/inputs/bulk", payload).then((response) => response.data)
 
 export type ConductOverviewResponse = {
   student: { id: string; fullName: string; className: string }
@@ -295,6 +349,7 @@ export type CompletionSubject = {
   subjectCoefficient: number
   status: "in_progress" | "completed"
   completedAt: string | null
+  calculationStarted: boolean
   teacher: { id: string; name: string } | null
 }
 

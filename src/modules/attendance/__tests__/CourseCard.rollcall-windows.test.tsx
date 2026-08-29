@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { MemoryRouter } from "react-router-dom"
 
 import CourseCard from "@/modules/attendance/components/CourseCard"
 import type { ScheduleSlot, TeacherAttendance } from "@/modules/attendance/attendance.api"
@@ -46,12 +47,14 @@ const attendance: TeacherAttendance = {
 
 const renderCard = (overrides?: Partial<TeacherAttendance>, onEditRollCall?: (slot: ScheduleSlot) => void) =>
   render(
-    <CourseCard
-      slot={slot}
-      attendance={{ ...attendance, ...overrides }}
-      onStartCourse={vi.fn()}
-      onEditRollCall={onEditRollCall}
-    />
+    <MemoryRouter>
+      <CourseCard
+        slot={slot}
+        attendance={{ ...attendance, ...overrides }}
+        onStartCourse={vi.fn()}
+        onEditRollCall={onEditRollCall}
+      />
+    </MemoryRouter>
   )
 
 describe("CourseCard rollcall windows", () => {
@@ -103,5 +106,17 @@ describe("CourseCard rollcall windows", () => {
     )
 
     expect(screen.queryByTestId("teacher-edit-rollcall-schedule-1")).not.toBeInTheDocument()
+  })
+
+  it("propose la note spontanée pendant le cours avec la classe et le créneau préremplis", () => {
+    flowState = null
+    vi.setSystemTime(new Date("2026-06-09T08:30:00"))
+
+    renderCard()
+
+    expect(screen.getByRole("link", { name: "Note spontanée" })).toHaveAttribute(
+      "href",
+      "/academic/notes?classId=class-1&lessonSlotId=schedule-1",
+    )
   })
 })

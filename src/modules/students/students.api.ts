@@ -115,6 +115,24 @@ export type StudentDetail = {
   }>
 }
 
+export type StudentDossierEvent = {
+  type: "enrollment" | "payment" | "report_card" | "absence" | "document"
+  date: string
+  label: string
+  detail: string | null
+}
+
+export type StudentDossier = {
+  student: {
+    id: string
+    firstName: string
+    lastName: string
+    className: string
+    matricule: string | null
+  }
+  events: StudentDossierEvent[]
+}
+
 export type AttendanceHistoryItem = {
   id: string
   date: string
@@ -297,6 +315,9 @@ export const getTodayAbsences = () =>
 
 export const getStudentById = (studentId: string) =>
   api.get<{ data: StudentDetail }>(`/students/${studentId}`).then((response) => response.data.data)
+
+export const getStudentDossier = (studentId: string) =>
+  api.get<StudentDossier>(`/students/${studentId}/dossier`).then((response) => response.data)
 
 export const getStudentAbsenceStats = (query: StudentAbsenceStatsQuery) =>
   api

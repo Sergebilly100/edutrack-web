@@ -1,9 +1,14 @@
 import { type ReactNode } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { render, screen } from "@testing-library/react"
+import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
 
 const fetchScope = vi.fn()
+const fetchContext = vi.fn().mockResolvedValue({
+  classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2026-2027" }],
+  gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2026-09-01", endDate: "2026-12-20" }],
+})
 
 vi.mock("@/modules/academic/academic.api", async () => {
   const actual = await vi.importActual<typeof import("@/modules/academic/academic.api")>(
@@ -11,22 +16,14 @@ vi.mock("@/modules/academic/academic.api", async () => {
   )
   return {
     ...actual,
-    listClasses: vi.fn().mockResolvedValue({ classes: [{ id: "c1", name: "6ème A" }] }),
+    fetchTeacherAcademicContext: (...args: unknown[]) => fetchContext(...args),
     fetchEvaluationsScope: (...args: unknown[]) => fetchScope(...args),
-    fetchClassCompletion: vi.fn().mockResolvedValue({
-      subjects: [
-        {
-          subjectId: "s1",
-          subjectName: "Mathématiques",
-          subjectCoefficient: 4,
-          status: "completed",
-          completedAt: null,
-          teacher: { id: "t1", name: "M. Diallo" },
-        },
-      ],
-    }),
   }
 })
+
+vi.mock("@/modules/students/students.api", () => ({
+  listStudents: vi.fn().mockResolvedValue({ data: [{ id: "student-1", firstName: "Awa", lastName: "Koné" }] }),
+}))
 
 vi.mock("@/shared/api/client", () => ({
   apiClient: { get: vi.fn().mockResolvedValue({ data: { gradingPeriods: [] } }) },
@@ -39,7 +36,7 @@ function renderWithClient(ui: ReactNode) {
     defaultOptions: { queries: { retry: false } },
   })
   return render(
-    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
+    <MemoryRouter><QueryClientProvider client={queryClient}>{ui}</QueryClientProvider></MemoryRouter>
   )
 }
 
@@ -48,5 +45,48 @@ describe("NotesPage", () => {
     renderWithClient(<NotesPage />)
     expect(screen.getByText("Choisissez une classe et une période")).toBeInTheDocument()
     expect(fetchScope).not.toHaveBeenCalled()
+  })
+
+  it("charge le périmètre professeur et expose les trois actions académiques", async () => {
+    fetchScope.mockResolvedValueOnce({
+      lessonSlots: [{ id: "slot1", dayOfWeek: 1, startTime: "08:00", endTime: "09:00", subjectName: "Mathématiques" }],
+      subjects: [{ id: "s1", name: "Mathématiques", coefficient: 4 }],
+      evaluations: [],
+      completion: [{ subjectId: "s1", subjectName: "Mathématiques", subjectCoefficient: 4, status: "in_progress", completedAt: null, calculationStarted: true, teacher: null }],
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <MemoryRouter initialEntries={["/academic/notes?classId=c1&gradingPeriodId=p1&lessonSlotId=slot1"]}>
+        <QueryClientProvider client={queryClient}><NotesPage /></QueryClientProvider>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText("Note spontanée pendant le cours")).toBeInTheDocument()
+    expect(screen.getByText("Évaluations programmées")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Valider les moyennes" })).toBeInTheDocument()
+    expect(fetchScope).toHaveBeenCalledWith("c1", "p1")
+  })
+
+  it("verrouille les ajouts quand la période est terminée", async () => {
+    fetchContext.mockResolvedValueOnce({
+      classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2024-2025" }],
+      gradingPeriods: [{ id: "p-old", schoolYearId: "y1", label: "1er trimestre", startDate: "2024-09-01", endDate: "2024-12-20" }],
+    })
+    fetchScope.mockResolvedValueOnce({
+      lessonSlots: [{ id: "slot1", dayOfWeek: 1, startTime: "08:00", endTime: "09:00", subjectName: "Mathématiques" }],
+      subjects: [{ id: "s1", name: "Mathématiques", coefficient: 4 }],
+      evaluations: [],
+      completion: [{ subjectId: "s1", subjectName: "Mathématiques", subjectCoefficient: 4, status: "in_progress", completedAt: null, calculationStarted: false, teacher: null }],
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <MemoryRouter initialEntries={["/academic/notes?classId=c1&gradingPeriodId=p-old"]}>
+        <QueryClientProvider client={queryClient}><NotesPage /></QueryClientProvider>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText("Période terminée")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Nouvelle évaluation" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Passer au calcul des moyennes" })).toBeEnabled()
   })
 })

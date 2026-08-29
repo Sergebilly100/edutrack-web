@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useState, type ReactElement } from "react"
-import { Navigate, NavLink, Outlet, Route, Routes, useSearchParams } from "react-router-dom"
+import { Navigate, NavLink, Outlet, Route, Routes, useParams, useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import axios from "axios"
 
@@ -46,6 +46,7 @@ const ParentAbsenceHistoryPage = lazy(() => import("@/modules/parent-portal/Pare
 const ParentAccountPage = lazy(() => import("@/modules/parent-portal/ParentAccountPage"))
 const ParentPaymentsPage = lazy(() => import("@/modules/parent-portal/ParentPaymentsPage"))
 const StudentDetailPage = lazy(() => import("@/modules/students/StudentDetailPage"))
+const StudentDossierPage = lazy(() => import("@/modules/students/StudentDossierPage"))
 const StudentsPage = lazy(() => import("@/modules/students/StudentsPage"))
 const TeacherDetailPage = lazy(() => import("@/modules/teachers/TeacherDetailPage"))
 const TeachersPage = lazy(() => import("@/modules/teachers/TeachersPage"))
@@ -366,6 +367,16 @@ export function TeacherAcademicShellRoute() {
   return <AppShell />
 }
 
+function TeacherStudentDossierRoute() {
+  const { studentId } = useParams<{ studentId: string }>()
+
+  if (!studentId) {
+    return <Navigate to="/academic/notes" replace />
+  }
+
+  return <StudentDossierPage studentId={studentId} />
+}
+
 function FirstLoginPasswordRoute() {
   const user = useAuthStore((state) => state.user)
 
@@ -569,6 +580,7 @@ export default function App() {
           <Route path="/academic/notes" element={<NotesPage />} />
           <Route path="/academic/conduct" element={<ConductPage view="teacher" />} />
           <Route path="/academic/conduct/decision" element={<ConductPage view="decision" />} />
+          <Route path="/academic/students/:studentId/dossier" element={<TeacherStudentDossierRoute />} />
         </Route>
 
         <Route path="/parent" element={<ParentPortalLayout />}>
