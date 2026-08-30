@@ -1,6 +1,6 @@
 import { type ReactNode } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
 
@@ -40,6 +40,15 @@ function renderWithClient(ui: ReactNode) {
   )
 }
 
+function renderAcademicPage() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <MemoryRouter initialEntries={["/academic/notes?classId=c1&gradingPeriodId=p1&lessonSlotId=slot1"]}>
+      <QueryClientProvider client={queryClient}><NotesPage /></QueryClientProvider>
+    </MemoryRouter>,
+  )
+}
+
 describe("NotesPage", () => {
   it("affiche l'état vide tant qu'aucune classe/période n'est choisie", () => {
     renderWithClient(<NotesPage />)
@@ -48,7 +57,7 @@ describe("NotesPage", () => {
   })
 
   it("charge le périmètre professeur et expose les trois actions académiques", async () => {
-    fetchScope.mockResolvedValueOnce({
+    fetchScope.mockResolvedValue({
       lessonSlots: [{ id: "slot1", dayOfWeek: 1, startTime: "08:00", endTime: "09:00", subjectName: "Mathématiques" }],
       subjects: [{ id: "s1", name: "Mathématiques", coefficient: 4 }],
       evaluations: [],
@@ -61,18 +70,21 @@ describe("NotesPage", () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByText("Note spontanée pendant le cours")).toBeInTheDocument()
+    expect(await screen.findByText("Note spontanée, pendant le cours")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Ajouter une note" }))
+    expect(screen.getByRole("dialog", { name: "Note spontanée, pendant le cours" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Close" }))
     expect(screen.getByText("Évaluations programmées")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Valider les moyennes" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Ouvrir le calcul" })).toBeInTheDocument()
     expect(fetchScope).toHaveBeenCalledWith("c1", "p1")
   })
 
-  it("verrouille les ajouts quand la période est terminée", async () => {
+  it("laisse la saisie ouverte après la date de période tant que le professeur ne lance pas le calcul", async () => {
     fetchContext.mockResolvedValueOnce({
       classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2024-2025" }],
       gradingPeriods: [{ id: "p-old", schoolYearId: "y1", label: "1er trimestre", startDate: "2024-09-01", endDate: "2024-12-20" }],
     })
-    fetchScope.mockResolvedValueOnce({
+    fetchScope.mockResolvedValue({
       lessonSlots: [{ id: "slot1", dayOfWeek: 1, startTime: "08:00", endTime: "09:00", subjectName: "Mathématiques" }],
       subjects: [{ id: "s1", name: "Mathématiques", coefficient: 4 }],
       evaluations: [],
@@ -85,8 +97,42 @@ describe("NotesPage", () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByText("Période terminée")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Nouvelle évaluation" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "Passer au calcul des moyennes" })).toBeEnabled()
+    expect(await screen.findByRole("button", { name: "Programmer une évaluation" })).toBeEnabled()
+    expect(screen.queryByText("Période terminée")).not.toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Clôturer la saisie et calculer" })).toBeEnabled()
+  })
+
+  it("synchronise les boutons positif et négatif avec le champ de points", async () => {
+    fetchScope.mockResolvedValue({
+      lessonSlots: [{ id: "slot1", dayOfWeek: 1, startTime: "08:00", endTime: "09:00", subjectName: "Mathématiques" }],
+      subjects: [{ id: "s1", name: "Mathématiques", coefficient: 4 }],
+      evaluations: [],
+      completion: [{ subjectId: "s1", subjectName: "Mathématiques", subjectCoefficient: 4, status: "in_progress", completedAt: null, calculationStarted: false, teacher: null }],
+    })
+    renderAcademicPage()
+    fireEvent.click(await screen.findByRole("button", { name: "Ajouter une note" }))
+    fireEvent.click(screen.getByRole("button", { name: "Note négative" }))
+    expect(screen.getByRole("spinbutton", { name: "Points" })).toHaveValue(-1)
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Points" }), { target: { value: "-2" } })
+    fireEvent.click(screen.getByRole("button", { name: "Note positive" }))
+    expect(screen.getByRole("spinbutton", { name: "Points" })).toHaveValue(2)
+  })
+
+  it("n’ouvre qu’une grille de notes à la fois", async () => {
+    fetchScope.mockResolvedValue({
+      lessonSlots: [{ id: "slot1", dayOfWeek: 1, startTime: "08:00", endTime: "09:00", subjectName: "Mathématiques" }],
+      subjects: [{ id: "s1", name: "Mathématiques", coefficient: 4 }],
+      evaluations: [
+        { id: "e1", label: "Devoir 1", type: "scheduled", coefficient: 1, subjectId: "s1", subjectName: "Mathématiques", grades: [] },
+        { id: "e2", label: "Devoir 2", type: "scheduled", coefficient: 1, subjectId: "s1", subjectName: "Mathématiques", grades: [] },
+      ],
+      completion: [{ subjectId: "s1", subjectName: "Mathématiques", subjectCoefficient: 4, status: "in_progress", completedAt: null, calculationStarted: false, teacher: null }],
+    })
+    renderAcademicPage()
+    await screen.findByText("Devoir 1")
+    fireEvent.click(screen.getByRole("button", { name: /Devoir 1/ }))
+    expect(screen.getByRole("spinbutton", { name: "Note de Awa Koné" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /Devoir 2/ }))
+    expect(screen.getAllByRole("spinbutton", { name: "Note de Awa Koné" })).toHaveLength(1)
   })
 })

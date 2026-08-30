@@ -28,7 +28,7 @@ const renderTeacherRoute = (path: string, label: string, permissions: Permission
             <Routes>
               <Route element={<TeacherAcademicShellRoute />}>
                 <Route path="/academic/notes" element={<p>{label}</p>} />
-                <Route path="/academic/conduct" element={<p>{label}</p>} />
+                <Route path="/academic/calculation" element={<p>{label}</p>} />
                 <Route path="/academic/conduct/decision" element={<p>{label}</p>} />
               </Route>
               <Route path="/attendance" element={<p>Pointage</p>} />
@@ -49,10 +49,10 @@ describe("teacher academic routes", () => {
     expect(screen.queryByText("Pointage")).not.toBeInTheDocument()
   })
 
-  it("laisse un professeur atteindre Conduite dans le shell professeur", () => {
-    renderTeacherRoute("/academic/conduct", "Écran conduite")
-    expect(screen.getByText("Écran conduite")).toBeInTheDocument()
-    expect(screen.getByRole("navigation", { name: "Navigation professeur" })).toBeInTheDocument()
+  it("laisse un professeur atteindre le calcul sans lui afficher la navigation globale", () => {
+    renderTeacherRoute("/academic/calculation", "Calcul des moyennes")
+    expect(screen.getByText("Calcul des moyennes")).toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Navigation professeur" })).not.toBeInTheDocument()
   })
 
   it("laisse le professeur détenteur de conduct.finalize atteindre la décision finale", () => {

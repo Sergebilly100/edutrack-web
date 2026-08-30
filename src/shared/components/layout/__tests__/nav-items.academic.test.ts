@@ -42,11 +42,10 @@ describe("navigation des inscriptions", () => {
 })
 
 describe("navigation académique professeur", () => {
-  it("expose notes et conduite à tout professeur", () => {
+  it("expose seulement le planning et les évaluations à tout professeur", () => {
     expect(getNavItemsByRole("teacher").map((item) => item.label)).toEqual([
       "Mon planning",
       "Évaluations & notes",
-      "Conduite",
     ])
   })
 

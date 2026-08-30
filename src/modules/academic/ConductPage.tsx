@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Gavel, Loader2, MessageSquareText } from "lucide-react"
-import { Link, useLocation, useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -59,7 +59,6 @@ export default function ConductPage({ view = "all" }: { view?: ConductView }) {
 function TeacherConductSection() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
-  const location = useLocation()
   const navigate = useNavigate()
   const [classId, setClassId] = useState("")
   const [gradingPeriodId, setGradingPeriodId] = useState("")
@@ -225,7 +224,6 @@ function TeacherConductSection() {
                 onSelectedChange={(selected) => setSelectedStudentIds((current) => selected
                   ? [...current, student.studentId]
                   : current.filter((id) => id !== student.studentId))}
-                returnTo={`${location.pathname}${location.search}`}
                 onSave={(note, observation) => {
                   void submitMutation
                     .mutateAsync({ studentId: student.studentId, note, observation })
@@ -250,7 +248,6 @@ function ConductInputRow({
   selected,
   onSelectedChange,
   onSave,
-  returnTo,
 }: {
   studentId: string
   fullName: string
@@ -258,7 +255,6 @@ function ConductInputRow({
   selected: boolean
   onSelectedChange: (selected: boolean) => void
   onSave: (note: number, observation?: string) => void
-  returnTo: string
 }) {
   const [note, setNote] = useState("")
   const [observation, setObservation] = useState("")
@@ -299,9 +295,6 @@ function ConductInputRow({
         onClick={() => onSave(parsed, observation.trim() || undefined)}
       >
         Enregistrer
-      </Button>
-      <Button variant="ghost" className="min-h-12" asChild>
-        <Link to={`/academic/students/${studentId}/dossier`} state={{ from: returnTo }}>Dossier</Link>
       </Button>
     </div>
   )

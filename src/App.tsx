@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useState, type ReactElement } from "react"
-import { Navigate, NavLink, Outlet, Route, Routes, useParams, useSearchParams } from "react-router-dom"
+import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import axios from "axios"
 
@@ -46,7 +46,6 @@ const ParentAbsenceHistoryPage = lazy(() => import("@/modules/parent-portal/Pare
 const ParentAccountPage = lazy(() => import("@/modules/parent-portal/ParentAccountPage"))
 const ParentPaymentsPage = lazy(() => import("@/modules/parent-portal/ParentPaymentsPage"))
 const StudentDetailPage = lazy(() => import("@/modules/students/StudentDetailPage"))
-const StudentDossierPage = lazy(() => import("@/modules/students/StudentDossierPage"))
 const StudentsPage = lazy(() => import("@/modules/students/StudentsPage"))
 const TeacherDetailPage = lazy(() => import("@/modules/teachers/TeacherDetailPage"))
 const TeachersPage = lazy(() => import("@/modules/teachers/TeachersPage"))
@@ -54,6 +53,7 @@ const SchoolYearsPage = lazy(() => import("@/modules/academic/SchoolYearsPage"))
 const LevelsPage = lazy(() => import("@/modules/academic/LevelsPage"))
 const ClassesPage = lazy(() => import("@/modules/academic/ClassesPage"))
 const NotesPage = lazy(() => import("@/modules/academic/NotesPage"))
+const CalculationPage = lazy(() => import("@/modules/academic/CalculationPage"))
 const ConductPage = lazy(() => import("@/modules/academic/ConductPage"))
 const CompletionTrackingPage = lazy(() => import("@/modules/academic/CompletionTrackingPage"))
 const ReportCardsPage = lazy(() => import("@/modules/academic/ReportCardsPage"))
@@ -258,11 +258,14 @@ function TeacherShell({ element }: { element: ReactElement }) {
   // doit être porté par <main> (flex-1 overflow-y-auto). Avec min-h-screen, le
   // conteneur s'étendait au-delà de la fenêtre sans jamais permettre le défilement
   // → contenu inaccessible dès que la page dépasse la hauteur de l'écran.
+  const location = useLocation()
+  const isAcademicWorkspace = location.pathname === "/academic/calculation" || location.pathname.includes("/academic/students/")
+
   return (
     <div className="flex h-screen flex-col bg-background">
       <TeacherTopBar />
-      <TeacherNavigation />
-      <main className="flex-1 overflow-y-auto">
+      {!isAcademicWorkspace ? <TeacherNavigation /> : null}
+      <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
         <div className="mx-auto w-full max-w-lg px-4 py-4 lg:max-w-4xl lg:py-6">{element}</div>
       </main>
     </div>
@@ -274,8 +277,11 @@ function TeacherNavigation() {
   const permissions = useAuthStore((state) => state.permissions)
   const items = getNavItemsByRole(user?.role, permissions)
 
+  const mobileItems = items.filter((item) => item.href === "/attendance" || item.href === "/academic/notes")
+
   return (
-    <nav aria-label="Navigation professeur" className="border-b bg-[var(--surface-chrome)]">
+    <>
+    <nav aria-label="Navigation professeur" className="hidden border-b bg-[var(--surface-chrome)] md:block">
       <div className="flex min-h-12 gap-1 overflow-x-auto px-3 py-1">
         {items.map((item) => {
           const Icon = item.icon
@@ -296,6 +302,28 @@ function TeacherNavigation() {
         })}
       </div>
     </nav>
+    <nav aria-label="Navigation professeur mobile" className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-3 pb-[env(safe-area-inset-bottom)] pt-1 backdrop-blur md:hidden">
+      <div className="mx-auto grid max-w-lg grid-cols-2 gap-2">
+        {mobileItems.map((item) => {
+          const Icon = item.icon
+          return (
+            <NavLink
+              key={item.href}
+              to={item.href}
+              className={({ isActive }) =>
+                `flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-md px-3 text-xs font-medium transition-colors ${
+                  isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                }`
+              }
+            >
+              <Icon className="h-4 w-4" />
+              {item.label}
+            </NavLink>
+          )
+        })}
+      </div>
+    </nav>
+    </>
   )
 }
 
@@ -365,16 +393,6 @@ export function TeacherAcademicShellRoute() {
   }
 
   return <AppShell />
-}
-
-function TeacherStudentDossierRoute() {
-  const { studentId } = useParams<{ studentId: string }>()
-
-  if (!studentId) {
-    return <Navigate to="/academic/notes" replace />
-  }
-
-  return <StudentDossierPage studentId={studentId} />
 }
 
 function FirstLoginPasswordRoute() {
@@ -578,9 +596,9 @@ export default function App() {
 
         <Route element={<TeacherAcademicShellRoute />}>
           <Route path="/academic/notes" element={<NotesPage />} />
-          <Route path="/academic/conduct" element={<ConductPage view="teacher" />} />
+          <Route path="/academic/calculation" element={<CalculationPage />} />
+          <Route path="/academic/conduct" element={<Navigate to="/academic/notes" replace />} />
           <Route path="/academic/conduct/decision" element={<ConductPage view="decision" />} />
-          <Route path="/academic/students/:studentId/dossier" element={<TeacherStudentDossierRoute />} />
         </Route>
 
         <Route path="/parent" element={<ParentPortalLayout />}>

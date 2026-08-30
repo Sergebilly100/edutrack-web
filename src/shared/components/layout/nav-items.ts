@@ -13,7 +13,7 @@ import {
   TeachersIcon,
   ClassIcon,
 } from "@/shared/components/icons"
-import { Building2, ClipboardCheck, FileCheck2, GraduationCap, Landmark, HandCoins, MessageSquareCode, MessageSquareText, NotebookPen, ReceiptText, Settings2, TrendingUp, User, WalletCards } from "lucide-react"
+import { Building2, ClipboardCheck, FileCheck2, GraduationCap, Landmark, HandCoins, MessageSquareCode, NotebookPen, ReceiptText, Settings2, TrendingUp, User, WalletCards } from "lucide-react"
 
 import { isStaffRole, type AuthRole, type PermissionKey } from "@/shared/store/auth.store"
 
@@ -163,13 +163,6 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Évaluations & notes",
     href: "/academic/notes",
     icon: NotebookPen,
-    roles: ["teacher"],
-    mobileVisible: true,
-  },
-  {
-    label: "Conduite",
-    href: "/academic/conduct",
-    icon: MessageSquareText,
     roles: ["teacher"],
     mobileVisible: true,
   },

@@ -258,7 +258,7 @@ export const createSpontaneousGrade = (payload: {
   classId: string
   gradingPeriodId: string
   studentId: string
-  polarity: "positive" | "negative"
+  adjustment: number
   comment: string
 }) => api.post("/evaluations/spontaneous", payload).then((response) => response.data)
 
