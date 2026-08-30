@@ -76,13 +76,15 @@ const smsPriceSchema = z.object({
 })
 type SmsPriceFormValues = z.infer<typeof smsPriceSchema>
 
-export default function SchoolConfigPanel() {
+export default function SchoolConfigPanel({ section = "all" }: { section?: "all" | "general" | "personnel" }) {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const user = useAuthStore((state) => state.user)
   const { hasPermission } = usePermissions()
   const canManagePositions = hasPermission("settings.positions")
   const canManageSchoolSettings = user?.role === "director" || hasPermission("settings.school")
+  const showGeneral = section !== "personnel"
+  const showPersonnel = section !== "general"
 
   const [positionModalOpen, setPositionModalOpen] = useState(false)
   const [positionToEdit, setPositionToEdit] = useState<PositionPayload | null>(null)
@@ -590,6 +592,7 @@ export default function SchoolConfigPanel() {
   return (
     <>
       <div className="space-y-5">
+        {showGeneral ? <>
         <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="settings-school-info">
           <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4" data-tour="settings-school-info-header">
             <div className="flex items-center gap-3">
@@ -834,6 +837,9 @@ export default function SchoolConfigPanel() {
           </section>
         ) : null}
 
+        </> : null}
+
+        {showPersonnel ? <>
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[2fr_1fr]">
           <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="settings-positions-panel">
             <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4">
@@ -1190,6 +1196,7 @@ export default function SchoolConfigPanel() {
             canManageSmsTemplates={school?.canEditSmsTemplate ?? false}
           />
         ) : null}
+        </> : null}
       </div>
 
       <AlertDialog

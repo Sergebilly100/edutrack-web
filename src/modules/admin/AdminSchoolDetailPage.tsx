@@ -796,13 +796,13 @@ export default function AdminSchoolDetailPage() {
             <TabsList className="flex h-auto flex-wrap">
               <TabsTrigger value="config">Configuration</TabsTrigger>
               <TabsTrigger value="users">Utilisateurs</TabsTrigger>
-              <TabsTrigger value="school-year">Année scolaire</TabsTrigger>
+              <TabsTrigger value="school-year">Cycle scolaire</TabsTrigger>
               {config.midYearOnboarding ? (
-                <TabsTrigger value="import-midyear">Import prise en main</TabsTrigger>
+                <TabsTrigger value="import-midyear">Reprise de données</TabsTrigger>
               ) : null}
-              <TabsTrigger value="abonnement">Abonnement & Facturation</TabsTrigger>
+              <TabsTrigger value="abonnement">Facturation</TabsTrigger>
               <TabsTrigger value="sms-revenus">
-                SMS & Revenus
+                SMS
                 {overdueMonths.length > 0 && (
                   <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground">
                     {overdueMonths.length}

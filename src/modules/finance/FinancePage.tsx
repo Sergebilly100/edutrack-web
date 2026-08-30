@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { BookOpenCheck, FileSpreadsheet, History, LayoutDashboard, ReceiptText, Settings2, WalletCards, BellRing } from "lucide-react"
+import { useSearchParams } from "react-router-dom"
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -21,6 +22,7 @@ type FinanceTab = "dashboard" | "entry" | "journal" | "history" | "import" | "tu
 
 export default function FinancePage() {
   const { hasPermission } = usePermissions()
+  const [searchParams, setSearchParams] = useSearchParams()
   const yearsQuery = useQuery({ queryKey: ["academic", "school-years"], queryFn: listSchoolYears })
   const [schoolYearId, setSchoolYearId] = useState("")
   const canRecord = hasPermission("payments.record")
@@ -39,7 +41,12 @@ export default function FinancePage() {
     ...(canViewPayments ? ["alerts" as const] : []),
     ...(canManageProviders || canManagePlans ? ["settings" as const] : []),
   ], [canManagePlans, canManageProviders, canRecord, canViewPayments, canViewTuition])
-  const [tab, setTab] = useState<FinanceTab>(availableTabs[0] ?? "history")
+  const requestedTab = searchParams.get("tab")
+  const [tab, setTab] = useState<FinanceTab>(() =>
+    requestedTab && availableTabs.includes(requestedTab as FinanceTab)
+      ? requestedTab as FinanceTab
+      : availableTabs[0] ?? "history",
+  )
 
   useEffect(() => {
     const years = yearsQuery.data ?? []
@@ -47,8 +54,17 @@ export default function FinancePage() {
   }, [schoolYearId, yearsQuery.data])
 
   useEffect(() => {
-    if (!availableTabs.includes(tab) && availableTabs[0]) setTab(availableTabs[0])
-  }, [availableTabs, tab])
+    const nextTab = requestedTab && availableTabs.includes(requestedTab as FinanceTab)
+      ? requestedTab as FinanceTab
+      : availableTabs[0]
+    if (nextTab && nextTab !== tab) setTab(nextTab)
+  }, [availableTabs, requestedTab, tab])
+
+  const selectTab = (value: string) => {
+    const nextTab = value as FinanceTab
+    setTab(nextTab)
+    setSearchParams({ tab: nextTab }, { replace: true })
+  }
 
   const selectedYear = yearsQuery.data?.find((year) => year.id === schoolYearId)
 
@@ -68,7 +84,7 @@ export default function FinancePage() {
       }
     >
       {schoolYearId && selectedYear ? (
-        <Tabs value={tab} onValueChange={(value) => setTab(value as FinanceTab)} className="space-y-5">
+        <Tabs value={tab} onValueChange={selectTab} className="space-y-5">
           <div className="overflow-x-auto pb-1">
             <TabsList className="h-auto min-w-max justify-start">
               {canViewPayments ? <TabsTrigger value="dashboard" className="min-h-10"><LayoutDashboard className="mr-2 h-4 w-4" />Dashboard</TabsTrigger> : null}

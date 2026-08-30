@@ -51,6 +51,9 @@ export default function SettingsPage() {
   const canAccessSmsTemplate = user?.role === "director" || hasPermission("settings.sms_templates")
   const canViewRequiredDocuments = user?.role === "director" || hasPermission("enrollments.view")
   const canEditRequiredDocuments = user?.role === "director" || hasPermission("enrollments.edit")
+  const canViewTuition = user?.role === "director" || hasPermission("tuition.view")
+  const canViewFinancialAlerts = user?.role === "director" || hasPermission("payments.view")
+  const canManageFinance = canViewTuition || canManageSchoolSettings || user?.role === "director" || hasPermission("subscription_plans.view")
   const schoolConfigQuery = useQuery({
     queryKey: ["settings", "school-config", "access-gate"],
     queryFn: fetchSchoolConfig,
@@ -115,12 +118,12 @@ export default function SettingsPage() {
       : parentSmsMonetized
         ? "Activé"
         : "Non activé"
-  const canManageGeneralSettings = canManagePositions || canManageSchoolSettings
+  const canManageGeneralSettings = canManageSchoolSettings
   const defaultTab = canManageGeneralSettings
     ? "general"
     : canViewRequiredDocuments
-      ? "documents"
-      : canAccessSmsTemplate ? "personnel" : "scolarite"
+      ? "scolarite"
+      : canManageFinance ? "finance" : canAccessSmsTemplate ? "communication" : "alertes"
 
   return (
     <>
@@ -219,144 +222,93 @@ export default function SettingsPage() {
       <Tabs defaultValue={defaultTab} className="space-y-4">
       <TabsList className="h-auto flex-wrap">
         {canManageGeneralSettings ? <TabsTrigger value="general">Général</TabsTrigger> : null}
-        <TabsTrigger value="scolarite">Scolarité</TabsTrigger>
-        {canManageSchoolSettings && parentSmsMonetized ? <TabsTrigger value="abonnements">Abonnements</TabsTrigger> : null}
-        {canViewRequiredDocuments ? <TabsTrigger value="documents">Documents</TabsTrigger> : null}
+        {canManagePositions ? <TabsTrigger value="personnel">Personnel</TabsTrigger> : null}
+        {canViewRequiredDocuments ? <TabsTrigger value="scolarite">Scolarité</TabsTrigger> : null}
+        {canManageFinance ? <TabsTrigger value="finance">Finance</TabsTrigger> : null}
         <TabsTrigger value="alertes">Alertes</TabsTrigger>
-        <TabsTrigger value="personnel">Personnel</TabsTrigger>
+        {canAccessSmsTemplate ? <TabsTrigger value="communication">Communication</TabsTrigger> : null}
       </TabsList>
       {canManageGeneralSettings ? (
         <TabsContent value="general" data-tour="settings-school-panel">
         <OfflineDisabledFieldset notice="Configuration école indisponible hors ligne. Reconnectez-vous pour modifier ces paramètres.">
-          <SchoolConfigPanel />
+          <SchoolConfigPanel section="general" />
         </OfflineDisabledFieldset>
         </TabsContent>
       ) : null}
 
-      <TabsContent value="scolarite" className="grid gap-3 sm:grid-cols-2">
-        {[
-          { href: "/academic/notes", label: "Notes & évaluations", desc: "Espace professeur" },
-          { href: "/academic/completion", label: "Suivi de complétude", desc: "Bulletins par classe/matière" },
-          { href: "/academic/report-cards", label: "Bulletins", desc: "Génération et publication" },
-          { href: "/academic/conduct", label: "Conduite", desc: "Saisie prof / décision éducateur" },
-        ].map((item) => (
-          <Link key={item.href} to={item.href}
-            className="min-h-12 rounded-lg border bg-card p-3 shadow-sm transition-colors hover:bg-accent/50"
-          >
-            <span className="block text-sm font-medium">{item.label}</span>
-            <span className="block text-xs text-muted-foreground">{item.desc}</span>
-          </Link>
-        ))}
-      </TabsContent>
-
-      <TabsContent value="alertes" className="space-y-3">
-        <Link to="/finance"
-          className="flex min-h-12 items-center justify-between rounded-lg border bg-card p-3 shadow-sm transition-colors hover:bg-accent/50"
-        >
-          <span>
-            <span className="block text-sm font-medium">Règles de relance paiements</span>
-            <span className="block text-xs text-muted-foreground">Préventive, retard, retard important</span>
-          </span>
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-        </Link>
-      </TabsContent>
+      {canManagePositions ? (
+        <TabsContent value="personnel">
+          <OfflineDisabledFieldset notice="Gestion du personnel indisponible hors ligne. Reconnectez-vous pour modifier les postes et les accès.">
+            <SchoolConfigPanel section="personnel" />
+          </OfflineDisabledFieldset>
+        </TabsContent>
+      ) : null}
 
       {canViewRequiredDocuments ? (
-        <TabsContent value="documents" className="space-y-3">
+        <TabsContent value="scolarite" className="space-y-3">
           <OfflineDisabledFieldset notice="Configuration des documents indisponible hors ligne.">
             <RequiredDocumentsSettings canEdit={canEditRequiredDocuments} />
           </OfflineDisabledFieldset>
         </TabsContent>
       ) : null}
 
+      {canManageFinance ? (
+        <TabsContent value="finance" className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {canViewTuition ? <Link to="/finance?tab=tuition" className="min-h-12 rounded-lg border bg-card p-4 shadow-sm transition-colors hover:bg-accent/50"><span className="block text-sm font-medium">Frais & échéanciers</span><span className="mt-1 block text-xs text-muted-foreground">Montants par niveau, échéances et remises.</span></Link> : null}
+            {canManageSchoolSettings ? <Link to="/finance?tab=settings" className="min-h-12 rounded-lg border bg-card p-4 shadow-sm transition-colors hover:bg-accent/50"><span className="block text-sm font-medium">Mobile Money</span><span className="mt-1 block text-xs text-muted-foreground">Coordonnées de versement manuel pour les parents.</span></Link> : null}
+            {user?.role === "director" || hasPermission("subscription_plans.view") ? <Link to="/finance?tab=settings" className="min-h-12 rounded-lg border bg-card p-4 shadow-sm transition-colors hover:bg-accent/50"><span className="block text-sm font-medium">Plans d&apos;abonnement</span><span className="mt-1 block text-xs text-muted-foreground">Plans ajoutés aux frais d&apos;inscription.</span></Link> : null}
+          </div>
+
+          {canManageSchoolSettings && parentSmsMonetized ? (
+            <section className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/70 dark:bg-emerald-950/20" data-tour="settings-sms">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold">Service Alertes Parents</h2>
+                  <p className="text-xs text-muted-foreground">Paramétrage de la souscription parent pour les notifications.</p>
+                </div>
+                <Badge variant="default">Activé</Badge>
+              </div>
+
+              {smsFeatureQuery.data?.is_enabled ? (
+                <Form {...smsPriceForm}>
+                  <form onSubmit={smsPriceForm.handleSubmit((values) => saveSmsPriceMutation.mutate(values))} className="space-y-4">
+                    <FormField control={smsPriceForm.control} name="smsUnitPriceFcfa" render={({ field }) => (
+                      <FormItem className="space-y-2">
+                        <Label htmlFor="sms-unit-price">{`Tarif par ${studentLabels.singularLower}/mois (FCFA)`}</Label>
+                        <FormControl><Input id="sms-unit-price" inputMode="numeric" maxLength={5} placeholder="Ex: 2000" {...field} onChange={(event) => field.onChange(Number(event.target.value.replace(/\D/g, "")))} value={field.value === 0 ? "" : String(field.value)} /></FormControl>
+                        <FormMessage />
+                        <p className="text-xs text-muted-foreground">Entier entre 1 et 50000.</p>
+                      </FormItem>
+                    )} />
+                    <div className="flex flex-wrap items-center gap-3">
+                      {saveSmsPriceMutation.isSuccess && !smsPriceForm.formState.isDirty ? <div className="flex items-center gap-2 text-green-600 animate-in fade-in duration-300"><CheckCircle className="h-4 w-4" /><span className="text-sm font-medium">Tarif sauvegardé</span></div> : <OfflineGuard><Button type="submit" disabled={saveSmsPriceMutation.isPending || !smsPriceForm.formState.isDirty || !smsPriceForm.formState.isValid}>{saveSmsPriceMutation.isPending ? "Sauvegarde..." : "Sauvegarder le tarif"}</Button></OfflineGuard>}
+                      <p className="text-sm text-muted-foreground">Commission IvoirEdu : <strong>{smsFeatureQuery.data.commission_pct}%</strong> (défini par IvoirEdu)</p>
+                    </div>
+                  </form>
+                </Form>
+              ) : <ContextualHelp title="Activation requise" tone="warning">Le portail d&apos;abonnement parent et les notifications Alertes Parents restent masqués tant que le service n&apos;est pas activé par IvoirEdu.</ContextualHelp>}
+            </section>
+          ) : null}
+        </TabsContent>
+      ) : null}
+
+      <TabsContent value="alertes" className="space-y-3">
+        {canViewFinancialAlerts ? <Link to="/finance?tab=alerts" className="flex min-h-12 items-center justify-between rounded-lg border bg-card p-3 shadow-sm transition-colors hover:bg-accent/50"><span><span className="block text-sm font-medium">Règles de relance paiements</span><span className="block text-xs text-muted-foreground">Préventive, retard, retard important</span></span><ChevronRight className="h-4 w-4 text-muted-foreground" /></Link> : null}
+        <ContextualHelp title="Règles de risque" tone="info">La configuration des seuils de risque élève et professeur sera ajoutée dans la prochaine tâche dédiée.</ContextualHelp>
+      </TabsContent>
+
       {canAccessSmsTemplate ? (
-        <TabsContent value="personnel" data-tour="settings-sms-templates-panel">
+        <TabsContent value="communication" data-tour="settings-sms-templates-panel">
         <OfflineDisabledFieldset notice="Templates SMS indisponibles hors ligne.">
           <SmsTemplatePanel />
         </OfflineDisabledFieldset>
         </TabsContent>
       ) : null}
 
-      {canManageSchoolSettings && parentSmsMonetized ? (
-        <TabsContent value="abonnements">
-        <section className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/70 dark:bg-emerald-950/20" data-tour="settings-sms">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold">Service Alertes Parents</h2>
-              <p className="text-xs text-muted-foreground">
-                Paramétrage de la souscription parent pour les notifications.
-              </p>
-            </div>
-            <Badge variant="default">Activé</Badge>
-          </div>
-
-          {smsFeatureQuery.data?.is_enabled ? (
-            <Form {...smsPriceForm}>
-              <form
-                onSubmit={smsPriceForm.handleSubmit((values) => saveSmsPriceMutation.mutate(values))}
-                className="space-y-4"
-              >
-                <FormField
-                  control={smsPriceForm.control}
-                  name="smsUnitPriceFcfa"
-                  render={({ field }) => (
-                    <FormItem className="space-y-2">
-                      <Label htmlFor="sms-unit-price">{`Tarif par ${studentLabels.singularLower}/mois (FCFA)`}</Label>
-                      <FormControl>
-                        <Input
-                          id="sms-unit-price"
-                          inputMode="numeric"
-                          maxLength={5}
-                          placeholder="Ex: 2000"
-                          {...field}
-                          onChange={(event) => field.onChange(Number(event.target.value.replace(/\D/g, "")))}
-                          value={field.value === 0 ? "" : String(field.value)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                      <p className="text-xs text-muted-foreground">Entier entre 1 et 50000.</p>
-                    </FormItem>
-                  )}
-                />
-                <div className="flex flex-wrap items-center gap-3">
-                  {saveSmsPriceMutation.isSuccess && !smsPriceForm.formState.isDirty ? (
-                    <div className="flex items-center gap-2 text-green-600 animate-in fade-in duration-300">
-                      <CheckCircle className="h-4 w-4" />
-                      <span className="text-sm font-medium">Tarif sauvegardé</span>
-                    </div>
-                  ) : (
-                    <OfflineGuard>
-                      <Button
-                        type="submit"
-                        disabled={
-                          saveSmsPriceMutation.isPending ||
-                          !smsPriceForm.formState.isDirty ||
-                          !smsPriceForm.formState.isValid
-                        }
-                      >
-                        {saveSmsPriceMutation.isPending ? "Sauvegarde..." : "Sauvegarder le tarif"}
-                      </Button>
-                    </OfflineGuard>
-                  )}
-                  <p className="text-sm text-muted-foreground">
-                    Commission IvoirEdu : <strong>{smsFeatureQuery.data.commission_pct}%</strong> (défini par
-                    IvoirEdu)
-                  </p>
-                </div>
-              </form>
-            </Form>
-          ) : (
-            <ContextualHelp title="Activation requise" tone="warning">
-              Le portail d&apos;abonnement parent et les notifications Alertes Parents restent masqués tant que le service Alertes Parents n&apos;est pas activé par IvoirEdu.
-            </ContextualHelp>
-          )}
-        </section>
-        </TabsContent>
-      ) : null}
-
       </Tabs>
 
-      {!canManagePositions && !canManageSchoolSettings && !canAccessSmsTemplate && !canViewRequiredDocuments ? (
+      {!canManagePositions && !canManageSchoolSettings && !canAccessSmsTemplate && !canViewRequiredDocuments && !canManageFinance ? (
         <ContextualHelp title="Paramètres non disponibles" tone="warning">
           Votre poste ne donne pas accès à la configuration école. Demandez au directeur les droits paramètres école, postes ou templates Alertes Parents selon la tâche à réaliser.
         </ContextualHelp>

@@ -1,8 +1,9 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   GraduationCap,
+  ChevronDown,
   LogOut,
   Menu,
   Monitor,
@@ -16,6 +17,8 @@ import {
 } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,7 +36,7 @@ import { useEndOfYearReviewStatus } from "@/modules/class-decisions/useEndOfYear
 import { LogoutOfflineGuardDialog } from "@/shared/components/LogoutOfflineGuardDialog"
 import { OfflineQueueBadge } from "@/shared/components/OfflineQueueBadge"
 import { NotificationButton } from "@/shared/components/layout/NotificationButton"
-import { filterNavItemsByFeatures, getNavItemsByRole } from "@/shared/components/layout/nav-items"
+import { filterNavItemsByFeatures, getNavItemsByRole, isNavItemActive } from "@/shared/components/layout/nav-items"
 import { useTheme } from "@/shared/hooks/useTheme"
 import {
   useLogoutWithOfflineGuard,
@@ -55,7 +58,7 @@ function NavItemComponent({
   badgeCount?: number
 }) {
   const location = useLocation()
-  const isActive = item.matchExact ? location.pathname === item.href : location.pathname.startsWith(item.href)
+  const isActive = isNavItemActive(item, location.pathname, location.search)
 
   const linkContent = (
     <Link
@@ -132,6 +135,27 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
       endOfYearReviewVisible: endOfYearStatusQuery.data?.visible === true,
     },
   )
+  const navigationGroups = visibleItems.reduce<Array<{ label: string; items: typeof visibleItems }>>(
+    (groups, item) => {
+      const current = groups[groups.length - 1]
+      if (current?.label === item.group) {
+        current.items.push(item)
+      } else {
+        groups.push({ label: item.group, items: [item] })
+      }
+      return groups
+    },
+    [],
+  )
+  const activeGroup = navigationGroups.find((group) =>
+    group.items.some((item) => isNavItemActive(item, location.pathname, location.search)),
+  )?.label
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
+
+  const toggleGroup = (groupLabel: string) => {
+    if (groupLabel === activeGroup) return
+    setExpandedGroup((current) => current === groupLabel ? null : groupLabel)
+  }
 
   const handleTogglePinned = () => {
     if (!pinned && collapsed) {
@@ -198,14 +222,37 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
         </div>
       </div>
 
-      <nav className="flex flex-col gap-0.5 flex-1 min-w-0">
-        {visibleItems.map((item) => (
-          <NavItemComponent
-            key={item.href}
-            item={item}
-            collapsed={collapsed}
-            badgeCount={item.href === "/validations" ? validationCountQuery.data?.total : undefined}
-          />
+      <nav aria-label="Navigation principale" className="flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto">
+        {navigationGroups.map((group) => (
+          <Collapsible
+            key={group.label}
+            open={collapsed || group.label === expandedGroup || group.label === activeGroup}
+            onOpenChange={() => toggleGroup(group.label)}
+            className="space-y-0.5"
+          >
+            {!collapsed ? (
+              <CollapsibleTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="flex min-h-12 w-full items-center justify-between rounded-lg px-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground hover:bg-accent hover:text-foreground"
+                >
+                  {group.label}
+                  <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-150 data-[state=open]:rotate-180" />
+                </Button>
+              </CollapsibleTrigger>
+            ) : null}
+            <CollapsibleContent className="space-y-0.5">
+              {group.items.map((item) => (
+                <NavItemComponent
+                  key={item.href}
+                  item={item}
+                  collapsed={collapsed}
+                  badgeCount={item.href === "/validations" ? validationCountQuery.data?.total : undefined}
+                />
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
         ))}
       </nav>
 

@@ -277,7 +277,9 @@ function TeacherNavigation() {
   const permissions = useAuthStore((state) => state.permissions)
   const items = getNavItemsByRole(user?.role, permissions)
 
-  const mobileItems = items.filter((item) => item.href === "/attendance" || item.href === "/academic/notes")
+  const mobileItems = items.filter((item) =>
+    item.href === "/attendance" || item.href === "/academic/notes" || item.href === "/account",
+  )
 
   return (
     <>
@@ -303,7 +305,7 @@ function TeacherNavigation() {
       </div>
     </nav>
     <nav aria-label="Navigation professeur mobile" className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-3 pb-[env(safe-area-inset-bottom)] pt-1 backdrop-blur md:hidden">
-      <div className="mx-auto grid max-w-lg grid-cols-2 gap-2">
+      <div className="mx-auto grid max-w-lg grid-cols-3 gap-2">
         {mobileItems.map((item) => {
           const Icon = item.icon
           return (
@@ -395,6 +397,28 @@ export function TeacherAcademicShellRoute() {
   return <AppShell />
 }
 
+function AccountRoute() {
+  const user = useAuthStore((state) => state.user)
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (user.mustChangePassword) {
+    return <Navigate to="/account/first-login-password" replace />
+  }
+
+  if (user.role === "teacher") {
+    return <TeacherShell element={<AccountPage />} />
+  }
+
+  if (user.role === "super_admin") {
+    return <Navigate to="/admin/account" replace />
+  }
+
+  return <AppShell><AccountPage /></AppShell>
+}
+
 function FirstLoginPasswordRoute() {
   const user = useAuthStore((state) => state.user)
 
@@ -448,7 +472,7 @@ function PermissionRoute({
   }
 
   const allowed = getNavItemsByRole(user.role, permissions)
-  const canAccess = allowed.some((item) => item.href === href)
+  const canAccess = allowed.some((item) => item.href.split("?")[0] === href)
   const hasRequiredPermission =
     !isStaffRole(user.role) ||
     !requiredAnyPermissions ||
@@ -565,10 +589,10 @@ export default function App() {
           <Route path="/academic/school-years" element={<PermissionRoute href="/academic" requiredAnyPermissions={["school_years.view"]} element={<SchoolYearsPage />} />} />
           <Route path="/academic/levels" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<LevelsPage />} />} />
           <Route path="/academic/classes" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<ClassesPage />} />} />
-          <Route path="/academic/completion" element={<PermissionRoute href="/academic" requiredAnyPermissions={["report_cards.view"]} element={<CompletionTrackingPage />} />} />
-          <Route path="/academic/report-cards" element={<PermissionRoute href="/academic" requiredAnyPermissions={["report_cards.view", "report_cards.publish"]} element={<ReportCardsPage />} />} />
+          <Route path="/academic/completion" element={<PermissionRoute href="/academic/completion" requiredAnyPermissions={["report_cards.view"]} element={<CompletionTrackingPage />} />} />
+          <Route path="/academic/report-cards" element={<PermissionRoute href="/academic/report-cards" requiredAnyPermissions={["report_cards.view", "report_cards.publish"]} element={<ReportCardsPage />} />} />
           <Route path="/end-of-year" element={<PermissionRoute href="/end-of-year" requiredAnyPermissions={["class_decisions.view"]} element={<EndOfYearAccessRoute />} />} />
-          <Route path="/enrollments" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.view", "enrollments.create", "enrollments.edit", "enrollments.confirm_payment"]} element={<EnrollmentsPage />} />} />
+          <Route path="/enrollments" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.view"]} element={<EnrollmentsPage />} />} />
           <Route path="/enrollments/new" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.create"]} element={<NewEnrollmentPage />} />} />
           <Route path="/enrollments/:enrollmentId/edit" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.edit", "students.edit"]} element={<NewEnrollmentPage />} />} />
           <Route path="/enrollments/students/:studentId/documents" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.view", "enrollments.edit"]} element={<EnrollmentDocumentsPage />} />} />
@@ -591,7 +615,6 @@ export default function App() {
           <Route path="/subscriptions" element={<PermissionRoute href="/subscriptions" element={<SubscriptionsPage />} />} />
           <Route path="/subscriptions/revenue" element={<PermissionRoute href="/subscriptions/revenue" element={<SubscriptionRevenuePage />} />} />
           <Route path="/settings" element={<PermissionRoute href="/settings" element={<SettingsPage />} />} />
-          <Route path="/account" element={<AccountPage />} />
         </Route>
 
         <Route element={<TeacherAcademicShellRoute />}>
@@ -600,6 +623,8 @@ export default function App() {
           <Route path="/academic/conduct" element={<Navigate to="/academic/notes" replace />} />
           <Route path="/academic/conduct/decision" element={<ConductPage view="decision" />} />
         </Route>
+
+        <Route path="/account" element={<AccountRoute />} />
 
         <Route path="/parent" element={<ParentPortalLayout />}>
           <Route path="first-login-password" element={<ParentFirstLoginPasswordPage />} />
