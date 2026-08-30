@@ -13,7 +13,7 @@ import {
   TeachersIcon,
   ClassIcon,
 } from "@/shared/components/icons"
-import { BellRing, Building2, ClipboardCheck, FileCheck2, FileSpreadsheet, GraduationCap, HandCoins, History, Landmark, LayoutDashboard, MessageSquareCode, NotebookPen, ReceiptText, Settings2, TrendingUp, User, WalletCards } from "lucide-react"
+import { Building2, ClipboardCheck, FileCheck2, FileSpreadsheet, GraduationCap, HandCoins, History, Landmark, LayoutDashboard, MessageSquareCode, NotebookPen, ReceiptText, Settings2, TrendingUp, User, WalletCards } from "lucide-react"
 
 import { isStaffRole, type AuthRole, type PermissionKey } from "@/shared/store/auth.store"
 
@@ -185,15 +185,6 @@ export const NAV_ITEMS: NavItem[] = [
     group: "Finance",
     roles: ["director", "staff"],
     requiredPermissions: ["payments.record"],
-    mobileVisible: false,
-  },
-  {
-    label: "Relances",
-    href: "/finance?tab=alerts",
-    icon: BellRing,
-    group: "Finance",
-    roles: ["director", "staff"],
-    requiredPermissions: ["payments.view"],
     mobileVisible: false,
   },
   {

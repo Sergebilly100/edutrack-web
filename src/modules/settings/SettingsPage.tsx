@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -11,9 +11,12 @@ import { Form, FormControl, FormField, FormItem, FormMessage } from "@/component
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Link } from "react-router-dom"
-import { ChevronRight } from "lucide-react"
+import { listSchoolYears } from "@/modules/academic/academic.api"
+import { FinancialAlertRules } from "@/modules/finance/components/FinancialAlertRules"
+import { FinanceSettings } from "@/modules/finance/components/FinanceSettings"
+import { TuitionConfiguration } from "@/modules/finance/components/TuitionConfiguration"
 import SchoolConfigPanel from "@/modules/settings/components/SchoolConfigPanel"
 import SmsTemplatePanel from "@/modules/settings/components/SmsTemplatePanel"
 import { RequiredDocumentsSettings } from "@/modules/settings/components/RequiredDocumentsSettings"
@@ -53,7 +56,11 @@ export default function SettingsPage() {
   const canEditRequiredDocuments = user?.role === "director" || hasPermission("enrollments.edit")
   const canViewTuition = user?.role === "director" || hasPermission("tuition.view")
   const canViewFinancialAlerts = user?.role === "director" || hasPermission("payments.view")
-  const canManageFinance = canViewTuition || canManageSchoolSettings || user?.role === "director" || hasPermission("subscription_plans.view")
+  const canEditFinancialAlerts = user?.role === "director" || hasPermission("financial_alerts.edit")
+  const canViewFinanceSettings = canManageSchoolSettings || user?.role === "director" || hasPermission("subscription_plans.view")
+  const canManageFinance = canViewTuition || canViewFinancialAlerts || canViewFinanceSettings
+  const schoolYearsQuery = useQuery({ queryKey: ["academic", "school-years"], queryFn: listSchoolYears })
+  const [financeSchoolYearId, setFinanceSchoolYearId] = useState("")
   const schoolConfigQuery = useQuery({
     queryKey: ["settings", "school-config", "access-gate"],
     queryFn: fetchSchoolConfig,
@@ -87,6 +94,13 @@ export default function SettingsPage() {
       checkoutToleranceMinutes: smsFeatureQuery.data.checkout_tolerance_minutes ?? 5,
     }, { keepDirty: false })
   }, [smsFeatureQuery.data, smsPriceForm])
+
+  useEffect(() => {
+    const schoolYears = schoolYearsQuery.data ?? []
+    if (!financeSchoolYearId && schoolYears.length > 0) {
+      setFinanceSchoolYearId((schoolYears.find((year) => year.status === "active") ?? schoolYears[0]).id)
+    }
+  }, [financeSchoolYearId, schoolYearsQuery.data])
 
   const saveSmsPriceMutation = useMutation({
     mutationFn: (values: SmsPriceFormValues) => updateSchoolSmsUnitPrice(values.smsUnitPriceFcfa),
@@ -123,7 +137,7 @@ export default function SettingsPage() {
     ? "general"
     : canViewRequiredDocuments
       ? "scolarite"
-      : canManageFinance ? "finance" : canAccessSmsTemplate ? "communication" : "alertes"
+      : canManageFinance ? "finance" : canAccessSmsTemplate ? "communication" : "relances"
 
   return (
     <>
@@ -225,7 +239,7 @@ export default function SettingsPage() {
         {canManagePositions ? <TabsTrigger value="personnel">Personnel</TabsTrigger> : null}
         {canViewRequiredDocuments ? <TabsTrigger value="scolarite">Scolarité</TabsTrigger> : null}
         {canManageFinance ? <TabsTrigger value="finance">Finance</TabsTrigger> : null}
-        <TabsTrigger value="alertes">Alertes</TabsTrigger>
+        {canViewFinancialAlerts ? <TabsTrigger value="relances">Relances</TabsTrigger> : null}
         {canAccessSmsTemplate ? <TabsTrigger value="communication">Communication</TabsTrigger> : null}
       </TabsList>
       {canManageGeneralSettings ? (
@@ -254,11 +268,23 @@ export default function SettingsPage() {
 
       {canManageFinance ? (
         <TabsContent value="finance" className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            {canViewTuition ? <Link to="/finance?tab=tuition" className="min-h-12 rounded-lg border bg-card p-4 shadow-sm transition-colors hover:bg-accent/50"><span className="block text-sm font-medium">Frais & échéanciers</span><span className="mt-1 block text-xs text-muted-foreground">Montants par niveau, échéances et remises.</span></Link> : null}
-            {canManageSchoolSettings ? <Link to="/finance?tab=settings" className="min-h-12 rounded-lg border bg-card p-4 shadow-sm transition-colors hover:bg-accent/50"><span className="block text-sm font-medium">Mobile Money</span><span className="mt-1 block text-xs text-muted-foreground">Coordonnées de versement manuel pour les parents.</span></Link> : null}
-            {user?.role === "director" || hasPermission("subscription_plans.view") ? <Link to="/finance?tab=settings" className="min-h-12 rounded-lg border bg-card p-4 shadow-sm transition-colors hover:bg-accent/50"><span className="block text-sm font-medium">Plans d&apos;abonnement</span><span className="mt-1 block text-xs text-muted-foreground">Plans ajoutés aux frais d&apos;inscription.</span></Link> : null}
-          </div>
+          {canViewTuition ? (
+            <section className="space-y-4">
+              <div className="max-w-sm space-y-2">
+                <Label htmlFor="finance-school-year">Année scolaire</Label>
+                <Select value={financeSchoolYearId} onValueChange={setFinanceSchoolYearId} disabled={schoolYearsQuery.isLoading || schoolYearsQuery.isError}>
+                  <SelectTrigger id="finance-school-year" className="min-h-12"><SelectValue placeholder="Choisir une année scolaire" /></SelectTrigger>
+                  <SelectContent>
+                    {(schoolYearsQuery.data ?? []).map((schoolYear) => <SelectItem key={schoolYear.id} value={schoolYear.id}>{schoolYear.label}{schoolYear.status === "active" ? " · Active" : ""}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {schoolYearsQuery.isError ? <ContextualHelp title="Années scolaires indisponibles" tone="warning">Impossible de charger l&apos;année nécessaire à la configuration des frais.</ContextualHelp> : null}
+              {financeSchoolYearId ? <TuitionConfiguration schoolYearId={financeSchoolYearId} canEdit={user?.role === "director" || hasPermission("tuition.edit")} canGrantDiscount={user?.role === "director" || hasPermission("tuition.grant_discount")} /> : null}
+            </section>
+          ) : null}
+
+          {canViewFinanceSettings ? <FinanceSettings canManageProviders={canManageSchoolSettings} canViewPlans={user?.role === "director" || hasPermission("subscription_plans.view")} canEditPlans={user?.role === "director" || hasPermission("subscription_plans.edit")} /> : null}
 
           {canManageSchoolSettings && parentSmsMonetized ? (
             <section className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/70 dark:bg-emerald-950/20" data-tour="settings-sms">
@@ -293,10 +319,7 @@ export default function SettingsPage() {
         </TabsContent>
       ) : null}
 
-      <TabsContent value="alertes" className="space-y-3">
-        {canViewFinancialAlerts ? <Link to="/finance?tab=alerts" className="flex min-h-12 items-center justify-between rounded-lg border bg-card p-3 shadow-sm transition-colors hover:bg-accent/50"><span><span className="block text-sm font-medium">Règles de relance paiements</span><span className="block text-xs text-muted-foreground">Préventive, retard, retard important</span></span><ChevronRight className="h-4 w-4 text-muted-foreground" /></Link> : null}
-        <ContextualHelp title="Règles de risque" tone="info">La configuration des seuils de risque élève et professeur sera ajoutée dans la prochaine tâche dédiée.</ContextualHelp>
-      </TabsContent>
+      {canViewFinancialAlerts ? <TabsContent value="relances"><FinancialAlertRules canEdit={canEditFinancialAlerts} /></TabsContent> : null}
 
       {canAccessSmsTemplate ? (
         <TabsContent value="communication" data-tour="settings-sms-templates-panel">
