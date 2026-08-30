@@ -85,6 +85,13 @@ describe("navigation finance d'un staff restreint", () => {
   })
 })
 
+describe("navigation des règles de risque", () => {
+  it("affiche Paramètres à un staff détenteur de risk_alerts.edit", () => {
+    const items = getNavItemsByRole("staff", ["risk_alerts.edit"])
+    expect(items).toEqual(expect.arrayContaining([expect.objectContaining({ href: "/settings" })]))
+  })
+})
+
 describe("groupes de navigation direction", () => {
   it("place les validations dans Pilotage, juste après le tableau de bord", () => {
     const items = getNavItemsByRole("director")

@@ -105,6 +105,8 @@ const PERMISSION_KEYS: PermissionKey[] = [
   'payments.view',
   'payments.record',
   'payments.cancel',
+  'risk_alerts.edit',
+  'financial_alerts.edit',
   'subscription_plans.view',
   'subscription_plans.edit',
   'classes.view',

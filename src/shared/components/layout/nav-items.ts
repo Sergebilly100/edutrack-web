@@ -237,6 +237,7 @@ export const NAV_ITEMS: NavItem[] = [
       "enrollments.view",
       "tuition.view",
       "payments.view",
+      "risk_alerts.edit",
       "subscription_plans.view",
     ],
     mobileVisible: false,

@@ -17,6 +17,7 @@ import { listSchoolYears } from "@/modules/academic/academic.api"
 import { FinancialAlertRules } from "@/modules/finance/components/FinancialAlertRules"
 import { FinanceSettings } from "@/modules/finance/components/FinanceSettings"
 import { TuitionConfiguration } from "@/modules/finance/components/TuitionConfiguration"
+import { RiskAlertRules } from "@/modules/risk/components/RiskAlertRules"
 import SchoolConfigPanel from "@/modules/settings/components/SchoolConfigPanel"
 import SmsTemplatePanel from "@/modules/settings/components/SmsTemplatePanel"
 import { RequiredDocumentsSettings } from "@/modules/settings/components/RequiredDocumentsSettings"
@@ -57,6 +58,7 @@ export default function SettingsPage() {
   const canViewTuition = user?.role === "director" || hasPermission("tuition.view")
   const canViewFinancialAlerts = user?.role === "director" || hasPermission("payments.view")
   const canEditFinancialAlerts = user?.role === "director" || hasPermission("financial_alerts.edit")
+  const canManageRiskAlerts = user?.role === "director" || hasPermission("risk_alerts.edit")
   const canViewFinanceSettings = canManageSchoolSettings || user?.role === "director" || hasPermission("subscription_plans.view")
   const canManageFinance = canViewTuition || canViewFinancialAlerts || canViewFinanceSettings
   const schoolYearsQuery = useQuery({ queryKey: ["academic", "school-years"], queryFn: listSchoolYears })
@@ -137,7 +139,7 @@ export default function SettingsPage() {
     ? "general"
     : canViewRequiredDocuments
       ? "scolarite"
-      : canManageFinance ? "finance" : canAccessSmsTemplate ? "communication" : "relances"
+      : canManageFinance ? "finance" : canManageRiskAlerts ? "risques" : canAccessSmsTemplate ? "communication" : "relances"
 
   return (
     <>
@@ -240,6 +242,7 @@ export default function SettingsPage() {
         {canViewRequiredDocuments ? <TabsTrigger value="scolarite">Scolarité</TabsTrigger> : null}
         {canManageFinance ? <TabsTrigger value="finance">Finance</TabsTrigger> : null}
         {canViewFinancialAlerts ? <TabsTrigger value="relances">Relances</TabsTrigger> : null}
+        {canManageRiskAlerts ? <TabsTrigger value="risques">Risques</TabsTrigger> : null}
         {canAccessSmsTemplate ? <TabsTrigger value="communication">Communication</TabsTrigger> : null}
       </TabsList>
       {canManageGeneralSettings ? (
@@ -321,6 +324,12 @@ export default function SettingsPage() {
 
       {canViewFinancialAlerts ? <TabsContent value="relances"><FinancialAlertRules canEdit={canEditFinancialAlerts} /></TabsContent> : null}
 
+      {canManageRiskAlerts ? (
+        <TabsContent value="risques">
+          <RiskAlertRules />
+        </TabsContent>
+      ) : null}
+
       {canAccessSmsTemplate ? (
         <TabsContent value="communication" data-tour="settings-sms-templates-panel">
         <OfflineDisabledFieldset notice="Templates SMS indisponibles hors ligne.">
@@ -331,7 +340,7 @@ export default function SettingsPage() {
 
       </Tabs>
 
-      {!canManagePositions && !canManageSchoolSettings && !canAccessSmsTemplate && !canViewRequiredDocuments && !canManageFinance ? (
+      {!canManagePositions && !canManageSchoolSettings && !canAccessSmsTemplate && !canViewRequiredDocuments && !canManageFinance && !canManageRiskAlerts ? (
         <ContextualHelp title="Paramètres non disponibles" tone="warning">
           Votre poste ne donne pas accès à la configuration école. Demandez au directeur les droits paramètres école, postes ou templates Alertes Parents selon la tâche à réaliser.
         </ContextualHelp>

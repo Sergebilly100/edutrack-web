@@ -63,6 +63,20 @@ const mockSettingsApis = async (page: import("@playwright/test").Page) => {
       body: JSON.stringify({ isEnabled: false }),
     })
   })
+  await page.route("**/api/v1/risk/rules*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        rules: [
+          { id: "risk-1", subjectType: "student", signalType: "absences", thresholdValue: 3, periodDays: 30, isActive: true },
+          { id: "risk-2", subjectType: "student", signalType: "grades", thresholdValue: 2, periodDays: 0, isActive: true },
+          { id: "risk-3", subjectType: "student", signalType: "payments", thresholdValue: 1, periodDays: 0, isActive: true },
+          { id: "risk-4", subjectType: "teacher", signalType: "absences", thresholdValue: 3, periodDays: 30, isActive: true },
+        ],
+      }),
+    })
+  })
 }
 
 test.describe("Directeur - module paramètres", () => {
@@ -73,6 +87,10 @@ test.describe("Directeur - module paramètres", () => {
 
   test("affiche le titre 'Paramètres école' après navigation via le menu", async ({ page }) => {
     await loginAsDirectorUI(page)
+    const skipTour = page.getByRole("button", { name: /passer le tour|skip/i })
+    if (await skipTour.isVisible().catch(() => false)) {
+      await skipTour.click()
+    }
     await page.getByRole("button", { name: "Ouvrir le menu de navigation" }).click()
     await page.getByRole("link", { name: "Paramètres" }).click()
     await expect(page).toHaveURL(/\/settings/)
@@ -167,6 +185,14 @@ test.describe("Directeur - module paramètres", () => {
     await loginAsDirectorUI(page)
     await page.goto("/settings")
     await expect(page.getByText("Utilisateurs administratifs").first()).toBeVisible()
+  })
+
+  test("Pixel 5 : les règles de risque sont accessibles dans leur onglet", async ({ page }) => {
+    await loginAsDirectorUI(page)
+    await page.goto("/settings")
+    await page.getByRole("tab", { name: "Risques" }).click()
+    await expect(page.getByText("Règles de risque")).toBeVisible()
+    await expect(page.getByText("Situation financière en retard")).toBeVisible()
   })
 
   test("la page /settings utilise l'animation fade-in du conteneur principal", async ({ page }) => {
