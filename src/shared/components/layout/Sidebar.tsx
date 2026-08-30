@@ -157,6 +157,11 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
     setExpandedGroup((current) => current === groupLabel ? null : groupLabel)
   }
 
+  const openCollapsedGroup = (groupLabel: string) => {
+    setExpandedGroup(groupLabel)
+    toggleCollapsed()
+  }
+
   const handleTogglePinned = () => {
     if (!pinned && collapsed) {
       toggleCollapsed()
@@ -222,15 +227,54 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
         </div>
       </div>
 
-      <nav aria-label="Navigation principale" className="flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto">
-        {navigationGroups.map((group) => (
-          <Collapsible
-            key={group.label}
-            open={collapsed || group.label === expandedGroup || group.label === activeGroup}
-            onOpenChange={() => toggleGroup(group.label)}
-            className="space-y-0.5"
-          >
-            {!collapsed ? (
+      {collapsed ? (
+        <nav aria-label="Groupes de navigation" className="flex min-w-0 flex-1 flex-col items-center gap-2">
+          {navigationGroups.map((group) => {
+            const Icon = group.items[0]?.icon
+            const isGroupActive = group.label === activeGroup
+            const groupBadgeCount = group.items.some((item) => item.href === "/validations")
+              ? validationCountQuery.data?.total
+              : undefined
+
+            if (!Icon) return null
+
+            return (
+              <Tooltip key={group.label}>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => openCollapsedGroup(group.label)}
+                    className={cn(
+                      "relative h-12 w-12 rounded-lg p-0",
+                      isGroupActive
+                        ? "bg-[var(--nav-active-bg)] text-[var(--nav-active-fg)] ring-1 ring-[var(--nav-active-border)]"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                    )}
+                    aria-label={`Ouvrir ${group.label}`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    {groupBadgeCount && groupBadgeCount > 0 ? (
+                      <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white">
+                        {groupBadgeCount}
+                      </span>
+                    ) : null}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">{group.label}</TooltipContent>
+              </Tooltip>
+            )
+          })}
+        </nav>
+      ) : (
+        <nav aria-label="Navigation principale" className="flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto">
+          {navigationGroups.map((group) => (
+            <Collapsible
+              key={group.label}
+              open={group.label === expandedGroup || group.label === activeGroup}
+              onOpenChange={() => toggleGroup(group.label)}
+              className="space-y-0.5"
+            >
               <CollapsibleTrigger asChild>
                 <Button
                   type="button"
@@ -241,20 +285,20 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
                   <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-150 data-[state=open]:rotate-180" />
                 </Button>
               </CollapsibleTrigger>
-            ) : null}
-            <CollapsibleContent className="space-y-0.5">
-              {group.items.map((item) => (
-                <NavItemComponent
-                  key={item.href}
-                  item={item}
-                  collapsed={collapsed}
-                  badgeCount={item.href === "/validations" ? validationCountQuery.data?.total : undefined}
-                />
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
-        ))}
-      </nav>
+              <CollapsibleContent className="space-y-0.5">
+                {group.items.map((item) => (
+                  <NavItemComponent
+                    key={item.href}
+                    item={item}
+                    collapsed={false}
+                    badgeCount={item.href === "/validations" ? validationCountQuery.data?.total : undefined}
+                  />
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
+          ))}
+        </nav>
+      )}
 
       {!collapsed && (
         <div className="space-y-1">

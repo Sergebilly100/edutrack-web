@@ -80,6 +80,8 @@ describe("navigation finance d'un staff restreint", () => {
       "/settings",
     ]))
     expect(viewStaff.map((item) => item.href)).not.toContain("/finance?tab=entry")
+    expect(viewStaff.map((item) => item.href)).not.toContain("/finance?tab=tuition")
+    expect(viewStaff.map((item) => item.href)).not.toContain("/finance?tab=settings")
   })
 })
 
