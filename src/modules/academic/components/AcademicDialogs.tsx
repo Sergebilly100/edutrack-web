@@ -35,6 +35,9 @@ import type {
   Level,
   LevelPayload,
   SchoolClass,
+  Subject,
+  SubjectPayload,
+  SubjectUpdatePayload,
 } from "@/modules/academic/academic.api"
 import type { TeacherListItem } from "@/modules/teachers/teachers.api"
 import { Spinner } from "@/shared/components/Spinner"
@@ -135,6 +138,115 @@ export function LevelDialog({
                 Annuler
               </Button>
               <Button type="submit" disabled={isPending}>
+                {isPending ? <Spinner size="sm" className="mr-2" /> : null}
+                {isPending ? "Enregistrement…" : "Enregistrer"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+const subjectSchema = z.object({
+  levelId: z.string().min(1, "Le niveau est requis"),
+  name: z.string().trim().min(1, "Le nom est requis").max(100),
+  coefficient: z.string().trim().refine(
+    (value) => Number.isFinite(Number(value)) && Number(value) > 0,
+    "Le coefficient doit être un nombre positif"
+  ),
+})
+
+type SubjectFormValues = z.infer<typeof subjectSchema>
+
+export function SubjectDialog({
+  open,
+  isPending,
+  subject,
+  levels,
+  onOpenChange,
+  onSubmit,
+}: CommonDialogProps & {
+  subject: Subject | null
+  levels: Level[]
+  onSubmit: (payload: SubjectPayload | SubjectUpdatePayload) => Promise<void> | void
+}) {
+  const form = useForm<SubjectFormValues>({
+    resolver: zodResolver(subjectSchema),
+    defaultValues: { levelId: "", name: "", coefficient: "1" },
+  })
+
+  useEffect(() => {
+    if (!open) return
+    form.reset({
+      levelId: subject?.levelId ?? levels[0]?.id ?? "",
+      name: subject?.name ?? "",
+      coefficient: String(subject?.coefficient ?? 1),
+    })
+  }, [form, levels, open, subject])
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{subject ? "Modifier la matière" : "Ajouter une matière"}</DialogTitle>
+          <DialogDescription>
+            Le coefficient de la matière intervient dans le calcul de la moyenne générale.
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form
+            className="space-y-4"
+            onSubmit={form.handleSubmit((values) => {
+              const shared = { name: values.name.trim(), coefficient: Number(values.coefficient) }
+              void onSubmit(subject ? shared : { ...shared, levelId: values.levelId })
+            })}
+          >
+            <FormField
+              control={form.control}
+              name="levelId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Niveau</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange} disabled={Boolean(subject)}>
+                    <FormControl><SelectTrigger className="min-h-12"><SelectValue placeholder="Sélectionner un niveau" /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      {levels.map((level) => <SelectItem key={level.id} value={level.id}>{level.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {subject ? <p className="text-xs text-muted-foreground">Le niveau ne peut pas être modifié après la création.</p> : null}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Matière</FormLabel>
+                  <FormControl><Input placeholder="Mathématiques" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="coefficient"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Coefficient de la matière</FormLabel>
+                  <FormControl><Input type="number" min={0.01} step={0.01} inputMode="decimal" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
+                Annuler
+              </Button>
+              <Button type="submit" disabled={isPending || levels.length === 0}>
                 {isPending ? <Spinner size="sm" className="mr-2" /> : null}
                 {isPending ? "Enregistrement…" : "Enregistrer"}
               </Button>

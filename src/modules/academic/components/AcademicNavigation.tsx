@@ -7,6 +7,7 @@ const ACADEMIC_ROUTES = {
   schoolYears: "/academic/school-years",
   levels: "/academic/levels",
   classes: "/academic/classes",
+  subjects: "/academic/subjects",
 } as const
 
 export function AcademicNavigation() {
@@ -38,6 +39,9 @@ export function AcademicNavigation() {
             </TabsTrigger>
             <TabsTrigger value={ACADEMIC_ROUTES.classes} className="min-h-10">
               Classes
+            </TabsTrigger>
+            <TabsTrigger value={ACADEMIC_ROUTES.subjects} className="min-h-10">
+              Matières
             </TabsTrigger>
           </>
         ) : null}

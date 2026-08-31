@@ -66,22 +66,18 @@ describe("navigation finance d'un staff restreint", () => {
   it("n'affiche que les écrans réellement ouvrables", () => {
     const entryStaff = getNavItemsByRole("staff", ["payments.record"])
     expect(entryStaff.map((item) => item.href)).toEqual(expect.arrayContaining([
-      "/finance?tab=entry",
-      "/finance?tab=import",
+      "/finance/encaissements",
     ]))
-    expect(entryStaff.map((item) => item.href)).not.toContain("/finance?tab=history")
+    expect(entryStaff.map((item) => item.href)).not.toContain("/finance/history")
 
     const viewStaff = getNavItemsByRole("staff", ["payments.view"])
     expect(viewStaff.map((item) => item.href)).toEqual(expect.arrayContaining([
-      "/finance?tab=dashboard",
-      "/finance?tab=history",
-      "/finance?tab=journal",
+      "/finance/dashboard",
+      "/finance/history",
+      "/finance/journal",
       "/settings",
     ]))
-    expect(viewStaff.map((item) => item.href)).not.toContain("/finance?tab=entry")
-    expect(viewStaff.map((item) => item.href)).not.toContain("/finance?tab=tuition")
-    expect(viewStaff.map((item) => item.href)).not.toContain("/finance?tab=alerts")
-    expect(viewStaff.map((item) => item.href)).not.toContain("/finance?tab=settings")
+    expect(viewStaff.map((item) => item.href)).not.toContain("/finance/encaissements")
   })
 })
 
@@ -111,9 +107,9 @@ describe("état actif de navigation", () => {
     expect(isNavItemActive(structure!, "/academic/classes", "")).toBe(true)
   })
 
-  it("sélectionne un seul onglet Finance selon le paramètre tab", () => {
-    const items = getNavItemsByRole("director").filter((item) => item.href.startsWith("/finance?tab="))
-    const activeItems = items.filter((item) => isNavItemActive(item, "/finance", "?tab=history"))
-    expect(activeItems).toEqual([expect.objectContaining({ href: "/finance?tab=history" })])
+  it("sélectionne une seule destination Finance", () => {
+    const items = getNavItemsByRole("director").filter((item) => item.href.startsWith("/finance/"))
+    const activeItems = items.filter((item) => isNavItemActive(item, "/finance/history", ""))
+    expect(activeItems).toEqual([expect.objectContaining({ href: "/finance/history" })])
   })
 })

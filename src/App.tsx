@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query"
 import axios from "axios"
 
 import { getSmsFeatureSettings } from "@/modules/subscriptions/subscriptions.api"
+import { FINANCE_PATHS, getFinancePathFromLegacyTab } from "@/modules/finance/finance.routes"
 import { useEndOfYearReviewStatus } from "@/modules/class-decisions/useEndOfYearReviewStatus"
 import { AppShell } from "@/shared/components/layout/AppShell"
 import { TeacherTopBar } from "@/shared/components/layout/TeacherTopBar"
@@ -52,6 +53,7 @@ const TeachersPage = lazy(() => import("@/modules/teachers/TeachersPage"))
 const SchoolYearsPage = lazy(() => import("@/modules/academic/SchoolYearsPage"))
 const LevelsPage = lazy(() => import("@/modules/academic/LevelsPage"))
 const ClassesPage = lazy(() => import("@/modules/academic/ClassesPage"))
+const SubjectsPage = lazy(() => import("@/modules/academic/SubjectsPage"))
 const NotesPage = lazy(() => import("@/modules/academic/NotesPage"))
 const CalculationPage = lazy(() => import("@/modules/academic/CalculationPage"))
 const ConductPage = lazy(() => import("@/modules/academic/ConductPage"))
@@ -507,6 +509,11 @@ function AcademicIndexRoute() {
   return <Navigate to="/academic/classes" replace />
 }
 
+function FinanceLegacyRoute() {
+  const [searchParams] = useSearchParams()
+  return <Navigate to={getFinancePathFromLegacyTab(searchParams.get("tab"))} replace />
+}
+
 function EndOfYearAccessRoute() {
   const statusQuery = useEndOfYearReviewStatus()
 
@@ -589,6 +596,7 @@ export default function App() {
           <Route path="/academic/school-years" element={<PermissionRoute href="/academic" requiredAnyPermissions={["school_years.view"]} element={<SchoolYearsPage />} />} />
           <Route path="/academic/levels" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<LevelsPage />} />} />
           <Route path="/academic/classes" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<ClassesPage />} />} />
+          <Route path="/academic/subjects" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<SubjectsPage />} />} />
           <Route path="/academic/completion" element={<PermissionRoute href="/academic/completion" requiredAnyPermissions={["report_cards.view"]} element={<CompletionTrackingPage />} />} />
           <Route path="/academic/report-cards" element={<PermissionRoute href="/academic/report-cards" requiredAnyPermissions={["report_cards.view", "report_cards.publish"]} element={<ReportCardsPage />} />} />
           <Route path="/end-of-year" element={<PermissionRoute href="/end-of-year" requiredAnyPermissions={["class_decisions.view"]} element={<EndOfYearAccessRoute />} />} />
@@ -597,7 +605,11 @@ export default function App() {
           <Route path="/enrollments/:enrollmentId/edit" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.edit", "students.edit"]} element={<NewEnrollmentPage />} />} />
           <Route path="/enrollments/students/:studentId/documents" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.view", "enrollments.edit"]} element={<EnrollmentDocumentsPage />} />} />
           <Route path="/enrollments/:enrollmentId/payment" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.confirm_payment"]} element={<EnrollmentPaymentPage />} />} />
-          <Route path="/finance" element={<PermissionRoute href="/finance" requiredAnyPermissions={["tuition.view", "tuition.edit", "tuition.grant_discount", "payments.view", "payments.record", "payments.cancel", "subscription_plans.view", "subscription_plans.edit", "settings.school"]} element={<FinancePage />} />} />
+          <Route path="/finance" element={<FinanceLegacyRoute />} />
+          <Route path={FINANCE_PATHS.dashboard} element={<PermissionRoute href={FINANCE_PATHS.dashboard} requiredAnyPermissions={["payments.view"]} element={<FinancePage view="dashboard" />} />} />
+          <Route path={FINANCE_PATHS.entry} element={<PermissionRoute href={FINANCE_PATHS.entry} requiredAnyPermissions={["payments.record"]} element={<FinancePage view="entry" />} />} />
+          <Route path={FINANCE_PATHS.history} element={<PermissionRoute href={FINANCE_PATHS.history} requiredAnyPermissions={["payments.view"]} element={<FinancePage view="history" />} />} />
+          <Route path={FINANCE_PATHS.journal} element={<PermissionRoute href={FINANCE_PATHS.journal} requiredAnyPermissions={["payments.view"]} element={<FinancePage view="journal" />} />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/admin/schools" element={<AdminPage />} />
           <Route path="/admin/schools/:tenantId" element={<AdminSchoolDetailPage />} />

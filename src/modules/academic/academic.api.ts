@@ -49,6 +49,22 @@ export type ClassPayload = {
   homeroomTeacherId: string | null
 }
 
+export type Subject = {
+  id: string
+  levelId: string
+  levelName: string
+  name: string
+  coefficient: number
+}
+
+export type SubjectPayload = {
+  levelId: string
+  name: string
+  coefficient: number
+}
+
+export type SubjectUpdatePayload = Pick<SubjectPayload, "name" | "coefficient">
+
 export type ClassesResponse = {
   schoolYear: SchoolYear | null
   activeSchoolYear: SchoolYear | null
@@ -115,6 +131,17 @@ const parseClass = (value: unknown): SchoolClass => {
   }
 }
 
+const parseSubject = (value: unknown): Subject => {
+  const row = asRecord(value)
+  return {
+    id: asString(row.id),
+    levelId: asString(row.levelId ?? row.level_id),
+    levelName: asString(row.levelName ?? row.level_name),
+    name: asString(row.name),
+    coefficient: asNumber(row.coefficient),
+  }
+}
+
 export async function listSchoolYears(): Promise<SchoolYear[]> {
   const response = await api.get("/school-years")
   const payload = asRecord(response.data)
@@ -174,6 +201,23 @@ export async function updateClass(id: string, payload: ClassPayload): Promise<Sc
 export async function archiveClass(id: string): Promise<SchoolClass> {
   const response = await api.delete(`/classes/${id}`)
   return parseClass(asRecord(response.data).class)
+}
+
+export async function listSubjects(levelId?: string): Promise<Subject[]> {
+  const response = await api.get("/subjects", { params: levelId ? { levelId } : undefined })
+  const payload = asRecord(response.data)
+  const rows: unknown[] = Array.isArray(payload.subjects) ? payload.subjects : []
+  return rows.map(parseSubject)
+}
+
+export async function createSubject(payload: SubjectPayload): Promise<Subject> {
+  const response = await api.post("/subjects", payload)
+  return parseSubject(asRecord(response.data).subject)
+}
+
+export async function updateSubject(id: string, payload: SubjectUpdatePayload): Promise<Subject> {
+  const response = await api.patch(`/subjects/${id}`, payload)
+  return parseSubject(asRecord(response.data).subject)
 }
 
 // ── Notes / Évaluations (espace prof, Tâche 5d) ─────────────────────────────

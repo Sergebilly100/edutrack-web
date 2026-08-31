@@ -13,7 +13,8 @@ import {
   TeachersIcon,
   ClassIcon,
 } from "@/shared/components/icons"
-import { Building2, ClipboardCheck, FileCheck2, FileSpreadsheet, GraduationCap, HandCoins, History, Landmark, LayoutDashboard, MessageSquareCode, NotebookPen, ReceiptText, Settings2, TrendingUp, User, WalletCards } from "lucide-react"
+import { Building2, ClipboardCheck, FileCheck2, GraduationCap, HandCoins, History, Landmark, LayoutDashboard, MessageSquareCode, NotebookPen, ReceiptText, Settings2, TrendingUp, User, WalletCards } from "lucide-react"
+import { FINANCE_PATHS } from "@/modules/finance/finance.routes"
 
 import { isStaffRole, type AuthRole, type PermissionKey } from "@/shared/store/auth.store"
 
@@ -103,7 +104,7 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ["director", "staff"],
     requiredAnyPermissions: ["school_years.view", "classes.view"],
     mobileVisible: false,
-    activePaths: ["/academic", "/academic/school-years", "/academic/levels", "/academic/classes"],
+    activePaths: ["/academic", "/academic/school-years", "/academic/levels", "/academic/classes", "/academic/subjects"],
   },
   {
     label: "Complétude",
@@ -144,7 +145,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     label: "Vue financière",
-    href: "/finance?tab=dashboard",
+    href: FINANCE_PATHS.dashboard,
     icon: LayoutDashboard,
     group: "Finance",
     roles: ["director", "staff"],
@@ -153,7 +154,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     label: "Encaissements",
-    href: "/finance?tab=entry",
+    href: FINANCE_PATHS.entry,
     icon: ReceiptText,
     group: "Finance",
     roles: ["director", "staff"],
@@ -162,7 +163,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     label: "Historique & reçus",
-    href: "/finance?tab=history",
+    href: FINANCE_PATHS.history,
     icon: History,
     group: "Finance",
     roles: ["director", "staff"],
@@ -171,20 +172,11 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     label: "Journal & exports",
-    href: "/finance?tab=journal",
+    href: FINANCE_PATHS.journal,
     icon: WalletCards,
     group: "Finance",
     roles: ["director", "staff"],
     requiredPermissions: ["payments.view"],
-    mobileVisible: false,
-  },
-  {
-    label: "Import paiements",
-    href: "/finance?tab=import",
-    icon: FileSpreadsheet,
-    group: "Finance",
-    roles: ["director", "staff"],
-    requiredPermissions: ["payments.record"],
     mobileVisible: false,
   },
   {

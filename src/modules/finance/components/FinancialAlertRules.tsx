@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Loader2 } from "lucide-react"
+import { BellRing, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { EmptyState } from "@/shared/components/EmptyState"
 import { useToast } from "@/components/ui/use-toast"
 import {
   fetchFinancialAlertLogs,
@@ -171,51 +172,70 @@ function RulesEditor({ canEdit }: { canEdit: boolean }) {
 }
 
 function AlertsLog() {
+  const [page, setPage] = useState(1)
   const logsQuery = useQuery({
-    queryKey: ["finance", "financial-alert-logs"],
-    queryFn: fetchFinancialAlertLogs,
+    queryKey: ["finance", "financial-alert-logs", page],
+    queryFn: () => fetchFinancialAlertLogs(page),
   })
+  const logsPage = logsQuery.data
+  const pagination = logsPage?.pagination
+
+  useEffect(() => {
+    if (pagination && page !== pagination.page) setPage(pagination.page)
+  }, [page, pagination])
 
   return (
     <Card className="rounded-lg shadow-sm">
       <CardHeader className="pb-3">
         <CardTitle>Historique des relances</CardTitle>
-        <CardDescription>Les 100 dernières relances envoyées par l&apos;école.</CardDescription>
+        <CardDescription>Toutes les relances envoyées par l&apos;école, de la plus récente à la plus ancienne.</CardDescription>
       </CardHeader>
       <CardContent>
         {logsQuery.isLoading ? (
           <p className="text-sm text-muted-foreground">Chargement…</p>
-        ) : (logsQuery.data?.length ?? 0) === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucune relance envoyée pour le moment.</p>
+        ) : (logsPage?.logs.length ?? 0) === 0 ? (
+          <EmptyState icon={BellRing} title="Aucune relance envoyée" message="Les relances envoyées aux parents apparaîtront ici." />
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Élève</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Canal</TableHead>
-                <TableHead>Statut</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(logsQuery.data ?? []).map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell>{new Date(log.sent_at).toLocaleString("fr-FR")}</TableCell>
-                  <TableCell className="font-medium">{log.student_name}</TableCell>
-                  <TableCell>{RULE_LABELS[log.rule_type] ?? log.rule_type}</TableCell>
-                  <TableCell>{log.channel === "both" ? "SMS + In-app" : log.channel === "sms" ? "SMS" : "In-app"}</TableCell>
-                  <TableCell>
-                    {log.status === "sent" ? (
-                      <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">Envoyée</Badge>
-                    ) : (
-                      <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">Échec</Badge>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <div className="space-y-4">
+            <div className="overflow-x-auto rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Élève</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Canal</TableHead>
+                    <TableHead>Statut</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(logsPage?.logs ?? []).map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell>{new Date(log.sent_at).toLocaleString("fr-FR")}</TableCell>
+                      <TableCell className="font-medium">{log.student_name}</TableCell>
+                      <TableCell>{RULE_LABELS[log.rule_type] ?? log.rule_type}</TableCell>
+                      <TableCell>{log.channel === "both" ? "SMS + In-app" : log.channel === "sms" ? "SMS" : "In-app"}</TableCell>
+                      <TableCell>
+                        {log.status === "sent" ? (
+                          <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">Envoyée</Badge>
+                        ) : (
+                          <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">Échec</Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {pagination ? <div className="flex flex-col gap-3 border-t pt-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-muted-foreground">{(pagination.page - 1) * pagination.limit + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)} sur {pagination.total} relance{pagination.total > 1 ? "s" : ""}</p>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" className="min-h-12" disabled={pagination.page === 1 || logsQuery.isFetching} onClick={() => setPage((current) => Math.max(1, current - 1))}><ChevronLeft className="mr-1 h-4 w-4" />Précédent</Button>
+                <span className="min-w-20 text-center tabular-nums" aria-live="polite">Page {pagination.page} / {pagination.totalPages}</span>
+                <Button type="button" variant="outline" size="sm" className="min-h-12" disabled={pagination.page === pagination.totalPages || logsQuery.isFetching} onClick={() => setPage((current) => Math.min(pagination.totalPages, current + 1))}>Suivant<ChevronRight className="ml-1 h-4 w-4" /></Button>
+              </div>
+            </div> : null}
+          </div>
         )}
       </CardContent>
     </Card>

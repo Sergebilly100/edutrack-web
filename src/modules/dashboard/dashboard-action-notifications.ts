@@ -6,7 +6,7 @@ export const DASHBOARD_ACTION_ROUTES: Record<string, { href: string; label: stri
   salary_pending: { href: "/salaries", label: "Ouvrir les salaires" },
   validations_pending: { href: "/validations", label: "Traiter les validations" },
   commission_overdue: { href: "/subscriptions/revenue", label: "Ouvrir les revenus" },
-  payment_reminder_needed: { href: "/finance", label: "Ouvrir la finance" },
+  payment_reminder_needed: { href: "/finance/dashboard", label: "Ouvrir la finance" },
   report_cards_blocked: { href: "/academic/completion", label: "Voir la complétude" },
   student_at_risk: { href: "/students", label: "Voir les élèves" },
   teacher_at_risk: { href: "/teachers", label: "Voir les professeurs" },

@@ -51,10 +51,18 @@ export type CashJournalFilter = {
   method?: PaymentMethod
 }
 
+export type CashJournalPagination = {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+}
+
 export type CashJournal = {
   entries: Array<Payment & { studentMatricule: string | null; studentName: string; classId: string; className: string }>
   totals: Record<PaymentMethod, number> & { grandTotal: number }
   count: number
+  pagination: CashJournalPagination
 }
 
 export type PaymentMappingField = {
@@ -174,12 +182,14 @@ const parsePayment = (value: unknown): Payment => {
   }
 }
 
-const journalParams = (filter: CashJournalFilter) => ({
+const journalParams = (filter: CashJournalFilter & Partial<Pick<CashJournalPagination, "page" | "limit">>) => ({
   school_year_id: filter.schoolYearId,
   from: filter.from,
   to: filter.to,
   class_id: filter.classId,
   method: filter.method,
+  page: filter.page,
+  limit: filter.limit,
 })
 
 const parseStatement = (value: unknown): StudentAccountStatement => {
@@ -207,10 +217,11 @@ export async function getParentAccountStatement(studentId: string, schoolYearId:
   return parseStatement(response.data.statement)
 }
 
-export async function getCashJournal(filter: CashJournalFilter): Promise<CashJournal> {
+export async function getCashJournal(filter: CashJournalFilter & Partial<Pick<CashJournalPagination, "page" | "limit">>): Promise<CashJournal> {
   const response = await apiClient.get("/payments/cash-journal", { params: journalParams(filter) })
   const journal = record(response.data.journal)
   const totals = record(journal.totals)
+  const pagination = record(journal.pagination)
   return {
     entries: (Array.isArray(journal.entries) ? journal.entries : []).map((item) => {
       const row = record(item)
@@ -218,6 +229,12 @@ export async function getCashJournal(filter: CashJournalFilter): Promise<CashJou
     }),
     totals: { cash: asNumber(totals.cash), mobile_money: asNumber(totals.mobile_money), bank_transfer: asNumber(totals.bank_transfer), grandTotal: asNumber(totals.grandTotal) },
     count: asNumber(journal.count),
+    pagination: {
+      page: asNumber(pagination.page, 1),
+      limit: asNumber(pagination.limit, 20),
+      total: asNumber(pagination.total),
+      totalPages: asNumber(pagination.totalPages, 1),
+    },
   }
 }
 
@@ -519,11 +536,26 @@ export const saveFinancialAlertRule = async (
   });
 }
 
-export const fetchFinancialAlertLogs = async (): Promise<
-  Array<{ id: string; student_name: string; rule_type: string; channel: string; status: string; sent_at: string }>
-> => {
-  const response = await apiClient.get<{ logs: Array<{ id: string; student_name: string; rule_type: string; channel: string; status: string; sent_at: string }> }>(
-    "/financial-alert-logs",
-  );
-  return response.data.logs ?? [];
+export type FinancialAlertLog = {
+  id: string;
+  student_name: string;
+  rule_type: string;
+  channel: string;
+  status: string;
+  sent_at: string;
+};
+
+export type FinancialAlertLogsPage = {
+  logs: FinancialAlertLog[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+};
+
+export const fetchFinancialAlertLogs = async (page = 1, limit = 20): Promise<FinancialAlertLogsPage> => {
+  const response = await apiClient.get<FinancialAlertLogsPage>("/financial-alert-logs", {
+    params: { page, limit },
+  });
+  return {
+    logs: response.data.logs ?? [],
+    pagination: response.data.pagination ?? { page, limit, total: 0, totalPages: 1 },
+  };
 }

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const { getMock, postMock, putMock } = vi.hoisted(() => ({ getMock: vi.fn(), postMock: vi.fn(), putMock: vi.fn() }))
 vi.mock("@/shared/api/client", () => ({ apiClient: { get: getMock, post: postMock, put: putMock } }))
 
-import { getCashJournal, getParentPaymentOptions, getStudentAccountStatement, listPayments, listTuitionPlans, saveProviderSetting } from "../finance.api"
+import { fetchFinancialAlertLogs, getCashJournal, getParentPaymentOptions, getStudentAccountStatement, listPayments, listTuitionPlans, saveProviderSetting } from "../finance.api"
 
 describe("finance.api", () => {
   beforeEach(() => vi.clearAllMocks())
@@ -49,6 +49,7 @@ describe("finance.api", () => {
   it("normalise le journal filtré et les soldes successifs du compte élève", async () => {
     getMock.mockResolvedValueOnce({ data: { journal: {
       count: 1,
+      pagination: { page: 2, limit: 20, total: 21, totalPages: 2 },
       totals: { cash: "25000", mobile_money: 0, bank_transfer: 0, grandTotal: "25000" },
       entries: [{
         id: "payment-1", amount: "25000", method: "cash", source: "bulk_import", status: "confirmed",
@@ -56,8 +57,10 @@ describe("finance.api", () => {
         studentMatricule: "EL-1", classId: "class-1", className: "6ème A",
       }],
     } } })
-    const journal = await getCashJournal({ schoolYearId: "year-1", from: "2026-08-01", to: "2026-08-31", method: "cash" })
+    const journal = await getCashJournal({ schoolYearId: "year-1", from: "2026-08-01", to: "2026-08-31", method: "cash", page: 2, limit: 20 })
+    expect(getMock).toHaveBeenCalledWith("/payments/cash-journal", { params: expect.objectContaining({ page: 2, limit: 20 }) })
     expect(journal.totals.grandTotal).toBe(25000)
+    expect(journal.pagination).toEqual({ page: 2, limit: 20, total: 21, totalPages: 2 })
     expect(journal.entries[0]).toMatchObject({ studentName: "Awa Koné", paymentDate: "2026-08-19" })
 
     getMock.mockResolvedValueOnce({ data: { statement: {
@@ -67,5 +70,18 @@ describe("finance.api", () => {
     } } })
     const statement = await getStudentAccountStatement("student-1", "year-1")
     expect(statement.movements[0]).toMatchObject({ runningPaid: 25000, balanceAfter: 75000 })
+  })
+
+  it("demande une page précise de l’historique des relances", async () => {
+    getMock.mockResolvedValueOnce({ data: {
+      logs: [{ id: "alert-1", student_name: "Awa Koné", rule_type: "late", channel: "sms", status: "sent", sent_at: "2026-08-19T12:00:00Z" }],
+      pagination: { page: 2, limit: 20, total: 21, totalPages: 2 },
+    } })
+
+    await expect(fetchFinancialAlertLogs(2, 20)).resolves.toMatchObject({
+      logs: [expect.objectContaining({ id: "alert-1" })],
+      pagination: { page: 2, limit: 20, total: 21, totalPages: 2 },
+    })
+    expect(getMock).toHaveBeenCalledWith("/financial-alert-logs", { params: { page: 2, limit: 20 } })
   })
 })
