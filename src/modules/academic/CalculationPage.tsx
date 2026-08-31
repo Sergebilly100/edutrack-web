@@ -128,7 +128,7 @@ export default function CalculationPage() {
   }
 
   const students = studentsQuery.data?.data ?? []
-  const editable = completion.status !== "completed" && conductQuery.data?.isAvailable === true
+  const editable = completion.status !== "completed" && period?.isCurrent !== false && conductQuery.data?.isAvailable === true
   const parsedBulkNote = Number(bulkNote.replace(",", "."))
   const bulkValid = selectedStudentIds.length > 0 && Number.isFinite(parsedBulkNote) && parsedBulkNote >= 0 && parsedBulkNote <= MAX_GRADE
 
@@ -141,7 +141,7 @@ export default function CalculationPage() {
 
       <ol className="grid grid-cols-3 gap-2 text-center text-sm" aria-label="Étapes de calcul"><li className="rounded-lg border p-3 text-muted-foreground">1. Notes terminées</li><li className="rounded-lg bg-primary p-3 font-medium text-primary-foreground">2. Moyennes & conduite</li><li className="rounded-lg border p-3 text-muted-foreground">3. Validation</li></ol>
 
-      {completion.status === "completed" ? <Card className="shadow-sm"><CardContent className="flex gap-3 p-4 text-sm"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />Cette matière est validée pour cette classe et cette période. Les notes et la conduite associée sont verrouillées.</CardContent></Card> : null}
+      {completion.status === "completed" || period?.isCurrent === false ? <Card className="shadow-sm"><CardContent className="flex gap-3 p-4 text-sm"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />{period?.isCurrent === false ? "Cette période est consultable uniquement. Les données ne redeviennent jamais modifiables après la génération des bulletins." : "Cette matière est validée pour cette classe et cette période. Les notes et la conduite associée sont verrouillées."}</CardContent></Card> : null}
 
       {editable ? <section className="space-y-3 rounded-lg border p-4"><div><h2 className="font-medium">Conduite en masse</h2><p className="text-sm text-muted-foreground">Appliquez une même note aux élèves sélectionnés. Elle reste modifiable jusqu’à votre validation.</p></div><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" className="min-h-12" onClick={() => setSelectedStudentIds(students.map((item) => item.id))}>Sélectionner tous</Button><Button type="button" variant="ghost" className="min-h-12" onClick={() => setSelectedStudentIds([])}>Effacer</Button><Badge variant="secondary" className="min-h-12 px-3">{selectedStudentIds.length} sélectionné(s)</Badge></div><div className="grid gap-3 md:grid-cols-[140px_1fr_auto] md:items-end"><div className="space-y-2"><Label htmlFor="bulk-conduct-note">Note / 20</Label><Input id="bulk-conduct-note" type="number" min={0} max={20} step={0.5} value={bulkNote} onChange={(event) => setBulkNote(event.target.value)} /></div><div className="space-y-2"><Label htmlFor="bulk-conduct-observation">Observation commune</Label><Input id="bulk-conduct-observation" value={bulkObservation} onChange={(event) => setBulkObservation(event.target.value)} placeholder="Optionnel" /></div><Button type="button" className="min-h-12" disabled={!bulkValid || bulkMutation.isPending} onClick={() => bulkMutation.mutate()}>{bulkMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UsersRound className="mr-2 h-4 w-4" />}Appliquer</Button></div></section> : null}
 

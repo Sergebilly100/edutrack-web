@@ -57,7 +57,9 @@ export default function NotesPage() {
     ),
     [contextQuery.data?.gradingPeriods, selectedClass],
   )
-  const gradingPeriodId = selectedPeriodId
+  const gradingPeriodId = selectedPeriodId || periods.find((period) => period.isCurrent)?.id || ""
+  const activePeriod = periods.find((period) => period.id === gradingPeriodId)
+  const isPeriodReadOnly = activePeriod?.isCurrent === false
 
   const scopeEnabled = Boolean(classId) && Boolean(gradingPeriodId)
   const scopeQuery = useQuery({
@@ -149,7 +151,7 @@ export default function NotesPage() {
   }
   const completionBySubject = new Map((scopeQuery.data?.completion ?? []).map((item) => [item.subjectId, item]))
   const isSubjectClosed = (subjectId: string | null | undefined) =>
-    Boolean(subjectId && completionBySubject.get(subjectId)?.calculationStarted)
+    isPeriodReadOnly || Boolean(subjectId && completionBySubject.get(subjectId)?.calculationStarted)
   const quickSlot = scopeQuery.data?.lessonSlots.find((item) => item.id === quickDraft.lessonSlotId)
   const quickSubject = scopeQuery.data?.subjects.find((item) => quickSlot && sameSubject(item.name, quickSlot.subjectName))
   const canCreate = draft.label.trim() !== "" && draft.lessonSlotId !== "" && draft.subjectId !== ""
@@ -166,11 +168,11 @@ export default function NotesPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Évaluations & notes</h1>
           <p className="text-sm text-muted-foreground">Préparez vos évaluations, saisissez les résultats, puis clôturez chaque matière au bon moment.</p>
         </div>
-        <Button type="button" className="min-h-12" disabled={!scopeEnabled} onClick={() => setCreateOpen(true)}><CalendarPlus className="mr-2 h-4 w-4" />Programmer une évaluation</Button>
+        <Button type="button" className="min-h-12" disabled={!scopeEnabled || isPeriodReadOnly} onClick={() => setCreateOpen(true)}><CalendarPlus className="mr-2 h-4 w-4" />Programmer une évaluation</Button>
       </header>
 
       <section aria-label="Contexte de notation" className="rounded-lg border bg-muted/30 p-4 md:p-5">
-        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2"><div><h2 className="font-semibold">Votre contexte</h2><p className="text-sm text-muted-foreground">Choisissez la classe et la période que vous voulez travailler.</p></div>{selectedClass && gradingPeriodId ? <Badge variant="secondary">{selectedClass.name} · {periods.find((item) => item.id === gradingPeriodId)?.label}</Badge> : null}</div>
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2"><div><h2 className="font-semibold">Votre contexte</h2><p className="text-sm text-muted-foreground">Choisissez la classe et la période que vous voulez travailler.</p></div>{selectedClass && gradingPeriodId ? <Badge variant="secondary">{selectedClass.name} · {activePeriod?.label}{activePeriod?.isCurrent === false ? " · lecture seule" : " · en cours"}</Badge> : null}</div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>Classe enseignée</Label>
@@ -192,7 +194,7 @@ export default function NotesPage() {
             <Select value={gradingPeriodId || "none"} onValueChange={(value) => setSelectedPeriodId(value === "none" ? "" : value)}>
               <SelectTrigger className="min-h-12" aria-label="Période de calcul"><SelectValue placeholder="Choisir une période" /></SelectTrigger>
               <SelectContent>
-                {periods.map((period) => <SelectItem key={period.id} value={period.id}>{period.label}</SelectItem>)}
+                {periods.map((period) => <SelectItem key={period.id} value={period.id}>{period.label}{period.isCurrent ? " · en cours" : period.isCompleted ? " · finalisée" : " · à venir"}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -207,9 +209,10 @@ export default function NotesPage() {
         <p className="text-sm text-destructive">Impossible de charger votre espace de notation pour cette classe.</p>
       ) : (
         <>
+          {isPeriodReadOnly ? <div className="rounded-lg border border-muted-foreground/20 bg-muted/40 p-4 text-sm text-muted-foreground">Cette période reste consultable, mais elle est verrouillée car les bulletins ont déjà été générés ou parce qu’elle n’est pas encore la période courante.</div> : null}
           <section aria-labelledby="spontaneous-title" className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-primary/20 bg-primary/5 p-4 md:p-5">
             <div className="flex gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground"><Sparkles className="h-4 w-4" /></span><div><h2 id="spontaneous-title" className="font-semibold">Note spontanée, pendant le cours</h2><p className="text-sm text-muted-foreground">Attribuez +1, +2, −1, −2, etc. Le justificatif reste obligatoire.</p></div></div>
-            <Button type="button" className="min-h-12" onClick={() => setSpontaneousOpen(true)} disabled={(scopeQuery.data?.lessonSlots.length ?? 0) === 0}><Sparkles className="mr-2 h-4 w-4" />Ajouter une note</Button>
+            <Button type="button" className="min-h-12" onClick={() => setSpontaneousOpen(true)} disabled={isPeriodReadOnly || (scopeQuery.data?.lessonSlots.length ?? 0) === 0}><Sparkles className="mr-2 h-4 w-4" />Ajouter une note</Button>
           </section>
 
           <section aria-labelledby="evaluations-title" className="space-y-4">
@@ -229,7 +232,7 @@ export default function NotesPage() {
                   {(scopeQuery.data?.completion ?? []).map((subject) => <TableRow key={subject.subjectId}>
                     <TableCell className="font-medium"><div>{subject.subjectName}</div><p className="mt-1 text-xs font-normal text-muted-foreground">{scheduledCountBySubject.get(subject.subjectId) ?? 0} évaluation{(scheduledCountBySubject.get(subject.subjectId) ?? 0) > 1 ? "s" : ""} effectuée{(scheduledCountBySubject.get(subject.subjectId) ?? 0) > 1 ? "s" : ""}</p></TableCell>
                     <TableCell>{subject.status === "completed" ? <Badge variant="outline"><CheckCircle2 className="mr-1 h-3 w-3" />Validée</Badge> : <Badge variant="secondary">{subject.calculationStarted ? "Calcul en cours" : "Saisie en cours"}</Badge>}</TableCell>
-                    <TableCell className="text-right"><Button type="button" variant="outline" className="min-h-12" disabled={completionMutation.isPending} onClick={() => subject.calculationStarted ? navigate(`/academic/calculation?classId=${encodeURIComponent(classId)}&gradingPeriodId=${encodeURIComponent(gradingPeriodId)}&subjectId=${encodeURIComponent(subject.subjectId)}`) : completionMutation.mutate({ subjectId: subject.subjectId, status: "in_progress" })}>{subject.status === "completed" ? "Consulter les moyennes" : subject.calculationStarted ? "Ouvrir le calcul" : "Clôturer la saisie et calculer"}</Button></TableCell>
+                    <TableCell className="text-right"><Button type="button" variant="outline" className="min-h-12" disabled={completionMutation.isPending || (isPeriodReadOnly && !subject.calculationStarted)} onClick={() => subject.calculationStarted ? navigate(`/academic/calculation?classId=${encodeURIComponent(classId)}&gradingPeriodId=${encodeURIComponent(gradingPeriodId)}&subjectId=${encodeURIComponent(subject.subjectId)}`) : completionMutation.mutate({ subjectId: subject.subjectId, status: "in_progress" })}>{subject.status === "completed" ? "Consulter les moyennes" : subject.calculationStarted ? "Ouvrir le calcul" : "Clôturer la saisie et calculer"}</Button></TableCell>
                   </TableRow>)}
                 </TableBody></Table>
               )}

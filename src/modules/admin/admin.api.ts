@@ -534,6 +534,7 @@ export type SchoolYearStatusResponse = {
     startDate: string
     endDate: string
     endOfYearReviewStartDate: string | null
+    gradingPeriodType: "trimester" | "semester"
   } | null
   isEndOfYearWindowOpen: boolean
 }
@@ -543,6 +544,7 @@ export type OpenSchoolYearPayload = {
   start_date: string
   end_date: string
   end_of_year_review_start_date?: string
+  period_type: "trimester" | "semester"
 }
 
 export type OpenedSchoolYearResponse = {
@@ -551,6 +553,7 @@ export type OpenedSchoolYearResponse = {
   startDate: string
   endDate: string
   endOfYearReviewStartDate: string | null
+  gradingPeriodType: "trimester" | "semester"
   status: "active"
   closedPreviousLabel: string | null
 }

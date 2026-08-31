@@ -297,7 +297,7 @@ export default function DashboardPage() {
   const gradingPeriodsQuery = useQuery({
     queryKey: ["academic", "grading-periods", schoolYearId],
     queryFn: async () => {
-      const response = await apiClient.get<{ gradingPeriods?: Array<{ id: string; schoolYearId?: string; school_year_id?: string; label: string; orderIndex?: number; order_index?: number }> }>("/grading-periods")
+      const response = await apiClient.get<{ gradingPeriods?: Array<{ id: string; schoolYearId?: string; school_year_id?: string; label: string; orderIndex?: number; order_index?: number; isCurrent?: boolean; isCompleted?: boolean }> }>("/grading-periods")
       return (response.data.gradingPeriods ?? []).filter((period) => (period.schoolYearId ?? period.school_year_id) === schoolYearId)
     },
     enabled: Boolean(schoolYearId),
@@ -335,8 +335,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (gradingPeriodId || !gradingPeriodsQuery.data?.length) return
-    const sorted = [...gradingPeriodsQuery.data].sort((a, b) => (b.orderIndex ?? b.order_index ?? 0) - (a.orderIndex ?? a.order_index ?? 0))
-    setGradingPeriodId(sorted[0].id)
+    const current = gradingPeriodsQuery.data.find((period) => period.isCurrent)
+    if (current) setGradingPeriodId(current.id)
   }, [gradingPeriodId, gradingPeriodsQuery.data])
 
   const handleDashboardRefresh = useCallback(async () => {
@@ -498,7 +498,7 @@ export default function DashboardPage() {
             <div className="space-y-1">
               <h1 className="text-2xl font-semibold tracking-tight">Bonjour, {user?.name ?? ""}</h1>
               <p className="text-sm text-muted-foreground">{formatToday(new Date())}</p>
-              <div className="mt-2 flex flex-wrap items-center gap-2"><Badge variant="outline">{schoolName}</Badge><Select value={schoolYearId} onValueChange={(value) => { setSchoolYearId(value); setGradingPeriodId("") }}><SelectTrigger className="min-h-10 w-[12.5rem]" aria-label="Année scolaire"><SelectValue placeholder="Année scolaire" /></SelectTrigger><SelectContent>{(schoolYearsQuery.data ?? []).map((year: SchoolYear) => <SelectItem key={year.id} value={year.id}>{year.label}</SelectItem>)}</SelectContent></Select>{gradingPeriodsQuery.data?.length ? <Select value={gradingPeriodId} onValueChange={setGradingPeriodId}><SelectTrigger className="min-h-10 w-[12.5rem]" aria-label="Période"><SelectValue placeholder="Période" /></SelectTrigger><SelectContent>{gradingPeriodsQuery.data.map((period) => <SelectItem key={period.id} value={period.id}>{period.label}</SelectItem>)}</SelectContent></Select> : null}</div>
+              <div className="mt-2 flex flex-wrap items-center gap-2"><Badge variant="outline">{schoolName}</Badge><Select value={schoolYearId} onValueChange={(value) => { setSchoolYearId(value); setGradingPeriodId("") }}><SelectTrigger className="min-h-10 w-[12.5rem]" aria-label="Année scolaire"><SelectValue placeholder="Année scolaire" /></SelectTrigger><SelectContent>{(schoolYearsQuery.data ?? []).map((year: SchoolYear) => <SelectItem key={year.id} value={year.id}>{year.label}</SelectItem>)}</SelectContent></Select>{gradingPeriodsQuery.data?.length ? <Select value={gradingPeriodId} onValueChange={setGradingPeriodId}><SelectTrigger className="min-h-10 w-[12.5rem]" aria-label="Période"><SelectValue placeholder="Période" /></SelectTrigger><SelectContent>{gradingPeriodsQuery.data.map((period) => <SelectItem key={period.id} value={period.id}>{period.label}{period.isCurrent ? " · en cours" : period.isCompleted ? " · finalisée" : " · à venir"}</SelectItem>)}</SelectContent></Select> : null}</div>
             </div>
             <div className="hidden items-center gap-2 md:flex">
               {isDirector ? (

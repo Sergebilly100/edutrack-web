@@ -9,6 +9,7 @@ export type SchoolYear = {
   startDate: string
   endDate: string
   endOfYearReviewStartDate: string
+  gradingPeriodType: "trimester" | "semester"
   status: SchoolYearStatus
   createdAt: string
   updatedAt: string
@@ -84,6 +85,7 @@ const parseSchoolYear = (value: unknown): SchoolYear => {
     startDate: asString(row.startDate ?? row.start_date),
     endDate: asString(row.endDate ?? row.end_date),
     endOfYearReviewStartDate: asString(row.endOfYearReviewStartDate ?? row.end_of_year_review_start_date),
+    gradingPeriodType: row.gradingPeriodType === "semester" || row.grading_period_type === "semester" ? "semester" : "trimester",
     status: parseStatus(row.status),
     createdAt: asString(row.createdAt ?? row.created_at),
     updatedAt: asString(row.updatedAt ?? row.updated_at),
@@ -271,6 +273,8 @@ export type TeacherAcademicContext = {
     label: string
     startDate: string
     endDate: string
+    isCompleted: boolean
+    isCurrent: boolean
   }>
 }
 
@@ -430,7 +434,7 @@ export const fetchReadiness = (gradingPeriodId: string) =>
     .then((response) => response.data.classes)
 
 export const generateReportCards = (payload: { class_id: string; grading_period_id: string }) =>
-  api.post<{ generatedCount: number }>("/report-cards/generate", payload).then((r) => r.data)
+  api.post<{ generatedCount: number; periodCompleted: boolean }>("/report-cards/generate", payload).then((r) => r.data)
 
 export const publishReportCard = (cardId: string) =>
   api.post(`/report-cards/${cardId}/publish`).then((r) => r.data)

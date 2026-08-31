@@ -7,7 +7,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest"
 const submitBulk = vi.fn().mockResolvedValue({ savedCount: 2 })
 const fetchTeacherContext = vi.fn().mockResolvedValue({
   classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2026-2027" }],
-  gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2026-09-01", endDate: "2026-12-20" }],
+  gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2026-09-01", endDate: "2026-12-20", isCurrent: true, isCompleted: false }],
 })
 const fetchConductScope = vi.fn().mockResolvedValue({
   isAvailable: true,
@@ -61,7 +61,7 @@ describe("ConductPage professeur", () => {
     fireEvent.click(await screen.findByRole("combobox", { name: /classe/i }))
     fireEvent.click(await screen.findByText(/6ème A/))
     fireEvent.click(screen.getByRole("combobox", { name: /période/i }))
-    fireEvent.click(await screen.findByText("1er trimestre"))
+    fireEvent.click(await screen.findByRole("option", { name: "1er trimestre" }))
 
     fireEvent.click(await screen.findByRole("button", { name: "Sélectionner tous" }))
     fireEvent.change(screen.getByLabelText("Note / 20"), { target: { value: "16" } })
@@ -83,25 +83,25 @@ describe("ConductPage professeur", () => {
     fireEvent.click(await screen.findByRole("combobox", { name: /classe/i }))
     fireEvent.click(await screen.findByText(/6ème A/))
     fireEvent.click(screen.getByRole("combobox", { name: /période/i }))
-    fireEvent.click(await screen.findByText("1er trimestre"))
+    fireEvent.click(await screen.findByRole("option", { name: "1er trimestre" }))
 
     expect(await screen.findByText("Conduite pas encore ouverte")).toBeInTheDocument()
     expect(screen.queryByText("Attribution en masse")).not.toBeInTheDocument()
   })
 
-  it("verrouille la conduite quand la période est terminée", async () => {
+  it("verrouille la conduite quand les bulletins rendent la période complète", async () => {
     fetchTeacherContext.mockResolvedValueOnce({
       classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2019-2020" }],
-      gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2019-09-01", endDate: "2019-12-20" }],
+      gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2019-09-01", endDate: "2019-12-20", isCurrent: false, isCompleted: true }],
     })
     renderWithClient(<ConductPage view="teacher" />)
 
     fireEvent.click(await screen.findByRole("combobox", { name: /classe/i }))
     fireEvent.click(await screen.findByText(/6ème A/))
     fireEvent.click(screen.getByRole("combobox", { name: /période/i }))
-    fireEvent.click(await screen.findByText("1er trimestre"))
+    fireEvent.click(await screen.findByRole("option", { name: "1er trimestre" }))
 
-    expect(await screen.findByText("Période terminée")).toBeInTheDocument()
+    expect(await screen.findByText("Cette période est consultable, mais les notes de conduite sont verrouillées : elle est finalisée ou pas encore courante.")).toBeInTheDocument()
     expect(screen.queryByText("Attribution en masse")).not.toBeInTheDocument()
   })
 })

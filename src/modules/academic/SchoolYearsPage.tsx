@@ -81,6 +81,7 @@ export default function SchoolYearsPage() {
       ),
     },
     { id: "dates", header: "Période", cell: ({ row }) => `${formatDate(row.original.startDate)} au ${formatDate(row.original.endDate)}` },
+    { id: "cycle", header: "Cycle", cell: ({ row }) => row.original.gradingPeriodType === "semester" ? "2 semestres" : "3 trimestres" },
     { id: "review", header: "Début de revue", cell: ({ row }) => formatDate(row.original.endOfYearReviewStartDate) },
     {
       accessorKey: "status",
@@ -145,6 +146,7 @@ export default function SchoolYearsPage() {
                 <div>
                   <p className="font-medium">{schoolYear.label}</p>
                   <p className="text-sm text-muted-foreground">{formatDate(schoolYear.startDate)} au {formatDate(schoolYear.endDate)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{schoolYear.gradingPeriodType === "semester" ? "2 semestres" : "3 trimestres"}</p>
                   <p className="mt-2 text-xs text-muted-foreground">Revue dès le {formatDate(schoolYear.endOfYearReviewStartDate)}</p>
                 </div>
                 <Badge variant={schoolYear.status === "active" ? "default" : "outline"}>{statusLabel[schoolYear.status]}</Badge>

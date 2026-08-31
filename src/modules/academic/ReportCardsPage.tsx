@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { FileDown, Loader2, Send, Sparkles } from "lucide-react"
 
@@ -35,10 +35,15 @@ export default function ReportCardsPage() {
     queryFn: async () => {
       const { apiClient } = await import("@/shared/api/client")
       return apiClient
-        .get<{ gradingPeriods: Array<{ id: string; label: string }> }>("/grading-periods")
+        .get<{ gradingPeriods: Array<{ id: string; label: string; isCurrent: boolean; isCompleted: boolean }> }>("/grading-periods")
         .then((r) => r.data.gradingPeriods)
     },
   })
+  useEffect(() => {
+    if (gradingPeriodId || !periodsQuery.data?.length) return
+    const current = periodsQuery.data.find((period) => period.isCurrent)
+    if (current) setGradingPeriodId(current.id)
+  }, [gradingPeriodId, periodsQuery.data])
   const readinessEnabled = Boolean(gradingPeriodId)
   const readinessQuery = useQuery({
     queryKey: ["report-cards-readiness", gradingPeriodId],
@@ -63,7 +68,8 @@ export default function ReportCardsPage() {
     mutationFn: () => generateReportCards({ class_id: classId, grading_period_id: gradingPeriodId }),
     onSuccess: async (result) => {
       await invalidate()
-      toast({ title: `${result.generatedCount} bulletin(s) généré(s)` })
+      await queryClient.invalidateQueries({ queryKey: ["academic", "grading-periods"] })
+      toast({ title: `${result.generatedCount} bulletin(s) généré(s)`, description: result.periodCompleted ? "La période est complète : la période suivante devient la période en cours." : undefined })
     },
     onError: (error) =>
       toast({
@@ -147,7 +153,7 @@ export default function ReportCardsPage() {
             <SelectTrigger className="min-h-12"><SelectValue placeholder="Choisir une période" /></SelectTrigger>
             <SelectContent>
               {(periodsQuery.data ?? []).map((period) => (
-                <SelectItem key={period.id} value={period.id}>{period.label}</SelectItem>
+                <SelectItem key={period.id} value={period.id}>{period.label}{period.isCurrent ? " · en cours" : period.isCompleted ? " · finalisée" : " · à venir"}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -170,7 +176,7 @@ export default function ReportCardsPage() {
                 <Button
                   type="button"
                   onClick={() => generateMutation.mutate()}
-                  disabled={generateMutation.isPending}
+                  disabled={generateMutation.isPending || !(periodsQuery.data ?? []).some((period) => period.id === gradingPeriodId && period.isCurrent)}
                 >
                   {generateMutation.isPending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

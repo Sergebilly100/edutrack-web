@@ -255,6 +255,7 @@ export default function AdminSchoolDetailPage() {
     startDate: "",
     endDate: "",
     reviewDate: "",
+    periodType: "trimester" as "trimester" | "semester",
   })
   const [confirmOpenYearOpen, setConfirmOpenYearOpen] = useState(false)
   const [reversementPeriodMonth, setReversementPeriodMonth] = useState("")
@@ -522,13 +523,14 @@ export default function AdminSchoolDetailPage() {
         label: openYearForm.label.trim(),
         start_date: openYearForm.startDate,
         end_date: openYearForm.endDate,
+        period_type: openYearForm.periodType,
         ...(openYearForm.reviewDate ? { end_of_year_review_start_date: openYearForm.reviewDate } : {}),
       }),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ["admin", "school-year-status", tenantId] })
       await queryClient.invalidateQueries({ queryKey: ["admin", "school-detail", tenantId] })
       setConfirmOpenYearOpen(false)
-      setOpenYearForm({ label: "", startDate: "", endDate: "", reviewDate: "" })
+      setOpenYearForm({ label: "", startDate: "", endDate: "", reviewDate: "", periodType: "trimester" })
       toast({
         title: `Année ${result.label} ouverte`,
         description:
@@ -1342,6 +1344,10 @@ export default function AdminSchoolDetailPage() {
                           <p className="text-sm">{formatDate(schoolYearQuery.data.activeYear.endOfYearReviewStartDate)}</p>
                         </div>
                       ) : null}
+                      <div className="min-w-40 space-y-1">
+                        <p className="text-xs text-muted-foreground">Cycle d&apos;évaluation</p>
+                        <p className="text-sm">{schoolYearQuery.data.activeYear?.gradingPeriodType === "semester" ? "2 semestres" : "3 trimestres"}</p>
+                      </div>
                       <Badge
                         variant="outline"
                         className={
@@ -1398,6 +1404,17 @@ export default function AdminSchoolDetailPage() {
                         value={openYearForm.endDate}
                         onChange={(e) => setOpenYearForm((p) => ({ ...p, endDate: e.target.value }))}
                       />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="open-year-period-type">Cycle d&apos;évaluation</Label>
+                      <Select value={openYearForm.periodType} onValueChange={(value: "trimester" | "semester") => setOpenYearForm((p) => ({ ...p, periodType: value }))}>
+                        <SelectTrigger id="open-year-period-type" className="min-h-10"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="trimester">Trimestres (3 périodes)</SelectItem>
+                          <SelectItem value="semester">Semestres (2 périodes)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">Les périodes sont créées automatiquement. Le passage à la suivante dépend de la génération complète des bulletins, pas d&apos;une date.</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="open-year-review">Début revue de fin d&apos;année</Label>

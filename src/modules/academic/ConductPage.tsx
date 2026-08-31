@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Gavel, Loader2, MessageSquareText } from "lucide-react"
 import { useNavigate } from "react-router-dom"
@@ -75,9 +75,12 @@ function TeacherConductSection() {
     (period) => !selectedClass || period.schoolYearId === selectedClass.schoolYearId,
   )
   const selectedPeriod = periods.find((period) => period.id === gradingPeriodId)
-  const periodEnded = Boolean(
-    selectedPeriod && new Date().toISOString().slice(0, 10) > selectedPeriod.endDate,
-  )
+  const periodEnded = selectedPeriod?.isCurrent === false
+  useEffect(() => {
+    if (gradingPeriodId || periods.length === 0) return
+    const current = periods.find((period) => period.isCurrent)
+    if (current) setGradingPeriodId(current.id)
+  }, [gradingPeriodId, periods])
   const scopeQuery = useQuery({
     queryKey: ["conduct-input-scope", classId, gradingPeriodId],
     queryFn: () => fetchTeacherConductScope(classId, gradingPeriodId),
@@ -176,12 +179,7 @@ function TeacherConductSection() {
           </div>
         </div>
 
-        {classId && gradingPeriodId ? periodEnded ? (
-          <EmptyState
-            title="Période terminée"
-            description="Les notes de conduite de cette période sont verrouillées et ne peuvent plus être ajoutées ou modifiées."
-          />
-        ) : scopeQuery.isLoading ? (
+        {classId && gradingPeriodId ? scopeQuery.isLoading ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Chargement des élèves…</p>
         ) : scopeQuery.isError ? (
           <p className="text-sm text-destructive">Impossible de charger les élèves de cette classe.</p>
@@ -196,7 +194,8 @@ function TeacherConductSection() {
           />
         ) : (
           <div className="space-y-5">
-            {availableStudents.length > 0 ? (
+            {periodEnded ? <div className="rounded-lg border border-muted-foreground/20 bg-muted/40 p-4 text-sm text-muted-foreground">Cette période est consultable, mais les notes de conduite sont verrouillées : elle est finalisée ou pas encore courante.</div> : null}
+            {!periodEnded && availableStudents.length > 0 ? (
               <div className="space-y-3 rounded-lg border p-4">
                 <div>
                   <p className="font-medium">Attribution en masse</p>
@@ -220,6 +219,7 @@ function TeacherConductSection() {
                 studentId={student.studentId}
                 fullName={student.fullName}
                 existingInput={student.input}
+                readOnly={periodEnded}
                 selected={selectedStudentIds.includes(student.studentId)}
                 onSelectedChange={(selected) => setSelectedStudentIds((current) => selected
                   ? [...current, student.studentId]
@@ -245,6 +245,7 @@ function ConductInputRow({
   studentId,
   fullName,
   existingInput,
+  readOnly,
   selected,
   onSelectedChange,
   onSave,
@@ -252,6 +253,7 @@ function ConductInputRow({
   studentId: string
   fullName: string
   existingInput: { note: number; observation: string | null; createdAt: string } | null
+  readOnly: boolean
   selected: boolean
   onSelectedChange: (selected: boolean) => void
   onSave: (note: number, observation?: string) => void
@@ -263,7 +265,7 @@ function ConductInputRow({
 
   return (
     <div className="grid items-end gap-3 rounded-lg border p-3 sm:grid-cols-[48px_1fr_100px_1fr_auto_auto]">
-      <div className="flex min-h-12 items-center"><Checkbox aria-label={`Sélectionner ${fullName}`} checked={selected} disabled={existingInput !== null} onCheckedChange={(checked) => onSelectedChange(checked === true)} /></div>
+      <div className="flex min-h-12 items-center"><Checkbox aria-label={`Sélectionner ${fullName}`} checked={selected} disabled={readOnly || existingInput !== null} onCheckedChange={(checked) => onSelectedChange(checked === true)} /></div>
       <div className="min-h-12 flex flex-col justify-center"><p className="font-medium">{fullName}</p>{existingInput ? <p className="text-xs text-muted-foreground">Déjà saisie : {existingInput.note}/20{existingInput.observation ? ` · ${existingInput.observation}` : ""}</p> : null}</div>
       <div className="space-y-1">
         <Label className="sr-only">Note</Label>
@@ -274,7 +276,7 @@ function ConductInputRow({
           step={0.5}
           placeholder={`/${CONDUCT_MAX}`}
           value={note}
-          disabled={existingInput !== null}
+          disabled={readOnly || existingInput !== null}
           onChange={(event) => setNote(event.target.value)}
         />
       </div>
@@ -283,7 +285,7 @@ function ConductInputRow({
         <Input
           placeholder="Observation (optionnel)"
           value={observation}
-          disabled={existingInput !== null}
+          disabled={readOnly || existingInput !== null}
           onChange={(event) => setObservation(event.target.value)}
         />
       </div>
@@ -291,7 +293,7 @@ function ConductInputRow({
         type="button"
         variant="outline"
         className="min-h-12"
-        disabled={!valid || existingInput !== null}
+        disabled={readOnly || !valid || existingInput !== null}
         onClick={() => onSave(parsed, observation.trim() || undefined)}
       >
         Enregistrer
@@ -314,7 +316,7 @@ function EducatorDecisionSection() {
     queryFn: async () => {
       const { apiClient } = await import("@/shared/api/client")
       return apiClient
-        .get<{ gradingPeriods: Array<{ id: string; label: string }> }>("/grading-periods")
+        .get<{ gradingPeriods: Array<{ id: string; label: string; isCurrent: boolean; isCompleted: boolean }> }>("/grading-periods")
         .then((r) => r.data.gradingPeriods)
     },
   })
@@ -323,6 +325,14 @@ function EducatorDecisionSection() {
     queryFn: () => listStudents({ classId, isActive: true, limit: 200 }),
     enabled: Boolean(classId),
   })
+  const selectedPeriod = periodsQuery.data?.find((period) => period.id === gradingPeriodId)
+  const isReadOnly = selectedPeriod?.isCurrent === false
+
+  useEffect(() => {
+    if (gradingPeriodId || !periodsQuery.data?.length) return
+    const current = periodsQuery.data.find((period) => period.isCurrent)
+    if (current) setGradingPeriodId(current.id)
+  }, [gradingPeriodId, periodsQuery.data])
 
   return (
     <Card className="shadow-sm">
@@ -358,7 +368,9 @@ function EducatorDecisionSection() {
               <SelectTrigger className="min-h-12"><SelectValue placeholder="Choisir une période" /></SelectTrigger>
               <SelectContent>
                 {(periodsQuery.data ?? []).map((period) => (
-                  <SelectItem key={period.id} value={period.id}>{period.label}</SelectItem>
+                  <SelectItem key={period.id} value={period.id}>
+                    {period.label}{period.isCurrent ? " · en cours" : period.isCompleted ? " · finalisée" : " · à venir"}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -384,8 +396,14 @@ function EducatorDecisionSection() {
           </div>
         ) : null}
 
+        {isReadOnly ? (
+          <div className="rounded-lg border border-muted-foreground/20 bg-muted/40 p-4 text-sm text-muted-foreground">
+            Cette période est consultable uniquement : les bulletins sont déjà générés ou la période n&apos;est pas encore courante.
+          </div>
+        ) : null}
+
         {selectedStudentId && gradingPeriodId ? (
-          <EducatorDecisionPanel studentId={selectedStudentId} gradingPeriodId={gradingPeriodId} />
+          <EducatorDecisionPanel studentId={selectedStudentId} gradingPeriodId={gradingPeriodId} readOnly={isReadOnly} />
         ) : null}
       </CardContent>
     </Card>
@@ -395,9 +413,11 @@ function EducatorDecisionSection() {
 function EducatorDecisionPanel({
   studentId,
   gradingPeriodId,
+  readOnly,
 }: {
   studentId: string
   gradingPeriodId: string
+  readOnly: boolean
 }) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
@@ -494,13 +514,14 @@ function EducatorDecisionPanel({
             step={0.5}
             className="max-w-24"
             value={note}
+            disabled={readOnly}
             onChange={(event) => setNote(event.target.value)}
           />
         </div>
         <Button
           type="button"
           className="min-h-12"
-          disabled={!valid || decideMutation.isPending}
+          disabled={readOnly || !valid || decideMutation.isPending}
           onClick={() => decideMutation.mutate()}
         >
           {decideMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
