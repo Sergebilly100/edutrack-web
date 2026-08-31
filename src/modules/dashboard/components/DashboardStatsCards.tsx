@@ -1,287 +1,50 @@
 import { useQuery } from "@tanstack/react-query"
-import { UserCheck, Users, Wallet, TrendingUp } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { TrendingUp, UserCheck, Users, Wallet } from "lucide-react"
+
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { getDashboardStats } from "../dashboard.api"
+import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { formatFcfa, formatRate } from "@/shared/utils/formatting"
-import { formatDecimalHours } from "@/shared/utils/time"
-import { cn } from "@/lib/utils"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
-import { attendanceTone, statusToneIconBg, statusToneText } from "@/shared/utils/status-tone"
+import { attendanceTone } from "@/shared/utils/status-tone"
+import { getDashboardStats } from "../dashboard.api"
 
-const QUERY_STALE_TIME = 5 * 60 * 1000 // 5 minutes
+const QUERY_STALE_TIME = 5 * 60 * 1000
 
-const getAttendanceColor = (rate: number): string => statusToneText[attendanceTone(rate)]
-const getAttendanceBgColor = (rate: number): string => statusToneIconBg[attendanceTone(rate)]
+type DashboardStatsCardsProps = { showTeacherCard?: boolean; showStudentCard?: boolean; showSalaryCard?: boolean; showSubscriptionCard?: boolean }
 
-/**
- * Classe de grille responsive cohérente quel que soit le nombre de cartes
- * visibles (1 à 4). Utilisée pour le skeleton, l'état d'erreur ET l'état chargé
- * afin d'éviter tout décalage de disposition entre ces états.
- *
- * Le nombre de colonnes au plus large breakpoint suit EXACTEMENT le nombre de
- * cartes visibles : chaque carte vaut 1fr et remplit toute la ligne - pas de
- * colonne vide quand une carte est masquée (ex. staff sans droit salaire).
- * - 1 carte  : 1 col à toutes tailles
- * - 2 cartes : 1 col (mobile) → 2 col (≥sm)
- * - 3 cartes : 1 col (mobile) → 3 col (≥sm)
- * - 4 cartes : 2 col (mobile) → 4 col (≥lg)
- */
-function statsGridClassName(count: number): string {
-  switch (count) {
-    case 1:
-      return "grid grid-cols-1 gap-4"
-    case 2:
-      return "grid grid-cols-1 gap-4 sm:grid-cols-2"
-    case 3:
-      return "grid grid-cols-1 gap-4 sm:grid-cols-3"
-    default:
-      return "grid grid-cols-2 gap-4 lg:grid-cols-4"
-  }
-}
-
-function StatCardSkeleton() {
-  return (
-    <Card className="border border-gray-100 rounded-2xl shadow-sm">
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between">
-          <div className="flex-1 space-y-2">
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-8 w-20" />
-          </div>
-          <Skeleton className="h-10 w-10 rounded-xl" />
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-1">
-        <Skeleton className="h-3 w-full" />
-        <Skeleton className="h-3 w-3/4" />
-      </CardContent>
-    </Card>
-  )
-}
-
-type DashboardStatsCardsProps = {
-  /** Carte « Présence professeurs » (défaut visible - directeur). */
-  showTeacherCard?: boolean
-  /** Carte « Présence élèves » (défaut visible - directeur). */
-  showStudentCard?: boolean
-  /** Carte « Salaire à payer ce mois » (défaut visible - directeur). */
-  showSalaryCard?: boolean
-  /**
-   * Carte « Revenus abonnements » (défaut visible - directeur).
-   * Dépend AUSSI de stats.subscriptions.isEnabled. Le droit côté staff est
-   * `subscriptions.view` / `subscriptions.revenue`, distinct du droit salaire.
-   */
-  showSubscriptionCard?: boolean
-}
-
-export function DashboardStatsCards({
-  showTeacherCard = true,
-  showStudentCard = true,
-  showSalaryCard = true,
-  showSubscriptionCard = true,
-}: DashboardStatsCardsProps = {}) {
+export function DashboardStatsCards({ showTeacherCard = true, showStudentCard = true, showSalaryCard = true, showSubscriptionCard = true }: DashboardStatsCardsProps = {}) {
   const studentLabels = useStudentLabels()
-  const { data: stats, isLoading, error } = useQuery({
-    queryKey: ["dashboard-stats"],
-    queryFn: () => getDashboardStats(),
-    staleTime: QUERY_STALE_TIME,
-    refetchOnWindowFocus: true,
-  })
+  const statsQuery = useQuery({ queryKey: ["dashboard-stats"], queryFn: () => getDashboardStats(), staleTime: QUERY_STALE_TIME, refetchOnWindowFocus: true })
 
-  // Nombre de cartes potentiellement visibles avant chargement des données.
-  // La carte « revenus abonnements » dépend de stats.subscriptions.isEnabled,
-  // on ne la compte donc pas ici (skeleton/erreur).
-  const baseVisibleCount =
-    Number(showTeacherCard) + Number(showStudentCard) + Number(showSalaryCard)
-  const placeholderGridClassName = statsGridClassName(baseVisibleCount)
+  if (!showTeacherCard && !showStudentCard && !showSalaryCard && !showSubscriptionCard) return null
+  if (statsQuery.isLoading) return <DashboardStatsSkeleton />
+  if (statsQuery.isError || !statsQuery.data) return <QueryErrorState message="Impossible de charger les indicateurs de l’école." onRetry={() => void statsQuery.refetch()} isRetrying={statsQuery.isFetching} />
 
-  if (baseVisibleCount === 0) {
-    return null
-  }
+  const { teacherAttendance, studentAttendance, salaries, subscriptions } = statsQuery.data
+  const showSubscriptions = subscriptions.isEnabled && showSubscriptionCard
+  const hasAttendance = showTeacherCard || showStudentCard
+  const hasOperations = showSalaryCard || showSubscriptions
 
-  if (isLoading) {
-    return (
-      <div className={placeholderGridClassName}>
-        {Array.from({ length: baseVisibleCount }).map((_, index) => (
-          <StatCardSkeleton key={index} />
-        ))}
-      </div>
-    )
-  }
+  return <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,0.7fr)]">
+    {hasAttendance ? <Card className="rounded-lg border-0 bg-blue-700 text-blue-50 shadow-sm" data-tour="dashboard-stats"><CardContent className="p-5 sm:p-6"><div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-sm font-medium text-blue-100">Rythme de l’école aujourd’hui</p><p className="mt-2 text-3xl font-semibold tracking-tight">Suivi des présences</p><p className="mt-2 max-w-lg text-sm text-blue-100">Les indicateurs montrent les cours et appels attendus à la date du jour.</p></div><Badge variant="outline" className="w-fit border-blue-300 bg-blue-800/40 text-blue-50">Temps réel</Badge></div><div className="mt-6 grid gap-3 sm:grid-cols-2">{showTeacherCard ? <AttendanceMetric icon={UserCheck} label="Présence professeurs" value={formatRate(teacherAttendance.globalRate)} detail={`${teacherAttendance.partTime.present + teacherAttendance.fullTime.present}/${teacherAttendance.partTime.expected + teacherAttendance.fullTime.expected} cours pointés`} /> : null}{showStudentCard ? <AttendanceMetric icon={Users} label={`Présence ${studentLabels.pluralLower}`} value={formatRate(studentAttendance.rate)} detail={`${studentAttendance.absent} absence${studentAttendance.absent > 1 ? "s" : ""} · ${studentAttendance.notMarked} appel${studentAttendance.notMarked > 1 ? "s" : ""} restant${studentAttendance.notMarked > 1 ? "s" : ""}`} /> : null}</div></CardContent></Card> : null}
 
-  if (error || !stats) {
-    return (
-      <div className={placeholderGridClassName}>
-        {Array.from({ length: baseVisibleCount }, (_, index) => index + 1).map((i) => (
-          <Card key={i} className="border border-gray-100 rounded-2xl shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">
-                Données non disponibles
-              </CardTitle>
-              <p className="text-2xl font-bold text-gray-900">-</p>
-            </CardHeader>
-          </Card>
-        ))}
-      </div>
-    )
-  }
+    {hasOperations ? <Card className="rounded-lg shadow-sm"><CardHeader className="pb-3"><CardDescription>Suivi opérationnel</CardDescription><CardTitle className="text-lg">Ce mois</CardTitle></CardHeader><CardContent className="space-y-4">{showSalaryCard ? <OperationMetric icon={Wallet} label="Salaire à payer ce mois" value={formatFcfa(salaries.remainingToPay)} detail={`${formatFcfa(salaries.totalPaid)} déjà versés · ${formatFcfa(salaries.economy.savedAmount)} économisés`} /> : null}{showSalaryCard && showSubscriptions ? <div className="border-t" /> : null}{showSubscriptions ? <OperationMetric icon={TrendingUp} label="abonnements encaissé" value={formatFcfa(subscriptions.collectedAmount)} detail={`${subscriptions.activeSubscribers} parent${subscriptions.activeSubscribers > 1 ? "s" : ""} actif${subscriptions.activeSubscribers > 1 ? "s" : ""} · ${formatRate(subscriptions.collectionRate)} de collecte`} /> : null}</CardContent></Card> : null}
+  </div>
+}
 
-  const teacherRate = stats.teacherAttendance.globalRate
-  const studentRate = stats.studentAttendance.rate
-  const collectionRate = stats.subscriptions.collectionRate
-  // La carte revenus suit la fonctionnalité abonnements (isEnabled) ET le droit
-  // d'accès abonnements du staff (subscriptions.view / .revenue), pas le salaire.
-  const showSubscriptionRevenue = stats.subscriptions.isEnabled && showSubscriptionCard
-  const visibleCount =
-    Number(showTeacherCard) +
-    Number(showStudentCard) +
-    Number(showSalaryCard) +
-    Number(showSubscriptionRevenue)
-  const gridClassName = statsGridClassName(visibleCount)
+function AttendanceMetric({ icon: Icon, label, value, detail }: { icon: typeof UserCheck; label: string; value: string; detail: string }) {
+  const tone = attendanceTone(Number(value.replace("%", "")))
+  const status = tone === "success" ? "Stable" : tone === "warning" ? "À suivre" : "Prioritaire"
+  const statusClassName = tone === "success" ? "bg-green-100 text-green-800" : tone === "warning" ? "bg-amber-100 text-amber-900" : "bg-red-100 text-red-800"
+  return <div className="rounded-lg bg-blue-800/45 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm text-blue-100">{label}</p><p className="mt-1 text-3xl font-semibold tabular-nums">{value}</p></div><Icon className="h-5 w-5 text-blue-100" /></div><p className="mt-3 text-xs text-blue-100">{detail}</p><Badge variant="outline" className={`mt-3 border-0 ${statusClassName}`}>{status}</Badge></div>
+}
 
-  if (visibleCount === 0) {
-    return null
-  }
+function OperationMetric({ icon: Icon, label, value, detail }: { icon: typeof Wallet; label: string; value: string; detail: string }) {
+  return <div className="flex items-start gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-950/20"><Icon className="h-5 w-5" /></div><div className="min-w-0"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">{value}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></div></div>
+}
 
-  return (
-    <div className={gridClassName}  data-tour="dashboard-stats">
-      {/* CARD 1: Taux de présence professeurs */}
-      {showTeacherCard ? (
-      <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex-1">
-            <p className="text-sm text-gray-500 mb-1">Présence professeurs</p>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <p className={cn("text-2xl font-bold", getAttendanceColor(teacherRate))}>
-                    {formatRate(teacherRate)}
-                  </p>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <div className="space-y-1 text-xs">
-                    <p>
-                      Calcul : {stats.teacherAttendance.partTime.present + stats.teacherAttendance.fullTime.present} présences /{" "}
-                      {stats.teacherAttendance.partTime.expected + stats.teacherAttendance.fullTime.expected} cours prévus
-                    </p>
-                    <p className="text-muted-foreground">
-                      Les retards comptent comme une présence.
-                    </p>
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center", getAttendanceBgColor(teacherRate))}>
-            <UserCheck className={cn("h-5 w-5", getAttendanceColor(teacherRate))} />
-          </div>
-        </div>
-        <div className="space-y-1 text-sm text-gray-500">
-          <div>
-            Vacataires : {formatRate(stats.teacherAttendance.partTime.rate)} (
-            {stats.teacherAttendance.partTime.present}/{stats.teacherAttendance.partTime.expected})
-          </div>
-          <div>
-            Permanents : {formatRate(stats.teacherAttendance.fullTime.rate)} (
-            {stats.teacherAttendance.fullTime.present}/{stats.teacherAttendance.fullTime.expected})
-          </div>
-        </div>
-      </Card>
-      ) : null}
-
-      {/* CARD 2: Taux de présence élèves */}
-      {showStudentCard ? (
-      <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex-1">
-            <p className="text-sm text-gray-500 mb-1">{`Présence ${studentLabels.pluralLower}`}</p>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <p className={cn("text-2xl font-bold", getAttendanceColor(studentRate))}>
-                    {formatRate(studentRate)}
-                  </p>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="text-xs">
-                    Calcul : {stats.studentAttendance.present} présences / {stats.studentAttendance.total} total
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center", getAttendanceBgColor(studentRate))}>
-            <Users className={cn("h-5 w-5", getAttendanceColor(studentRate))} />
-          </div>
-        </div>
-        <div className="space-y-1 text-sm text-gray-500">
-          <div>Présences : {stats.studentAttendance.present}</div>
-          <div>Absences : {stats.studentAttendance.absent}</div>
-          <div>Pointages restants : {stats.studentAttendance.notMarked}</div>
-        </div>
-      </Card>
-      ) : null}
-
-      {/* CARD 3: Salaire à payer ce mois / Économie actuelle */}
-      {showSalaryCard ? (
-      <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex-1">
-            <p className="text-sm text-gray-500 mb-1">Salaire à payer ce mois</p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {formatFcfa(stats.salaries.remainingToPay)}
-            </p>
-          </div>
-          <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
-            <Wallet className="h-5 w-5 text-blue-600" />
-          </div>
-        </div>
-
-        <div className="rounded-lg px-3 py-2 mt-3 border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40">
-          <p className="text-xs font-medium text-amber-900 mb-1 dark:text-amber-100">
-            Du 1er au {new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
-          </p>
-          <div className="space-y-0.5 text-xs text-amber-800 dark:text-amber-100">
-            <div>Déjà payé : {formatFcfa(stats.salaries.totalPaid)}</div>
-            <div>
-              <p>
-                Heures prévues : {formatDecimalHours(stats.salaries.economy.plannedHours)}
-              </p>
-              <p>
-                Heures effectuées (hors HAV) : {formatDecimalHours(stats.salaries.economy.completedHours)}
-              </p>
-            </div>
-            <div className="font-semibold">
-              Économie : {formatFcfa(stats.salaries.economy.savedAmount)}
-            </div>
-          </div>
-        </div>
-      </Card>
-      ) : null}
-
-      {showSubscriptionRevenue ? (
-        <Card className="bg-white border border-gray-300/80 rounded-2xl p-5 shadow-sm dark:border-sky-900/50 dark:bg-slate-950/30">
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex-1">
-              <p className="text-sm text-gray-500 mb-1">abonnements encaissé</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {formatFcfa(stats.subscriptions.collectedAmount)}
-              </p>
-            </div>
-            <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center", getAttendanceBgColor(collectionRate))}>
-              <TrendingUp className={cn("h-5 w-5", getAttendanceColor(collectionRate))} />
-            </div>
-          </div>
-          <div className="space-y-1 text-sm text-gray-500">
-            <div>Abonnés actifs ce mois : {stats.subscriptions.activeSubscribers} parents</div>
-            <div>
-              Taux de collecte : {formatRate(collectionRate)}
-            </div>
-          </div>
-        </Card>
-      ) : null}
-    </div>
-  )
+function DashboardStatsSkeleton() {
+  return <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,0.7fr)]"><Skeleton className="h-72 rounded-lg" /><Skeleton className="h-72 rounded-lg" /></div>
 }

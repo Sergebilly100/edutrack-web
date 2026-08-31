@@ -9,12 +9,12 @@ const mockDashboardStats = async (page: import("@playwright/test").Page) => {
       contentType: "application/json",
       body: JSON.stringify({
         teacherAttendance: {
-          globalRate: 0.85,
-          partTime: { present: 5, expected: 6, rate: 0.83 },
-          fullTime: { present: 10, expected: 11, rate: 0.91 },
+          globalRate: 85,
+          partTime: { present: 5, expected: 6, rate: 83 },
+          fullTime: { present: 10, expected: 11, rate: 91 },
         },
         studentAttendance: {
-          rate: 0.92,
+          rate: 92,
           present: 120,
           absent: 10,
           notMarked: 0,
@@ -39,6 +39,28 @@ const mockDashboardStats = async (page: import("@playwright/test").Page) => {
           collectionRate: 0,
           expectedAmount: 0,
         },
+      }),
+    })
+  })
+  await page.route("**/api/v1/dashboard/pilotage*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        population: { activeStudents: 130, activeTeachers: 16, activeClasses: 8 },
+        academic: [{ levelId: "level-6e", levelName: "6e", classCount: 2, expectedSubjects: 12, completedSubjects: 9, completionRate: 75, studentsWithAverage: 46, averageScore: 11.8, performingStudents: 31, attentionStudents: 9, criticalStudents: 6 }],
+        risks: { studentAbsences: 3, studentGrades: 2, studentPayments: 4, teacherAbsences: 1 },
+      }),
+    })
+  })
+  await page.route("**/api/v1/finance/financial-summary*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        school: { total_expected_to_date: "1200000", total_paid: "840000", recovery_rate: "0.7", students_late_count: 4 },
+        levels: [{ level_id: "level-6e", level_name: "6e", total_expected_to_date: "600000", total_paid: "420000", students_late_count: 2 }],
+        upcomingInstallments: [{ due_date: "2026-05-31", expected_amount: "350000", student_count: 42 }],
       }),
     })
   })
@@ -85,7 +107,7 @@ const mockTodayAttendance = async (page: import("@playwright/test").Page) => {
 }
 
 test.describe("Dashboard directeur", () => {
-  test("affiche les StatCards Présence professeurs et Présence élèves", async ({ page }) => {
+  test("affiche les indicateurs de présence et le suivi financier", async ({ page }) => {
     await mockDirectorAuth(page)
     await mockDashboardStats(page)
     await mockTodayAttendance(page)
@@ -101,10 +123,10 @@ test.describe("Dashboard directeur", () => {
 
     await expect(page.getByText("Présence professeurs")).toBeVisible({ timeout: 10000 })
     await expect(page.getByText("Présence élèves")).toBeVisible()
-    await expect(page.getByText("Salaire à payer ce mois")).toBeVisible()
+    await expect(page.getByText("Suivi financier")).toBeVisible()
   })
 
-  test("les présences du jour sont listées", async ({ page }) => {
+  test("les présences du jour sont présentées dans un tableau", async ({ page }) => {
     await mockDirectorAuth(page)
     await mockDashboardStats(page)
     await mockTodayAttendance(page)
@@ -118,11 +140,13 @@ test.describe("Dashboard directeur", () => {
 
     await loginAsDirectorUI(page)
 
-    await expect(page.getByTestId("dashboard-today-presence-list")).toBeVisible({ timeout: 10000 })
-    await expect(page.getByTestId("dashboard-presence-row").first()).toBeVisible()
+    await expect(page.getByRole("columnheader", { name: "Heure" })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole("columnheader", { name: "Professeur" })).toBeVisible()
+    await expect(page.getByRole("columnheader", { name: "Matière" })).toBeVisible()
+    await expect(page.getByText("Mme Konate")).toBeVisible()
   })
 
-  test("la WeekCoverageAlert apparaît si EDT manquant", async ({ page }) => {
+  test("ne présente plus les anciennes vues comme des onglets internes", async ({ page }) => {
     await mockDirectorAuth(page)
     await mockDashboardStats(page)
     await mockTodayAttendance(page)
@@ -136,8 +160,8 @@ test.describe("Dashboard directeur", () => {
 
     await loginAsDirectorUI(page)
 
-    await expect(page.getByTestId("week-coverage-alert")).toBeVisible({ timeout: 10000 })
-    await expect(page.getByRole("button", { name: "Configurer l'EDT" })).toBeVisible()
+    await expect(page.getByText("Vue de pilotage", { exact: true })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole("tab")).toHaveCount(0)
   })
 
   test('navigation vers /teachers depuis "Voir tous"', async ({ page }) => {

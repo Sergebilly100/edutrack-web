@@ -101,6 +101,26 @@ export type DashboardCounts = {
   activeStudents: number
 }
 
+export type DashboardPilotageLevel = {
+  levelId: string
+  levelName: string
+  classCount: number
+  expectedSubjects: number
+  completedSubjects: number
+  completionRate: number
+  studentsWithAverage: number
+  averageScore: number | null
+  performingStudents: number
+  attentionStudents: number
+  criticalStudents: number
+}
+
+export type DashboardPilotage = {
+  population: { activeStudents: number; activeTeachers: number; activeClasses: number }
+  academic: DashboardPilotageLevel[]
+  risks: { studentAbsences: number; studentGrades: number; studentPayments: number; teacherAbsences: number }
+}
+
 export type DashboardSalaryStatus = "pending" | "paid" | "disputed" | "nothing_to_pay" | "Salaire fixe"
 
 export type DashboardSalarySummaryItem = {
@@ -589,6 +609,11 @@ export const getDashboardCounts = async (): Promise<DashboardCounts> => {
     activeTeachers: normalizeTeachersTotal(teachersResponse.data),
     activeStudents: normalizeStudentsTotal(studentsResponse.data),
   }
+}
+
+export const getDashboardPilotage = async (params?: { schoolYearId?: string; gradingPeriodId?: string }): Promise<DashboardPilotage> => {
+  const response = await api.get<DashboardPilotage>("/dashboard/pilotage", { params })
+  return response.data
 }
 
 export const getSalarySummary = async (month: string): Promise<DashboardSalarySummary> => {

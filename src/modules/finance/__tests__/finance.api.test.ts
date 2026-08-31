@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const { getMock, postMock, putMock } = vi.hoisted(() => ({ getMock: vi.fn(), postMock: vi.fn(), putMock: vi.fn() }))
 vi.mock("@/shared/api/client", () => ({ apiClient: { get: getMock, post: postMock, put: putMock } }))
 
-import { fetchFinancialAlertLogs, getCashJournal, getParentPaymentOptions, getStudentAccountStatement, listPayments, listTuitionPlans, saveProviderSetting } from "../finance.api"
+import { fetchFinancialAlertLogs, fetchFinancialSummary, getCashJournal, getParentPaymentOptions, getStudentAccountStatement, listPayments, listTuitionPlans, saveProviderSetting } from "../finance.api"
 
 describe("finance.api", () => {
   beforeEach(() => vi.clearAllMocks())
@@ -83,5 +83,21 @@ describe("finance.api", () => {
       pagination: { page: 2, limit: 20, total: 21, totalPages: 2 },
     })
     expect(getMock).toHaveBeenCalledWith("/financial-alert-logs", { params: { page: 2, limit: 20 } })
+  })
+
+  it("conserve les agrégats de pilotage financier par niveau, tendance et mode", async () => {
+    getMock.mockResolvedValueOnce({ data: {
+      school: { total_expected_to_date: "120000", total_paid: "80000", recovery_rate: "0.6667", students_up_to_date_count: 8, students_late_count: 2, previous_period_total_paid: "0", last_computed_at: "2026-08-31T10:00:00Z" },
+      classes: [{ class_id: "class-1", class_name: "6e A", level_id: "level-1", level_name: "6e", total_expected_to_date: "120000", total_paid: "80000", students_up_to_date_count: 8, students_late_count: 2, last_computed_at: "2026-08-31T10:00:00Z" }],
+      levels: [{ level_id: "level-1", level_name: "6e", total_expected_to_date: "120000", total_paid: "80000", students_up_to_date_count: 8, students_late_count: 2, last_computed_at: "2026-08-31T10:00:00Z" }],
+      collections: [{ month_key: "2026-08", total_paid: "80000" }],
+      paymentMethods: [{ method: "cash", total_paid: "80000", payment_count: 3 }],
+    } })
+
+    const summary = await fetchFinancialSummary()
+
+    expect(summary.levels[0]).toMatchObject({ level_id: "level-1", level_name: "6e" })
+    expect(summary.collections).toEqual([{ month_key: "2026-08", total_paid: "80000" }])
+    expect(summary.paymentMethods).toEqual([{ method: "cash", total_paid: "80000", payment_count: 3 }])
   })
 })

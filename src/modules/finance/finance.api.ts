@@ -475,6 +475,8 @@ export type SchoolFinancialSummary = {
 export type ClassFinancialSummaryRow = {
   class_id: string;
   class_name: string;
+  level_id: string;
+  level_name: string;
   total_expected_to_date: string;
   total_paid: string;
   students_up_to_date_count: number;
@@ -482,13 +484,64 @@ export type ClassFinancialSummaryRow = {
   last_computed_at: string;
 };
 
-export const fetchFinancialSummary = async (): Promise<{
+export type LevelFinancialSummaryRow = {
+  level_id: string;
+  level_name: string;
+  total_expected_to_date: string;
+  total_paid: string;
+  students_up_to_date_count: number;
+  students_late_count: number;
+  last_computed_at: string;
+};
+
+export type FinancialCollectionPoint = {
+  month_key: string;
+  total_paid: string;
+};
+
+export type FinancialPaymentMethodSummary = {
+  method: PaymentMethod;
+  total_paid: string;
+  payment_count: number;
+};
+
+export type FinancialUpcomingInstallment = {
+  due_date: string;
+  expected_amount: string;
+  student_count: number;
+};
+
+export type FinancialRecentPayment = {
+  payment_date: string;
+  student_name: string;
+  class_name: string | null;
+  method: PaymentMethod;
+  amount: string;
+  receipt_number: string | null;
+};
+
+export const fetchFinancialSummary = async (schoolYearId?: string): Promise<{
   school: SchoolFinancialSummary;
   classes: ClassFinancialSummaryRow[];
+  levels: LevelFinancialSummaryRow[];
+  collections: FinancialCollectionPoint[];
+  paymentMethods: FinancialPaymentMethodSummary[];
+  upcomingInstallments: FinancialUpcomingInstallment[];
+  recentPayments: FinancialRecentPayment[];
 }> => {
-  const response = await apiClient.get("/finance/financial-summary");
+  const response = await apiClient.get("/finance/financial-summary", {
+    params: schoolYearId ? { school_year_id: schoolYearId } : undefined,
+  });
   const payload = response.data ?? {};
-  return { school: payload.school ?? null, classes: Array.isArray(payload.classes) ? payload.classes : [] };
+  return {
+    school: payload.school ?? null,
+    classes: Array.isArray(payload.classes) ? payload.classes : [],
+    levels: Array.isArray(payload.levels) ? payload.levels : [],
+    collections: Array.isArray(payload.collections) ? payload.collections : [],
+    paymentMethods: Array.isArray(payload.paymentMethods) ? payload.paymentMethods : [],
+    upcomingInstallments: Array.isArray(payload.upcomingInstallments) ? payload.upcomingInstallments : [],
+    recentPayments: Array.isArray(payload.recentPayments) ? payload.recentPayments : [],
+  };
 };
 
 export type ClassStudentStatusRow = {

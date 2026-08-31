@@ -1,49 +1,31 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertCircle, Bell, CheckCircle2, ChevronRight, CircleX, ClipboardCheck, Flag, GraduationCap, Info, MapPin, RefreshCw, Users, Wallet } from "lucide-react"
+import { Bell, CheckCircle2, CircleX, ClipboardCheck, Flag, Info, MapPin, RefreshCw } from "lucide-react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { fetchSchoolInfo } from "@/modules/onboarding/onboarding.api"
-import { getStudentAbsenceStats, getTodayAbsences, type StudentAbsenceStat } from "@/modules/students/students.api"
+import { listSchoolYears, type SchoolYear } from "@/modules/academic/academic.api"
 import {
   getAttendanceHistory,
-  getCurrentMonthKey,
   getDashboardCounts,
   getDashboardActionItems,
-  getNextWeekCoverageState,
-  getPreviousMonthKey,
   resolveDashboardActionItem,
-  getSalarySummary,
-  getTeacherCompliance,
-  getTeacherTrendFromSummaries,
   getTodayAttendance,
-  getTopRiskTeachers,
-  getTotalPendingSalaries,
   type DashboardCourseItem,
-  type DashboardSalarySummaryItem,
 } from "@/modules/dashboard/dashboard.api"
 import { EmptyState, emptyStateIcons } from "@/shared/components/EmptyState"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { OfflineGuard } from "@/shared/components/OfflineGuard"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
-import { SalaryRow } from "@/shared/components/SalaryRow"
-import type { SalaryStatus } from "@/shared/components/SalaryRow"
-import { StatCard } from "@/shared/components/StatCard"
-import { WeekCoverageAlert } from "@/shared/components/WeekCoverageAlert"
 import { NotificationsPanel, type NotificationPanelItem } from "@/shared/components/layout/NotificationsPanel"
-import { DashboardStatsCards } from "./components/DashboardStatsCards"
 import { actionItemToNotification } from "./dashboard-action-notifications"
 import { useAuthStore } from "@/shared/store/auth.store"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
-import { getInitials } from "@/shared/utils/avatar"
-import { DashboardTabSkeleton } from "@/modules/dashboard/tabs/DashboardTabSkeleton"
+import { apiClient } from "@/shared/api/client"
 import { TourGuide } from "@/shared/components/TourGuide"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { dashboardTourSteps } from "@/shared/lib/tour-steps"
@@ -51,14 +33,6 @@ import { dashboardTourSteps } from "@/shared/lib/tour-steps"
 const OverviewTab = lazy(() =>
   import("@/modules/dashboard/tabs/OverviewTab").then(m => ({ default: m.OverviewTab }))
 )
-const AttendanceTab = lazy(() =>
-  import("@/modules/dashboard/tabs/AttendanceTab").then(m => ({ default: m.AttendanceTab }))
-)
-const SalariesTab = lazy(() =>
-  import("@/modules/dashboard/tabs/SalariesTab").then(m => ({ default: m.SalariesTab }))
-)
-import { formatFcfa } from "@/shared/utils/formatting"
-import { statusToneBadge } from "@/shared/utils/status-tone"
 
 import {
   QUERY_STALE_TIME,
@@ -69,8 +43,6 @@ import {
   formatToday,
   hasCourseStartedFor15Minutes,
   isPresentLikeCourse,
-  toDashboardSalaryRow,
-  type DashboardSalaryRow,
 } from "./dashboard.helpers"
 
 function DashboardSkeleton() {
@@ -264,21 +236,16 @@ export default function DashboardPage() {
   const queryClient = useQueryClient()
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [refreshSuccess, setRefreshSuccess] = useState(false)
-  const [showAllTodayPresence, setShowAllTodayPresence] = useState(false)
-  const [showAllTodayStudentAbsences, setShowAllTodayStudentAbsences] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<"overview" | "attendance" | "salaries">("overview")
+  const [schoolYearId, setSchoolYearId] = useState("")
+  const [gradingPeriodId, setGradingPeriodId] = useState("")
   const user = useAuthStore((state) => state.user)
   const permissions = useAuthStore((state) => state.permissions)
   const studentLabels = useStudentLabels()
-  const currentMonth = useMemo(() => getCurrentMonthKey(new Date()), [])
-  const previousMonth = useMemo(() => getPreviousMonthKey(new Date()), [])
-  const alertsRef = useRef<HTMLDivElement | null>(null)
   const isDirector = user?.role === "director"
   const tour = useTourGuide("dashboard", isDirector)
 
-  const canViewSalary = isDirector || permissions.includes("salary.view")
-  const canViewStudents = isDirector || permissions.includes("students.view")
+  const canViewFinance = isDirector || permissions.includes("payments.view")
   const canViewTeachers = isDirector || permissions.includes("teachers.view")
   const canViewAttendance = isDirector || permissions.includes("attendance.view")
   const canViewValidations = isDirector || permissions.includes("validations.view")
@@ -294,7 +261,7 @@ export default function DashboardPage() {
     staleTime: QUERY_STALE_TIME,
     refetchInterval: TODAY_REFETCH_INTERVAL,
     retry: false,
-    enabled: canViewAttendance && (activeTab === "overview" || activeTab === "attendance"),
+    enabled: canViewAttendance,
   })
 
   const countsQuery = useQuery({
@@ -309,39 +276,9 @@ export default function DashboardPage() {
     queryFn: () => getAttendanceHistory(7),
     staleTime: QUERY_STALE_TIME,
     retry: false,
-    enabled: canViewAttendance && activeTab === "overview",
+    enabled: canViewAttendance,
   })
 
-  const coverageQuery = useQuery({
-    queryKey: ["dashboard", "coverage-v3"],
-    queryFn: getNextWeekCoverageState,
-    staleTime: QUERY_STALE_TIME,
-    retry: false,
-  })
-
-  const salarySummaryQuery = useQuery({
-    queryKey: ["dashboard", "salary-summary-v3", currentMonth],
-    queryFn: () => getSalarySummary(currentMonth),
-    staleTime: QUERY_STALE_TIME,
-    retry: false,
-    enabled: canViewSalary && (activeTab === "overview" || activeTab === "salaries"),
-  })
-
-  const previousSalarySummaryQuery = useQuery({
-    queryKey: ["dashboard", "salary-summary-v3", previousMonth],
-    queryFn: () => getSalarySummary(previousMonth),
-    staleTime: QUERY_STALE_TIME,
-    retry: false,
-    enabled: canViewSalary && activeTab === "overview",
-  })
-
-  const riskTeachersQuery = useQuery({
-    queryKey: ["dashboard", "risk-teachers-v3", currentMonth],
-    queryFn: () => getTopRiskTeachers(currentMonth),
-    staleTime: QUERY_STALE_TIME,
-    retry: false,
-    enabled: canViewTeachers && activeTab === "attendance",
-  })
 
   const schoolQuery = useQuery({
     queryKey: ["dashboard", "school-v3"],
@@ -350,45 +287,22 @@ export default function DashboardPage() {
     retry: false,
   })
 
-  const teacherComplianceQuery = useQuery({
-    queryKey: ["dashboard", "teacher-compliance", currentMonth],
-    queryFn: () => getTeacherCompliance(currentMonth),
+  const schoolYearsQuery = useQuery({
+    queryKey: ["academic", "school-years"],
+    queryFn: listSchoolYears,
     staleTime: QUERY_STALE_TIME,
     retry: false,
-    enabled: canViewTeachers && activeTab === "attendance",
   })
 
-  const todayStudentAbsencesQuery = useQuery({
-    queryKey: ["dashboard", "today-student-absences"],
-    queryFn: getTodayAbsences,
+  const gradingPeriodsQuery = useQuery({
+    queryKey: ["academic", "grading-periods", schoolYearId],
+    queryFn: async () => {
+      const response = await apiClient.get<{ gradingPeriods?: Array<{ id: string; schoolYearId?: string; school_year_id?: string; label: string; orderIndex?: number; order_index?: number }> }>("/grading-periods")
+      return (response.data.gradingPeriods ?? []).filter((period) => (period.schoolYearId ?? period.school_year_id) === schoolYearId)
+    },
+    enabled: Boolean(schoolYearId),
     staleTime: QUERY_STALE_TIME,
-    refetchInterval: TODAY_REFETCH_INTERVAL,
     retry: false,
-    enabled: canViewStudents && activeTab === "attendance",
-  })
-
-  const currentMonthRange = useMemo(() => {
-    const now = new Date()
-    const start = new Date(now.getFullYear(), now.getMonth(), 1)
-    const today = new Date()
-    return {
-      from: start.toISOString().slice(0, 10),
-      to: today.toISOString().slice(0, 10),
-    }
-  }, [])
-
-  const riskStudentsQuery = useQuery({
-    queryKey: ["dashboard", "risk-students", currentMonthRange.from, currentMonthRange.to],
-    queryFn: () =>
-      getStudentAbsenceStats({
-        from: currentMonthRange.from,
-        to: currentMonthRange.to,
-        minAbsences: 1,
-      }),
-    staleTime: QUERY_STALE_TIME,
-    refetchInterval: TODAY_REFETCH_INTERVAL,
-    retry: false,
-    enabled: canViewStudents && activeTab === "attendance",
   })
 
   // Seules les données structurantes (en-tête + compteurs globaux) gatent le
@@ -397,94 +311,7 @@ export default function DashboardPage() {
   // l'affichage des sections déjà prêtes.
   const isInitialLoading = countsQuery.isLoading || schoolQuery.isLoading
 
-  const weeklyAbsenceCount = useMemo(() => {
-    return (historyQuery.data ?? []).reduce((acc, row) => acc + row.absentCount, 0)
-  }, [historyQuery.data])
-
-  const pendingSalaries = useMemo(() => {
-    if (!salarySummaryQuery.data) {
-      return { totalFcfa: 0, count: 0 }
-    }
-
-    return getTotalPendingSalaries(salarySummaryQuery.data)
-  }, [salarySummaryQuery.data])
-
-  const teacherTrend = useMemo(() => {
-    if (!salarySummaryQuery.data || !previousSalarySummaryQuery.data) {
-      return 0
-    }
-
-    return getTeacherTrendFromSummaries(salarySummaryQuery.data, previousSalarySummaryQuery.data)
-  }, [salarySummaryQuery.data, previousSalarySummaryQuery.data])
-
-  const presentRate = useMemo(() => {
-    const presentCount = todayQuery.data?.presentCount ?? 0
-    const totalCount = (todayQuery.data?.courses ?? []).length
-
-    if (totalCount === 0) {
-      return 0
-    }
-
-    return (presentCount / totalCount) * 100
-  }, [todayQuery.data])
-
-  const presenceVariant: "success" | "warning" | "danger" =
-    presentRate >= 90 ? "success" : presentRate >= 70 ? "warning" : "danger"
-
-  const salaryRows = useMemo(() => {
-    const items = salarySummaryQuery.data?.items ?? []
-
-    return items.map((item) => toDashboardSalaryRow(item)).slice(0, 5)
-  }, [salarySummaryQuery.data])
-  const salaryRealHoursTotals = useMemo(() => {
-    return salaryRows.reduce(
-      (acc, row) => {
-        acc.planned += row.hoursPlanned
-        acc.done += row.hoursDone
-        acc.impact += Math.round((row.hoursDone - row.hoursPlanned) * (row.hourlyRate ?? 0))
-        return acc
-      },
-      { planned: 0, done: 0, impact: 0 }
-    )
-  }, [salaryRows])
-
   const schoolName = schoolQuery.data?.name?.trim() || "École"
-  const riskMonthStart = `${currentMonth}-01`
-  const riskMonthEnd = new Date(
-    Number(currentMonth.slice(0, 4)),
-    Number(currentMonth.slice(5, 7)),
-    0
-  )
-    .toISOString()
-    .slice(0, 10)
-  const riskTeachersLink =
-    `/teachers?tab=analyse&run=1&from=${riskMonthStart}&to=${riskMonthEnd}&status_filter=absent`
-  const riskStudentsLink =
-    `/students?tab=absences&run=1&from=${currentMonthRange.from}&to=${currentMonthRange.to}&min_absences=1`
-
-  const todayStudentAbsenceItems = useMemo<TodayStudentAbsenceItem[]>(() => {
-    return (todayStudentAbsencesQuery.data ?? [])
-      .flatMap((group) =>
-        group.absences.map((absence) => ({
-          studentId: absence.studentId,
-          studentName: `${absence.studentLastName} ${absence.studentFirstName}`.trim(),
-          className: group.className,
-          createdAt: absence.createdAt,
-          smsStatus: absence.smsStatus,
-        }))
-      )
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-  }, [todayStudentAbsencesQuery.data])
-
-  const topRiskStudents = useMemo<StudentAbsenceStat[]>(
-    () =>
-      [...(riskStudentsQuery.data ?? [])]
-        .sort((a, b) => b.absenceCount - a.absenceCount)
-        .slice(0, 5),
-    [riskStudentsQuery.data]
-  )
-  const canToggleTodayPresence = (todayQuery.data?.courses ?? []).length > 5
-  const canToggleTodayStudentAbsences = todayStudentAbsenceItems.length > 5
   useEffect(() => {
     const state = location.state as { openNotifications?: boolean } | null
     if (!state?.openNotifications) {
@@ -501,6 +328,17 @@ export default function DashboardPage() {
     return () => window.clearTimeout(timer)
   }, [refreshSuccess])
 
+  useEffect(() => {
+    if (schoolYearId || !schoolYearsQuery.data?.length) return
+    setSchoolYearId((schoolYearsQuery.data.find((year) => year.status === "active") ?? schoolYearsQuery.data[0]).id)
+  }, [schoolYearId, schoolYearsQuery.data])
+
+  useEffect(() => {
+    if (gradingPeriodId || !gradingPeriodsQuery.data?.length) return
+    const sorted = [...gradingPeriodsQuery.data].sort((a, b) => (b.orderIndex ?? b.order_index ?? 0) - (a.orderIndex ?? a.order_index ?? 0))
+    setGradingPeriodId(sorted[0].id)
+  }, [gradingPeriodId, gradingPeriodsQuery.data])
+
   const handleDashboardRefresh = useCallback(async () => {
     try {
       setIsRefreshing(true)
@@ -511,14 +349,7 @@ export default function DashboardPage() {
         todayQuery.refetch(),
         countsQuery.refetch(),
         historyQuery.refetch(),
-        coverageQuery.refetch(),
-        salarySummaryQuery.refetch(),
-        previousSalarySummaryQuery.refetch(),
-        riskTeachersQuery.refetch(),
-        teacherComplianceQuery.refetch(),
         schoolQuery.refetch(),
-        todayStudentAbsencesQuery.refetch(),
-        riskStudentsQuery.refetch(),
       ])
       setRefreshSuccess(true)
     } finally {
@@ -526,17 +357,10 @@ export default function DashboardPage() {
     }
   }, [
     countsQuery,
-    coverageQuery,
     historyQuery,
-    previousSalarySummaryQuery,
     queryClient,
-    riskStudentsQuery,
-    riskTeachersQuery,
-    salarySummaryQuery,
     schoolQuery,
-    teacherComplianceQuery,
     todayQuery,
-    todayStudentAbsencesQuery,
   ])
 
   const actionItemsQuery = useQuery({
@@ -615,17 +439,10 @@ export default function DashboardPage() {
     const notification = actionItemToNotification(item)
     return {
       id: item.id,
-      serverId: item.id,
       title: notification.title,
       message: notification.message,
-      actionLabel: notification.actionLabel,
-      className: item.priority === "high"
-        ? "border-red-200 bg-red-50 text-red-700"
-        : item.priority === "medium"
-          ? "border-amber-200 bg-amber-50 text-amber-800"
-          : "border-slate-200 bg-slate-50 text-slate-700",
-      onClick: () => navigate(notification.targetHref ?? "/dashboard"),
-      onDismiss: () => dismissNotification(item.id),
+      href: notification.targetHref ?? "/dashboard",
+      tone: notification.tone,
     }
   })
 
@@ -681,7 +498,7 @@ export default function DashboardPage() {
             <div className="space-y-1">
               <h1 className="text-2xl font-semibold tracking-tight">Bonjour, {user?.name ?? ""}</h1>
               <p className="text-sm text-muted-foreground">{formatToday(new Date())}</p>
-              <Badge variant="outline" className="mt-1">{schoolName}</Badge>
+              <div className="mt-2 flex flex-wrap items-center gap-2"><Badge variant="outline">{schoolName}</Badge><Select value={schoolYearId} onValueChange={(value) => { setSchoolYearId(value); setGradingPeriodId("") }}><SelectTrigger className="min-h-10 w-[12.5rem]" aria-label="Année scolaire"><SelectValue placeholder="Année scolaire" /></SelectTrigger><SelectContent>{(schoolYearsQuery.data ?? []).map((year: SchoolYear) => <SelectItem key={year.id} value={year.id}>{year.label}</SelectItem>)}</SelectContent></Select>{gradingPeriodsQuery.data?.length ? <Select value={gradingPeriodId} onValueChange={setGradingPeriodId}><SelectTrigger className="min-h-10 w-[12.5rem]" aria-label="Période"><SelectValue placeholder="Période" /></SelectTrigger><SelectContent>{gradingPeriodsQuery.data.map((period) => <SelectItem key={period.id} value={period.id}>{period.label}</SelectItem>)}</SelectContent></Select> : null}</div>
             </div>
             <div className="hidden items-center gap-2 md:flex">
               {isDirector ? (
@@ -691,7 +508,6 @@ export default function DashboardPage() {
                   size="sm"
                   className="text-muted-foreground"
                   onClick={() => {
-                    setActiveTab("overview");
                     (document.scrollingElement ?? document.documentElement).scrollTo({ top: 0, behavior: "instant" })
                     tour.restart()
                   }}
@@ -773,131 +589,19 @@ export default function DashboardPage() {
           />
         ) : null}
 
-        <section ref={alertsRef} className="space-y-3 animate-fade-in">
-          <WeekCoverageAlert
-            nextWeekHasCoverage={coverageQuery.data?.nextWeekHasCoverage ?? true}
-            btnText="Configurer l'EDT"
-            onNavigateToSchedule={() => navigate("/schedule")}
+        <Suspense fallback={<DashboardSkeleton />}>
+          <OverviewTab
+            canViewAttendance={canViewAttendance}
+            canViewTeachers={canViewTeachers}
+            canViewFinance={canViewFinance}
+            historyData={historyQuery.data ?? []}
+            todayCourses={todayQuery.data?.courses ?? []}
+            todayDate={todayQuery.data?.date ?? new Date().toISOString().slice(0, 10)}
+            schoolYearId={schoolYearId || undefined}
+            gradingPeriodId={gradingPeriodId || undefined}
+            priorityActions={priorityActions}
           />
-        </section>
-
-        {/* Priorités du jour */}
-        <section className="space-y-3">
-          {priorityActions.length > 0 ? (
-            <div className="rounded-xl border bg-card p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <h2 className="text-base font-semibold">
-                  🔴 Priorités du jour ({priorityActions.length})
-                </h2>
-                <Badge variant="outline" className="hidden md:flex">
-                  Urgent
-                </Badge>
-              </div>
-
-              <div className="mt-4 grid gap-3 lg:grid-cols-4">
-                {priorityActions.map((item) => {
-                  return (
-                    <article
-                      key={item.id}
-                      className={`rounded-lg border p-3 ${item.className}`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background/70">
-                          <AlertCircle className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h3 className="text-sm font-semibold">{item.title}</h3>
-                          <p className="mt-1 text-sm opacity-90">{item.message}</p>
-                        </div>
-                        {item.onDismiss ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-9 w-9 shrink-0 hover:bg-background/70"
-                            aria-label={`Masquer ${item.title}`}
-                            onClick={item.onDismiss}
-                          >
-                            <CircleX className="h-4 w-4" />
-                          </Button>
-                        ) : null}
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="mt-3 w-full bg-background/80"
-                        onClick={item.onClick}
-                      >
-                        {item.actionLabel}
-                      </Button>
-                    </article>
-                  )
-                })}
-              </div>
-            </div>
-          ) : null}
-        </section>
-
-        {/* Tabs - STICKY */}
-        <Tabs
-          value={activeTab}
-          onValueChange={(v) => setActiveTab(v as typeof activeTab)}
-          className="w-full"
-        >
-          <div className="sticky top-[64px] z-30 -mx-4 border-b bg-background px-4 py-3 shadow-sm md:top-[72px] md:-mx-6 md:px-6">
-            <TabsList className="grid w-full grid-cols-3 gap-1 md:inline-flex md:w-auto" data-tour="dashboard-tabs">
-            <TabsTrigger value="overview">
-              Vue d'ensemble
-            </TabsTrigger>
-            <TabsTrigger value="attendance" data-tour="dashboard-tab-attendance">
-              Présences
-              {todayQuery.data && todayQuery.data.absentCount > 0 ? (
-                <Badge variant="destructive" className="ml-1 h-4 px-1 text-[10px]">
-                  {todayQuery.data.absentCount}
-                </Badge>
-              ) : null}
-            </TabsTrigger>
-            <TabsTrigger value="salaries" data-tour="dashboard-tab-salaries">
-              Salaires
-              {pendingSalaries.count > 0 ? (
-                <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px]">
-                  {pendingSalaries.count}
-                </Badge>
-              ) : null}
-            </TabsTrigger>
-          </TabsList>
-          </div>
-
-          <TabsContent value="overview" className="mt-6 space-y-6">
-            <Suspense fallback={<DashboardTabSkeleton />}>
-              <OverviewTab
-                canViewAttendance={canViewAttendance}
-                canViewTeachers={canViewTeachers}
-                canViewSalary={canViewSalary}
-                canViewSubscriptions={canViewSubscriptions}
-                weeklyAbsenceCount={weeklyAbsenceCount}
-                nextWeekHasCoverage={coverageQuery.data?.nextWeekHasCoverage}
-                historyData={historyQuery.data ?? []}
-              />
-            </Suspense>
-          </TabsContent>
-
-          <TabsContent value="attendance" className="mt-6 space-y-6">
-            <Suspense fallback={<DashboardTabSkeleton />}>
-              <AttendanceTab
-                canViewAttendance={canViewAttendance}
-                canViewTeachers={canViewTeachers}
-                canViewStudents={canViewStudents}
-              />
-            </Suspense>
-          </TabsContent>
-
-          <TabsContent value="salaries" className="mt-6 space-y-6">
-            <Suspense fallback={<DashboardTabSkeleton />}>
-              <SalariesTab salarySummaryQuery={salarySummaryQuery} />
-            </Suspense>
-          </TabsContent>
-        </Tabs>
+        </Suspense>
       </div>
     </>
   )

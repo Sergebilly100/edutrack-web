@@ -65,7 +65,7 @@ export default function FinancePage({ view }: { view: FinanceView }) {
         </Select>
       }
     >
-      {schoolYearId && selectedYear && view === "dashboard" ? <FinancialDashboard /> : null}
+      {schoolYearId && selectedYear && view === "dashboard" ? <FinancialDashboard schoolYearId={schoolYearId} /> : null}
       {schoolYearId && selectedYear && view === "entry" ? <QuickPaymentEntry schoolYearId={schoolYearId} schoolYearLabel={selectedYear.label} /> : null}
       {schoolYearId && selectedYear && view === "journal" ? (
         <Tabs value={journalTab} onValueChange={setJournalTab} className="space-y-5">

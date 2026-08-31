@@ -35,6 +35,7 @@ vi.mock("@/shared/api/client", () => ({
 const getTodayAttendanceMock = vi.fn()
 const getAttendanceHistoryMock = vi.fn()
 const getDashboardCountsMock = vi.fn()
+const getDashboardPilotageMock = vi.fn()
 const getDashboardActionItemsMock = vi.fn()
 const resolveDashboardActionItemMock = vi.fn()
 const getNextWeekCoverageStateMock = vi.fn()
@@ -49,6 +50,7 @@ const getDashboardStatsMock = vi.fn()
 const fetchSchoolInfoMock = vi.fn()
 const getTodayAbsencesMock = vi.fn()
 const getStudentAbsenceStatsMock = vi.fn()
+const fetchFinancialSummaryMock = vi.fn()
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom")
@@ -63,6 +65,7 @@ vi.mock("@/modules/dashboard/dashboard.api", () => {
     getTodayAttendance: () => getTodayAttendanceMock(),
     getAttendanceHistory: (days: number) => getAttendanceHistoryMock(days),
     getDashboardCounts: () => getDashboardCountsMock(),
+    getDashboardPilotage: () => getDashboardPilotageMock(),
     getDashboardStats: () => getDashboardStatsMock(),
     getDashboardActionItems: () => getDashboardActionItemsMock(),
     resolveDashboardActionItem: (id: string) => resolveDashboardActionItemMock(id),
@@ -90,6 +93,10 @@ vi.mock("@/modules/students/students.api", () => {
     getStudentAbsenceStats: () => getStudentAbsenceStatsMock(),
   }
 })
+
+vi.mock("@/modules/finance/finance.api", () => ({
+  fetchFinancialSummary: () => fetchFinancialSummaryMock(),
+}))
 
 import DashboardPage from "@/modules/dashboard/DashboardPage"
 import { useAuthStore } from "@/shared/store/auth.store"
@@ -130,14 +137,7 @@ function setAuth(role: "director" | "staff", permissions: PermissionKey[] = []) 
   })
 }
 
-const SALARY_SECTION = "Résumé salaires du mois"
 const VALIDATIONS_PRIORITY = "Validations en attente"
-const TEACHER_PRESENCE_SECTION = "Présences professeurs aujourd'hui"
-
-// Radix Tabs active l'onglet sur mouseDown (pas onClick).
-function openTab(name: RegExp) {
-  fireEvent.mouseDown(screen.getByRole("tab", { name }))
-}
 
 describe("DashboardPage", () => {
   beforeEach(() => {
@@ -154,6 +154,11 @@ describe("DashboardPage", () => {
     getDashboardCountsMock.mockResolvedValue({
       students: { total: 320, active: 312 },
       teachers: { total: 14, active: 13 },
+    })
+    getDashboardPilotageMock.mockResolvedValue({
+      population: { activeStudents: 312, activeTeachers: 13, activeClasses: 14 },
+      academic: [{ levelId: "level-1", levelName: "6e", classCount: 2, expectedSubjects: 12, completedSubjects: 9, completionRate: 75, studentsWithAverage: 30, averageScore: 11.8, performingStudents: 21, attentionStudents: 6, criticalStudents: 3 }],
+      risks: { studentAbsences: 0, studentGrades: 0, studentPayments: 0, teacherAbsences: 0 },
     })
     getDashboardStatsMock.mockResolvedValue({
       teacherAttendance: {
@@ -204,24 +209,21 @@ describe("DashboardPage", () => {
       email: "school@example.com",
       logoUrl: null,
     })
+    fetchFinancialSummaryMock.mockResolvedValue({
+      school: { total_expected_to_date: "1200000", total_paid: "840000", recovery_rate: "0.7", students_late_count: 4 },
+      levels: [{ level_id: "level-1", level_name: "6e", total_expected_to_date: "600000", total_paid: "420000", students_late_count: 2 }],
+      upcomingInstallments: [{ due_date: "2026-06-15", expected_amount: "350000", student_count: 42 }],
+    })
   })
 
-  it("affiche toutes les sections pour un directeur", async () => {
+  it("affiche une vue de pilotage unique pour un directeur", async () => {
     renderWithQueryClient(<DashboardPage />)
 
     expect(await screen.findByText("Bonjour, Directeur Test")).toBeInTheDocument()
-    // Le directeur voit les trois onglets du tableau de bord.
-    expect(screen.getByRole("tab", { name: /Vue d'ensemble/ })).toBeInTheDocument()
-    expect(screen.getByRole("tab", { name: /Présences/ })).toBeInTheDocument()
-    expect(screen.getByRole("tab", { name: /Salaires/ })).toBeInTheDocument()
-
-    // Onglet Présences : présence professeurs du jour.
-    openTab(/Présences/)
-    expect(await screen.findByText(TEACHER_PRESENCE_SECTION)).toBeInTheDocument()
-
-    // Onglet Salaires : résumé salaires du mois.
-    openTab(/Salaires/)
-    expect(await screen.findByText(SALARY_SECTION)).toBeInTheDocument()
+    expect(await screen.findByText("Vue de pilotage")).toBeInTheDocument()
+    expect(await screen.findByText("Présences aujourd’hui")).toBeInTheDocument()
+    expect(await screen.findByText("Suivi financier")).toBeInTheDocument()
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument()
   })
 
   it("garde la cloche et les priorités synchronisées après une résolution serveur", async () => {
@@ -249,10 +251,11 @@ describe("DashboardPage", () => {
 
     renderWithQueryClient(<DashboardPage />)
 
-    expect(await screen.findByText("Absences profs élevées")).toBeInTheDocument()
+    await screen.findByText("Bonjour, Directeur Test")
     const notificationButton = screen.getByRole("button", { name: "Voir les notifications" })
-    expect(notificationButton.querySelector("span")?.textContent).toBe("2")
+    await waitFor(() => expect(notificationButton.querySelector("span")?.textContent).toBe("2"))
     fireEvent.click(notificationButton)
+    expect((await screen.findAllByText("Absences profs élevées")).length).toBeGreaterThan(0)
     expect(await screen.findByText("2 point(s) à suivre")).toBeInTheDocument()
 
     fireEvent.click(screen.getAllByRole("button", { name: "Masquer cette notification" })[0]!)
@@ -270,39 +273,28 @@ describe("DashboardPage", () => {
     renderWithQueryClient(<DashboardPage />)
 
     expect(await screen.findByText("Bonjour, Staff Test")).toBeInTheDocument()
-    // Action prioritaire validations visible (validations.view présent)…
-    expect(await screen.findByText(VALIDATIONS_PRIORITY)).toBeInTheDocument()
-    // …et la requête salaire reste désactivée.
+    // L'action est visible dans la zone « À surveiller » et aucune donnée financière n'est chargée.
+    expect(await screen.findByRole("link", { name: new RegExp(VALIDATIONS_PRIORITY) })).toBeInTheDocument()
     expect(getSalarySummaryMock).not.toHaveBeenCalled()
-
-    // Onglet Présences : sections sensibles absentes sans attendance.view / teachers.view.
-    openTab(/Présences/)
-    expect(screen.queryByText(TEACHER_PRESENCE_SECTION)).not.toBeInTheDocument()
-    expect(screen.queryByText(/à risque/)).not.toBeInTheDocument()
+    expect(fetchFinancialSummaryMock).not.toHaveBeenCalled()
   })
 
-  it("affiche le résumé salaires pour un staff avec salary.view", async () => {
+  it("ne mélange pas la permission salaire avec les données financières", async () => {
     setAuth("staff", ["salary.view"])
     renderWithQueryClient(<DashboardPage />)
 
     expect(await screen.findByText("Bonjour, Staff Test")).toBeInTheDocument()
-    // Sans validations.view, l'action prioritaire validations reste masquée.
     expect(screen.queryByText(VALIDATIONS_PRIORITY)).not.toBeInTheDocument()
-
-    openTab(/Salaires/)
-    expect(await screen.findByText(SALARY_SECTION)).toBeInTheDocument()
+    expect(screen.queryByText("Suivi financier")).not.toBeInTheDocument()
+    expect(fetchFinancialSummaryMock).not.toHaveBeenCalled()
   })
 
-  it("ne déclenche pas la requête salaires pour un staff sans salary.view", async () => {
+  it("n'affiche pas les anciens onglets de présence ou de salaire", async () => {
     setAuth("staff", ["validations.view"])
     renderWithQueryClient(<DashboardPage />)
 
     await screen.findByText("Bonjour, Staff Test")
-    openTab(/Salaires/)
-
-    // L'onglet s'affiche en état vide : aucune requête salaire n'a été lancée.
-    await screen.findByText("Aucune fiche salaire")
-    // Les requêtes salaires sont gardées par enabled:canViewSalary → jamais appelées.
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument()
     expect(getSalarySummaryMock).not.toHaveBeenCalled()
   })
 })

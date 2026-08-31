@@ -1,6 +1,9 @@
 import { expect, type Page, type PlaywrightTestArgs } from "@playwright/test"
 
 export const mockDirectorAuth = async (page: Page) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("ivoiredu-tour-done-dashboard", "1")
+  })
   await page.route("**/api/v1/auth/refresh*", async (route) => {
     await route.fulfill({
       status: 200,
