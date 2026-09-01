@@ -70,8 +70,8 @@ describe("NotesPage", () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByText("Note spontanée, pendant le cours")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Ajouter une note" }))
+    await screen.findByText("Évaluations programmées")
+    fireEvent.click(screen.getByRole("button", { name: "Ajouter une note spontanée" }))
     expect(screen.getByRole("dialog", { name: "Note spontanée, pendant le cours" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Close" }))
     expect(screen.getByText("Évaluations programmées")).toBeInTheDocument()
@@ -110,7 +110,8 @@ describe("NotesPage", () => {
       completion: [{ subjectId: "s1", subjectName: "Mathématiques", subjectCoefficient: 4, status: "in_progress", completedAt: null, calculationStarted: false, teacher: null }],
     })
     renderAcademicPage()
-    fireEvent.click(await screen.findByRole("button", { name: "Ajouter une note" }))
+    await screen.findByText("Évaluations programmées")
+    fireEvent.click(screen.getByRole("button", { name: "Ajouter une note spontanée" }))
     fireEvent.click(screen.getByRole("button", { name: "Note négative" }))
     expect(screen.getByRole("spinbutton", { name: "Points" })).toHaveValue(-1)
     fireEvent.change(screen.getByRole("spinbutton", { name: "Points" }), { target: { value: "-2" } })
@@ -131,7 +132,9 @@ describe("NotesPage", () => {
     renderAcademicPage()
     await screen.findByText("Devoir 1")
     fireEvent.click(screen.getByRole("button", { name: /Devoir 1/ }))
+    expect(screen.getByRole("dialog", { name: "Saisie des notes" })).toBeInTheDocument()
     expect(screen.getByRole("spinbutton", { name: "Note de Awa Koné" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Close" }))
     fireEvent.click(screen.getByRole("button", { name: /Devoir 2/ }))
     expect(screen.getAllByRole("spinbutton", { name: "Note de Awa Koné" })).toHaveLength(1)
   })

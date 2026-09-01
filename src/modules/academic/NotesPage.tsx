@@ -36,7 +36,7 @@ export default function NotesPage() {
   const [selectedPeriodId, setSelectedPeriodId] = useState(searchParams.get("gradingPeriodId") ?? "")
   const [createOpen, setCreateOpen] = useState(false)
   const [spontaneousOpen, setSpontaneousOpen] = useState(false)
-  const [expandedEvaluationId, setExpandedEvaluationId] = useState<string | null>(null)
+  const [selectedEvaluationId, setSelectedEvaluationId] = useState<string | null>(null)
   const [draft, setDraft] = useState({ label: "", lessonSlotId: "", subjectId: "", coefficient: "1" })
   const [quickDraft, setQuickDraft] = useState({
     lessonSlotId: searchParams.get("lessonSlotId") ?? "",
@@ -158,6 +158,7 @@ export default function NotesPage() {
   const canSaveSpontaneous = quickDraft.lessonSlotId !== "" && quickDraft.studentId !== ""
     && quickDraft.comment.trim() !== "" && Number.isFinite(Number(quickDraft.adjustment.replace(",", ".")))
     && Number(quickDraft.adjustment.replace(",", ".")) !== 0 && Math.abs(Number(quickDraft.adjustment.replace(",", "."))) <= 20
+  const selectedEvaluation = scheduledEvaluations.find((evaluation) => evaluation.id === selectedEvaluationId) ?? null
 
   return (
     <div className="space-y-6 px-1 py-1 md:px-6 md:py-8">
@@ -213,7 +214,7 @@ export default function NotesPage() {
             <div className="flex flex-wrap items-end justify-between gap-3 border-b pb-4"><div className="space-y-1"><h2 id="evaluations-title" className="text-lg font-semibold">Évaluations programmées</h2><p className="text-sm text-muted-foreground">Le coefficient pondère cette évaluation, sans modifier celui de la matière.</p></div><Badge variant="outline">{scheduledEvaluations.length} prévue{scheduledEvaluations.length > 1 ? "s" : ""}</Badge></div>
             <div className="space-y-3">
               {scheduledEvaluations.length === 0 ? <EmptyState title="Aucune évaluation programmée" description="Créez une évaluation rattachée à l’un de vos créneaux." /> : scheduledEvaluations.map((evaluation) => (
-                <EvaluationGradeEditor key={evaluation.id} evaluation={evaluation} students={studentsQuery.data?.data ?? []} readOnly={isSubjectClosed(evaluation.subjectId)} open={expandedEvaluationId === evaluation.id} onOpenChange={() => setExpandedEvaluationId((current) => current === evaluation.id ? null : evaluation.id)} />
+                <EvaluationGradeEditor key={evaluation.id} evaluation={evaluation} students={studentsQuery.data?.data ?? []} readOnly={isSubjectClosed(evaluation.subjectId)} onOpen={() => setSelectedEvaluationId(evaluation.id)} />
               ))}
             </div>
           </section>
@@ -236,7 +237,7 @@ export default function NotesPage() {
       )}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>Programmer une évaluation</DialogTitle><DialogDescription>Rattachez-la à un créneau et définissez son coefficient propre.</DialogDescription></DialogHeader>
+        <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-xl overflow-y-auto rounded-lg sm:w-full"><DialogHeader><DialogTitle>Programmer une évaluation</DialogTitle><DialogDescription>Rattachez-la à un créneau et définissez son coefficient propre.</DialogDescription></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2"><Label>Créneau de cours</Label><Select value={draft.lessonSlotId || "none"} onValueChange={(value) => {
               const slot = scopeQuery.data?.lessonSlots.find((item) => item.id === value)
@@ -251,8 +252,15 @@ export default function NotesPage() {
         </DialogContent>
       </Dialog>
 
+      <EvaluationGradesDialog
+        evaluation={selectedEvaluation}
+        students={studentsQuery.data?.data ?? []}
+        readOnly={selectedEvaluation ? isSubjectClosed(selectedEvaluation.subjectId) : true}
+        onOpenChange={(open) => !open && setSelectedEvaluationId(null)}
+      />
+
       <Dialog open={spontaneousOpen} onOpenChange={setSpontaneousOpen}>
-        <DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>Note spontanée, pendant le cours</DialogTitle><DialogDescription>Choisissez l’élève et le cours concernés.</DialogDescription></DialogHeader>
+        <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-xl overflow-y-auto rounded-lg sm:w-full"><DialogHeader><DialogTitle>Note spontanée, pendant le cours</DialogTitle><DialogDescription>Choisissez l’élève et le cours concernés.</DialogDescription></DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">Attribuez +1, +2, −1, −2, etc. Le justificatif reste obligatoire.</p>
             <div className="space-y-2"><Label>Créneau</Label><Select value={quickDraft.lessonSlotId || "none"} onValueChange={(value) => setQuickDraft((previous) => ({ ...previous, lessonSlotId: value === "none" ? "" : value }))}><SelectTrigger className="min-h-12" aria-label="Créneau"><SelectValue placeholder="Cours concerné" /></SelectTrigger><SelectContent>{(scopeQuery.data?.lessonSlots ?? []).map((slot) => <SelectItem key={slot.id} value={slot.id}>{dayLabel(slot.dayOfWeek)} {slot.startTime} · {slot.subjectName}</SelectItem>)}</SelectContent></Select></div>
@@ -267,23 +275,44 @@ export default function NotesPage() {
   )
 }
 
-function EvaluationGradeEditor({ evaluation, students, readOnly, open, onOpenChange }: { evaluation: EvaluationWithGrades; students: StudentItem[]; readOnly: boolean; open: boolean; onOpenChange: () => void }) {
-  const { toast } = useToast()
-  const queryClient = useQueryClient()
-  const gradeMutation = useMutation({
-    mutationFn: (input: { studentId: string; score: number }) => upsertEvaluationGrade(evaluation.id, { studentId: input.studentId, score: input.score, maxScore: GRADE_MAX }),
-    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ["evaluations-scope"] }); toast({ title: "Note enregistrée" }) },
-    onError: (error) => toast({ title: "Enregistrement impossible", description: error instanceof Error ? error.message : undefined, variant: "destructive" }),
-  })
+function EvaluationGradeEditor({ evaluation, students, readOnly, onOpen }: { evaluation: EvaluationWithGrades; students: StudentItem[]; readOnly: boolean; onOpen: () => void }) {
   const completedCount = evaluation.grades.length
   const totalCount = students.length
   return <div className="rounded-lg border bg-background p-4 transition-colors hover:bg-muted/20">
-    <Button type="button" variant="ghost" className="min-h-12 w-full justify-between gap-3 px-0 text-left" onClick={onOpenChange}>
+    <Button type="button" variant="ghost" className="min-h-12 w-full justify-between gap-3 px-0 text-left" onClick={onOpen}>
       <span className="min-w-0"><span className="block truncate font-semibold">{evaluation.label}</span><span className="mt-1 block text-xs text-muted-foreground">{evaluation.subjectName ?? "-"} · Coef. évaluation {evaluation.coefficient}</span></span>
-      <span className="shrink-0 text-right"><Badge variant={readOnly ? "outline" : "secondary"}>{readOnly ? "Saisie clôturée" : `${completedCount}/${totalCount} notes`}</Badge><span className="mt-1 block text-xs text-muted-foreground">{open ? "Masquer" : "Saisir les notes"}</span></span>
+      <span className="shrink-0 text-right"><Badge variant={readOnly ? "outline" : "secondary"}>{readOnly ? "Saisie clôturée" : `${completedCount}/${totalCount} notes`}</Badge><span className="mt-1 block text-xs text-muted-foreground">{readOnly ? "Consulter les notes" : "Saisir les notes"}</span></span>
     </Button>
-    {open ? <div className="mt-4">{students.length === 0 ? <EmptyState title="Aucun élève actif" description="La classe ne contient aucun élève disponible pour la saisie." /> : <div className="divide-y rounded-lg border">{students.map((student) => <GradeRow key={student.id} fullName={`${student.firstName} ${student.lastName}`} initialScore={String(evaluation.grades.find((item) => item.studentId === student.id)?.score ?? "")} readOnly={readOnly} onSave={(score) => gradeMutation.mutateAsync({ studentId: student.id, score })} />)}</div>}</div> : null}
   </div>
+}
+
+function EvaluationGradesDialog({ evaluation, students, readOnly, onOpenChange }: { evaluation: EvaluationWithGrades | null; students: StudentItem[]; readOnly: boolean; onOpenChange: (open: boolean) => void }) {
+  const { toast } = useToast()
+  const queryClient = useQueryClient()
+  const gradeMutation = useMutation({
+    mutationFn: (input: { studentId: string; score: number }) => {
+      if (!evaluation) throw new Error("Évaluation introuvable")
+      return upsertEvaluationGrade(evaluation.id, { studentId: input.studentId, score: input.score, maxScore: GRADE_MAX })
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["evaluations-scope"] })
+      toast({ title: "Note enregistrée" })
+    },
+    onError: (error) => toast({ title: "Enregistrement impossible", description: error instanceof Error ? error.message : undefined, variant: "destructive" }),
+  })
+
+  return <Dialog open={Boolean(evaluation)} onOpenChange={onOpenChange}>
+    <DialogContent className="grid max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-4xl grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-lg p-0 sm:w-full">
+      <DialogHeader className="border-b px-5 py-5 text-left sm:px-6">
+        <DialogTitle>Saisie des notes</DialogTitle>
+        <DialogDescription>{evaluation ? `${evaluation.label} · ${evaluation.subjectName ?? "Matière"} · coef. ${evaluation.coefficient}` : ""}</DialogDescription>
+      </DialogHeader>
+      <div className="min-h-0 overflow-y-auto px-5 py-4 sm:px-6 sm:py-5">
+        {evaluation && students.length === 0 ? <EmptyState title="Aucun élève actif" description="La classe ne contient aucun élève disponible pour la saisie." /> : null}
+        {evaluation && students.length > 0 ? <div className="divide-y rounded-lg border">{students.map((student) => <GradeRow key={`${evaluation.id}-${student.id}-${evaluation.grades.find((item) => item.studentId === student.id)?.score ?? "empty"}`} fullName={`${student.firstName} ${student.lastName}`} initialScore={String(evaluation.grades.find((item) => item.studentId === student.id)?.score ?? "")} readOnly={readOnly} onSave={(score) => gradeMutation.mutateAsync({ studentId: student.id, score })} />)}</div> : null}
+      </div>
+    </DialogContent>
+  </Dialog>
 }
 
 function GradeRow({ fullName, initialScore, onSave, readOnly }: { fullName: string; initialScore: string; onSave: (score: number) => Promise<unknown>; readOnly: boolean }) {
