@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import {
   createSubject,
+  createSubjectsBulk,
+  listClasses,
   listLevels,
   listSubjects,
   updateSubject,
@@ -16,7 +18,7 @@ import {
   type SubjectUpdatePayload,
 } from "@/modules/academic/academic.api"
 import { AcademicNavigation } from "@/modules/academic/components/AcademicNavigation"
-import { SubjectDialog } from "@/modules/academic/components/AcademicDialogs"
+import { SubjectBulkDialog, SubjectDialog } from "@/modules/academic/components/AcademicDialogs"
 import { DataTable, EmptyState, PageLayout, QueryErrorState } from "@/shared/components"
 import { AddIcon, ClassIcon, EditIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
@@ -36,10 +38,25 @@ export default function SubjectsPage() {
   const { toast } = useToast()
   const { hasPermission } = usePermissions()
   const canEdit = hasPermission("classes.edit")
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null)
   const levelsQuery = useQuery({ queryKey: LEVELS_KEY, queryFn: listLevels })
   const subjectsQuery = useQuery({ queryKey: SUBJECTS_KEY, queryFn: () => listSubjects() })
+  const classesQuery = useQuery({ queryKey: ["academic", "classes-for-subjects"], queryFn: () => listClasses() })
+  const bulkSaveMutation = useMutation({
+    mutationFn: createSubjectsBulk,
+    onSuccess: async (subjects) => {
+      await queryClient.invalidateQueries({ queryKey: SUBJECTS_KEY })
+      setBulkDialogOpen(false)
+      toast({ title: `${subjects.length} matière${subjects.length > 1 ? "s" : ""} ajoutée${subjects.length > 1 ? "s" : ""}` })
+    },
+    onError: (error) => toast({
+      title: "Enregistrement impossible",
+      description: apiErrorMessage(error, "Vérifiez les niveaux et les coefficients."),
+      variant: "destructive",
+    }),
+  })
   const saveMutation = useMutation({
     mutationFn: ({ subject, payload }: {
       subject: Subject | null
@@ -61,8 +78,7 @@ export default function SubjectsPage() {
   })
 
   const openCreate = () => {
-    setSelectedSubject(null)
-    setDialogOpen(true)
+    setBulkDialogOpen(true)
   }
   const openEdit = (subject: Subject) => {
     setSelectedSubject(subject)
@@ -84,6 +100,13 @@ export default function SubjectsPage() {
   ], [canEdit])
 
   const pageError = levelsQuery.isError || subjectsQuery.isError
+  const classesByLevel = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const schoolClass of classesQuery.data?.classes ?? []) {
+      counts.set(schoolClass.level.id, (counts.get(schoolClass.level.id) ?? 0) + 1)
+    }
+    return counts
+  }, [classesQuery.data?.classes])
 
   return (
     <PageLayout
@@ -146,6 +169,14 @@ export default function SubjectsPage() {
         levels={levelsQuery.data ?? []}
         onOpenChange={setDialogOpen}
         onSubmit={(payload) => saveMutation.mutate({ subject: selectedSubject, payload })}
+      />
+      <SubjectBulkDialog
+        open={bulkDialogOpen}
+        isPending={bulkSaveMutation.isPending}
+        levels={levelsQuery.data ?? []}
+        classesByLevel={classesByLevel}
+        onOpenChange={setBulkDialogOpen}
+        onSubmit={(payload) => bulkSaveMutation.mutate(payload)}
       />
     </PageLayout>
   )

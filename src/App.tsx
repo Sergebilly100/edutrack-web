@@ -57,7 +57,6 @@ const SubjectsPage = lazy(() => import("@/modules/academic/SubjectsPage"))
 const NotesPage = lazy(() => import("@/modules/academic/NotesPage"))
 const CalculationPage = lazy(() => import("@/modules/academic/CalculationPage"))
 const ConductPage = lazy(() => import("@/modules/academic/ConductPage"))
-const CompletionTrackingPage = lazy(() => import("@/modules/academic/CompletionTrackingPage"))
 const ReportCardsPage = lazy(() => import("@/modules/academic/ReportCardsPage"))
 const ClassDecisionsPage = lazy(() => import("@/modules/class-decisions/ClassDecisionsPage"))
 const EnrollmentsPage = lazy(() => import("@/modules/enrollments/EnrollmentsPage"))
@@ -597,7 +596,7 @@ export default function App() {
           <Route path="/academic/levels" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<LevelsPage />} />} />
           <Route path="/academic/classes" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<ClassesPage />} />} />
           <Route path="/academic/subjects" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<SubjectsPage />} />} />
-          <Route path="/academic/completion" element={<PermissionRoute href="/academic/completion" requiredAnyPermissions={["report_cards.view"]} element={<CompletionTrackingPage />} />} />
+          <Route path="/academic/completion" element={<PermissionRoute href="/academic/report-cards" requiredAnyPermissions={["report_cards.view"]} element={<Navigate replace to="/academic/report-cards" />} />} />
           <Route path="/academic/report-cards" element={<PermissionRoute href="/academic/report-cards" requiredAnyPermissions={["report_cards.view", "report_cards.publish"]} element={<ReportCardsPage />} />} />
           <Route path="/end-of-year" element={<PermissionRoute href="/end-of-year" requiredAnyPermissions={["class_decisions.view"]} element={<EndOfYearAccessRoute />} />} />
           <Route path="/enrollments" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.view"]} element={<EnrollmentsPage />} />} />

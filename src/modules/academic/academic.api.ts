@@ -64,6 +64,14 @@ export type SubjectPayload = {
   coefficient: number
 }
 
+export type SubjectBulkPayload = {
+  name: string
+  assignments: Array<{
+    levelId: string
+    coefficient: number
+  }>
+}
+
 export type SubjectUpdatePayload = Pick<SubjectPayload, "name" | "coefficient">
 
 export type ClassesResponse = {
@@ -217,6 +225,12 @@ export async function createSubject(payload: SubjectPayload): Promise<Subject> {
   return parseSubject(asRecord(response.data).subject)
 }
 
+export async function createSubjectsBulk(payload: SubjectBulkPayload): Promise<Subject[]> {
+  const response = await api.post("/subjects/bulk", payload)
+  const rows = asRecord(response.data).subjects
+  return Array.isArray(rows) ? rows.map(parseSubject) : []
+}
+
 export async function updateSubject(id: string, payload: SubjectUpdatePayload): Promise<Subject> {
   const response = await api.patch(`/subjects/${id}`, payload)
   return parseSubject(asRecord(response.data).subject)
@@ -277,6 +291,18 @@ export type TeacherAcademicContext = {
     isCurrent: boolean
   }>
 }
+
+export type GradingPeriod = {
+  id: string
+  label: string
+  isCurrent: boolean
+  isCompleted: boolean
+}
+
+export const listGradingPeriods = () =>
+  api
+    .get<{ gradingPeriods: GradingPeriod[] }>("/grading-periods")
+    .then((response) => response.data.gradingPeriods)
 
 export const fetchTeacherAcademicContext = () =>
   api.get<TeacherAcademicContext>("/academic/teacher-context").then((response) => response.data)

@@ -107,15 +107,6 @@ export const NAV_ITEMS: NavItem[] = [
     activePaths: ["/academic", "/academic/school-years", "/academic/levels", "/academic/classes", "/academic/subjects"],
   },
   {
-    label: "Complétude",
-    href: "/academic/completion",
-    icon: ClipboardCheck,
-    group: "Académique",
-    roles: ["director", "staff"],
-    requiredPermissions: ["report_cards.view"],
-    mobileVisible: false,
-  },
-  {
     label: "Bulletins",
     href: "/academic/report-cards",
     icon: GraduationCap,

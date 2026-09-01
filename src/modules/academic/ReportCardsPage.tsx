@@ -2,19 +2,23 @@ import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { FileDown, Loader2, Send, Sparkles } from "lucide-react"
 
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/components/ui/use-toast"
 import { EmptyState } from "@/shared/components/EmptyState"
 import {
   fetchClassReportCards,
+  fetchClassCompletion,
   fetchReadiness,
   generateReportCards,
   listClasses,
+  listGradingPeriods,
   publishBulkReportCards,
   publishReportCard,
   requestReportCardPdf,
@@ -32,12 +36,7 @@ export default function ReportCardsPage() {
   })
   const periodsQuery = useQuery({
     queryKey: ["academic", "grading-periods"],
-    queryFn: async () => {
-      const { apiClient } = await import("@/shared/api/client")
-      return apiClient
-        .get<{ gradingPeriods: Array<{ id: string; label: string; isCurrent: boolean; isCompleted: boolean }> }>("/grading-periods")
-        .then((r) => r.data.gradingPeriods)
-    },
+    queryFn: listGradingPeriods,
   })
   useEffect(() => {
     if (gradingPeriodId || !periodsQuery.data?.length) return
@@ -56,11 +55,17 @@ export default function ReportCardsPage() {
     queryFn: () => fetchClassReportCards(classId, gradingPeriodId),
     enabled,
   })
+  const completionQuery = useQuery({
+    queryKey: ["class-completion", classId, gradingPeriodId],
+    queryFn: () => fetchClassCompletion(classId, gradingPeriodId),
+    enabled,
+  })
 
   const invalidate = async (): Promise<void> => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["report-cards-class", classId, gradingPeriodId] }),
       queryClient.invalidateQueries({ queryKey: ["report-cards-readiness", gradingPeriodId] }),
+      queryClient.invalidateQueries({ queryKey: ["class-completion", classId, gradingPeriodId] }),
     ])
   }
 
@@ -122,6 +127,21 @@ export default function ReportCardsPage() {
   const readinessForClass = readinessQuery.data?.find(
     (entry) => entry.classId === classId
   )
+  const selectedPeriod = periodsQuery.data?.find((period) => period.id === gradingPeriodId)
+  const completionSubjects = completionQuery.data?.subjects ?? []
+  const completedSubjectsCount = completionSubjects.filter((subject) => subject.status === "completed").length
+  const allSubjectsCompleted = completionSubjects.length > 0 && completedSubjectsCount === completionSubjects.length
+  const allStudentsAveraged = readinessForClass !== undefined && readinessForClass.studentsWithGeneralAverage >= readinessForClass.headcount && readinessForClass.headcount > 0
+  const canGenerate = Boolean(selectedPeriod?.isCurrent) && allSubjectsCompleted && allStudentsAveraged
+  const preparationLoading = completionQuery.isLoading || readinessQuery.isLoading
+  const preparationError = completionQuery.isError || readinessQuery.isError
+
+  const generationBlocker = (): string | null => {
+    if (!selectedPeriod?.isCurrent) return "Sélectionnez la période scolaire en cours pour générer les bulletins."
+    if (!allSubjectsCompleted) return "Clôturez et validez les moyennes de chaque matière avant de générer."
+    if (!allStudentsAveraged) return "Calculez une moyenne générale pour tous les élèves de la classe."
+    return null
+  }
 
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
@@ -134,9 +154,9 @@ export default function ReportCardsPage() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label>Classe</Label>
+          <Label htmlFor="report-cards-class">Classe</Label>
           <Select value={classId || "none"} onValueChange={(value) => setClassId(value === "none" ? "" : value)}>
-            <SelectTrigger className="min-h-12"><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
+            <SelectTrigger id="report-cards-class" className="min-h-12"><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
             <SelectContent>
               {(classesQuery.data?.classes ?? []).map((klass) => (
                 <SelectItem key={klass.id} value={klass.id}>{klass.name}</SelectItem>
@@ -145,12 +165,12 @@ export default function ReportCardsPage() {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Période</Label>
+          <Label htmlFor="report-cards-period">Période</Label>
           <Select
             value={gradingPeriodId || "none"}
             onValueChange={(value) => setGradingPeriodId(value === "none" ? "" : value)}
           >
-            <SelectTrigger className="min-h-12"><SelectValue placeholder="Choisir une période" /></SelectTrigger>
+            <SelectTrigger id="report-cards-period" className="min-h-12"><SelectValue placeholder="Choisir une période" /></SelectTrigger>
             <SelectContent>
               {(periodsQuery.data ?? []).map((period) => (
                 <SelectItem key={period.id} value={period.id}>{period.label}{period.isCurrent ? " · en cours" : period.isCompleted ? " · finalisée" : " · à venir"}</SelectItem>
@@ -164,19 +184,81 @@ export default function ReportCardsPage() {
         <EmptyState title="Choisissez une classe et une période" description="Les bulletins s'afficheront ici." />
       ) : (
         <>
+          {preparationError ? (
+            <Alert variant="destructive">
+              <AlertDescription>Impossible de charger l’état de préparation de cette classe. Réessayez dans un instant.</AlertDescription>
+            </Alert>
+          ) : null}
+
+          <Card className="shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle>Préparation de la classe</CardTitle>
+              <CardDescription>
+                Vérifiez les matières et les moyennes avant de générer les bulletins.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {preparationLoading ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-5 w-48" />
+                  <Skeleton className="h-24 w-full" />
+                </div>
+              ) : completionSubjects.length === 0 ? (
+                <EmptyState
+                  title="Aucune matière pour ce niveau"
+                  description="Ajoutez les matières enseignées avant de préparer les bulletins."
+                />
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className={allSubjectsCompleted ? "border-green-200 bg-green-50 text-green-700" : "border-amber-200 bg-amber-50 text-amber-800"}>
+                      {completedSubjectsCount}/{completionSubjects.length} matières validées
+                    </Badge>
+                    {readinessForClass ? (
+                      <Badge variant="outline" className={allStudentsAveraged ? "border-green-200 bg-green-50 text-green-700" : "border-amber-200 bg-amber-50 text-amber-800"}>
+                        {readinessForClass.studentsWithGeneralAverage}/{readinessForClass.headcount} moyennes générales
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Matière</TableHead>
+                          <TableHead>Professeur</TableHead>
+                          <TableHead>État</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {completionSubjects.map((subject) => (
+                          <TableRow key={subject.subjectId}>
+                            <TableCell className="font-medium">{subject.subjectName}</TableCell>
+                            <TableCell>{subject.teacher?.name ?? <span className="text-muted-foreground">Non identifié</span>}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={subject.status === "completed" ? "border-green-200 bg-green-50 text-green-700" : "border-amber-200 bg-amber-50 text-amber-800"}>
+                                {subject.status === "completed" ? "Moyennes validées" : subject.calculationStarted ? "Calcul en cours" : "Saisie à clôturer"}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
           {readinessForClass ? (
             <Card className="shadow-sm">
               <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
                 <p className="text-sm text-muted-foreground">
-                  Moyennes générales calculées :{" "}
-                  <span className="font-semibold text-foreground">
-                    {readinessForClass.studentsWithGeneralAverage}/{readinessForClass.headcount}
-                  </span>
+                  {canGenerate ? "Cette classe est prête à générer ses bulletins." : generationBlocker()}
                 </p>
                 <Button
                   type="button"
                   onClick={() => generateMutation.mutate()}
-                  disabled={generateMutation.isPending || !(periodsQuery.data ?? []).some((period) => period.id === gradingPeriodId && period.isCurrent)}
+                  disabled={generateMutation.isPending || !canGenerate}
                 >
                   {generateMutation.isPending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -99,10 +99,15 @@ describe("groupes de navigation direction", () => {
 })
 
 describe("état actif de navigation", () => {
-  it("ne sélectionne pas Structure sur les écrans Complétude ou Bulletins", () => {
+  it("remplace Complétude par l’espace Bulletins", () => {
+    const labels = getNavItemsByRole("director").map((item) => item.label)
+    expect(labels).toContain("Bulletins")
+    expect(labels).not.toContain("Complétude")
+  })
+
+  it("ne sélectionne pas Structure sur l’écran Bulletins", () => {
     const structure = getNavItemsByRole("director").find((item) => item.href === "/academic")
     expect(structure).toBeDefined()
-    expect(isNavItemActive(structure!, "/academic/completion", "")).toBe(false)
     expect(isNavItemActive(structure!, "/academic/report-cards", "")).toBe(false)
     expect(isNavItemActive(structure!, "/academic/classes", "")).toBe(true)
   })
