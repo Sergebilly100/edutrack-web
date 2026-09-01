@@ -17,6 +17,7 @@ export type TourId =
   | "rooms"
   | "import"
   | "teacher-app"
+  | "teacher-dashboard"
   | "parent-portal"
 
 export function useTourGuide(tourId: TourId, enabled: boolean) {

@@ -203,7 +203,7 @@ function RoleRedirect() {
   }
 
   if (user.role === "teacher") {
-    return <Navigate to="/attendance" replace />
+    return <Navigate to="/dashboard" replace />
   }
 
   // c'est un peu redondant avec la route /admin, mais ça garantit que même si un super_admin tape manuellement /dashboard ou /schedule
@@ -255,58 +255,62 @@ function ParentLoginRoute() {
 }
 
 function TeacherShell({ element }: { element: ReactElement }) {
-  // h-screen (et non min-h-screen) : le body a overflow:hidden, donc le scroll
-  // doit être porté par <main> (flex-1 overflow-y-auto). Avec min-h-screen, le
-  // conteneur s'étendait au-delà de la fenêtre sans jamais permettre le défilement
-  // → contenu inaccessible dès que la page dépasse la hauteur de l'écran.
+  // Le shell porte le seul défilement de l’espace professeur. La hauteur
+  // dynamique suit la zone réellement visible de Chrome Android (barres du
+  // navigateur comprises) et évite un second scroll sur le document.
   const location = useLocation()
   const isAcademicWorkspace = location.pathname === "/academic/calculation" || location.pathname.includes("/academic/students/")
 
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <div className="flex h-dvh min-w-0 flex-col overflow-hidden bg-background">
       <TeacherTopBar />
-      {!isAcademicWorkspace ? <TeacherNavigation /> : null}
-      <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
-        <div className="mx-auto w-full max-w-lg px-4 py-4 lg:max-w-4xl lg:py-6">{element}</div>
+      {!isAcademicWorkspace ? <TeacherNavigation variant="desktop" /> : null}
+      <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+        <div className="mx-auto w-full min-w-0 max-w-lg px-4 py-4 lg:max-w-4xl lg:py-6">{element}</div>
       </main>
+      {!isAcademicWorkspace ? <TeacherNavigation variant="mobile" /> : null}
     </div>
   )
 }
 
-function TeacherNavigation() {
+function TeacherNavigation({ variant }: { variant: "desktop" | "mobile" }) {
   const user = useAuthStore((state) => state.user)
   const permissions = useAuthStore((state) => state.permissions)
   const items = getNavItemsByRole(user?.role, permissions)
 
   const mobileItems = items.filter((item) =>
-    item.href === "/attendance" || item.href === "/academic/notes" || item.href === "/account",
+    item.href === "/dashboard" || item.href === "/attendance" || item.href === "/academic/notes" || item.href === "/account",
   )
 
+  if (variant === "desktop") {
+    return (
+      <nav aria-label="Navigation professeur" className="hidden shrink-0 border-b bg-[var(--surface-chrome)] md:block">
+        <div className="flex min-h-12 gap-1 overflow-x-auto px-3 py-1">
+          {items.map((item) => {
+            const Icon = item.icon
+            return (
+              <NavLink
+                key={item.href}
+                to={item.href}
+                className={({ isActive }) =>
+                  `relative flex min-h-12 shrink-0 items-center gap-2 border-b-2 px-3 text-sm font-medium transition-colors ${
+                    isActive ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground"
+                  }`
+                }
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </NavLink>
+            )
+          })}
+        </div>
+      </nav>
+    )
+  }
+
   return (
-    <>
-    <nav aria-label="Navigation professeur" className="hidden border-b bg-[var(--surface-chrome)] md:block">
-      <div className="flex min-h-12 gap-1 overflow-x-auto px-3 py-1">
-        {items.map((item) => {
-          const Icon = item.icon
-          return (
-            <NavLink
-              key={item.href}
-              to={item.href}
-              className={({ isActive }) =>
-                `flex min-h-12 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors ${
-                  isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                }`
-              }
-            >
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </NavLink>
-          )
-        })}
-      </div>
-    </nav>
-    <nav aria-label="Navigation professeur mobile" className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-3 pb-[env(safe-area-inset-bottom)] pt-1 backdrop-blur md:hidden">
-      <div className="mx-auto grid max-w-lg grid-cols-3 gap-2">
+    <nav aria-label="Navigation professeur mobile" className="z-40 w-full min-w-0 shrink-0 border-t bg-background/95 px-2 pb-[env(safe-area-inset-bottom)] pt-1 backdrop-blur md:hidden">
+      <div className="mx-auto grid w-full min-w-0 max-w-lg grid-cols-4">
         {mobileItems.map((item) => {
           const Icon = item.icon
           return (
@@ -314,19 +318,18 @@ function TeacherNavigation() {
               key={item.href}
               to={item.href}
               className={({ isActive }) =>
-                `flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-md px-3 text-xs font-medium transition-colors ${
-                  isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                `relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-medium transition-colors ${
+                  isActive ? "text-primary after:absolute after:inset-x-5 after:top-0 after:h-0.5 after:rounded-full after:bg-primary" : "text-muted-foreground hover:text-foreground"
                 }`
               }
             >
               <Icon className="h-4 w-4" />
-              {item.label}
+              <span className="max-w-full truncate">{item.label}</span>
             </NavLink>
           )
         })}
       </div>
     </nav>
-    </>
   )
 }
 
@@ -348,6 +351,17 @@ function AttendanceRoute() {
   return <AppShell><AttendancePage /></AppShell>
 }
 
+function DashboardEntryRoute() {
+  const user = useAuthStore((state) => state.user)
+
+  if (!user) return <Navigate to="/login" replace />
+  if (user.mustChangePassword) return <Navigate to="/account/first-login-password" replace />
+  if (user.role === "super_admin") return <Navigate to="/admin" replace />
+  if (user.role === "teacher") return <TeacherShell element={<DashboardRoute />} />
+
+  return <AppShell><DashboardRoute /></AppShell>
+}
+
 function OnboardingRoute() {
   const user = useAuthStore((state) => state.user)
 
@@ -356,7 +370,7 @@ function OnboardingRoute() {
   }
 
   if (user.role === "teacher") {
-    return <Navigate to="/attendance" replace />
+    return <Navigate to="/dashboard" replace />
   }
 
   return <OnboardingWizard />
@@ -494,7 +508,7 @@ function PermissionRoute({
     return element
   }
 
-  const fallback = user.role === "teacher" ? "/attendance" : allowed[0]?.href ?? "/dashboard"
+  const fallback = user.role === "teacher" ? "/dashboard" : allowed[0]?.href ?? "/dashboard"
   return <Navigate to={fallback} replace />
 }
 
@@ -584,8 +598,9 @@ export default function App() {
         <Route path="/onboarding" element={<OnboardingRoute />} />
         <Route path="/account/first-login-password" element={<FirstLoginPasswordRoute />} />
 
+        <Route path="/dashboard" element={<DashboardEntryRoute />} />
+
         <Route element={<NonTeacherShellRoute />}>
-          <Route path="/dashboard" element={<PermissionRoute href="/dashboard" element={<DashboardRoute />} />} />
           <Route path="/schedule" element={<PermissionRoute href="/schedule" element={<SchedulePage />} />} />
           <Route path="/teachers" element={<PermissionRoute href="/teachers" element={<TeachersPage />} />} />
           <Route path="/teachers/:teacherId" element={<PermissionRoute href="/teachers" element={<TeacherDetailPage />} />} />

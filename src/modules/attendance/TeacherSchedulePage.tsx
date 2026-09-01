@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState } from "react"
 import { Navigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
-import { Info } from "lucide-react"
 
 import { teacherScheduleApi, type ScheduleSlot } from "@/modules/attendance/attendance.api"
 import CourseCard from "@/modules/attendance/components/CourseCard"
 import DayPicker, { startOfWeekMonday, toDateKey } from "@/modules/attendance/components/DayPicker"
 import TeacherCheckInFlow from "@/modules/attendance/components/TeacherCheckInFlow"
-import TeacherNotificationsPanel from "@/modules/attendance/components/TeacherNotificationsPanel"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -226,20 +224,6 @@ export default function TeacherSchedulePage() {
           <div>
             <p className="text-xs font-semibold uppercase text-muted-foreground">Aujourd'hui et semaine</p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight">Mon planning</h1>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="text-muted-foreground"
-              onClick={() => tour.restart()}
-              aria-label="Revoir le guide"
-            >
-              <Info className="mr-1.5 h-4 w-4" />
-              Guide
-            </Button>
-            <TeacherNotificationsPanel />
           </div>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">

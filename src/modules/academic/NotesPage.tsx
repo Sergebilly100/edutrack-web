@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CalendarPlus, CheckCircle2, ClipboardCheck, Loader2, Minus, Plus, Sparkles } from "lucide-react"
+import { ArrowRight, CalendarPlus, CheckCircle2, ClipboardCheck, Loader2, Minus, Plus, Sparkles } from "lucide-react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
@@ -9,7 +9,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/components/ui/use-toast"
 import { listStudents, type StudentItem } from "@/modules/students/students.api"
 import { EmptyState } from "@/shared/components/EmptyState"
@@ -161,19 +160,18 @@ export default function NotesPage() {
     && Number(quickDraft.adjustment.replace(",", ".")) !== 0 && Math.abs(Number(quickDraft.adjustment.replace(",", "."))) <= 20
 
   return (
-    <div className="space-y-8 px-4 py-6 md:px-6 md:py-8">
+    <div className="space-y-6 px-1 py-1 md:px-6 md:py-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-2xl space-y-1">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Espace d’enseignement</p>
           <h1 className="text-2xl font-semibold tracking-tight">Évaluations & notes</h1>
-          <p className="text-sm text-muted-foreground">Préparez vos évaluations, saisissez les résultats, puis clôturez chaque matière au bon moment.</p>
+          <p className="text-sm text-muted-foreground">Préparez, notez et validez vos matières pour une classe et une période précises.</p>
         </div>
-        <Button type="button" className="min-h-12" disabled={!scopeEnabled || isPeriodReadOnly} onClick={() => setCreateOpen(true)}><CalendarPlus className="mr-2 h-4 w-4" />Programmer une évaluation</Button>
       </header>
 
-      <section aria-label="Contexte de notation" className="rounded-lg border bg-muted/30 p-4 md:p-5">
-        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2"><div><h2 className="font-semibold">Votre contexte</h2><p className="text-sm text-muted-foreground">Choisissez la classe et la période que vous voulez travailler.</p></div>{selectedClass && gradingPeriodId ? <Badge variant="secondary">{selectedClass.name} · {activePeriod?.label}{activePeriod?.isCurrent === false ? " · lecture seule" : " · en cours"}</Badge> : null}</div>
-        <div className="grid gap-4 sm:grid-cols-2">
+      <section aria-label="Contexte de notation" className="rounded-lg border bg-card p-4 shadow-sm md:p-5">
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2"><div><h2 className="font-semibold">Classe et période</h2><p className="text-sm text-muted-foreground">Toutes les actions ci-dessous concernent cette sélection.</p></div>{selectedClass && gradingPeriodId ? <Badge variant={isPeriodReadOnly ? "outline" : "secondary"}>{selectedClass.name} · {activePeriod?.label}{isPeriodReadOnly ? " · lecture seule" : " · en cours"}</Badge> : null}</div>
+        <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>Classe enseignée</Label>
             <Select value={classId || "none"} onValueChange={(value) => {
@@ -199,6 +197,7 @@ export default function NotesPage() {
             </Select>
           </div>
         </div>
+        {scopeEnabled ? <div className="mt-4 flex flex-col gap-2 border-t pt-4 sm:flex-row sm:justify-end"><Button type="button" variant="outline" className="min-h-12 sm:flex-1" onClick={() => setSpontaneousOpen(true)} disabled={isPeriodReadOnly || (scopeQuery.data?.lessonSlots.length ?? 0) === 0}><Sparkles className="mr-2 h-4 w-4" />Ajouter une note spontanée</Button><Button type="button" className="min-h-12 sm:flex-1" disabled={isPeriodReadOnly} onClick={() => setCreateOpen(true)}><CalendarPlus className="mr-2 h-4 w-4" />Programmer une évaluation</Button></div> : null}
       </section>
 
       {!scopeEnabled ? (
@@ -210,13 +209,8 @@ export default function NotesPage() {
       ) : (
         <>
           {isPeriodReadOnly ? <div className="rounded-lg border border-muted-foreground/20 bg-muted/40 p-4 text-sm text-muted-foreground">Cette période reste consultable, mais elle est verrouillée car les bulletins ont déjà été générés ou parce qu’elle n’est pas encore la période courante.</div> : null}
-          <section aria-labelledby="spontaneous-title" className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-primary/20 bg-primary/5 p-4 md:p-5">
-            <div className="flex gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground"><Sparkles className="h-4 w-4" /></span><div><h2 id="spontaneous-title" className="font-semibold">Note spontanée, pendant le cours</h2><p className="text-sm text-muted-foreground">Attribuez +1, +2, −1, −2, etc. Le justificatif reste obligatoire.</p></div></div>
-            <Button type="button" className="min-h-12" onClick={() => setSpontaneousOpen(true)} disabled={isPeriodReadOnly || (scopeQuery.data?.lessonSlots.length ?? 0) === 0}><Sparkles className="mr-2 h-4 w-4" />Ajouter une note</Button>
-          </section>
-
-          <section aria-labelledby="evaluations-title" className="space-y-4">
-            <div className="flex flex-wrap items-end justify-between gap-3 border-b pb-4"><div className="space-y-1"><h2 id="evaluations-title" className="text-lg font-semibold">Évaluations programmées</h2><p className="text-sm text-muted-foreground">Le coefficient pondère cette évaluation, sans modifier celui de la matière.</p></div><Badge variant="outline">{scheduledEvaluations.length} évaluation{scheduledEvaluations.length > 1 ? "s" : ""}</Badge></div>
+          <section aria-labelledby="evaluations-title" className="space-y-4 rounded-lg border bg-card p-4 shadow-sm md:p-5">
+            <div className="flex flex-wrap items-end justify-between gap-3 border-b pb-4"><div className="space-y-1"><h2 id="evaluations-title" className="text-lg font-semibold">Évaluations programmées</h2><p className="text-sm text-muted-foreground">Le coefficient pondère cette évaluation, sans modifier celui de la matière.</p></div><Badge variant="outline">{scheduledEvaluations.length} prévue{scheduledEvaluations.length > 1 ? "s" : ""}</Badge></div>
             <div className="space-y-3">
               {scheduledEvaluations.length === 0 ? <EmptyState title="Aucune évaluation programmée" description="Créez une évaluation rattachée à l’un de vos créneaux." /> : scheduledEvaluations.map((evaluation) => (
                 <EvaluationGradeEditor key={evaluation.id} evaluation={evaluation} students={studentsQuery.data?.data ?? []} readOnly={isSubjectClosed(evaluation.subjectId)} open={expandedEvaluationId === evaluation.id} onOpenChange={() => setExpandedEvaluationId((current) => current === evaluation.id ? null : evaluation.id)} />
@@ -224,17 +218,17 @@ export default function NotesPage() {
             </div>
           </section>
 
-          <section aria-labelledby="calculation-title" className="rounded-lg border bg-card p-4 md:p-5">
+          <section aria-labelledby="calculation-title" className="rounded-lg border bg-card p-4 shadow-sm md:p-5">
             <div className="mb-4 flex gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted"><ClipboardCheck className="h-4 w-4" /></span><div><h2 id="calculation-title" className="font-semibold">Clôturer et calculer par matière</h2><p className="text-sm text-muted-foreground">Lorsque toutes les notes sont renseignées, fermez la saisie de cette matière. Vous pourrez contrôler les moyennes et la conduite avant validation.</p></div></div>
             <div>
               {(scopeQuery.data?.completion.length ?? 0) === 0 ? <EmptyState title="Aucune matière assignée" description="Vérifiez que les matières de vos créneaux sont paramétrées pour le niveau." /> : (
-                <Table><TableHeader><TableRow><TableHead>Matière</TableHead><TableHead>Statut</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader><TableBody>
-                  {(scopeQuery.data?.completion ?? []).map((subject) => <TableRow key={subject.subjectId}>
-                    <TableCell className="font-medium"><div>{subject.subjectName}</div><p className="mt-1 text-xs font-normal text-muted-foreground">{scheduledCountBySubject.get(subject.subjectId) ?? 0} évaluation{(scheduledCountBySubject.get(subject.subjectId) ?? 0) > 1 ? "s" : ""} effectuée{(scheduledCountBySubject.get(subject.subjectId) ?? 0) > 1 ? "s" : ""}</p></TableCell>
-                    <TableCell>{subject.status === "completed" ? <Badge variant="outline"><CheckCircle2 className="mr-1 h-3 w-3" />Validée</Badge> : <Badge variant="secondary">{subject.calculationStarted ? "Calcul en cours" : "Saisie en cours"}</Badge>}</TableCell>
-                    <TableCell className="text-right"><Button type="button" variant="outline" className="min-h-12" disabled={completionMutation.isPending || (isPeriodReadOnly && !subject.calculationStarted)} onClick={() => subject.calculationStarted ? navigate(`/academic/calculation?classId=${encodeURIComponent(classId)}&gradingPeriodId=${encodeURIComponent(gradingPeriodId)}&subjectId=${encodeURIComponent(subject.subjectId)}`) : completionMutation.mutate({ subjectId: subject.subjectId, status: "in_progress" })}>{subject.status === "completed" ? "Consulter les moyennes" : subject.calculationStarted ? "Ouvrir le calcul" : "Clôturer la saisie et calculer"}</Button></TableCell>
-                  </TableRow>)}
-                </TableBody></Table>
+                <div className="divide-y rounded-lg border">
+                  {(scopeQuery.data?.completion ?? []).map((subject) => {
+                    const count = scheduledCountBySubject.get(subject.subjectId) ?? 0
+                    const actionLabel = subject.status === "completed" ? "Consulter les moyennes" : subject.calculationStarted ? "Ouvrir le calcul" : "Clôturer la saisie et calculer"
+                    return <div key={subject.subjectId} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="font-medium">{subject.subjectName}</p><p className="mt-1 text-sm text-muted-foreground">{count} évaluation{count > 1 ? "s" : ""} programmée{count > 1 ? "s" : ""}</p></div><div className="flex flex-col gap-2 sm:items-end"><span>{subject.status === "completed" ? <Badge variant="outline"><CheckCircle2 className="mr-1 h-3 w-3" />Validée</Badge> : <Badge variant="secondary">{subject.calculationStarted ? "Calcul en cours" : "Saisie en cours"}</Badge>}</span><Button type="button" variant={subject.calculationStarted ? "outline" : "default"} className="min-h-12 w-full sm:w-auto" disabled={completionMutation.isPending || (isPeriodReadOnly && !subject.calculationStarted)} onClick={() => subject.calculationStarted ? navigate(`/academic/calculation?classId=${encodeURIComponent(classId)}&gradingPeriodId=${encodeURIComponent(gradingPeriodId)}&subjectId=${encodeURIComponent(subject.subjectId)}`) : completionMutation.mutate({ subjectId: subject.subjectId, status: "in_progress" })}>{actionLabel}<ArrowRight className="ml-2 h-4 w-4" /></Button></div></div>
+                  })}
+                </div>
               )}
             </div>
           </section>
@@ -283,12 +277,12 @@ function EvaluationGradeEditor({ evaluation, students, readOnly, open, onOpenCha
   })
   const completedCount = evaluation.grades.length
   const totalCount = students.length
-  return <div className="rounded-lg border bg-card p-4 transition-colors hover:bg-muted/20">
+  return <div className="rounded-lg border bg-background p-4 transition-colors hover:bg-muted/20">
     <Button type="button" variant="ghost" className="min-h-12 w-full justify-between gap-3 px-0 text-left" onClick={onOpenChange}>
       <span className="min-w-0"><span className="block truncate font-semibold">{evaluation.label}</span><span className="mt-1 block text-xs text-muted-foreground">{evaluation.subjectName ?? "-"} · Coef. évaluation {evaluation.coefficient}</span></span>
       <span className="shrink-0 text-right"><Badge variant={readOnly ? "outline" : "secondary"}>{readOnly ? "Saisie clôturée" : `${completedCount}/${totalCount} notes`}</Badge><span className="mt-1 block text-xs text-muted-foreground">{open ? "Masquer" : "Saisir les notes"}</span></span>
     </Button>
-    {open ? <div className="mt-4 overflow-x-auto">{students.length === 0 ? <EmptyState title="Aucun élève actif" description="La classe ne contient aucun élève disponible pour la saisie." /> : <Table><TableHeader><TableRow><TableHead>Élève</TableHead><TableHead>Note / {GRADE_MAX}</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader><TableBody>{students.map((student) => <GradeRow key={student.id} fullName={`${student.firstName} ${student.lastName}`} initialScore={String(evaluation.grades.find((item) => item.studentId === student.id)?.score ?? "")} readOnly={readOnly} onSave={(score) => gradeMutation.mutateAsync({ studentId: student.id, score })} />)}</TableBody></Table>}</div> : null}
+    {open ? <div className="mt-4">{students.length === 0 ? <EmptyState title="Aucun élève actif" description="La classe ne contient aucun élève disponible pour la saisie." /> : <div className="divide-y rounded-lg border">{students.map((student) => <GradeRow key={student.id} fullName={`${student.firstName} ${student.lastName}`} initialScore={String(evaluation.grades.find((item) => item.studentId === student.id)?.score ?? "")} readOnly={readOnly} onSave={(score) => gradeMutation.mutateAsync({ studentId: student.id, score })} />)}</div>}</div> : null}
   </div>
 }
 
@@ -296,5 +290,5 @@ function GradeRow({ fullName, initialScore, onSave, readOnly }: { fullName: stri
   const [score, setScore] = useState(initialScore)
   const parsed = Number(score.replace(",", "."))
   const valid = score !== "" && Number.isFinite(parsed) && parsed >= 0 && parsed <= GRADE_MAX
-  return <TableRow><TableCell className="font-medium">{fullName}</TableCell><TableCell><Input aria-label={`Note de ${fullName}`} disabled={readOnly} type="number" min={0} max={GRADE_MAX} step={0.25} className="max-w-24" value={score} onChange={(event) => setScore(event.target.value)} /></TableCell><TableCell className="text-right"><Button type="button" size="sm" variant="outline" className="min-h-12" disabled={readOnly || !valid} onClick={() => void onSave(parsed)}>Enregistrer</Button></TableCell></TableRow>
+  return <div className="flex flex-wrap items-center gap-3 p-3 sm:flex-nowrap sm:px-4"><p className="min-w-0 flex-1 font-medium">{fullName}</p><div className="flex w-full items-center gap-2 sm:w-auto"><div className="flex-1 sm:w-28"><Label className="sr-only" htmlFor={`grade-${fullName}`}>Note de {fullName}</Label><Input id={`grade-${fullName}`} aria-label={`Note de ${fullName}`} disabled={readOnly} type="number" min={0} max={GRADE_MAX} step={0.25} className="min-h-12" value={score} onChange={(event) => setScore(event.target.value)} /></div><span className="text-sm text-muted-foreground">/ {GRADE_MAX}</span><Button type="button" variant="outline" className="min-h-12" disabled={readOnly || !valid} onClick={() => void onSave(parsed)}>Enregistrer</Button></div></div>
 }

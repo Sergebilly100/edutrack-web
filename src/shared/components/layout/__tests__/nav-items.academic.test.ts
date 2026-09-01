@@ -44,11 +44,12 @@ describe("navigation des inscriptions", () => {
 })
 
 describe("navigation académique professeur", () => {
-  it("expose le planning, les évaluations et le compte à tout professeur", () => {
+  it("expose l’accueil, les cours, les notes et le compte à tout professeur", () => {
     expect(getNavItemsByRole("teacher").map((item) => item.label)).toEqual([
-      "Mon planning",
-      "Évaluations & notes",
-      "Mon compte",
+      "Aujourd’hui",
+      "Mes cours",
+      "Notes",
+      "Compte",
     ])
   })
 

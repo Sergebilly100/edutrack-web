@@ -102,7 +102,7 @@ describe("FirstLoginPasswordPage", () => {
     expect(changePasswordMock).not.toHaveBeenCalled()
   })
 
-  it("appelle setAccessToken AVANT refreshPermissions et navigue vers /attendance (teacher)", async () => {
+  it("appelle setAccessToken AVANT refreshPermissions et navigue vers /dashboard (teacher)", async () => {
     const newToken = "new-access-token-xyz"
     changePasswordMock.mockResolvedValueOnce({ accessToken: newToken })
 
@@ -127,7 +127,7 @@ describe("FirstLoginPasswordPage", () => {
     fireEvent.submit(screen.getByRole("button", { name: /mettre à jour/i }).closest("form")!)
 
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith("/attendance", { replace: true })
+      expect(navigateMock).toHaveBeenCalledWith("/dashboard", { replace: true })
     })
 
     expect(callOrder[0]).toBe("setAccessToken")

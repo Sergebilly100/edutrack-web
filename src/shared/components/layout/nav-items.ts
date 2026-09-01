@@ -226,7 +226,15 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: false,
   },
   {
-    label: "Mon planning",
+    label: "Aujourd’hui",
+    href: "/dashboard",
+    icon: DashboardIcon,
+    group: "Enseignement",
+    roles: ["teacher"],
+    mobileVisible: true,
+  },
+  {
+    label: "Mes cours",
     href: "/attendance",
     icon: AttendanceIcon,
     group: "Enseignement",
@@ -234,7 +242,7 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: true,
   },
   {
-    label: "Évaluations & notes",
+    label: "Notes",
     href: "/academic/notes",
     icon: NotebookPen,
     group: "Enseignement",
@@ -251,7 +259,7 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: true,
   },
   {
-    label: "Mon compte",
+    label: "Compte",
     href: "/account",
     icon: User,
     group: "Compte",

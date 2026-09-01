@@ -67,7 +67,7 @@ export default function TeacherNotificationsPanel() {
         size="icon"
         aria-label="Mes notifications"
         onClick={() => setOpen((prev) => !prev)}
-        className="relative h-9 w-9"
+        className="relative min-h-12 min-w-12"
       >
         <Bell className="h-4 w-4" />
         {unreadCount > 0 ? (

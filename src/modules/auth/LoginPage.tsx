@@ -77,7 +77,7 @@ export default function LoginPage() {
       await refreshPermissions();
 
       if (result.user.role === 'teacher') {
-        navigate('/attendance');
+        navigate('/dashboard');
       } else if (result.user.role === 'super_admin') {
         navigate('/admin');
       } else if (result.user.role === 'director') {

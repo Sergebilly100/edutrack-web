@@ -25,7 +25,7 @@ const validateNewPassword = (value: string): string | null => {
 }
 
 const resolveHomeForRole = (role: string | undefined): string => {
-  if (role === "teacher") return "/attendance"
+  if (role === "teacher") return "/dashboard"
   if (role === "super_admin") return "/admin"
   return "/dashboard"
 }

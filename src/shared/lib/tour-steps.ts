@@ -488,6 +488,28 @@ export const teacherAppTourSteps: Step[] = [
   },
 ]
 
+export const teacherDashboardTourSteps: Step[] = [
+  {
+    target: "[data-tour='teacher-dashboard-header']",
+    title: "Votre journée en un coup d’œil",
+    content: "Retrouvez ici votre prochain cours, vos classes et les raccourcis utiles pour commencer la journée.",
+    placement: "bottom",
+    skipBeacon: true,
+  },
+  {
+    target: "[data-tour='teacher-dashboard-course']",
+    title: "Préparer ou ouvrir un cours",
+    content: "Ouvrez votre cours pour faire l’appel, ou allez directement à la saisie des notes de la classe et de la période en cours.",
+    placement: "bottom",
+  },
+  {
+    target: "[data-tour='teacher-dashboard-classes']",
+    title: "Retrouver vos classes",
+    content: "Chaque classe ouvre l’espace de notes correspondant à la période scolaire active.",
+    placement: "top",
+  },
+]
+
 export const parentPortalTourSteps: Step[] = [
   {
     target: "[data-tour='parent-student-selector']",
