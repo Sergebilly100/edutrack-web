@@ -72,6 +72,15 @@ export type SubjectBulkPayload = {
   }>
 }
 
+export type SubjectBulkUpdatePayload = {
+  name: string
+  assignments: Array<{
+    subjectId?: string
+    levelId: string
+    coefficient: number
+  }>
+}
+
 export type SubjectUpdatePayload = Pick<SubjectPayload, "name" | "coefficient">
 
 export type ClassesResponse = {
@@ -227,6 +236,12 @@ export async function createSubject(payload: SubjectPayload): Promise<Subject> {
 
 export async function createSubjectsBulk(payload: SubjectBulkPayload): Promise<Subject[]> {
   const response = await api.post("/subjects/bulk", payload)
+  const rows = asRecord(response.data).subjects
+  return Array.isArray(rows) ? rows.map(parseSubject) : []
+}
+
+export async function updateSubjectsBulk(payload: SubjectBulkUpdatePayload): Promise<Subject[]> {
+  const response = await api.patch("/subjects/bulk", payload)
   const rows = asRecord(response.data).subjects
   return Array.isArray(rows) ? rows.map(parseSubject) : []
 }

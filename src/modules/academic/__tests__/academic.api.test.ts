@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { getMock, postMock } = vi.hoisted(() => ({ getMock: vi.fn(), postMock: vi.fn() }))
+const { getMock, patchMock, postMock } = vi.hoisted(() => ({ getMock: vi.fn(), patchMock: vi.fn(), postMock: vi.fn() }))
 
 vi.mock("@/shared/api/client", () => ({
-  apiClient: { get: getMock, post: postMock, patch: vi.fn(), delete: vi.fn() },
+  apiClient: { get: getMock, post: postMock, patch: patchMock, delete: vi.fn() },
 }))
 
-import { createSubjectsBulk, fetchTeacherAcademicContext, listClasses, listLevels, listSchoolYears } from "@/modules/academic/academic.api"
+import { createSubjectsBulk, fetchTeacherAcademicContext, listClasses, listLevels, listSchoolYears, updateSubjectsBulk } from "@/modules/academic/academic.api"
 
 describe("academic.api", () => {
   beforeEach(() => vi.clearAllMocks())
@@ -70,5 +70,18 @@ describe("academic.api", () => {
       name: "Mathématiques",
       assignments: [{ levelId: "l1", coefficient: 4 }],
     })
+  })
+
+  it("met à jour un groupe de matière avec tous ses coefficients", async () => {
+    const payload = {
+      name: "Mathématiques",
+      assignments: [{ subjectId: "s1", levelId: "l1", coefficient: 5 }],
+    }
+    patchMock.mockResolvedValueOnce({ data: { subjects: [{ id: "s1", levelId: "l1", levelName: "6ème", name: "Mathématiques", coefficient: 5 }] } })
+
+    await expect(updateSubjectsBulk(payload)).resolves.toEqual([
+      expect.objectContaining({ id: "s1", coefficient: 5 }),
+    ])
+    expect(patchMock).toHaveBeenCalledWith("/subjects/bulk", payload)
   })
 })

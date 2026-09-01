@@ -7,24 +7,27 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import {
-  createSubject,
   createSubjectsBulk,
   listClasses,
   listLevels,
   listSubjects,
-  updateSubject,
+  updateSubjectsBulk,
   type Subject,
-  type SubjectPayload,
-  type SubjectUpdatePayload,
 } from "@/modules/academic/academic.api"
 import { AcademicNavigation } from "@/modules/academic/components/AcademicNavigation"
-import { SubjectBulkDialog, SubjectDialog } from "@/modules/academic/components/AcademicDialogs"
+import { SubjectBulkDialog, SubjectGroupDialog } from "@/modules/academic/components/AcademicDialogs"
 import { DataTable, EmptyState, PageLayout, QueryErrorState } from "@/shared/components"
 import { AddIcon, ClassIcon, EditIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 
 const LEVELS_KEY = ["academic", "levels"] as const
 const SUBJECTS_KEY = ["academic", "subjects"] as const
+
+type SubjectGroup = {
+  key: string
+  name: string
+  subjects: Subject[]
+}
 
 const apiErrorMessage = (error: unknown, fallback: string) =>
   axios.isAxiosError(error) && typeof error.response?.data?.error === "string"
@@ -40,7 +43,7 @@ export default function SubjectsPage() {
   const canEdit = hasPermission("classes.edit")
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null)
+  const [selectedGroup, setSelectedGroup] = useState<SubjectGroup | null>(null)
   const levelsQuery = useQuery({ queryKey: LEVELS_KEY, queryFn: listLevels })
   const subjectsQuery = useQuery({ queryKey: SUBJECTS_KEY, queryFn: () => listSubjects() })
   const classesQuery = useQuery({ queryKey: ["academic", "classes-for-subjects"], queryFn: () => listClasses() })
@@ -57,22 +60,17 @@ export default function SubjectsPage() {
       variant: "destructive",
     }),
   })
-  const saveMutation = useMutation({
-    mutationFn: ({ subject, payload }: {
-      subject: Subject | null
-      payload: SubjectPayload | SubjectUpdatePayload
-    }) => subject
-      ? updateSubject(subject.id, payload as SubjectUpdatePayload)
-      : createSubject(payload as SubjectPayload),
-    onSuccess: async (_, variables) => {
+  const groupSaveMutation = useMutation({
+    mutationFn: updateSubjectsBulk,
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: SUBJECTS_KEY })
       setDialogOpen(false)
-      setSelectedSubject(null)
-      toast({ title: variables.subject ? "Matière mise à jour" : "Matière ajoutée" })
+      setSelectedGroup(null)
+      toast({ title: "Matière mise à jour" })
     },
     onError: (error) => toast({
       title: "Enregistrement impossible",
-      description: apiErrorMessage(error, "Vérifiez le niveau, le nom et le coefficient."),
+      description: apiErrorMessage(error, "Vérifiez le nom et les coefficients."),
       variant: "destructive",
     }),
   })
@@ -80,19 +78,40 @@ export default function SubjectsPage() {
   const openCreate = () => {
     setBulkDialogOpen(true)
   }
-  const openEdit = (subject: Subject) => {
-    setSelectedSubject(subject)
+  const openEdit = (group: SubjectGroup) => {
+    setSelectedGroup(group)
     setDialogOpen(true)
   }
-  const columns = useMemo<ColumnDef<Subject>[]>(() => [
+  const subjectGroups = useMemo<SubjectGroup[]>(() => {
+    const grouped = new Map<string, SubjectGroup>()
+    for (const subject of subjectsQuery.data ?? []) {
+      const key = subject.name.trim().toLocaleLowerCase("fr")
+      const group = grouped.get(key)
+      if (group) group.subjects.push(subject)
+      else grouped.set(key, { key, name: subject.name, subjects: [subject] })
+    }
+    return [...grouped.values()].sort((left, right) => left.name.localeCompare(right.name, "fr"))
+  }, [subjectsQuery.data])
+  const columns = useMemo<ColumnDef<SubjectGroup>[]>(() => [
     { accessorKey: "name", header: "Matière", cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
-    { accessorKey: "levelName", header: "Niveau" },
-    { accessorKey: "coefficient", header: "Coefficient", cell: ({ row }) => <Badge variant="outline">Coef. {row.original.coefficient}</Badge> },
+    {
+      id: "assignments",
+      header: "Niveaux et coefficients",
+      cell: ({ row }) => (
+        <div className="flex flex-wrap gap-2">
+          {row.original.subjects.map((subject) => (
+            <Badge key={subject.id} variant="outline" className="font-normal">
+              {subject.levelName} <span className="ml-1 text-muted-foreground">Coef. {subject.coefficient}</span>
+            </Badge>
+          ))}
+        </div>
+      ),
+    },
     {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => canEdit ? (
-        <Button type="button" variant="ghost" size="sm" onClick={() => openEdit(row.original)}>
+        <Button type="button" variant="ghost" size="sm" className="min-h-12" onClick={() => openEdit(row.original)}>
           <EditIcon className="mr-2 h-4 w-4" />Modifier
         </Button>
       ) : null,
@@ -128,7 +147,7 @@ export default function SubjectsPage() {
       ) : (
         <DataTable
           columns={columns}
-          data={subjectsQuery.data ?? []}
+          data={subjectGroups}
           isLoading={levelsQuery.isLoading || subjectsQuery.isLoading}
           searchKey="name"
           searchPlaceholder="Rechercher une matière…"
@@ -144,17 +163,25 @@ export default function SubjectsPage() {
                 : undefined}
             />
           )}
-          mobileCard={(subject) => (
+          mobileCard={(group) => (
             <div className="space-y-3 rounded-lg border bg-card p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="font-medium">{subject.name}</p>
-                  <p className="text-sm text-muted-foreground">{subject.levelName}</p>
+                  <p className="font-medium">{group.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {group.subjects.length} niveau{group.subjects.length > 1 ? "x" : ""} configuré{group.subjects.length > 1 ? "s" : ""}
+                  </p>
                 </div>
-                <Badge variant="outline">Coef. {subject.coefficient}</Badge>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {group.subjects.map((subject) => (
+                  <Badge key={subject.id} variant="outline" className="font-normal">
+                    {subject.levelName} <span className="ml-1 text-muted-foreground">Coef. {subject.coefficient}</span>
+                  </Badge>
+                ))}
               </div>
               {canEdit ? (
-                <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => openEdit(subject)}>
+                <Button type="button" variant="outline" size="sm" className="min-h-12 w-full" onClick={() => openEdit(group)}>
                   <EditIcon className="mr-2 h-4 w-4" />Modifier
                 </Button>
               ) : null}
@@ -162,13 +189,13 @@ export default function SubjectsPage() {
           )}
         />
       )}
-      <SubjectDialog
+      <SubjectGroupDialog
         open={dialogOpen}
-        isPending={saveMutation.isPending}
-        subject={selectedSubject}
+        isPending={groupSaveMutation.isPending}
+        subjects={selectedGroup?.subjects ?? []}
         levels={levelsQuery.data ?? []}
         onOpenChange={setDialogOpen}
-        onSubmit={(payload) => saveMutation.mutate({ subject: selectedSubject, payload })}
+        onSubmit={(payload) => groupSaveMutation.mutate(payload)}
       />
       <SubjectBulkDialog
         open={bulkDialogOpen}

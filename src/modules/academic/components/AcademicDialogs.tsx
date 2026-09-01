@@ -37,8 +37,7 @@ import type {
   SchoolClass,
   Subject,
   SubjectBulkPayload,
-  SubjectPayload,
-  SubjectUpdatePayload,
+  SubjectBulkUpdatePayload,
 } from "@/modules/academic/academic.api"
 import type { TeacherListItem } from "@/modules/teachers/teachers.api"
 import { Spinner } from "@/shared/components/Spinner"
@@ -150,77 +149,86 @@ export function LevelDialog({
   )
 }
 
-const subjectSchema = z.object({
-  levelId: z.string().min(1, "Le niveau est requis"),
+const subjectGroupSchema = z.object({
   name: z.string().trim().min(1, "Le nom est requis").max(100),
-  coefficient: z.string().trim().refine(
+  newLevelIds: z.array(z.string()),
+  coefficients: z.record(z.string(), z.string().trim().refine(
     (value) => Number.isFinite(Number(value)) && Number(value) > 0,
     "Le coefficient doit être un nombre positif"
-  ),
+  )),
 })
 
-type SubjectFormValues = z.infer<typeof subjectSchema>
+type SubjectGroupFormValues = z.infer<typeof subjectGroupSchema>
 
-export function SubjectDialog({
+export function SubjectGroupDialog({
   open,
   isPending,
-  subject,
+  subjects,
   levels,
   onOpenChange,
   onSubmit,
 }: CommonDialogProps & {
-  subject: Subject | null
+  subjects: Subject[]
   levels: Level[]
-  onSubmit: (payload: SubjectPayload | SubjectUpdatePayload) => Promise<void> | void
+  onSubmit: (payload: SubjectBulkUpdatePayload) => Promise<void> | void
 }) {
-  const form = useForm<SubjectFormValues>({
-    resolver: zodResolver(subjectSchema),
-    defaultValues: { levelId: "", name: "", coefficient: "1" },
+  const form = useForm<SubjectGroupFormValues>({
+    resolver: zodResolver(subjectGroupSchema),
+    defaultValues: { name: "", newLevelIds: [], coefficients: {} },
   })
+  const newLevelIds = form.watch("newLevelIds")
+  const existingLevelIds = useMemo(() => new Set(subjects.map((subject) => subject.levelId)), [subjects])
+  const availableLevels = useMemo(
+    () => levels.filter((level) => !existingLevelIds.has(level.id)),
+    [existingLevelIds, levels]
+  )
 
   useEffect(() => {
     if (!open) return
     form.reset({
-      levelId: subject?.levelId ?? levels[0]?.id ?? "",
-      name: subject?.name ?? "",
-      coefficient: String(subject?.coefficient ?? 1),
+      name: subjects[0]?.name ?? "",
+      newLevelIds: [],
+      coefficients: Object.fromEntries(subjects.map((subject) => [subject.id, String(subject.coefficient)])),
     })
-  }, [form, levels, open, subject])
+  }, [form, open, subjects])
+
+  const toggleNewLevel = (levelId: string, checked: boolean) => {
+    const current = form.getValues("newLevelIds")
+    if (checked) {
+      form.setValue("newLevelIds", [...current, levelId], { shouldValidate: true })
+      form.setValue(`coefficients.${levelId}`, "1", { shouldValidate: true })
+      return
+    }
+    form.setValue("newLevelIds", current.filter((id) => id !== levelId), { shouldValidate: true })
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{subject ? "Modifier la matière" : "Ajouter une matière"}</DialogTitle>
+          <DialogTitle>Modifier la matière</DialogTitle>
           <DialogDescription>
-            Le coefficient de la matière intervient dans le calcul de la moyenne générale.
+            Ajustez les coefficients existants ou ajoutez cette matière à un nouveau niveau.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form
-            className="space-y-4"
-            onSubmit={form.handleSubmit((values) => {
-              const shared = { name: values.name.trim(), coefficient: Number(values.coefficient) }
-              void onSubmit(subject ? shared : { ...shared, levelId: values.levelId })
-            })}
+            className="space-y-5"
+            onSubmit={form.handleSubmit((values) => void onSubmit({
+              name: values.name.trim(),
+              assignments: [
+                ...subjects.map((subject) => ({
+                  subjectId: subject.id,
+                  levelId: subject.levelId,
+                  coefficient: Number(values.coefficients[subject.id]),
+                })),
+                ...values.newLevelIds.map((levelId) => ({
+                  levelId,
+                  coefficient: Number(values.coefficients[levelId]),
+                })),
+              ],
+            }))}
           >
-            <FormField
-              control={form.control}
-              name="levelId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Niveau</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange} disabled={Boolean(subject)}>
-                    <FormControl><SelectTrigger className="min-h-12"><SelectValue placeholder="Sélectionner un niveau" /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      {levels.map((level) => <SelectItem key={level.id} value={level.id}>{level.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  {subject ? <p className="text-xs text-muted-foreground">Le niveau ne peut pas être modifié après la création.</p> : null}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
             <FormField
               control={form.control}
               name="name"
@@ -232,22 +240,89 @@ export function SubjectDialog({
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="coefficient"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Coefficient de la matière</FormLabel>
-                  <FormControl><Input type="number" min={0.01} step={0.01} inputMode="decimal" {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+
+            <div className="overflow-hidden rounded-lg border">
+              <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3 bg-muted/50 px-4 py-3 text-sm font-medium">
+                <span>Niveau</span>
+                <span>Coefficient</span>
+              </div>
+              {subjects.map((subject, index) => (
+                <div
+                  key={subject.id}
+                  className={index > 0 ? "grid grid-cols-[minmax(0,1fr)_7rem] items-start gap-3 border-t px-4 py-3" : "grid grid-cols-[minmax(0,1fr)_7rem] items-start gap-3 px-4 py-3"}
+                >
+                  <p className="min-h-10 pt-2 text-sm font-medium">{subject.levelName}</p>
+                  <FormField
+                    control={form.control}
+                    name={`coefficients.${subject.id}`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="sr-only">Coefficient pour {subject.levelName}</FormLabel>
+                        <FormControl>
+                          <Input type="number" min={0.01} step={0.01} inputMode="decimal" aria-label={`Coefficient pour ${subject.levelName}`} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {availableLevels.length > 0 ? (
+              <FormField
+                control={form.control}
+                name="newLevelIds"
+                render={() => (
+                  <FormItem>
+                    <FormLabel>Ajouter à un niveau</FormLabel>
+                    <div className="overflow-hidden rounded-lg border">
+                      {availableLevels.map((level, index) => {
+                        const selected = newLevelIds.includes(level.id)
+                        return (
+                          <div
+                            key={level.id}
+                            className={index > 0 ? "grid grid-cols-[minmax(0,1fr)_7rem] items-center gap-3 border-t px-4 py-3" : "grid grid-cols-[minmax(0,1fr)_7rem] items-center gap-3 px-4 py-3"}
+                          >
+                            <div className="flex min-h-12 items-center gap-3">
+                              <Checkbox
+                                id={`subject-group-level-${level.id}`}
+                                checked={selected}
+                                onCheckedChange={(checked) => toggleNewLevel(level.id, checked === true)}
+                              />
+                              <Label htmlFor={`subject-group-level-${level.id}`} className="cursor-pointer text-sm font-medium">
+                                {level.name}
+                              </Label>
+                            </div>
+                            {selected ? (
+                              <FormField
+                                control={form.control}
+                                name={`coefficients.${level.id}`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="sr-only">Coefficient pour {level.name}</FormLabel>
+                                    <FormControl>
+                                      <Input type="number" min={0.01} step={0.01} inputMode="decimal" aria-label={`Coefficient pour ${level.name}`} {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            ) : <span className="text-sm text-muted-foreground">Coef. 1</span>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : null}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
                 Annuler
               </Button>
-              <Button type="submit" disabled={isPending || levels.length === 0}>
+              <Button type="submit" disabled={isPending || subjects.length === 0}>
                 {isPending ? <Spinner size="sm" className="mr-2" /> : null}
                 {isPending ? "Enregistrement…" : "Enregistrer"}
               </Button>

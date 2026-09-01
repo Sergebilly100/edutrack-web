@@ -3,22 +3,20 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
-const { createSubjectMock, createSubjectsBulkMock, listClassesMock, listLevelsMock, listSubjectsMock, updateSubjectMock } = vi.hoisted(() => ({
-  createSubjectMock: vi.fn(),
+const { createSubjectsBulkMock, listClassesMock, listLevelsMock, listSubjectsMock, updateSubjectsBulkMock } = vi.hoisted(() => ({
   createSubjectsBulkMock: vi.fn(),
   listClassesMock: vi.fn(),
   listLevelsMock: vi.fn(),
   listSubjectsMock: vi.fn(),
-  updateSubjectMock: vi.fn(),
+  updateSubjectsBulkMock: vi.fn(),
 }))
 
 vi.mock("@/modules/academic/academic.api", () => ({
-  createSubject: (payload: unknown) => createSubjectMock(payload),
   createSubjectsBulk: (payload: unknown) => createSubjectsBulkMock(payload),
   listClasses: () => listClassesMock(),
   listLevels: () => listLevelsMock(),
   listSubjects: () => listSubjectsMock(),
-  updateSubject: (id: string, payload: unknown) => updateSubjectMock(id, payload),
+  updateSubjectsBulk: (payload: unknown) => updateSubjectsBulkMock(payload),
 }))
 
 vi.mock("@/shared/hooks/usePermissions", () => ({
@@ -66,15 +64,66 @@ describe("SubjectsPage", () => {
     }])
     listClassesMock.mockResolvedValue({ classes: [] })
     createSubjectsBulkMock.mockResolvedValue([])
+    updateSubjectsBulkMock.mockResolvedValue([])
   })
 
-  it("affiche les matières avec leur niveau et leur coefficient", async () => {
+  it("regroupe les niveaux et leurs coefficients sous une seule matière", async () => {
+    listSubjectsMock.mockResolvedValue([
+      { id: "subject-1", levelId: level.id, levelName: level.name, name: "Mathématiques", coefficient: 4 },
+      { id: "subject-2", levelId: "level-2", levelName: "5ème", name: "Mathématiques", coefficient: 3 },
+    ])
     renderPage()
 
-    expect((await screen.findAllByText("Mathématiques")).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText("Mathématiques")).length).toBe(2)
     expect(screen.getAllByText("6ème").length).toBeGreaterThan(0)
     expect(screen.getAllByText("Coef. 4").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("5ème").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Coef. 3").length).toBeGreaterThan(0)
     expect(screen.getByRole("tab", { name: "Matières" })).toHaveAttribute("data-state", "active")
+  })
+
+  it("préremplit les coefficients de chaque niveau dans le formulaire de modification", async () => {
+    listSubjectsMock.mockResolvedValue([
+      { id: "subject-1", levelId: level.id, levelName: level.name, name: "Mathématiques", coefficient: 4 },
+      { id: "subject-2", levelId: "level-2", levelName: "5ème", name: "Mathématiques", coefficient: 3 },
+    ])
+    renderPage()
+
+    await screen.findAllByText("Mathématiques")
+    fireEvent.click(screen.getAllByRole("button", { name: /modifier/i })[0]!)
+    expect(screen.getByLabelText("Coefficient pour 6ème")).toHaveValue(4)
+    expect(screen.getByLabelText("Coefficient pour 5ème")).toHaveValue(3)
+    fireEvent.change(screen.getByLabelText("Coefficient pour 5ème"), { target: { value: "5" } })
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }))
+
+    await waitFor(() => expect(updateSubjectsBulkMock).toHaveBeenCalledWith({
+      name: "Mathématiques",
+      assignments: [
+        { subjectId: "subject-1", levelId: "level-1", coefficient: 4 },
+        { subjectId: "subject-2", levelId: "level-2", coefficient: 5 },
+      ],
+    }))
+  })
+
+  it("ajoute un nouveau niveau depuis le formulaire de modification", async () => {
+    const secondLevel = { ...level, id: "level-2", name: "5ème" }
+    listLevelsMock.mockResolvedValueOnce([level, secondLevel])
+    renderPage()
+
+    await screen.findAllByText("Mathématiques")
+    fireEvent.click(screen.getAllByRole("button", { name: /modifier/i })[0]!)
+    fireEvent.click(screen.getByLabelText("5ème"))
+    expect(screen.getByLabelText("Coefficient pour 5ème")).toHaveValue(1)
+    fireEvent.change(screen.getByLabelText("Coefficient pour 5ème"), { target: { value: "2" } })
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }))
+
+    await waitFor(() => expect(updateSubjectsBulkMock).toHaveBeenCalledWith({
+      name: "Mathématiques",
+      assignments: [
+        { subjectId: "subject-1", levelId: "level-1", coefficient: 4 },
+        { levelId: "level-2", coefficient: 2 },
+      ],
+    }))
   })
 
   it("crée une matière pour plusieurs niveaux sélectionnés", async () => {
