@@ -78,11 +78,6 @@ export function PaymentHistoryPanel({ schoolYearId, schoolYearLabel, canCancel }
 
   return (
     <section className="space-y-5">
-      <div className="max-w-2xl space-y-1">
-        <h2 className="text-xl font-semibold">Historique élève</h2>
-        <p className="text-sm text-muted-foreground">Consultez le cumul, téléchargez les reçus et annulez une erreur sans effacer sa trace.</p>
-      </div>
-
       <div className="max-w-xl space-y-2">
         <Label>Élève</Label>
         <StudentSearch value={student} onChange={setStudent} placeholder="Rechercher par nom ou matricule" />

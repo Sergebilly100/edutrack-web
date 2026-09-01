@@ -19,17 +19,17 @@ const VIEW_COPY: Record<FinanceView, { title: string; subtitle: string }> = {
     title: "Vue financière",
     subtitle: "Suivez le recouvrement et les situations de paiement par année scolaire.",
   },
+  journal: {
+    title: "Journal de caisse",
+    subtitle: "Consultez le journal de caisse (Paiements de scolarité filtréspar période, classe et mode de paiement) et exportez les données.",
+  },
   entry: {
     title: "Encaissements",
-    subtitle: "Enregistrez rapidement les versements reçus au guichet.",
+    subtitle: "Enregistrez et importez rapidement les versements de caisse.",
   },
   history: {
     title: "Historique & reçus",
     subtitle: "Retrouvez les paiements enregistrés et leurs reçus.",
-  },
-  journal: {
-    title: "Journal & exports",
-    subtitle: "Consultez le journal de caisse, exportez les données et importez les versements de caisse.",
   },
 }
 
@@ -37,7 +37,7 @@ export default function FinancePage({ view }: { view: FinanceView }) {
   const { hasPermission } = usePermissions()
   const yearsQuery = useQuery({ queryKey: ["academic", "school-years"], queryFn: listSchoolYears })
   const [schoolYearId, setSchoolYearId] = useState("")
-  const [journalTab, setJournalTab] = useState("journal")
+  const [entryTab, setentryTab] = useState("enregistrement")
 
   useEffect(() => {
     const years = yearsQuery.data ?? []
@@ -45,7 +45,7 @@ export default function FinancePage({ view }: { view: FinanceView }) {
   }, [schoolYearId, yearsQuery.data])
 
   useEffect(() => {
-    if (view !== "journal") setJournalTab("journal")
+    if (view !== "entry") setentryTab("enregistrement")
   }, [view])
 
   const selectedYear = yearsQuery.data?.find((year) => year.id === schoolYearId)
@@ -54,7 +54,7 @@ export default function FinancePage({ view }: { view: FinanceView }) {
     return <PageLayout title={VIEW_COPY[view].title}><QueryErrorState message="Impossible de charger les années scolaires." onRetry={() => void yearsQuery.refetch()} /></PageLayout>
   }
 
-  return (
+  return (  
     <PageLayout
       title={VIEW_COPY[view].title}
       subtitle={VIEW_COPY[view].subtitle}
@@ -66,17 +66,18 @@ export default function FinancePage({ view }: { view: FinanceView }) {
       }
     >
       {schoolYearId && selectedYear && view === "dashboard" ? <FinancialDashboard schoolYearId={schoolYearId} /> : null}
-      {schoolYearId && selectedYear && view === "entry" ? <QuickPaymentEntry schoolYearId={schoolYearId} schoolYearLabel={selectedYear.label} /> : null}
-      {schoolYearId && selectedYear && view === "journal" ? (
-        <Tabs value={journalTab} onValueChange={setJournalTab} className="space-y-5">
-          <TabsList className="h-auto w-full justify-start overflow-x-auto">
-            <TabsTrigger value="journal" className="min-h-10">Journal</TabsTrigger>
-            <TabsTrigger value="import" className="min-h-10">Importer les paiements</TabsTrigger>
-          </TabsList>
-          <TabsContent value="journal"><CashJournalPanel schoolYearId={schoolYearId} /></TabsContent>
-          <TabsContent value="import"><PaymentImportPanel /></TabsContent>
-        </Tabs>
+      {schoolYearId && selectedYear && view === "entry" ? (
+      
+      <Tabs value={entryTab} onValueChange={setentryTab} className="space-y-5">
+        <TabsList className="grid h-auto w-full rounded-xl border border-border bg-muted/50 p-1 sm:w-full grid-cols-2 md:w-[420px]">
+          <TabsTrigger value="enregistrement" className="min-h-12">Enregistrement</TabsTrigger>
+          <TabsTrigger value="import" className="min-h-12">Importer les paiements</TabsTrigger>
+        </TabsList>
+        <TabsContent value="enregistrement"><QuickPaymentEntry schoolYearId={schoolYearId} schoolYearLabel={selectedYear.label} /></TabsContent>
+        <TabsContent value="import"><PaymentImportPanel /></TabsContent>
+      </Tabs>
       ) : null}
+      {schoolYearId && selectedYear && view === "journal" ? <CashJournalPanel schoolYearId={schoolYearId} /> : null}
       {schoolYearId && selectedYear && view === "history" ? <PaymentHistoryPanel schoolYearId={schoolYearId} schoolYearLabel={selectedYear.label} canCancel={hasPermission("payments.cancel")} /> : null}
     </PageLayout>
   )

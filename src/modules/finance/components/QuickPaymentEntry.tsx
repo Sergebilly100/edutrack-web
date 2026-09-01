@@ -120,27 +120,31 @@ export function QuickPaymentEntry({ schoolYearId, schoolYearLabel }: QuickPaymen
 
   return (
     <section className="space-y-5">
-      <div className="flex flex-col gap-4 border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
-        <div className="max-w-2xl space-y-1">
-          <h2 className="text-xl font-semibold">Saisie rapide</h2>
-          <p className="text-sm text-muted-foreground">
-            Recherchez l’élève, saisissez le montant, puis appuyez sur Entrée. Chaque ligne est enregistrée séparément et reste traçable.
-          </p>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-[minmax(15rem,1fr)_auto] lg:min-w-[29rem]">
-          <div className="space-y-1.5">
-            <Label htmlFor="quick-payment-method">Mode appliqué aux nouvelles lignes</Label>
-            <Select value={method} onValueChange={(value) => setMethod(value as PaymentMethod)}>
-              <SelectTrigger id="quick-payment-method" className="min-h-12"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Object.entries(methodLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-end">
-            <Button type="button" variant="outline" className="min-h-12 w-full" onClick={resetSession} disabled={rows.some((row) => row.status === "saving")}>
-              <RotateCcw className="mr-2 h-4 w-4" />Nouvelle session
-            </Button>
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="bg-[var(--surface-chrome)] px-4 py-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-4 pb-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl space-y-1">
+              <h2 className="text-lg font-semibold">Saisie rapide</h2>
+              <p className="text-xs text-muted-foreground">
+                Recherchez l’élève, saisissez le montant, puis appuyez sur Entrée. Chaque ligne est enregistrée séparément et reste traçable.
+              </p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-[minmax(15rem,1fr)_auto] lg:min-w-[29rem]">
+              <div className="space-y-1.5">
+                <Label htmlFor="quick-payment-method">Mode appliqué aux nouvelles lignes</Label>
+                <Select value={method} onValueChange={(value) => setMethod(value as PaymentMethod)}>
+                  <SelectTrigger id="quick-payment-method" className="min-h-12"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(methodLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button type="button" variant="outline" className="min-h-12 w-full" onClick={resetSession} disabled={rows.some((row) => row.status === "saving")}>
+                  <RotateCcw className="mr-2 h-4 w-4" />Nouvelle session
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
