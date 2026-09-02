@@ -269,6 +269,11 @@ export type EvaluationWithGrades = {
   coefficient: number
   subjectId: string | null
   subjectName: string | null
+  evaluationDate: string | null
+  dayOfWeek: number
+  startTime: string
+  endTime: string
+  roomName: string
   grades: EvaluationGradeItem[]
 }
 
@@ -278,6 +283,7 @@ export type LessonSlot = {
   startTime: string
   endTime: string
   subjectName: string
+  roomName: string
 }
 
 export type EvaluationsScope = {
@@ -295,6 +301,7 @@ export type TeacherAcademicContext = {
     levelName: string
     schoolYearId: string
     schoolYearLabel: string
+    isHomeroomTeacher: boolean
   }>
   gradingPeriods: Array<{
     id: string
@@ -339,6 +346,7 @@ export const createEvaluation = (payload: {
   type: EvaluationType
   coefficient: number
   label: string
+  evaluationDate: string
 }) => api.post<{ evaluation: { id: string } }>("/evaluations", payload).then((r) => r.data.evaluation)
 
 export const createSpontaneousGrade = (payload: {

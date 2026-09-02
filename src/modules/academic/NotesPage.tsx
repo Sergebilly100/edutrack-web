@@ -26,6 +26,7 @@ import {
 const GRADE_MAX = 20
 const sameSubject = (left: string, right: string) =>
   left.localeCompare(right, "fr", { sensitivity: "base" }) === 0
+const formatEvaluationDate = (value: string | null) => value ? new Intl.DateTimeFormat("fr-FR").format(new Date(`${value}T00:00:00`)) : "Date non renseignée"
 
 export default function NotesPage() {
   const { toast } = useToast()
@@ -37,11 +38,11 @@ export default function NotesPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [spontaneousOpen, setSpontaneousOpen] = useState(false)
   const [selectedEvaluationId, setSelectedEvaluationId] = useState<string | null>(null)
-  const [draft, setDraft] = useState({ label: "", lessonSlotId: "", subjectId: "", coefficient: "1" })
+  const [draft, setDraft] = useState({ label: "", lessonSlotId: "", subjectId: "", coefficient: "1", evaluationDate: "" })
   const [quickDraft, setQuickDraft] = useState({
     lessonSlotId: searchParams.get("lessonSlotId") ?? "",
     studentId: "",
-    adjustment: "1",
+    adjustment: "0",
     comment: "",
   })
 
@@ -83,11 +84,12 @@ export default function NotesPage() {
       type: "scheduled",
       coefficient: Number(draft.coefficient),
       label: draft.label.trim(),
+      evaluationDate: draft.evaluationDate,
     }),
     onSuccess: async () => {
       await invalidateScope()
       setCreateOpen(false)
-      setDraft({ label: "", lessonSlotId: "", subjectId: "", coefficient: "1" })
+      setDraft({ label: "", lessonSlotId: "", subjectId: "", coefficient: "1", evaluationDate: "" })
       toast({ title: "Évaluation programmée" })
     },
     onError: (error) => toast({
@@ -114,7 +116,7 @@ export default function NotesPage() {
     },
     onSuccess: async () => {
       await invalidateScope()
-      setQuickDraft((previous) => ({ ...previous, studentId: "", adjustment: "1", comment: "" }))
+      setQuickDraft((previous) => ({ ...previous, studentId: "", adjustment: "0", comment: "" }))
       setSpontaneousOpen(false)
       toast({ title: "Note spontanée enregistrée" })
     },
@@ -153,7 +155,7 @@ export default function NotesPage() {
     isPeriodReadOnly || Boolean(subjectId && completionBySubject.get(subjectId)?.calculationStarted)
   const quickSlot = scopeQuery.data?.lessonSlots.find((item) => item.id === quickDraft.lessonSlotId)
   const quickSubject = scopeQuery.data?.subjects.find((item) => quickSlot && sameSubject(item.name, quickSlot.subjectName))
-  const canCreate = draft.label.trim() !== "" && draft.lessonSlotId !== "" && draft.subjectId !== ""
+  const canCreate = draft.label.trim() !== "" && draft.lessonSlotId !== "" && draft.subjectId !== "" && draft.evaluationDate !== ""
     && Number.isFinite(Number(draft.coefficient)) && Number(draft.coefficient) > 0
   const canSaveSpontaneous = quickDraft.lessonSlotId !== "" && quickDraft.studentId !== ""
     && quickDraft.comment.trim() !== "" && Number.isFinite(Number(quickDraft.adjustment.replace(",", ".")))
@@ -243,8 +245,9 @@ export default function NotesPage() {
               const slot = scopeQuery.data?.lessonSlots.find((item) => item.id === value)
               const subject = scopeQuery.data?.subjects.find((item) => slot && sameSubject(item.name, slot.subjectName))
               setDraft((previous) => ({ ...previous, lessonSlotId: value === "none" ? "" : value, subjectId: subject?.id ?? "" }))
-            }}><SelectTrigger className="min-h-12"><SelectValue placeholder="Choisir un créneau" /></SelectTrigger><SelectContent>{(scopeQuery.data?.lessonSlots ?? []).map((slot) => <SelectItem key={slot.id} value={slot.id}>{dayLabel(slot.dayOfWeek)} {slot.startTime}-{slot.endTime} · {slot.subjectName}</SelectItem>)}</SelectContent></Select></div>
+            }}><SelectTrigger className="min-h-12"><SelectValue placeholder="Choisir un créneau" /></SelectTrigger><SelectContent>{(scopeQuery.data?.lessonSlots ?? []).map((slot) => <SelectItem key={slot.id} value={slot.id}>{dayLabel(slot.dayOfWeek)} · {slot.startTime}-{slot.endTime} · {slot.roomName}</SelectItem>)}</SelectContent></Select></div>
             <div className="space-y-2"><Label>Matière</Label><Select value={draft.subjectId || "none"} onValueChange={(value) => setDraft((previous) => ({ ...previous, subjectId: value === "none" ? "" : value }))}><SelectTrigger className="min-h-12"><SelectValue placeholder="Choisir une matière" /></SelectTrigger><SelectContent>{(scopeQuery.data?.subjects ?? []).map((subject) => <SelectItem key={subject.id} value={subject.id}>{subject.name} · coef. matière {subject.coefficient}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-2"><Label htmlFor="evaluation-date">Date de l’évaluation</Label><Input id="evaluation-date" type="date" required value={draft.evaluationDate} onChange={(event) => setDraft((previous) => ({ ...previous, evaluationDate: event.target.value }))} /></div>
             <div className="space-y-2"><Label>Libellé</Label><Input placeholder="Devoir surveillé n°1" value={draft.label} onChange={(event) => setDraft((previous) => ({ ...previous, label: event.target.value }))} /></div>
             <div className="space-y-2"><Label>Coefficient de cette évaluation</Label><Input type="number" min={0.25} step={0.25} value={draft.coefficient} onChange={(event) => setDraft((previous) => ({ ...previous, coefficient: event.target.value }))} /><p className="text-xs text-muted-foreground">Ce coefficient ne modifie pas le coefficient général de la matière.</p></div>
           </div>
@@ -262,10 +265,10 @@ export default function NotesPage() {
       <Dialog open={spontaneousOpen} onOpenChange={setSpontaneousOpen}>
         <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-xl overflow-y-auto rounded-lg sm:w-full"><DialogHeader><DialogTitle>Note spontanée, pendant le cours</DialogTitle><DialogDescription>Choisissez l’élève et le cours concernés.</DialogDescription></DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">Attribuez +1, +2, −1, −2, etc. Le justificatif reste obligatoire.</p>
-            <div className="space-y-2"><Label>Créneau</Label><Select value={quickDraft.lessonSlotId || "none"} onValueChange={(value) => setQuickDraft((previous) => ({ ...previous, lessonSlotId: value === "none" ? "" : value }))}><SelectTrigger className="min-h-12" aria-label="Créneau"><SelectValue placeholder="Cours concerné" /></SelectTrigger><SelectContent>{(scopeQuery.data?.lessonSlots ?? []).map((slot) => <SelectItem key={slot.id} value={slot.id}>{dayLabel(slot.dayOfWeek)} {slot.startTime} · {slot.subjectName}</SelectItem>)}</SelectContent></Select></div>
+            <p className="text-sm text-muted-foreground">Ajoutez ou retirez un point à chaque pression. Le justificatif reste obligatoire.</p>
+            <div className="space-y-2"><Label>Créneau</Label><Select value={quickDraft.lessonSlotId || "none"} onValueChange={(value) => setQuickDraft((previous) => ({ ...previous, lessonSlotId: value === "none" ? "" : value }))}><SelectTrigger className="min-h-12" aria-label="Créneau"><SelectValue placeholder="Cours concerné" /></SelectTrigger><SelectContent>{(scopeQuery.data?.lessonSlots ?? []).map((slot) => <SelectItem key={slot.id} value={slot.id}>{dayLabel(slot.dayOfWeek)} · {slot.startTime} · {slot.roomName}</SelectItem>)}</SelectContent></Select></div>
             <div className="space-y-2"><Label>Élève</Label><Select disabled={isSubjectClosed(quickSubject?.id)} value={quickDraft.studentId || "none"} onValueChange={(value) => setQuickDraft((previous) => ({ ...previous, studentId: value === "none" ? "" : value }))}><SelectTrigger className="min-h-12" aria-label="Élève"><SelectValue placeholder="Choisir un élève" /></SelectTrigger><SelectContent>{(studentsQuery.data?.data ?? []).map((student) => <SelectItem key={student.id} value={student.id}>{student.firstName} {student.lastName}</SelectItem>)}</SelectContent></Select></div>
-            <div className="grid gap-4 sm:grid-cols-[auto_1fr] sm:items-end"><div className="space-y-2"><Label>Sens</Label><div className="flex gap-2" aria-label="Sens de la note spontanée"><Button type="button" disabled={isSubjectClosed(quickSubject?.id)} variant={Number(quickDraft.adjustment.replace(",", ".")) >= 0 ? "default" : "outline"} className="min-h-12 min-w-12" aria-label="Note positive" onClick={() => setQuickDraft((previous) => ({ ...previous, adjustment: String(Math.abs(Number(previous.adjustment.replace(",", "."))) || 1) }))}><Plus className="h-4 w-4" /></Button><Button type="button" disabled={isSubjectClosed(quickSubject?.id)} variant={Number(quickDraft.adjustment.replace(",", ".")) < 0 ? "destructive" : "outline"} className="min-h-12 min-w-12" aria-label="Note négative" onClick={() => setQuickDraft((previous) => ({ ...previous, adjustment: String(-Math.abs(Number(previous.adjustment.replace(",", "."))) || -1) }))}><Minus className="h-4 w-4" /></Button></div></div><div className="space-y-2"><Label htmlFor="spontaneous-adjustment">Points</Label><Input id="spontaneous-adjustment" disabled={isSubjectClosed(quickSubject?.id)} type="number" min={-20} max={20} step={0.25} value={quickDraft.adjustment} onChange={(event) => setQuickDraft((previous) => ({ ...previous, adjustment: event.target.value }))} /></div></div>
+            <div className="grid gap-4 sm:grid-cols-[auto_1fr] sm:items-end"><div className="space-y-2"><Label>Ajuster</Label><div className="flex gap-2" aria-label="Ajustement de la note spontanée"><Button type="button" disabled={isSubjectClosed(quickSubject?.id) || Number(quickDraft.adjustment.replace(",", ".")) >= 20} variant="default" className="min-h-12 min-w-12" aria-label="Ajouter un point" onClick={() => setQuickDraft((previous) => ({ ...previous, adjustment: String(Math.min(20, (Number(previous.adjustment.replace(",", ".")) || 0) + 1)) }))}><Plus className="h-4 w-4" /></Button><Button type="button" disabled={isSubjectClosed(quickSubject?.id) || Number(quickDraft.adjustment.replace(",", ".")) <= -20} variant="outline" className="min-h-12 min-w-12" aria-label="Retirer un point" onClick={() => setQuickDraft((previous) => ({ ...previous, adjustment: String(Math.max(-20, (Number(previous.adjustment.replace(",", ".")) || 0) - 1)) }))}><Minus className="h-4 w-4" /></Button></div></div><div className="space-y-2"><Label htmlFor="spontaneous-adjustment">Points</Label><Input id="spontaneous-adjustment" disabled={isSubjectClosed(quickSubject?.id)} type="number" min={-20} max={20} step={0.25} value={quickDraft.adjustment} onChange={(event) => setQuickDraft((previous) => ({ ...previous, adjustment: event.target.value }))} /></div></div>
             <div className="space-y-2"><Label htmlFor="spontaneous-comment">Justificatif</Label><Input id="spontaneous-comment" disabled={isSubjectClosed(quickSubject?.id)} value={quickDraft.comment} placeholder="Bonne réponse, participation, perturbation…" onChange={(event) => setQuickDraft((previous) => ({ ...previous, comment: event.target.value }))} /></div>
           </div>
           <DialogFooter><Button type="button" disabled={isSubjectClosed(quickSubject?.id) || !canSaveSpontaneous || spontaneousMutation.isPending} onClick={() => spontaneousMutation.mutate()}>{spontaneousMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Enregistrer</Button></DialogFooter>
@@ -280,7 +283,7 @@ function EvaluationGradeEditor({ evaluation, students, readOnly, onOpen }: { eva
   const totalCount = students.length
   return <div className="rounded-lg border bg-background p-4 transition-colors hover:bg-muted/20">
     <Button type="button" variant="ghost" className="min-h-12 w-full justify-between gap-3 px-0 text-left" onClick={onOpen}>
-      <span className="min-w-0"><span className="block truncate font-semibold">{evaluation.label}</span><span className="mt-1 block text-xs text-muted-foreground">{evaluation.subjectName ?? "-"} · Coef. évaluation {evaluation.coefficient}</span></span>
+      <span className="min-w-0"><span className="block truncate font-semibold">{evaluation.label}</span><span className="mt-1 block text-xs text-muted-foreground">{evaluation.subjectName ?? "-"} · {formatEvaluationDate(evaluation.evaluationDate)} · {evaluation.startTime}-{evaluation.endTime} · {evaluation.roomName}</span></span>
       <span className="shrink-0 text-right"><Badge variant={readOnly ? "outline" : "secondary"}>{readOnly ? "Saisie clôturée" : `${completedCount}/${totalCount} notes`}</Badge><span className="mt-1 block text-xs text-muted-foreground">{readOnly ? "Consulter les notes" : "Saisir les notes"}</span></span>
     </Button>
   </div>
@@ -305,7 +308,7 @@ function EvaluationGradesDialog({ evaluation, students, readOnly, onOpenChange }
     <DialogContent className="grid max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-4xl grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-lg p-0 sm:w-full">
       <DialogHeader className="border-b px-5 py-5 text-left sm:px-6">
         <DialogTitle>Saisie des notes</DialogTitle>
-        <DialogDescription>{evaluation ? `${evaluation.label} · ${evaluation.subjectName ?? "Matière"} · coef. ${evaluation.coefficient}` : ""}</DialogDescription>
+        <DialogDescription>{evaluation ? `${evaluation.subjectName ?? "Matière"} · ${formatEvaluationDate(evaluation.evaluationDate)} · ${evaluation.startTime}-${evaluation.endTime} · ${evaluation.roomName} · coef. ${evaluation.coefficient}` : ""}</DialogDescription>
       </DialogHeader>
       <div className="min-h-0 overflow-y-auto px-5 py-4 sm:px-6 sm:py-5">
         {evaluation && students.length === 0 ? <EmptyState title="Aucun élève actif" description="La classe ne contient aucun élève disponible pour la saisie." /> : null}

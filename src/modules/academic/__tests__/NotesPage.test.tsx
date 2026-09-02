@@ -71,6 +71,9 @@ describe("NotesPage", () => {
     )
 
     await screen.findByText("Évaluations programmées")
+    fireEvent.click(screen.getByRole("button", { name: "Programmer une évaluation" }))
+    expect(screen.getByLabelText("Date de l’évaluation")).toBeRequired()
+    fireEvent.click(screen.getByRole("button", { name: "Close" }))
     fireEvent.click(screen.getByRole("button", { name: "Ajouter une note spontanée" }))
     expect(screen.getByRole("dialog", { name: "Note spontanée, pendant le cours" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Close" }))
@@ -102,7 +105,7 @@ describe("NotesPage", () => {
     expect(await screen.findByRole("button", { name: "Clôturer la saisie et calculer" })).toBeEnabled()
   })
 
-  it("synchronise les boutons positif et négatif avec le champ de points", async () => {
+  it("incrémente et décrémente les points spontanés sans se limiter à -1 et +1", async () => {
     fetchScope.mockResolvedValue({
       lessonSlots: [{ id: "slot1", dayOfWeek: 1, startTime: "08:00", endTime: "09:00", subjectName: "Mathématiques" }],
       subjects: [{ id: "s1", name: "Mathématiques", coefficient: 4 }],
@@ -112,11 +115,11 @@ describe("NotesPage", () => {
     renderAcademicPage()
     await screen.findByText("Évaluations programmées")
     fireEvent.click(screen.getByRole("button", { name: "Ajouter une note spontanée" }))
-    fireEvent.click(screen.getByRole("button", { name: "Note négative" }))
+    fireEvent.click(screen.getByRole("button", { name: "Retirer un point" }))
     expect(screen.getByRole("spinbutton", { name: "Points" })).toHaveValue(-1)
     fireEvent.change(screen.getByRole("spinbutton", { name: "Points" }), { target: { value: "-2" } })
-    fireEvent.click(screen.getByRole("button", { name: "Note positive" }))
-    expect(screen.getByRole("spinbutton", { name: "Points" })).toHaveValue(2)
+    fireEvent.click(screen.getByRole("button", { name: "Ajouter un point" }))
+    expect(screen.getByRole("spinbutton", { name: "Points" })).toHaveValue(-1)
   })
 
   it("n’ouvre qu’une grille de notes à la fois", async () => {
