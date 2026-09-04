@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { BookOpenCheck, ChevronRight, CircleAlert, GraduationCap, UsersRound } from "lucide-react"
 import { Link } from "react-router-dom"
 
@@ -143,7 +143,7 @@ function PilotageHero({
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-sm font-medium text-blue-100">Vue de pilotage</p>
-            <p className="mt-1 text-xs text-blue-100">Taux de présence, 7 derniers jours</p>
+            <p className="mt-1 text-xs text-blue-100">Présence des professeurs par cours planifié, aujourd’hui et les 6 jours précédents</p>
           </div>
           <Badge variant="outline" className="border-blue-300 bg-blue-800/35 text-blue-50">Temps réel</Badge>
         </div>
@@ -164,18 +164,33 @@ function PilotageHero({
             <div className="h-36">
               {trend.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trend} margin={{ top: 16, right: 6, left: -24, bottom: 0 }}>
+                  <BarChart data={trend} margin={{ top: 16, right: 6, left: -24, bottom: 0 }}>
                     <CartesianGrid vertical={false} stroke="hsl(213 94% 68% / 0.35)" strokeDasharray="3 3" />
                     <XAxis dataKey="label" tick={{ fill: "hsl(214 100% 93%)", fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis domain={[0, 100]} tick={{ fill: "hsl(214 100% 93%)", fontSize: 11 }} tickFormatter={(value) => `${value}%`} axisLine={false} tickLine={false} />
-                    <Tooltip formatter={(value) => `${Math.round(Number(value))}%`} />
-                    <Area type="monotone" dataKey="attendanceRate" stroke="hsl(0 0% 100%)" strokeWidth={2.5} fill="hsl(0 0% 100% / 0.18)" />
-                  </AreaChart>
+                    <YAxis allowDecimals={false} tick={{ fill: "hsl(214 100% 93%)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      cursor={{ fill: "hsl(213 94% 68% / 0.18)" }}
+                      formatter={(value, name) => [Math.round(Number(value)), name]}
+                      labelFormatter={(_, payload) => {
+                        const point = payload?.[0]?.payload as DashboardHistoryPoint | undefined
+                        return point ? `${new Date(point.date).toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long" })} · ${Math.round(point.attendanceRate)}% de présence` : ""
+                      }}
+                    />
+                    <Bar dataKey="presentCount" name="Présents" stackId="attendance" fill="var(--stat-success-fg)" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="absentCount" name="Absents" stackId="attendance" fill="var(--stat-danger-fg)" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="notCheckedCount" name="Non pointés" stackId="attendance" fill="var(--stat-warning-fg)" radius={[3, 3, 0, 0]} />
+                  </BarChart>
                 </ResponsiveContainer>
               ) : <div className="flex h-full items-center text-sm text-blue-100">Aucune tendance de présence disponible.</div>}
             </div>
           </div>
         )}
+
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-blue-50" aria-label="Légende du graphique">
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[var(--stat-success-fg)]" aria-hidden="true" />Présents</span>
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[var(--stat-danger-fg)]" aria-hidden="true" />Absents</span>
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[var(--stat-warning-fg)]" aria-hidden="true" />Non pointés</span>
+        </div>
 
         <div className="mt-5 grid grid-cols-3 divide-x divide-blue-500 border-t border-blue-500 pt-4">
           <PopulationStat icon={GraduationCap} label="Élèves inscrits" value={population?.activeStudents ?? 0} />
@@ -223,12 +238,12 @@ function AcademicProgress({ levels, isLoading, isError }: { levels: Awaited<Retu
       </CardHeader>
       <CardContent className="overflow-x-auto">
         {isLoading ? <Skeleton className="h-56 w-full" /> : levels.length > 0 ? (
-          <table className="w-full min-w-[46rem] text-sm">
-            <thead className="border-b text-left text-xs text-muted-foreground"><tr><th className="pb-3 font-medium">Niveau</th><th className="pb-3 font-medium">Moyenne</th><th className="pb-3 text-right font-medium">Élèves notés</th><th className="pb-3 text-right font-medium">≥ 10/20</th><th className="pb-3 text-right font-medium">8–9,99</th><th className="pb-3 text-right font-medium">&lt; 8/20</th></tr></thead>
+          <table className="w-full min-w-[42rem] text-sm">
+            <thead className="border-b text-left text-xs text-muted-foreground"><tr><th className="pb-3 font-medium">Niveau</th><th className="pb-3 font-medium">Moyenne générale</th><th className="pb-3 text-right font-medium">Élèves notés</th><th className="pb-3 text-right font-medium">Notes saisies</th><th className="pb-3 text-right font-medium">Notes ≥ 10/20</th></tr></thead>
             <tbody>{levels.map((level) => {
               const hasAverage = level.studentsWithAverage > 0
               const averageTone = (level.averageScore ?? 0) >= 10 ? "text-green-700" : (level.averageScore ?? 0) >= 8 ? "text-amber-800" : "text-red-700"
-              return <tr key={level.levelId} className="border-b last:border-0"><td className="py-3 font-medium">{level.levelName}<span className="ml-2 text-xs font-normal text-muted-foreground">{level.classCount} classe{level.classCount > 1 ? "s" : ""} · {level.completedSubjects}/{level.expectedSubjects} matières clôturées</span></td><td className={`py-3 font-semibold ${hasAverage ? averageTone : "text-muted-foreground"}`}>{hasAverage ? `${level.averageScore?.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}/20` : "En attente"}</td><td className="py-3 text-right font-medium">{level.studentsWithAverage}</td><td className="py-3 text-right font-medium text-green-700">{level.performingStudents}</td><td className="py-3 text-right font-medium text-amber-800">{level.attentionStudents}</td><td className="py-3 text-right font-medium text-red-700">{level.criticalStudents}</td></tr>
+              return <tr key={level.levelId} className="border-b last:border-0"><td className="py-3 font-medium">{level.levelName}<span className="ml-2 text-xs font-normal text-muted-foreground">{level.classCount} classe{level.classCount > 1 ? "s" : ""} · {level.completedSubjects}/{level.expectedSubjects} matières clôturées</span></td><td className={`py-3 font-semibold ${hasAverage ? averageTone : "text-muted-foreground"}`}>{hasAverage ? `${level.averageScore?.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}/20` : "En attente"}</td><td className="py-3 text-right font-medium">{level.studentsWithAverage}</td><td className="py-3 text-right font-medium">{level.gradeCount}</td><td className="py-3 text-right font-medium text-green-700">{level.gradesAtLeastTen}</td></tr>
             })}</tbody>
           </table>
         ) : <EmptyState icon={BookOpenCheck} title="Aucun niveau à suivre" message="La performance apparaîtra dès que les moyennes de période seront calculées." />}
@@ -243,7 +258,7 @@ function RiskSummary({ risks, canViewTeachers }: { risks: Awaited<ReturnType<typ
 }
 
 function RiskGroup({ title, total, rows }: { title: string; total: number; rows: Array<{ label: string; value: number; href: string }> }) {
-  return <div className="rounded-lg border"><div className="flex items-center justify-between border-b px-3 py-2"><p className="font-medium">{title}</p><Badge variant="outline">{total} à risque</Badge></div>{rows.map((row) => <Link key={row.label} to={row.href} className="flex min-h-10 items-center gap-2 px-3 text-sm hover:bg-muted/50"><Badge variant="outline" className={row.value > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-slate-200 bg-slate-50 text-slate-600"}>{row.value}</Badge><span className="flex-1">{row.label}</span><ChevronRight className="h-4 w-4 text-muted-foreground" /></Link>)}</div>
+  return <div className="rounded-lg border"><div className="flex items-center justify-between border-b px-3 py-2"><p className="font-medium">{title}</p><Badge variant="outline">{total} à risque</Badge></div>{rows.map((row) => <Link key={row.label} to={row.href} className="flex min-h-10 items-center gap-2 px-3 text-sm hover:bg-muted/50"><Badge variant="outline" className={row.value > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-border bg-muted text-foreground"}>{row.value}</Badge><span className="flex-1">{row.label}</span><ChevronRight className="h-4 w-4 text-muted-foreground" /></Link>)}</div>
 }
 
 function TodaySchedule({ courses, date }: { courses: DashboardCourseItem[]; date: string }) {

@@ -13,6 +13,7 @@ type TeacherProfile = {
   phone?: string | null
   email?: string | null
   subjects?: string[]
+  teachingAssignments?: Array<{ subjectName: string; className: string }>
   type: "vacataire" | "permanent"
   blockReason?: string
 }
@@ -60,6 +61,11 @@ export function TeacherProfileCard({
           <h3 className="mt-3 text-lg font-semibold">{teacher.name}</h3>
           <p className="text-sm text-muted-foreground">
             {(teacher.subjects ?? []).length > 0 ? (teacher.subjects ?? []).join(", ") : "Aucune matière"}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {(teacher.teachingAssignments ?? []).length > 0
+              ? `Classes : ${[...new Set((teacher.teachingAssignments ?? []).map((assignment) => assignment.className))].join(", ")}`
+              : "Aucune classe affectée"}
           </p>
           <p className="text-sm text-muted-foreground">
             {teacher.phone?.trim() || "Téléphone non renseigné"}

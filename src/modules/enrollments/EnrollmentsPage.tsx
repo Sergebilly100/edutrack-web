@@ -9,13 +9,14 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { listClasses, listSchoolYears } from "@/modules/academic/academic.api"
 import { listClassDecisions } from "@/modules/class-decisions/class-decisions.api"
 import { PageLayout } from "@/shared/components/PageLayout"
 import { usePermissions } from "@/shared/hooks/usePermissions"
-import { createEnrollment, listEnrollments, type Enrollment } from "./enrollments.api"
+import { createEnrollment, listEnrollments, normalizeEnrollmentsListResponse, type Enrollment } from "./enrollments.api"
 import { enrollmentStatusLabel } from "./enrollments.helpers"
 
 const statusClassName: Record<Enrollment["status"], string> = {
@@ -43,15 +44,28 @@ export default function EnrollmentsPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const [targetYearId, setTargetYearId] = useState("")
+  const [page, setPage] = useState(1)
   const [classSelections, setClassSelections] = useState<Record<string, string>>({})
 
-  const enrollmentsQuery = useQuery({ queryKey: ["enrollments", "list"], queryFn: () => listEnrollments() })
+  const enrollmentsQuery = useQuery({
+    queryKey: ["enrollments", "list", "normalized-v2", page],
+    queryFn: () => listEnrollments({ page, limit: 20 }),
+    select: (data) => normalizeEnrollmentsListResponse(data, page, 20),
+  })
   const decisionsQuery = useQuery({ queryKey: ["class-decisions", "enrollment-candidates"], queryFn: listClassDecisions })
   const yearsQuery = useQuery({ queryKey: ["academic", "school-years", "re-enrollment"], queryFn: listSchoolYears })
   const classesQuery = useQuery({ queryKey: ["academic", "classes", "re-enrollment", targetYearId], queryFn: () => listClasses(targetYearId), enabled: Boolean(targetYearId) })
 
-  const enrollmentByStudent = useMemo(() => new Map((enrollmentsQuery.data ?? []).map((item) => [item.studentId, item])), [enrollmentsQuery.data])
-  const decisionByStudent = useMemo(() => new Map((decisionsQuery.data?.decisions ?? []).map((item) => [item.studentId, item])), [decisionsQuery.data])
+  const reEnrollmentQuery = useQuery({
+    queryKey: ["enrollments", "re-enrollment", "normalized-v2", targetYearId],
+    queryFn: () => listEnrollments({ schoolYearId: targetYearId, limit: 100 }),
+    select: (data) => normalizeEnrollmentsListResponse(data, 1, 100),
+    enabled: Boolean(targetYearId),
+  })
+  const reEnrollmentRows = Array.isArray(reEnrollmentQuery.data?.enrollments) ? reEnrollmentQuery.data.enrollments : []
+  const decisions = Array.isArray(decisionsQuery.data?.decisions) ? decisionsQuery.data.decisions : []
+  const enrollmentByStudent = useMemo(() => new Map(reEnrollmentRows.map((item) => [item.studentId, item])), [reEnrollmentRows])
+  const decisionByStudent = useMemo(() => new Map(decisions.map((item) => [item.studentId, item])), [decisions])
 
   const reEnrollmentMutation = useMutation({
     mutationFn: ({ studentId, classId }: { studentId: string; classId: string }) => createEnrollment({
@@ -76,7 +90,8 @@ export default function EnrollmentsPage() {
     }),
   })
 
-  const namedEnrollments = (enrollmentsQuery.data ?? []).map((enrollment) => ({ enrollment, decision: decisionByStudent.get(enrollment.studentId) }))
+  const enrollmentRows = Array.isArray(enrollmentsQuery.data?.enrollments) ? enrollmentsQuery.data.enrollments : []
+  const namedEnrollments = enrollmentRows.map((enrollment) => ({ enrollment, decision: decisionByStudent.get(enrollment.studentId) }))
 
   return (
     <PageLayout
@@ -93,20 +108,44 @@ export default function EnrollmentsPage() {
           {!enrollmentsQuery.isLoading && !enrollmentsQuery.isError && namedEnrollments.length === 0 ? (
             <div className="rounded-lg border border-dashed p-8 text-center"><FileCheck2 className="mx-auto h-9 w-9 text-muted-foreground" /><h2 className="mt-3 font-semibold">Aucun dossier d’inscription</h2><p className="mt-1 text-sm text-muted-foreground">Créez une nouvelle inscription ou ouvrez l’onglet Réinscriptions.</p></div>
           ) : null}
-          <div className="divide-y rounded-lg border bg-card">
-            {namedEnrollments.map(({ enrollment, decision }) => (
-              <div key={enrollment.id} className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center">
-                <div className="min-w-0 flex-1"><p className="font-medium">{decision ? `${decision.studentLastName} ${decision.studentFirstName}` : `${enrollment.studentLastName} ${enrollment.studentFirstName}`}</p><p className="text-sm text-muted-foreground">{enrollment.className} · {enrollment.schoolYearLabel} · {enrollment.type === "re_registration" ? "Réinscription" : "Nouvelle inscription"}</p></div>
-                <Badge className={`w-fit border ${statusClassName[enrollment.status]}`}>{enrollmentStatusLabel[enrollment.status]}</Badge>
-                <EnrollmentDocumentBadge enrollment={enrollment} />
-                <div className="flex flex-wrap gap-2">
-                  {canEditDraft && enrollment.status !== "confirmed" ? <Button variant="outline" asChild><Link to={`/enrollments/${enrollment.id}/edit`}><Pencil className="mr-2 h-4 w-4" />Modifier</Link></Button> : null}
-                  <Button variant="outline" asChild><Link to={`/enrollments/students/${enrollment.studentId}/documents`}>Vérifier le dossier</Link></Button>
-                  {hasPermission("enrollments.confirm_payment") && enrollment.status !== "confirmed" && enrollment.status !== "blocked_unpaid" ? <Button asChild><Link to={`/enrollments/${enrollment.id}/payment`}>Caisse<ArrowRight className="ml-2 h-4 w-4" /></Link></Button> : null}
-                </div>
-              </div>
-            ))}
-          </div>
+          {namedEnrollments.length > 0 ? <div className="overflow-x-auto rounded-lg border bg-card">
+            <Table className="min-w-[62rem]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Élève</TableHead>
+                  <TableHead>Classe visée</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead>Dossier</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {namedEnrollments.map(({ enrollment, decision }) => (
+                  <TableRow key={enrollment.id}>
+                    <TableCell className="font-medium">{decision ? `${decision.studentLastName} ${decision.studentFirstName}` : `${enrollment.studentLastName} ${enrollment.studentFirstName}`}</TableCell>
+                    <TableCell><span className="block">{enrollment.className}</span><span className="text-xs text-muted-foreground">{enrollment.schoolYearLabel}</span></TableCell>
+                    <TableCell>{enrollment.type === "re_registration" ? "Réinscription" : "Nouvelle inscription"}</TableCell>
+                    <TableCell><Badge className={`w-fit border ${statusClassName[enrollment.status]}`}>{enrollmentStatusLabel[enrollment.status]}</Badge></TableCell>
+                    <TableCell><EnrollmentDocumentBadge enrollment={enrollment} /></TableCell>
+                    <TableCell>
+                      <div className="flex justify-end gap-2">
+                        {canEditDraft && enrollment.status !== "confirmed" ? <Button size="sm" variant="outline" asChild><Link to={`/enrollments/${enrollment.id}/edit`}><Pencil className="mr-2 h-4 w-4" />Modifier</Link></Button> : null}
+                        <Button size="sm" variant="outline" asChild><Link to={`/enrollments/students/${enrollment.studentId}/documents`}>Dossier</Link></Button>
+                        {hasPermission("enrollments.confirm_payment") && enrollment.status !== "confirmed" && enrollment.status !== "blocked_unpaid" ? <Button size="sm" asChild><Link to={`/enrollments/${enrollment.id}/payment`}>Caisse<ArrowRight className="ml-2 h-4 w-4" /></Link></Button> : null}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div> : null}
+          {enrollmentsQuery.data && enrollmentsQuery.data.pagination.totalPages > 1 ? (
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-muted-foreground">Page {enrollmentsQuery.data.pagination.page} sur {enrollmentsQuery.data.pagination.totalPages}, {enrollmentsQuery.data.pagination.total} dossiers</p>
+              <div className="flex gap-2"><Button variant="outline" disabled={page === 1 || enrollmentsQuery.isFetching} onClick={() => setPage((current) => Math.max(1, current - 1))}>Précédent</Button><Button variant="outline" disabled={page >= enrollmentsQuery.data.pagination.totalPages || enrollmentsQuery.isFetching} onClick={() => setPage((current) => current + 1)}>Suivant</Button></div>
+            </div>
+          ) : null}
         </TabsContent>
 
         <TabsContent value="re-enrollment" className="space-y-5">
@@ -114,16 +153,16 @@ export default function EnrollmentsPage() {
           {decisionsQuery.isError ? <Alert variant="destructive"><AlertDescription>Les décisions finales ne sont pas accessibles. La revue de fin d’année doit être ouverte et validée avant les réinscriptions.</AlertDescription></Alert> : null}
           {!targetYearId ? <Alert><AlertDescription>Sélectionnez l’année scolaire cible pour afficher les classes compatibles avec chaque décision.</AlertDescription></Alert> : null}
           <div className="divide-y rounded-lg border bg-card">
-            {(decisionsQuery.data?.decisions ?? []).filter((decision) => decision.finalDecision !== null).map((decision) => {
+            {decisions.filter((decision) => decision.finalDecision !== null).map((decision) => {
               const existing = enrollmentByStudent.get(decision.studentId)
               const eligibleClasses = (classesQuery.data?.classes ?? []).filter((item) => item.level.id === decision.nextLevelId)
               return (
                 <div key={decision.studentId} className="space-y-4 p-4">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><p className="font-medium">{decision.studentLastName} {decision.studentFirstName}</p><p className="text-sm text-muted-foreground">{decision.className} · Décision: {decision.finalDecision === "promoted" ? "Admis(e)" : decision.finalDecision === "repeat" ? "Redouble" : "Exclu(e)"} · Niveau proposé: {decision.nextLevelName ?? "non défini"}</p></div>{existing ? <div className="flex flex-wrap gap-2"><Badge className={`w-fit border ${statusClassName[existing.status]}`}>{enrollmentStatusLabel[existing.status]}</Badge><EnrollmentDocumentBadge enrollment={existing} /></div> : <Badge variant="outline">À traiter</Badge>}</div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><p className="font-medium">{decision.studentLastName} {decision.studentFirstName}</p><p className="text-sm text-muted-foreground">Dossier précédent : {decision.className} · Décision: {decision.finalDecision === "promoted" ? "Admis(e)" : decision.finalDecision === "repeat" ? "Redouble" : "Exclu(e)"} · Niveau proposé: {decision.nextLevelName ?? "non défini"}</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" asChild><Link to={`/students/${decision.studentId}`}>Voir le dossier précédent</Link></Button>{existing ? <><Badge className={`w-fit border ${statusClassName[existing.status]}`}>{enrollmentStatusLabel[existing.status]}</Badge><EnrollmentDocumentBadge enrollment={existing} /></> : <Badge variant="outline">À traiter</Badge>}</div></div>
                   {existing?.status === "blocked_unpaid" ? <Alert variant="destructive"><AlertDescription>La réinscription en ligne est bloquée pour impayé. Le parent doit se présenter dans l’établissement.</AlertDescription></Alert> : null}
                   {!existing && decision.finalDecision !== "expelled" && targetYearId ? (
                     <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-                      <div className="space-y-2"><Label>Classe proposée</Label><Select value={classSelections[decision.studentId] ?? ""} onValueChange={(value) => setClassSelections((current) => ({ ...current, [decision.studentId]: value }))}><SelectTrigger className="min-h-12"><SelectValue placeholder={classesQuery.isLoading ? "Chargement…" : eligibleClasses.length ? "Choisir la classe" : "Aucune classe compatible"} /></SelectTrigger><SelectContent>{eligibleClasses.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>
+                      <div className="space-y-2"><Label>Classe proposée</Label><Select value={classSelections[decision.studentId] ?? ""} onValueChange={(value) => setClassSelections((current) => ({ ...current, [decision.studentId]: value }))}><SelectTrigger className="min-h-12"><SelectValue placeholder={classesQuery.isLoading ? "Chargement…" : eligibleClasses.length ? "Choisir la classe" : "Aucune classe compatible"} /></SelectTrigger><SelectContent>{eligibleClasses.map((item) => <SelectItem key={item.id} value={item.id}>{item.name} · {item.studentCount} élèves</SelectItem>)}</SelectContent></Select></div>
                       <Button className="min-h-12" disabled={!classSelections[decision.studentId] || reEnrollmentMutation.isPending} onClick={() => reEnrollmentMutation.mutate({ studentId: decision.studentId, classId: classSelections[decision.studentId]! })}>{reEnrollmentMutation.isPending && reEnrollmentMutation.variables?.studentId === decision.studentId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Réinscrire</Button>
                     </div>
                   ) : null}

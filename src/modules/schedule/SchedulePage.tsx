@@ -316,11 +316,24 @@ export default function SchedulePage() {
     )
   }, [activePeriodsQuery.data, data])
 
+  const selectedTeacher = useMemo(
+    () => data?.catalog.teachers.find((teacher) => teacher.id === formState.teacherId),
+    [data?.catalog.teachers, formState.teacherId]
+  )
   const selectedTeacherSubjects = useMemo<string[]>(() => {
-    if (!formState.teacherId || !data) return []
-    const teacher = data.catalog.teachers.find((t) => t.id === formState.teacherId)
-    return teacher?.subjects ?? []
-  }, [formState.teacherId, data])
+    const assignedSubjects = [...new Set((selectedTeacher?.teachingAssignments ?? []).map((assignment) => assignment.subjectName))]
+    return assignedSubjects.length > 0 ? assignedSubjects : selectedTeacher?.subjects ?? []
+  }, [selectedTeacher])
+  const selectedTeacherClasses = useMemo(() => {
+    const assignments = selectedTeacher?.teachingAssignments ?? []
+    if (assignments.length === 0) return data?.catalog.classes ?? []
+    const classIds = new Set(
+      assignments
+        .filter((assignment) => !formState.subject || assignment.subjectName === formState.subject)
+        .map((assignment) => assignment.classId)
+    )
+    return (data?.catalog.classes ?? []).filter((schoolClass) => classIds.has(schoolClass.id))
+  }, [data?.catalog.classes, formState.subject, selectedTeacher])
 
   useEffect(() => {
     if (!formState.subject) return
@@ -331,6 +344,13 @@ export default function SchedulePage() {
       setFormState((prev) => ({ ...prev, subject: "" }))
     }
   }, [formState.subject, selectedTeacherSubjects])
+
+  useEffect(() => {
+    if (!formState.classId) return
+    if (!selectedTeacherClasses.some((schoolClass) => schoolClass.id === formState.classId)) {
+      setFormState((prev) => ({ ...prev, classId: "" }))
+    }
+  }, [formState.classId, selectedTeacherClasses])
 
   const filteredSchedules = useMemo(() => {
     if (!data?.period) return []
@@ -1376,7 +1396,7 @@ export default function SchedulePage() {
             <div className="space-y-1">
               <Label>Professeur</Label>
               <Select value={formState.teacherId}
-                onValueChange={(v) => setFormState((p) => ({ ...p, teacherId: v, subject: "" }))}>
+                onValueChange={(v) => setFormState((p) => ({ ...p, teacherId: v, subject: "", classId: "" }))}>
                 <SelectTrigger><SelectValue placeholder="Choisir un professeur" /></SelectTrigger>
                 <SelectContent>
                   {(data?.catalog.teachers ?? []).map((t) => (
@@ -1423,7 +1443,7 @@ export default function SchedulePage() {
                 onValueChange={(v) => setFormState((p) => ({ ...p, classId: v }))}>
                 <SelectTrigger><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
                 <SelectContent>
-                  {(data?.catalog.classes ?? []).map((c) => (
+                  {selectedTeacherClasses.map((c) => (
                     <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                   ))}
                 </SelectContent>

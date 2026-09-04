@@ -157,7 +157,7 @@ describe("DashboardPage", () => {
     })
     getDashboardPilotageMock.mockResolvedValue({
       population: { activeStudents: 312, activeTeachers: 13, activeClasses: 14 },
-      academic: [{ levelId: "level-1", levelName: "6e", classCount: 2, expectedSubjects: 12, completedSubjects: 9, completionRate: 75, studentsWithAverage: 30, averageScore: 11.8, performingStudents: 21, attentionStudents: 6, criticalStudents: 3 }],
+      academic: [{ levelId: "level-1", levelName: "6e", classCount: 2, expectedSubjects: 12, completedSubjects: 9, completionRate: 75, studentsWithAverage: 30, averageScore: 11.8, performingStudents: 21, attentionStudents: 6, criticalStudents: 3, gradeCount: 120, gradesAtLeastTen: 82 }],
       risks: { studentAbsences: 0, studentGrades: 0, studentPayments: 0, teacherAbsences: 0 },
     })
     getDashboardStatsMock.mockResolvedValue({
@@ -217,11 +217,18 @@ describe("DashboardPage", () => {
   })
 
   it("affiche une vue de pilotage unique pour un directeur", async () => {
+    getAttendanceHistoryMock.mockResolvedValue([
+      { date: "2026-05-11", presentCount: 10, absentCount: 2, notCheckedCount: 1, totalCount: 13, attendanceRate: 76.92 },
+      { date: "2026-05-12", presentCount: 12, absentCount: 1, notCheckedCount: 0, totalCount: 13, attendanceRate: 92.31 },
+    ])
     renderWithQueryClient(<DashboardPage />)
 
     expect(await screen.findByText("Bonjour, Directeur Test")).toBeInTheDocument()
     expect(await screen.findByText("Vue de pilotage")).toBeInTheDocument()
     expect(await screen.findByText("Présences aujourd’hui")).toBeInTheDocument()
+    expect(screen.getByText("Notes saisies")).toBeInTheDocument()
+    expect(screen.getByText("Notes ≥ 10/20")).toBeInTheDocument()
+    expect(screen.getByLabelText("Légende du graphique")).toHaveTextContent("Non pointés")
     expect(await screen.findByText("Suivi financier")).toBeInTheDocument()
     expect(screen.queryByRole("tab")).not.toBeInTheDocument()
   })

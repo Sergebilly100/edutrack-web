@@ -3,10 +3,30 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const { getMock, postMock, putMock, patchMock, deleteMock } = vi.hoisted(() => ({ getMock: vi.fn(), postMock: vi.fn(), putMock: vi.fn(), patchMock: vi.fn(), deleteMock: vi.fn() }))
 vi.mock("@/shared/api/client", () => ({ apiClient: { get: getMock, post: postMock, put: putMock, patch: patchMock, delete: deleteMock } }))
 
-import { archiveRequiredDocumentType, confirmEnrollmentPayment, createRequiredDocumentTypes, listRequiredDocumentLevels, listRequiredDocumentTypes, syncRequiredDocumentTypes, updateEnrollment, updateRequiredDocumentType, updateStudentDocument, uploadStudentDocument, verifyStudentDocuments } from "../enrollments.api"
+import { archiveRequiredDocumentType, confirmEnrollmentPayment, createRequiredDocumentTypes, listEnrollments, listRequiredDocumentLevels, listRequiredDocumentTypes, syncRequiredDocumentTypes, updateEnrollment, updateRequiredDocumentType, updateStudentDocument, uploadStudentDocument, verifyStudentDocuments } from "../enrollments.api"
 
 describe("enrollments.api", () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it("normalise aussi l’ancienne réponse imbriquée sans faire planter la page", async () => {
+    getMock.mockResolvedValueOnce({ data: {
+      enrollments: {
+        enrollments: [{
+          id: "enrollment-1", student_id: "student-1", class_id: "class-1", class_name: "6e A",
+          student_first_name: "Awa", student_last_name: "Koné", school_year_id: "year-1",
+          school_year_label: "2026-2027", type: "new_registration", status: "pending_cashier",
+          enrolled_at: "2026-09-01T08:00:00.000Z", document_status: "incomplete",
+          missing_mandatory_document_count: 1,
+        }],
+        pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+      },
+    } })
+
+    await expect(listEnrollments()).resolves.toEqual(expect.objectContaining({
+      enrollments: [expect.objectContaining({ id: "enrollment-1", studentId: "student-1", studentFirstName: "Awa" })],
+      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+    }))
+  })
 
   it("charge les pièces requises du niveau", async () => {
     getMock.mockResolvedValueOnce({ data: { documentTypes: [{ id: "doc-1", level_id: "level-1", level_name: "CP1", name: "Extrait", is_mandatory: true, is_active: true }] } })

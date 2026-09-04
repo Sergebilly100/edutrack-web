@@ -1,9 +1,17 @@
-import { useEffect } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm, useWatch } from "react-hook-form"
+import { useQuery } from "@tanstack/react-query"
 import { z } from "zod"
 
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Form,
   FormControl,
@@ -20,7 +28,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { ChevronDown, Search, X } from "lucide-react"
+
 import { cn } from "@/lib/utils"
+import { listClasses, listSubjects } from "@/modules/academic/academic.api"
 import type { TeacherType, TeacherUpsertPayload } from "@/modules/teachers/teachers.api"
 
 const PHONE_CI_REGEX = /^225\d{10}$/
@@ -38,7 +49,8 @@ const teacherFormSchema = z
       { message: "Email invalide" }
     ),
     type: z.enum(["vacataire", "permanent"]),
-    subjectsRaw: z.string().trim().min(1, "Au moins une matière est requise"),
+    subjectNames: z.array(z.string()).min(1, "Sélectionnez au moins une matière"),
+    classIds: z.array(z.string()).min(1, "Sélectionnez au moins une classe"),
     hourlyRate: z.string().trim(),
     monthlySalary: z.string().trim(),
   })
@@ -98,6 +110,90 @@ const teacherFormSchema = z
 
 type TeacherFormValues = z.infer<typeof teacherFormSchema>
 
+type MultiSelectOption = {
+  value: string
+  label: string
+  description?: string
+}
+
+function MultiSelectCombobox({
+  title,
+  description,
+  selectedValues,
+  options,
+  disabled = false,
+  onChange,
+}: {
+  title: string
+  description: string
+  selectedValues: string[]
+  options: MultiSelectOption[]
+  disabled?: boolean
+  onChange: (values: string[]) => void
+}) {
+  const [search, setSearch] = useState("")
+  const selectedOptions = options.filter((option) => selectedValues.includes(option.value))
+  const filteredOptions = options.filter((option) =>
+    `${option.label} ${option.description ?? ""}`.toLocaleLowerCase("fr").includes(search.trim().toLocaleLowerCase("fr"))
+  )
+  const toggle = (value: string) => onChange(
+    selectedValues.includes(value)
+      ? selectedValues.filter((item) => item !== value)
+      : [...selectedValues, value]
+  )
+
+  return (
+    <div className="space-y-2">
+      <DropdownMenu modal={false} onOpenChange={(open) => { if (!open) setSearch("") }}>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="outline" className="min-h-12 w-full justify-between font-normal" disabled={disabled} aria-label={`Modifier les ${title.toLocaleLowerCase("fr")}`}>
+            <span className="truncate">{selectedValues.length > 0 ? `${selectedValues.length} sélection${selectedValues.length > 1 ? "s" : ""}` : `Sélectionner des ${title.toLocaleLowerCase("fr")}`}</span>
+            <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[18rem] p-0">
+          <div className="space-y-1 p-3">
+            <p className="text-sm font-medium">{title}</p>
+            <p className="text-xs text-muted-foreground">{description}</p>
+          </div>
+          <DropdownMenuSeparator className="mx-0" />
+          <div className="relative p-2" onKeyDown={(event) => event.stopPropagation()}>
+            <Search className="pointer-events-none absolute left-5 top-5 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              onClick={(event) => event.stopPropagation()}
+              placeholder={`Rechercher une ${title.toLocaleLowerCase("fr").replace(/s$/, "")}`}
+              className="pl-9"
+              aria-label={`Rechercher dans ${title.toLocaleLowerCase("fr")}`}
+            />
+          </div>
+          <DropdownMenuSeparator className="mx-0" />
+          <div className="max-h-64 overflow-y-auto p-1" role="listbox" aria-multiselectable="true" aria-label={title}>
+            {filteredOptions.length === 0 ? <p className="p-3 text-sm text-muted-foreground">Aucun résultat.</p> : filteredOptions.map((option) => {
+              const selected = selectedValues.includes(option.value)
+              return <DropdownMenuCheckboxItem
+                key={option.value}
+                checked={selected}
+                onCheckedChange={() => toggle(option.value)}
+                onSelect={(event) => event.preventDefault()}
+                className={cn("min-h-12 items-start py-2.5", selected && "bg-primary/5")}
+              >
+                <span className="min-w-0"><span className="block font-medium">{option.label}</span>{option.description ? <span className="block text-xs text-muted-foreground">{option.description}</span> : null}</span>
+              </DropdownMenuCheckboxItem>
+            })}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {selectedOptions.length > 0 ? <div className="flex flex-wrap gap-2" aria-label={`${title} sélectionnées`}>
+        {selectedOptions.map((option) => <Button key={option.value} type="button" variant="secondary" size="sm" className="h-8 gap-1.5 px-2 font-normal" onClick={() => toggle(option.value)} disabled={disabled}>
+          <span>{option.label}</span><X className="h-3.5 w-3.5" /><span className="sr-only">Retirer</span>
+        </Button>)}
+      </div> : null}
+    </div>
+  )
+}
+
 export type TeacherFormInitialValues = {
   firstName: string
   lastName: string
@@ -106,6 +202,7 @@ export type TeacherFormInitialValues = {
   email: string | null
   type: TeacherType
   subjects: string[]
+  teachingAssignments?: Array<{ subjectId: string; classId: string }>
   hourlyRate: number | null
   monthlySalary: number | null
 }
@@ -117,12 +214,6 @@ type TeacherFormProps = {
   lockSubjects?: boolean
   onSubmit: (payload: TeacherUpsertPayload) => Promise<void> | void
 }
-
-const parseSubjects = (raw: string): string[] =>
-  raw
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean)
 
 export default function TeacherForm({
   initialValues,
@@ -140,13 +231,26 @@ export default function TeacherForm({
       phone: initialValues?.phone ?? "",
       email: initialValues?.email ?? "",
       type: initialValues?.type ?? "vacataire",
-      subjectsRaw: initialValues?.subjects.join(", ") ?? "",
+      subjectNames: initialValues?.subjects ?? [],
+      classIds: [...new Set(initialValues?.teachingAssignments?.map((assignment) => assignment.classId) ?? [])],
       hourlyRate: initialValues?.hourlyRate ? String(initialValues.hourlyRate) : "",
       monthlySalary: initialValues?.monthlySalary ? String(initialValues.monthlySalary) : "",
     },
   })
 
   const type = useWatch({ control: form.control, name: "type" })
+  const subjectNames = useWatch({ control: form.control, name: "subjectNames" })
+  const classIds = useWatch({ control: form.control, name: "classIds" })
+  const subjectsQuery = useQuery({ queryKey: ["academic", "subjects", "teacher-form"], queryFn: () => listSubjects() })
+  const classesQuery = useQuery({ queryKey: ["academic", "classes", "teacher-form"], queryFn: () => listClasses() })
+  const selectedSubjects = useMemo(
+    () => (subjectsQuery.data ?? []).filter((subject) => subjectNames.includes(subject.name)),
+    [subjectNames, subjectsQuery.data]
+  )
+  const subjectOptions = useMemo(
+    () => [...new Set((subjectsQuery.data ?? []).map((subject) => subject.name))].sort((a, b) => a.localeCompare(b, "fr")),
+    [subjectsQuery.data]
+  )
 
   useEffect(() => {
     if (type === "permanent") {
@@ -157,6 +261,20 @@ export default function TeacherForm({
   }, [form, type])
 
   const handleSubmit = async (values: TeacherFormValues) => {
+    const teachingAssignments = selectedSubjects.flatMap((subject) =>
+      (classesQuery.data?.classes ?? [])
+        .filter((schoolClass) => classIds.includes(schoolClass.id) && schoolClass.level.id === subject.levelId)
+        .map((schoolClass) => ({ subjectId: subject.id, classId: schoolClass.id }))
+    )
+
+    if (teachingAssignments.length === 0) {
+      form.setError("classIds", {
+        type: "validate",
+        message: "Sélectionnez au moins une classe du même niveau que les matières choisies",
+      })
+      return
+    }
+
     await onSubmit({
       firstName: values.firstName.trim(),
       lastName: values.lastName.trim(),
@@ -164,7 +282,10 @@ export default function TeacherForm({
       phone: values.phone || null,
       email: values.email ? values.email.trim() : null,
       type: values.type,
-      subjects: parseSubjects(values.subjectsRaw),
+      subjects: [...new Set(selectedSubjects
+        .filter((subject) => teachingAssignments.some((assignment) => assignment.subjectId === subject.id))
+        .map((subject) => subject.name))],
+      teachingAssignments,
       hourlyRate: values.type === "vacataire" ? Number(values.hourlyRate) : null,
       monthlySalary: values.type === "permanent" ? Number(values.monthlySalary) : null,
     })
@@ -287,33 +408,41 @@ export default function TeacherForm({
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="subjectsRaw"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Matières</FormLabel>
-              <FormControl>
-                <textarea
-                  {...field}
-                  rows={3}
-                  placeholder="Mathématiques, Physique, SVT"
-                  readOnly={lockSubjects}
-                  className={cn(
-                    "flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-sm transition-colors",
-                    "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                    "resize-none overflow-hidden disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
-                    lockSubjects ? "bg-muted cursor-not-allowed" : ""
-                  )}
-                />
-              </FormControl>
-              <p className="text-xs text-muted-foreground">
-                Séparez les matières par des virgules (ex: Arts Plastiques, Ecm). <br /> Modifier cette liste n'affecte pas l'emploi du temps déjà saisi.
-              </p>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <FormField control={form.control} name="subjectNames" render={() => (
+          <FormItem>
+            <FormLabel>Matières enseignées</FormLabel>
+            <MultiSelectCombobox
+              title="Matières"
+              description="Choisissez les matières enseignées. Une matière n’apparaît qu’une fois, quel que soit son coefficient ou son niveau."
+              selectedValues={subjectNames}
+              options={subjectOptions.map((name) => ({ value: name, label: name }))}
+              disabled={lockSubjects || subjectsQuery.isLoading}
+              onChange={(values) => form.setValue("subjectNames", values, { shouldValidate: true })}
+            />
+            <p className="text-xs text-muted-foreground">Les matières seront automatiquement associées aux classes du même niveau.</p>
+            <FormMessage />
+          </FormItem>
+        )} />
+
+        <FormField control={form.control} name="classIds" render={() => (
+          <FormItem>
+            <FormLabel>Classes enseignées</FormLabel>
+            <MultiSelectCombobox
+              title="Classes"
+              description="Choisissez une ou plusieurs classes. L’effectif confirmé est affiché pour aider à répartir les charges."
+              selectedValues={classIds}
+              options={(classesQuery.data?.classes ?? []).map((schoolClass) => ({
+                value: schoolClass.id,
+                label: schoolClass.name,
+                description: `${schoolClass.level.name} · ${schoolClass.studentCount} élèves`,
+              }))}
+              disabled={classesQuery.isLoading}
+              onChange={(values) => form.setValue("classIds", values, { shouldValidate: true })}
+            />
+            <p className="text-xs text-muted-foreground">Les associations sont créées uniquement pour les niveaux correspondants.</p>
+            <FormMessage />
+          </FormItem>
+        )} />
 
         {type === "vacataire" ? (
           <FormField

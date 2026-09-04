@@ -36,6 +36,7 @@ import {
 } from "@/modules/students/students.api"
 import { DocumentList, DocumentUpload, OfflineDisabledFieldset, PageLayout, PresenceDonut, StatCard } from "@/shared/components"
 import { StudentDossierTimeline } from "@/modules/students/components/StudentDossierTimeline"
+import { DocumentChecklist } from "@/modules/enrollments/components/DocumentChecklist"
 import { BackIcon, InfoIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabel, useStudentLabels } from "@/shared/hooks/useStudentLabel"
@@ -82,6 +83,8 @@ export default function StudentDetailPage() {
   const studentLabels = useStudentLabels()
   const { hasPermission } = usePermissions()
   const canManageStudentDocuments = hasPermission("students.documents")
+  const canViewEnrollmentDocuments = hasPermission("enrollments.view")
+  const canViewDocuments = canManageStudentDocuments || canViewEnrollmentDocuments
   const canEditStudent = hasPermission("students.edit")
   const canViewAttendance = hasPermission("attendance.view")
   const tour = useTourGuide("student-detail", true)
@@ -431,7 +434,7 @@ export default function StudentDetailPage() {
           <TabsTrigger value="absences" data-tour="student-detail-tab-absences">Absences</TabsTrigger>
           <TabsTrigger value="dossier">Dossier</TabsTrigger>
           <TabsTrigger value="informations" data-tour="student-detail-tab-informations">Informations</TabsTrigger>
-          {canManageStudentDocuments ? <TabsTrigger value="documents" data-tour="student-detail-tab-documents">Documents</TabsTrigger> : null}
+          {canViewDocuments ? <TabsTrigger value="documents" data-tour="student-detail-tab-documents">Documents</TabsTrigger> : null}
           <TabsTrigger value="sms" data-tour="student-detail-tab-sms">Notifications Parents</TabsTrigger>
         </TabsList>
 
@@ -719,25 +722,35 @@ export default function StudentDetailPage() {
           </Card>
         </TabsContent>
 
-        {canManageStudentDocuments ? (
+        {canViewDocuments ? (
           <TabsContent value="documents" className="space-y-4">
-            <Card>
+            {canViewEnrollmentDocuments ? <Card>
               <CardHeader>
-                <CardTitle className="text-base">Ajouter un document</CardTitle>
+                <CardTitle className="text-base">Dossier d’inscription</CardTitle>
               </CardHeader>
               <CardContent>
-                <DocumentUpload entityType="student" entityId={student.id} onUploadSuccess={() => undefined} />
+                <DocumentChecklist studentId={student.id} canEdit={hasPermission("enrollments.edit")} />
               </CardContent>
-            </Card>
+            </Card> : null}
+            {canManageStudentDocuments ? <>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Ajouter un document</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <DocumentUpload entityType="student" entityId={student.id} onUploadSuccess={() => undefined} />
+                </CardContent>
+              </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Documents</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <DocumentList entityType="student" entityId={student.id} />
-              </CardContent>
-            </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Documents</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <DocumentList entityType="student" entityId={student.id} />
+                </CardContent>
+              </Card>
+            </> : null}
           </TabsContent>
         ) : null}
 

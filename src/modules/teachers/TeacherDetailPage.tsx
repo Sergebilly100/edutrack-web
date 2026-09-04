@@ -568,6 +568,7 @@ function InfosPanel({
                 email: teacher.email,
                 type: teacher.type,
                 subjects: teacher.subjects,
+                teachingAssignments: teacher.teachingAssignments.map(({ subjectId, classId }) => ({ subjectId, classId })),
                 hourlyRate: teacher.hourlyRate,
                 monthlySalary: teacher.monthlySalary,
               }}
@@ -892,6 +893,7 @@ export default function TeacherDetailPage() {
         phone: teacher.phone,
         email: teacher.email,
         subjects: teacher.subjects,
+        teachingAssignments: teacher.teachingAssignments,
         type: teacher.type,
         blockReason: teacher.blockReason ?? undefined,
       }}

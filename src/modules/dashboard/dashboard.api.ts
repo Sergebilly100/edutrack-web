@@ -92,6 +92,7 @@ export type DashboardHistoryPoint = {
   date: string
   presentCount: number
   absentCount: number
+  notCheckedCount: number
   totalCount: number
   attendanceRate: number
 }
@@ -113,6 +114,8 @@ export type DashboardPilotageLevel = {
   performingStudents: number
   attentionStudents: number
   criticalStudents: number
+  gradeCount: number
+  gradesAtLeastTen: number
 }
 
 export type DashboardPilotage = {
@@ -460,6 +463,7 @@ const normalizeHistoryPoint = (item: unknown, index: number): DashboardHistoryPo
     0
   )
   const absentCount = asNumber(row.absent_count ?? row.absentCount ?? row.absent, Math.max(0, totalCount - presentCount))
+  const notCheckedCount = asNumber(row.not_checked_count ?? row.notCheckedCount ?? row.unmarkedCount, Math.max(0, totalCount - presentCount - absentCount))
 
   let attendanceRate = asNumber(row.attendance_rate ?? row.attendanceRate ?? row.rate, Number.NaN)
   if (!Number.isFinite(attendanceRate)) {
@@ -470,6 +474,7 @@ const normalizeHistoryPoint = (item: unknown, index: number): DashboardHistoryPo
     date,
     presentCount,
     absentCount,
+    notCheckedCount,
     totalCount,
     attendanceRate,
   }

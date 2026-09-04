@@ -21,7 +21,7 @@ const VIEW_COPY: Record<FinanceView, { title: string; subtitle: string }> = {
   },
   journal: {
     title: "Journal de caisse",
-    subtitle: "Consultez le journal de caisse (Paiements de scolarité filtréspar période, classe et mode de paiement) et exportez les données.",
+    subtitle: "Consultez le journal de caisse (Paiements de scolarité filtrés par période, classe et mode de paiement) et exportez les données.",
   },
   entry: {
     title: "Encaissements",

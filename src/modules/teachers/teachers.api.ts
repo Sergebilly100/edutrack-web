@@ -13,6 +13,7 @@ export type TeacherListItem = {
   email: string | null
   type: TeacherType
   subjects: string[]
+  teachingAssignments: Array<{ subjectId: string; subjectName: string; classId: string; className: string }>
   hourlyRate: number | null
   monthlySalary: number | null
   isActive: boolean
@@ -142,6 +143,7 @@ export type TeacherUpsertPayload = {
   email: string | null
   type: TeacherType
   subjects: string[]
+  teachingAssignments: Array<{ subjectId: string; classId: string }>
   hourlyRate: number | null
   monthlySalary: number | null
 }
@@ -196,6 +198,16 @@ const mapTeacher = (value: unknown): TeacherListItem => {
   const firstName = firstNameFromPayload || fromName.firstName || "Prof"
   const lastName = lastNameFromPayload || fromName.lastName || ""
   const fullName = `${firstName} ${lastName}`.trim()
+  const rawTeachingAssignments = item.teaching_assignments ?? item.teachingAssignments
+  const teachingAssignments = Array.isArray(rawTeachingAssignments)
+    ? rawTeachingAssignments.flatMap((assignment: unknown) => {
+        const row = toRecord(assignment)
+        const subjectId = asString(row.subjectId ?? row.subject_id)
+        const classId = asString(row.classId ?? row.class_id)
+        if (!subjectId || !classId) return []
+        return [{ subjectId, classId, subjectName: asString(row.subjectName ?? row.subject_name), className: asString(row.className ?? row.class_name) }]
+      })
+    : []
 
   return {
     id: asString(item.id),
@@ -207,6 +219,7 @@ const mapTeacher = (value: unknown): TeacherListItem => {
     email: asNullableString(item.email),
     type: (asString(item.type) === "permanent" ? "permanent" : "vacataire") as TeacherType,
     subjects: normalizeSubjects(item.subjects ?? item.subject),
+    teachingAssignments,
     hourlyRate:
       item.hourly_rate === null
         ? null
@@ -286,6 +299,7 @@ export async function createTeacher(payload: TeacherUpsertPayload): Promise<Teac
     email: payload.email,
     type: payload.type,
     subjects: payload.subjects,
+    teaching_assignments: payload.teachingAssignments.map((assignment) => ({ subject_id: assignment.subjectId, class_id: assignment.classId })),
     hourly_rate: payload.hourlyRate,
     monthly_salary: payload.monthlySalary,
   })
@@ -319,6 +333,7 @@ export async function updateTeacher(
     email: payload.email,
     type: payload.type,
     subjects: payload.subjects,
+    teaching_assignments: payload.teachingAssignments.map((assignment) => ({ subject_id: assignment.subjectId, class_id: assignment.classId })),
     hourly_rate: payload.hourlyRate,
     monthly_salary: payload.monthlySalary,
   })

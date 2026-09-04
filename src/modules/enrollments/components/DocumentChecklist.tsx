@@ -1,6 +1,6 @@
 import { useRef } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Camera, CheckCircle2, FileWarning, Loader2, Upload } from "lucide-react"
+import { Camera, CheckCircle2, Eye, FileWarning, Loader2, Upload } from "lucide-react"
 import axios from "axios"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import { compressEnrollmentImage, countMissingMandatoryDocuments } from "../enrollments.helpers"
 import {
   listStudentDocuments,
+  getStudentDocumentDownloadUrl,
   updateStudentDocument,
   uploadStudentDocument,
   type StudentDocument,
@@ -84,8 +85,19 @@ export function DocumentChecklist({
                 </div>
                 {document.providedAt ? <p className="mt-1 text-xs text-muted-foreground">Ajoutée le {new Date(document.providedAt).toLocaleDateString("fr-FR")}</p> : null}
               </div>
-              {canEdit && document.isActive !== false ? (
-                <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2">
+                {document.status === "provided" ? (
+                  <Button type="button" variant="outline" className="min-h-12" onClick={async () => {
+                    try {
+                      const url = await getStudentDocumentDownloadUrl(document.id)
+                      window.open(url, "_blank", "noopener,noreferrer")
+                    } catch (error) {
+                      toast({ title: "Ouverture impossible", description: errorMessage(error), variant: "destructive" })
+                    }
+                  }}><Eye className="mr-2 h-4 w-4" />Consulter</Button>
+                ) : null}
+                {canEdit && document.isActive !== false ? (
+                  <>
                   <input
                     ref={(node) => { inputRefs.current[document.id] = node }}
                     className="sr-only"
@@ -105,8 +117,9 @@ export function DocumentChecklist({
                   {document.status === "provided" ? (
                     <Button type="button" variant="ghost" className="min-h-12" onClick={() => statusMutation.mutate({ id: document.id, status: "to_renew" })}>À renouveler</Button>
                   ) : null}
-                </div>
-              ) : null}
+                  </>
+                ) : null}
+              </div>
             </div>
           )
         })}

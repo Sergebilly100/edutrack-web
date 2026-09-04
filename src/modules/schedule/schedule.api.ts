@@ -12,6 +12,7 @@ export type TeacherCatalogItem = {
   username: string
   isBlocked?: boolean
   subjects: string[]
+  teachingAssignments: Array<{ subjectId: string; subjectName: string; classId: string; className: string }>
 }
 
 export type ClassCatalogItem = {
@@ -190,6 +191,8 @@ const WeeklyScheduleResponseSchema = z.object({
       is_blocked: z.boolean().optional(),
       isBlocked: z.boolean().optional(),
       subjects: z.array(z.string()).default([]),
+      teachingAssignments: z.array(z.object({ subjectId: z.string(), subjectName: z.string(), classId: z.string(), className: z.string() })).default([]),
+      teaching_assignments: z.array(z.object({ subjectId: z.string(), subjectName: z.string(), classId: z.string(), className: z.string() })).default([]),
     })
   ),
   classes: z.array(z.object({ id: z.string(), name: z.string() })),
@@ -358,6 +361,7 @@ export const fetchWeeklySchedule = async (date?: unknown): Promise<WeeklySchedul
               ? teacher.isBlocked
               : undefined,
         subjects: teacher.subjects,
+        teachingAssignments: teacher.teachingAssignments.length > 0 ? teacher.teachingAssignments : teacher.teaching_assignments,
       })),
       classes: parsed.classes,
       rooms: parsed.rooms,
@@ -460,4 +464,3 @@ export const fetchActiveSchedulePeriods = async (): Promise<SchedulePeriodSummar
     isActive: p.is_active,
   }))
 }
-

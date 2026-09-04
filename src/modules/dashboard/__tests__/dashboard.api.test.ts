@@ -62,7 +62,7 @@ describe("dashboard.api", () => {
     getMock.mockResolvedValueOnce({
       data: {
         data: [
-          { date: "2026-04-10", present_count: 8, total_count: 10 },
+          { date: "2026-04-10", present_count: 8, absent_count: 1, not_checked_count: 1, total_count: 10 },
           { date: "2026-04-11", present: 7, total: 10, rate: 70 },
         ],
       },
@@ -72,7 +72,7 @@ describe("dashboard.api", () => {
 
     expect(getMock).toHaveBeenCalledWith("/attendance/history", { params: { days: 7 } })
     expect(rows).toHaveLength(2)
-    expect(rows[0]).toMatchObject({ date: "2026-04-10", attendanceRate: 80 })
+    expect(rows[0]).toMatchObject({ date: "2026-04-10", presentCount: 8, absentCount: 1, notCheckedCount: 1, attendanceRate: 80 })
     expect(rows[1]).toMatchObject({ date: "2026-04-11", attendanceRate: 70 })
   })
 
