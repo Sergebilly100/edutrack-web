@@ -98,5 +98,8 @@ export const triggerBlobDownload = (blob: Blob, fileName: string): void => {
   document.body.appendChild(link)
   link.click()
   link.remove()
-  URL.revokeObjectURL(url)
+  // Android Chrome peut encore consommer le Blob après le retour de click().
+  // Reporter la révocation laisse le navigateur démarrer le téléchargement sans
+  // garder l'URL en mémoire au-delà du prochain tour de boucle d'événements.
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
 }

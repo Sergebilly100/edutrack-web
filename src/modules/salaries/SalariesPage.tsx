@@ -31,6 +31,7 @@ import {
   toSalaryRowStatus,
 } from "@/modules/salaries/salaries.helpers"
 import { useToast } from "@/components/ui/use-toast"
+import { downloadPdfExportFile, triggerBlobDownload } from "@/shared/api/pdfExport.api"
 import { cn } from "@/lib/utils"
 import {
   computeSalaries,
@@ -765,12 +766,8 @@ export default function SalariesPage() {
 
     setIsDownloadingExport(true)
     try {
-      const link = document.createElement("a")
-      link.href = downloadUrl
-      link.download = exportFileName || "export-salaires.pdf"
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
+      const { blob, fileName } = await downloadPdfExportFile(downloadUrl)
+      triggerBlobDownload(blob, fileName ?? exportFileName ?? "export-salaires.pdf")
     } catch {
       toast({
         title: "Erreur",

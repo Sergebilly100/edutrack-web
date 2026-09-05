@@ -103,6 +103,12 @@ const PENDING_LIMIT = 20
 const safeKinds = (item: PendingValidationItem): typeof item.kinds =>
   Array.isArray(item.kinds) && item.kinds.length > 0 ? item.kinds : [item.kind]
 
+const normalizeTeacherSearch = (value: string): string =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("fr-FR")
+
 export default function ValidationsPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -132,7 +138,7 @@ export default function ValidationsPage() {
   }, [bulkSelection])
 
   // End-scan tab state
-  const [endScanMonth, setEndScanMonth] = useState(() => getCurrentMonth())
+  const [endScanMonth, setEndScanMonth] = useState<string>("all_months")
   const [expandedTeacher, setExpandedTeacher] = useState<string | null>(null)
   const [endScanActionTarget, setEndScanActionTarget] = useState<EndScanActionTarget | null>(null)
   /**
@@ -145,8 +151,12 @@ export default function ValidationsPage() {
   const [cancelSanctionTarget, setCancelSanctionTarget] = useState<CancelSanctionTarget | null>(null)
   const [cancelSanctionReason, setCancelSanctionReason] = useState("")
   const [bulkWarnTarget, setBulkWarnTarget] = useState<BulkWarnTarget | null>(null)
-  const [endScanStatusFilter, setEndScanStatusFilter] = useState<"all" | EndScanStatus>("all")
+  const [endScanStatusFilter, setEndScanStatusFilter] = useState<"all" | EndScanStatus>("pending")
   const endScanMonthOptions = useMemo(() => getRecentMonthOptions(getCurrentMonth(), 12), [])
+
+  // Recherche locale sur la liste en attente déjà chargée, afin de conserver les
+  // actions de validation et la sélection groupée sur les mêmes identifiants.
+  const [shortHoursSearch, setShortHoursSearch] = useState("")
 
   // History state (filtres communs : mois, recherche, pagination ; statut séparé par onglet)
   const [historyMonth, setHistoryMonth] = useState<string>("all_months")
@@ -165,15 +175,22 @@ export default function ValidationsPage() {
 
   const groups = pendingQuery.data ?? { gps_suspicious: [], short_hours: [] }
   const total = groups.gps_suspicious.length + groups.short_hours.length
-  const shortHoursTotalPages = Math.max(1, Math.ceil(groups.short_hours.length / PENDING_LIMIT))
+  const normalizedShortHoursSearch = normalizeTeacherSearch(shortHoursSearch.trim())
+  const filteredShortHours = useMemo(
+    () => groups.short_hours.filter((item) =>
+      normalizeTeacherSearch(item.teacherName).includes(normalizedShortHoursSearch)
+    ),
+    [groups.short_hours, normalizedShortHoursSearch]
+  )
+  const shortHoursTotalPages = Math.max(1, Math.ceil(filteredShortHours.length / PENDING_LIMIT))
   const gpsTotalPages = Math.max(1, Math.ceil(groups.gps_suspicious.length / PENDING_LIMIT))
   const shortHoursPageItems = useMemo(
     () =>
-      groups.short_hours.slice(
+      filteredShortHours.slice(
         (shortHoursPage - 1) * PENDING_LIMIT,
         shortHoursPage * PENDING_LIMIT
       ),
-    [groups.short_hours, shortHoursPage]
+    [filteredShortHours, shortHoursPage]
   )
   const gpsPageItems = useMemo(
     () =>
@@ -281,12 +298,15 @@ export default function ValidationsPage() {
   // End-scan queries/mutations
   const endScanQuery = useQuery({
     queryKey: ["validations", "missing-end-scans", endScanMonth],
-    queryFn: () => fetchMissingEndScans(endScanMonth),
+    queryFn: () => fetchMissingEndScans(endScanMonth === "all_months" ? undefined : endScanMonth),
     staleTime: 60_000,
   })
 
   const warnMutation = useMutation({
-    mutationFn: (teacherIds: string[]) => bulkWarnEndScans(teacherIds, endScanMonth),
+    mutationFn: (teacherIds: string[]) => bulkWarnEndScans(
+      teacherIds,
+      endScanMonth === "all_months" ? undefined : endScanMonth
+    ),
     onSuccess: async (data) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["validations", "missing-end-scans"] }),
@@ -1316,7 +1336,18 @@ export default function ValidationsPage() {
           <TabsContent value="hours" className="space-y-6">
             <div className="space-y-4">
               <InfoBox>Ces enseignants ont terminé leur cours avant l'heure prévue. Choisissez les heures à accorder.</InfoBox>
-              {renderShortHoursTable(shortHoursPageItems, groups.short_hours.length)}
+              <Input
+                aria-label="Rechercher un professeur à valider"
+                className="w-full sm:max-w-sm"
+                placeholder="Rechercher un professeur"
+                value={shortHoursSearch}
+                onChange={(event) => {
+                  setShortHoursSearch(event.target.value)
+                  setShortHoursPage(1)
+                  bulkSelection.clearSelection()
+                }}
+              />
+              {renderShortHoursTable(shortHoursPageItems, filteredShortHours.length)}
             </div>
             <div className="space-y-4 border-t border-border pt-6" data-tour="validations-history">
               <div className="flex items-center gap-2">
@@ -1336,10 +1367,11 @@ export default function ValidationsPage() {
             <InfoBox>Ces enseignants ont pointé leur arrivée mais n'ont pas effectué le scan de fin de cours.</InfoBox>
             <div className="flex flex-col md:flex-row md:items-center md:justify-start gap-2">
               <Select value={endScanMonth} onValueChange={setEndScanMonth}>
-                <SelectTrigger className="w-full md:ml-4 md:w-[180px] md:m-0">
+                <SelectTrigger aria-label="Mois des scans de fin" className="w-full md:ml-4 md:w-[180px] md:m-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all_months">Tous les mois</SelectItem>
                   {endScanMonthOptions.map((m) => (
                     <SelectItem key={m} value={m}>
                       {formatMonthLabel(m)}
@@ -1348,7 +1380,7 @@ export default function ValidationsPage() {
                 </SelectContent>
               </Select>
               <Select value={endScanStatusFilter} onValueChange={(v) => setEndScanStatusFilter(v as typeof endScanStatusFilter)}>
-                <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectTrigger aria-label="Statut des scans de fin" className="w-full sm:w-[180px]">
                   <SelectValue placeholder="Filtrer par statut" />
                 </SelectTrigger>
                 <SelectContent>

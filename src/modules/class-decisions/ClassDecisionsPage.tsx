@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ColumnDef } from "@tanstack/react-table"
 import axios from "axios"
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import {
-  listClassDecisions,
+  listFilteredClassDecisions,
   validateClassDecision,
   type ClassDecision,
   type ClassDecisionValue,
@@ -20,11 +20,14 @@ import { usePermissions } from "@/shared/hooks/usePermissions"
 
 const DECISIONS_KEY = ["class-decisions", "list"] as const
 const NONE_LEVEL = "none"
+const ALL_FILTER = "all"
 const decisionLabels: Record<ClassDecisionValue, string> = {
   promoted: "Admis(e)",
   repeat: "Redouble",
   expelled: "Exclu(e)",
 }
+const formatGeneralAverage = (average: number | null | undefined): string =>
+  typeof average === "number" ? `${average.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}/20` : "Non calculée"
 
 type Draft = { finalDecision: ClassDecisionValue | ""; nextLevelId: string | null }
 
@@ -82,7 +85,10 @@ export default function ClassDecisionsPage() {
   const { hasPermission } = usePermissions()
   const canValidate = hasPermission("class_decisions.validate")
   const [drafts, setDrafts] = useState<Record<string, Draft>>({})
-  const query = useQuery({ queryKey: DECISIONS_KEY, queryFn: listClassDecisions })
+  const [levelFilter, setLevelFilter] = useState(ALL_FILTER)
+  const [classFilter, setClassFilter] = useState(ALL_FILTER)
+  const filters = { levelId: levelFilter === ALL_FILTER ? undefined : levelFilter, classId: classFilter === ALL_FILTER ? undefined : classFilter }
+  const query = useQuery({ queryKey: [...DECISIONS_KEY, filters], queryFn: () => listFilteredClassDecisions(filters) })
   const mutation = useMutation({
     mutationFn: ({ studentId, draft }: { studentId: string; draft: Draft }) => {
       if (!draft.finalDecision) throw new Error("Décision requise")
@@ -108,6 +114,10 @@ export default function ClassDecisionsPage() {
     finalDecision: decision.finalDecision ?? "",
     nextLevelId: decision.nextLevelId,
   }
+  const classes = (query.data?.classes ?? []).filter((schoolClass) => levelFilter === ALL_FILTER || schoolClass.levelId === levelFilter)
+  useEffect(() => {
+    if (classFilter !== ALL_FILTER && !classes.some((schoolClass) => schoolClass.id === classFilter)) setClassFilter(ALL_FILTER)
+  }, [classFilter, classes])
   const controls = (decision: ClassDecision) => (
     <DecisionControls
       decision={decision}
@@ -131,6 +141,13 @@ export default function ClassDecisionsPage() {
     },
     { accessorKey: "className", header: "Classe" },
     {
+      accessorKey: "generalAverage",
+      header: "Moyenne générale",
+      cell: ({ row }) => row.original.generalAverage === null || row.original.generalAverage === undefined
+        ? <span className="text-sm text-muted-foreground">Non calculée</span>
+        : <span className="font-medium tabular-nums">{formatGeneralAverage(row.original.generalAverage)}</span>,
+    },
+    {
       id: "suggestion",
       header: "Suggestion",
       cell: ({ row }) => row.original.suggestedDecision
@@ -148,7 +165,12 @@ export default function ClassDecisionsPage() {
       {query.isError ? (
         <QueryErrorState onRetry={() => void query.refetch()} isRetrying={query.isFetching} message="Impossible de charger les décisions de fin d’année." />
       ) : (
-        <DataTable
+        <div className="space-y-5">
+          <div className="grid gap-4 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2">
+            <div className="space-y-2"><label className="text-sm font-medium">Niveau</label><Select value={levelFilter} onValueChange={setLevelFilter}><SelectTrigger className="min-h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={ALL_FILTER}>Tous les niveaux</SelectItem>{query.data?.levels.map((level) => <SelectItem key={level.id} value={level.id}>{level.name}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-2"><label className="text-sm font-medium">Classe</label><Select value={classFilter} onValueChange={setClassFilter}><SelectTrigger className="min-h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={ALL_FILTER}>Toutes les classes</SelectItem>{classes.map((schoolClass) => <SelectItem key={schoolClass.id} value={schoolClass.id}>{schoolClass.name}</SelectItem>)}</SelectContent></Select></div>
+          </div>
+          <DataTable
           columns={columns}
           data={query.data?.decisions ?? []}
           isLoading={query.isLoading}
@@ -159,7 +181,8 @@ export default function ClassDecisionsPage() {
             <div className="space-y-4 rounded-lg border bg-card p-4">
               <div>
                 <p className="font-medium">{decision.studentLastName} {decision.studentFirstName}</p>
-                <p className="text-sm text-muted-foreground">{decision.className}, {decision.currentLevelName}</p>
+              <p className="text-sm text-muted-foreground">{decision.className}, {decision.currentLevelName}</p>
+              <p className="mt-1 text-sm text-muted-foreground">Moyenne générale : {formatGeneralAverage(decision.generalAverage)}</p>
               </div>
               <p className="text-xs text-muted-foreground">
                 {decision.suggestedDecision
@@ -169,7 +192,8 @@ export default function ClassDecisionsPage() {
               {controls(decision)}
             </div>
           )}
-        />
+          />
+        </div>
       )}
     </PageLayout>
   )

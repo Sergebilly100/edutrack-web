@@ -241,19 +241,21 @@ const normalizeMissingEndScanTeacher = (value: unknown): MissingEndScanTeacher =
   }
 }
 
-export const fetchMissingEndScans = async (month: string): Promise<MissingEndScanTeacher[]> => {
-  const response = await api.get<unknown>("/validations/missing-end-scans", { params: { month } })
+export const fetchMissingEndScans = async (month?: string): Promise<MissingEndScanTeacher[]> => {
+  const response = await api.get<unknown>("/validations/missing-end-scans", {
+    params: month ? { month } : undefined,
+  })
   const payload = response.data
   return Array.isArray(payload) ? payload.map(normalizeMissingEndScanTeacher) : []
 }
 
 export const bulkWarnEndScans = async (
   teacherIds: string[],
-  month: string
+  month?: string
 ): Promise<{ teacherCount: number; warnedCount: number }> => {
   const response = await api.post<unknown>("/validations/bulk-warn-end-scans", {
     teacher_ids: teacherIds,
-    month,
+    ...(month ? { month } : {}),
   })
   const data = isRecord(response.data) ? response.data : {}
   return {

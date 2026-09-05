@@ -10,17 +10,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast"
 import { EmptyState } from "@/shared/components/EmptyState"
 import {
+  downloadPdfExportFile,
+  getPdfExportJobStatus,
+  triggerBlobDownload,
+} from "@/shared/api/pdfExport.api"
+import {
   listParentReportCards,
   listParentStudents,
   requestParentReportCardPdf,
 } from "./parent.api"
-
-const getExportJobStatus = async (jobId: string): Promise<{ downloadUrl: string | null }> => {
-  const { apiClient } = await import("@/shared/api/client")
-  const response = await apiClient.get(`/jobs/${jobId}/status`)
-  const payload = (response.data ?? {}) as { result?: { downloadUrl?: string | null }; downloadUrl?: string | null }
-  return { downloadUrl: payload.downloadUrl ?? payload.result?.downloadUrl ?? null }
-}
 
 export default function ParentReportCardsPage() {
   const { toast } = useToast()
@@ -41,9 +39,10 @@ export default function ParentReportCardsPage() {
     mutationFn: async (cardId: string) => {
       const jobId = await requestParentReportCardPdf(studentId, cardId)
       for (let attempt = 0; attempt < 30; attempt += 1) {
-        const status = await getExportJobStatus(jobId)
+        const status = await getPdfExportJobStatus(jobId)
         if (status.downloadUrl) {
-          window.open(status.downloadUrl, "_blank", "noopener")
+          const { blob, fileName } = await downloadPdfExportFile(status.downloadUrl)
+          triggerBlobDownload(blob, fileName ?? `bulletin_${cardId}.pdf`)
           return
         }
         await new Promise((resolve) => setTimeout(resolve, 2000))
@@ -142,4 +141,3 @@ export default function ParentReportCardsPage() {
     </div>
   )
 }
-

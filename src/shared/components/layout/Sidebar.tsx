@@ -267,7 +267,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
           })}
         </nav>
       ) : (
-        <nav aria-label="Navigation principale" className="flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto">
+        <nav aria-label="Navigation principale" className="flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto px-1">
           {navigationGroups.map((group) => (
             <Collapsible
               key={group.label}
@@ -414,7 +414,7 @@ export function DesktopSidebar() {
       className={cn(
         "hidden lg:flex flex-col border-r bg-[hsl(var(--sidebar-bg))] shrink-0 h-screen sticky top-0",
         "transition-[width] duration-200 ease-out-expo motion-reduce:transition-none",
-        effectiveCollapsed ? "w-[56px]" : "w-[240px]"
+        effectiveCollapsed ? "w-[56px]" : "w-[275px]"
       )}
     >
       <SidebarContent collapsed={effectiveCollapsed} />

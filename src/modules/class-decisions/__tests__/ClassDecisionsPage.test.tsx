@@ -9,6 +9,7 @@ const { listMock, validateMock } = vi.hoisted(() => ({
 
 vi.mock("@/modules/class-decisions/class-decisions.api", () => ({
   listClassDecisions: () => listMock(),
+  listFilteredClassDecisions: () => listMock(),
   validateClassDecision: (studentId: string, payload: unknown) => validateMock(studentId, payload),
 }))
 
@@ -27,6 +28,7 @@ const decision = {
   studentMatricule: "MAT-001",
   className: "6ème A",
   currentLevelName: "6ème",
+  generalAverage: 14.5,
   suggestedDecision: null,
   finalDecision: "repeat" as const,
   nextLevelId: null,
@@ -52,6 +54,7 @@ describe("ClassDecisionsPage", () => {
       },
       decisions: [decision],
       levels: [{ id: "level-1", name: "5ème", orderIndex: 2 }],
+      classes: [{ id: "class-1", name: "6ème A", levelId: "level-1" }],
     })
     validateMock.mockResolvedValue(decision)
   })
@@ -60,6 +63,7 @@ describe("ClassDecisionsPage", () => {
     renderPage()
     expect(await screen.findAllByText("Koné Aminata")).not.toHaveLength(0)
     expect(screen.getAllByText(/saisie manuelle/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText("14,5/20").length).toBeGreaterThan(0)
   })
 
   it("permet au responsable autorisé de confirmer une décision", async () => {

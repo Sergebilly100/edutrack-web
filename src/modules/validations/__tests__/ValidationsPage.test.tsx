@@ -118,6 +118,11 @@ const clickTab = (name: RegExp) => {
   fireEvent.click(tab)
 }
 
+const showAllEndScanStatuses = () => {
+  fireEvent.click(screen.getByRole("combobox", { name: /statut des scans de fin/i }))
+  fireEvent.click(screen.getByRole("option", { name: "Tous les statuts" }))
+}
+
 // ── Wrapper ───────────────────────────────────────────────────────────────────
 
 const wrapper = ({ children }: { children: ReactNode }) => (
@@ -229,6 +234,27 @@ describe("ValidationsPage", () => {
   // ── Onglet heures courtes ─────────────────────────────────────────────────
 
   describe("onglet heures à valider (short hours)", () => {
+    it("filtre les heures à valider par professeur", async () => {
+      getPendingValidationsMock.mockResolvedValue({
+        gps_suspicious: [],
+        short_hours: [
+          makeShortHoursItem(),
+          makeShortHoursItem({ attendanceId: "att-4", teacherName: "M. Koné" }),
+        ],
+      })
+
+      render(<ValidationsPage />, { wrapper })
+      clickTab(/heures à valider/i)
+
+      await waitFor(() => expect(screen.getAllByText("Mme Bah").length).toBeGreaterThan(0))
+      fireEvent.change(screen.getByRole("textbox", { name: /rechercher un professeur à valider/i }), {
+        target: { value: "Kone" },
+      })
+
+      expect(screen.getAllByText("M. Koné").length).toBeGreaterThan(0)
+      expect(screen.queryAllByText("Mme Bah")).toHaveLength(0)
+    })
+
     it("affiche les colonnes Créneau et Salle", async () => {
       getPendingValidationsMock.mockResolvedValue({
         gps_suspicious: [],
@@ -267,6 +293,27 @@ describe("ValidationsPage", () => {
   // ── Onglet scan de fin ────────────────────────────────────────────────────
 
   describe("onglet scan de fin", () => {
+    it("charge tous les mois et affiche par défaut les sessions en attente", async () => {
+      getPendingValidationsMock.mockResolvedValue(emptyGroups)
+      fetchMissingEndScansMock.mockResolvedValue([
+        makeEndScanTeacher({
+          sessions: [
+            { ...makeEndScanTeacher().sessions[0], endScanAction: null },
+            { ...makeEndScanTeacher().sessions[0], attendanceId: "att-5", endScanAction: "warned" },
+          ],
+        }),
+      ])
+
+      render(<ValidationsPage />, { wrapper })
+      clickTab(/scan de fin/i)
+
+      await waitFor(() => expect(fetchMissingEndScansMock).toHaveBeenCalledWith())
+      await waitFor(() => expect(screen.getAllByText("M. Diallo").length).toBeGreaterThan(0))
+      fireEvent.click(screen.getAllByText("M. Diallo")[0]!)
+      await waitFor(() => {
+        expect(screen.getAllByText("Sciences")).toHaveLength(2)
+      })
+    })
     it("affiche les compteurs avertissements/sanctions du prof", async () => {
       getPendingValidationsMock.mockResolvedValue(emptyGroups)
       fetchMissingEndScansMock.mockResolvedValue([
@@ -290,6 +337,7 @@ describe("ValidationsPage", () => {
       render(<ValidationsPage />, { wrapper })
 
       clickTab(/scan de fin/i)
+      showAllEndScanStatuses()
       await waitFor(() => screen.getAllByText("M. Diallo"))
       fireEvent.click(screen.getAllByText("M. Diallo")[0]!)
 
@@ -306,6 +354,7 @@ describe("ValidationsPage", () => {
       render(<ValidationsPage />, { wrapper })
 
       clickTab(/scan de fin/i)
+      showAllEndScanStatuses()
       await waitFor(() => screen.getAllByText("M. Diallo"))
       fireEvent.click(screen.getAllByText("M. Diallo")[0]!)
       await waitFor(() => screen.getAllByRole("button", { name: /tolérer avec avertissement/i }))
@@ -324,6 +373,7 @@ describe("ValidationsPage", () => {
       render(<ValidationsPage />, { wrapper })
 
       clickTab(/scan de fin/i)
+      showAllEndScanStatuses()
       await waitFor(() => screen.getAllByText("M. Diallo"))
       fireEvent.click(screen.getAllByText("M. Diallo")[0]!)
       await waitFor(() => screen.getAllByRole("button", { name: /sanctionner/i }))
@@ -359,6 +409,7 @@ describe("ValidationsPage", () => {
       render(<ValidationsPage />, { wrapper })
 
       clickTab(/scan de fin/i)
+      showAllEndScanStatuses()
       await waitFor(() => screen.getAllByText("M. Diallo"))
       fireEvent.click(screen.getAllByText("M. Diallo")[0]!)
 
@@ -395,6 +446,7 @@ describe("ValidationsPage", () => {
       render(<ValidationsPage />, { wrapper })
 
       clickTab(/scan de fin/i)
+      showAllEndScanStatuses()
       await waitFor(() => screen.getAllByText("M. Diallo"))
       fireEvent.click(screen.getAllByText("M. Diallo")[0]!)
 
@@ -428,6 +480,7 @@ describe("ValidationsPage", () => {
       render(<ValidationsPage />, { wrapper })
 
       clickTab(/scan de fin/i)
+      showAllEndScanStatuses()
       await waitFor(() => screen.getAllByText("M. Diallo"))
       fireEvent.click(screen.getAllByText("M. Diallo")[0]!)
 

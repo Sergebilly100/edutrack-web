@@ -2,10 +2,11 @@ export const FINANCE_PATHS = {
   dashboard: "/finance/dashboard",
   entry: "/finance/encaissements",
   history: "/finance/history",
+  historyDetail: (studentId: string) => `/finance/history/${studentId}`,
   journal: "/finance/journal",
 } as const
 
-export type FinanceView = keyof typeof FINANCE_PATHS
+export type FinanceView = "dashboard" | "entry" | "history" | "journal"
 
 export function getFinancePathFromLegacyTab(tab: string | null): string {
   switch (tab) {

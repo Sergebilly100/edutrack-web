@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useSearchParams } from "react-router-dom"
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -13,6 +14,11 @@ import { QuickPaymentEntry } from "./components/QuickPaymentEntry"
 import { CashJournalPanel } from "./components/CashJournalPanel"
 import { PaymentImportPanel } from "./components/PaymentImportPanel"
 import type { FinanceView } from "./finance.routes"
+import { Button } from "@/components/ui/button"
+import { useToast } from "@/shared/hooks/use-toast"
+import { fetchFinancialSummary, recalculateFinancialCache } from "./finance.api"
+import { Spinner } from "@/shared/components/Spinner"
+import { RefreshCw } from "lucide-react"
 
 const VIEW_COPY: Record<FinanceView, { title: string; subtitle: string }> = {
   dashboard: {
@@ -33,11 +39,28 @@ const VIEW_COPY: Record<FinanceView, { title: string; subtitle: string }> = {
   },
 }
 
-export default function FinancePage({ view }: { view: FinanceView }) {
+export default function FinancePage({ view, studentId, initialSchoolYearId }: { view: FinanceView; studentId?: string; initialSchoolYearId?: string }) {
   const { hasPermission } = usePermissions()
+  const [searchParams] = useSearchParams()
   const yearsQuery = useQuery({ queryKey: ["academic", "school-years"], queryFn: listSchoolYears })
-  const [schoolYearId, setSchoolYearId] = useState("")
+  const [schoolYearId, setSchoolYearId] = useState(initialSchoolYearId ?? searchParams.get("schoolYearId") ?? "")
   const [entryTab, setentryTab] = useState("enregistrement")
+
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+  const summaryQuery = useQuery({
+    queryKey: ["finance", "financial-summary", schoolYearId],
+    queryFn: () => fetchFinancialSummary(schoolYearId),
+  })
+  const school = summaryQuery.data?.school ?? null
+  const recalculateMutation = useMutation({
+    mutationFn: () => recalculateFinancialCache(schoolYearId),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ["finance", "financial-summary", schoolYearId] })
+      toast({ title: "Vue financière recalculée", description: `${result.studentCount} élève${result.studentCount > 1 ? "s" : ""} mis à jour.` })
+    },
+    onError: () => toast({ title: "Recalcul impossible", description: "Réessayez dans quelques instants.", variant: "destructive" }),
+  })
 
   useEffect(() => {
     const years = yearsQuery.data ?? []
@@ -59,10 +82,24 @@ export default function FinancePage({ view }: { view: FinanceView }) {
       title={VIEW_COPY[view].title}
       subtitle={VIEW_COPY[view].subtitle}
       actions={
-        <Select value={schoolYearId} onValueChange={setSchoolYearId}>
-          <SelectTrigger className="min-h-12 w-full sm:w-64" aria-label="Année scolaire"><SelectValue placeholder="Année scolaire" /></SelectTrigger>
-          <SelectContent>{yearsQuery.data?.map((year) => <SelectItem key={year.id} value={year.id}>{year.label}{year.status === "active" ? " · Active" : ""}</SelectItem>)}</SelectContent>
-        </Select>
+        <div className="flex gap-3 justify-end">
+          {view === "dashboard" ? 
+          <div className="space-y-1 text-left">
+            <Button className="min-h-12" disabled={recalculateMutation.isPending} onClick={() => recalculateMutation.mutate()}>
+              {recalculateMutation.isPending ? <Spinner size="sm" className="mr-2" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+              {recalculateMutation.isPending ? "Recalcul en cours…" : "Recalculer"}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              {school?.last_computed_at ? `Dernier calcul: ${new Date(school.last_computed_at).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" })}` : "Aucun calcul disponible"}
+            </p>
+          </div>
+          : null}
+   
+          <Select value={schoolYearId} onValueChange={setSchoolYearId}>
+            <SelectTrigger className="min-h-12 w-50" aria-label="Année scolaire"><SelectValue placeholder="Année scolaire" /></SelectTrigger>
+            <SelectContent>{yearsQuery.data?.map((year) => <SelectItem key={year.id} value={year.id}>{year.label}{year.status === "active" ? " · Active" : ""}</SelectItem>)}</SelectContent>
+          </Select> 
+        </div>
       }
     >
       {schoolYearId && selectedYear && view === "dashboard" ? <FinancialDashboard schoolYearId={schoolYearId} /> : null}
@@ -78,7 +115,7 @@ export default function FinancePage({ view }: { view: FinanceView }) {
       </Tabs>
       ) : null}
       {schoolYearId && selectedYear && view === "journal" ? <CashJournalPanel schoolYearId={schoolYearId} /> : null}
-      {schoolYearId && selectedYear && view === "history" ? <PaymentHistoryPanel schoolYearId={schoolYearId} schoolYearLabel={selectedYear.label} canCancel={hasPermission("payments.cancel")} /> : null}
+      {schoolYearId && selectedYear && view === "history" ? <PaymentHistoryPanel schoolYearId={schoolYearId} schoolYearLabel={selectedYear.label} canCancel={hasPermission("payments.cancel")} studentId={studentId} /> : null}
     </PageLayout>
   )
 }

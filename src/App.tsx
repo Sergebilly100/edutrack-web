@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useState, type ReactElement } from "react"
-import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useSearchParams } from "react-router-dom"
+import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useParams, useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import axios from "axios"
 
@@ -527,6 +527,13 @@ function FinanceLegacyRoute() {
   return <Navigate to={getFinancePathFromLegacyTab(searchParams.get("tab"))} replace />
 }
 
+function FinanceHistoryDetailRoute() {
+  const { studentId } = useParams()
+  const [searchParams] = useSearchParams()
+  if (!studentId) return <Navigate to={FINANCE_PATHS.history} replace />
+  return <FinancePage view="history" studentId={studentId} initialSchoolYearId={searchParams.get("schoolYearId") ?? undefined} />
+}
+
 function EndOfYearAccessRoute() {
   const statusQuery = useEndOfYearReviewStatus()
 
@@ -623,6 +630,7 @@ export default function App() {
           <Route path={FINANCE_PATHS.dashboard} element={<PermissionRoute href={FINANCE_PATHS.dashboard} requiredAnyPermissions={["payments.view"]} element={<FinancePage view="dashboard" />} />} />
           <Route path={FINANCE_PATHS.entry} element={<PermissionRoute href={FINANCE_PATHS.entry} requiredAnyPermissions={["payments.record"]} element={<FinancePage view="entry" />} />} />
           <Route path={FINANCE_PATHS.history} element={<PermissionRoute href={FINANCE_PATHS.history} requiredAnyPermissions={["payments.view"]} element={<FinancePage view="history" />} />} />
+          <Route path="/finance/history/:studentId" element={<PermissionRoute href={FINANCE_PATHS.history} requiredAnyPermissions={["payments.view"]} element={<FinanceHistoryDetailRoute />} />} />
           <Route path={FINANCE_PATHS.journal} element={<PermissionRoute href={FINANCE_PATHS.journal} requiredAnyPermissions={["payments.view"]} element={<FinancePage view="journal" />} />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/admin/schools" element={<AdminPage />} />

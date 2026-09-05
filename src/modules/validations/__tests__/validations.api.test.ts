@@ -177,6 +177,16 @@ describe("validations.api", () => {
   // ── fetchMissingEndScans ──────────────────────────────────────────────────
 
   describe("fetchMissingEndScans", () => {
+    it("demande tous les mois quand aucun mois n'est sélectionné", async () => {
+      getMock.mockResolvedValueOnce({ data: [] })
+
+      await fetchMissingEndScans()
+
+      expect(getMock).toHaveBeenCalledWith("/validations/missing-end-scans", {
+        params: undefined,
+      })
+    })
+
     it("normalise les données prof + sessions + actions", async () => {
       getMock.mockResolvedValueOnce({
         data: [

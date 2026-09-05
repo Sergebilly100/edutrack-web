@@ -13,6 +13,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/components/ui/use-toast"
 import { EmptyState } from "@/shared/components/EmptyState"
 import {
+  downloadPdfExportFile,
+  getPdfExportJobStatus,
+  triggerBlobDownload,
+} from "@/shared/api/pdfExport.api"
+import {
   fetchClassReportCards,
   fetchClassCompletion,
   fetchReadiness,
@@ -97,19 +102,13 @@ export default function ReportCardsPage() {
 
   const pdfFor = async (cardId: string): Promise<void> => {
     try {
-      const { getExportJobStatus, downloadSalaryExportFile } = await import("@/modules/salaries/salaries.api")
       const jobId = await requestReportCardPdf(cardId)
       // Le rendu passe par la queue partagée : on attend la complétion.
       for (let attempt = 0; attempt < 30; attempt += 1) {
-        const status = await getExportJobStatus(jobId)
+        const status = await getPdfExportJobStatus(jobId)
         if (status.downloadUrl) {
-          const { blob, fileName } = await downloadSalaryExportFile(status.downloadUrl)
-          const url = URL.createObjectURL(blob)
-          const link = document.createElement("a")
-          link.href = url
-          link.download = fileName ?? `bulletin_${cardId}.pdf`
-          link.click()
-          URL.revokeObjectURL(url)
+          const { blob, fileName } = await downloadPdfExportFile(status.downloadUrl)
+          triggerBlobDownload(blob, fileName ?? `bulletin_${cardId}.pdf`)
           return
         }
         await new Promise((resolve) => setTimeout(resolve, 2000))

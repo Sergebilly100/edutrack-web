@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, Loader2, WalletCards } from "lucide-react"
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, Loader2, RefreshCw, WalletCards } from "lucide-react"
 import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { Link } from "react-router-dom"
 
@@ -73,7 +73,6 @@ export function FinancialDashboard({ schoolYearId }: { schoolYearId: string }) {
 
     <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)]"><LevelRecovery levels={levels} classes={summaryQuery.data?.classes ?? []} /><RecentPayments rows={summaryQuery.data?.recentPayments ?? []} /></section>
 
-    {school?.last_computed_at ? <p className="text-xs text-muted-foreground">Données recalculées toutes les 15 minutes, dernière mise à jour à {new Date(school.last_computed_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}.</p> : null}
   </div>
 }
 

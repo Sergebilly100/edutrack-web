@@ -43,7 +43,7 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: true,
   },
   {
-    label: "Validations",
+    label: "Validations horaires",
     href: "/validations",
     icon: ClipboardCheck,
     group: "Pilotage",
@@ -97,7 +97,7 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: false,
   },
   {
-    label: "Structure",
+    label: "Structure scolaire",
     href: "/academic",
     icon: ClassIcon,
     group: "Académique",
@@ -144,7 +144,7 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: true,
   },
   {
-    label: "Journal",
+    label: "Journal de caisse",
     href: FINANCE_PATHS.journal,
     icon: WalletCards,
     group: "Finance",
@@ -190,7 +190,7 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: false,
   },
   {
-    label: "Import courant",
+    label: "Import de données",
     href: "/import",
     icon: ImportIcon,
     group: "Administration",
@@ -199,7 +199,7 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: false,
   },
   {
-    label: "Salaires",
+    label: "Salaires professeurs",
     href: "/salaries",
     icon: SalaryIcon,
     group: "Administration",

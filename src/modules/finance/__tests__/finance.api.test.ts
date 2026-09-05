@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const { getMock, postMock, putMock } = vi.hoisted(() => ({ getMock: vi.fn(), postMock: vi.fn(), putMock: vi.fn() }))
 vi.mock("@/shared/api/client", () => ({ apiClient: { get: getMock, post: postMock, put: putMock } }))
 
-import { fetchFinancialAlertLogs, fetchFinancialSummary, getCashJournal, getParentPaymentOptions, getStudentAccountStatement, listPayments, listTuitionPlans, saveProviderSetting } from "../finance.api"
+import { fetchFinancialAlertLogs, fetchFinancialSummary, getCashJournal, getParentPaymentOptions, getPaymentHistory, getStudentAccountStatement, listPayments, listTuitionPlans, recalculateFinancialCache, saveProviderSetting } from "../finance.api"
 
 describe("finance.api", () => {
   beforeEach(() => vi.clearAllMocks())
@@ -99,5 +99,19 @@ describe("finance.api", () => {
     expect(summary.levels[0]).toMatchObject({ level_id: "level-1", level_name: "6e" })
     expect(summary.collections).toEqual([{ month_key: "2026-08", total_paid: "80000" }])
     expect(summary.paymentMethods).toEqual([{ method: "cash", total_paid: "80000", payment_count: 3 }])
+  })
+
+  it("transmet les filtres de l’historique paginé et le recalcul manuel", async () => {
+    getMock.mockResolvedValueOnce({ data: { history: {
+      entries: [{ id: "payment-1", studentId: "student-1", schoolYearId: "year-1", amount: "25000", method: "cash", source: "cashier_manual", status: "confirmed", receiptNumber: "REC-1", paymentDate: "2026-09-01", createdAt: "2026-09-01T10:00:00Z", studentName: "Awa Koné", studentMatricule: "MAT-1", classId: "class-1", className: "6ème A", levelId: "level-1", levelName: "6ème", financialStatus: "late" }],
+      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+    } } })
+    const history = await getPaymentHistory({ schoolYearId: "year-1", from: "2026-09-01", to: "2026-09-30", levelId: "level-1", classId: "class-1", status: "late", page: 1, limit: 20 })
+    expect(getMock).toHaveBeenCalledWith("/finance/payment-history", { params: expect.objectContaining({ school_year_id: "year-1", level_id: "level-1", class_id: "class-1", status: "late" }) })
+    expect(history.entries[0]).toMatchObject({ studentName: "Awa Koné", financialStatus: "late" })
+
+    postMock.mockResolvedValueOnce({ data: { result: { schoolYearId: "year-1", studentCount: 12 } } })
+    await expect(recalculateFinancialCache("year-1")).resolves.toEqual({ schoolYearId: "year-1", studentCount: 12 })
+    expect(postMock).toHaveBeenCalledWith("/finance/recalculate", undefined, { params: { school_year_id: "year-1" } })
   })
 })

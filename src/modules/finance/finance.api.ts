@@ -1,4 +1,5 @@
 import { apiClient } from "@/shared/api/client"
+import { triggerBlobDownload } from "@/shared/api/pdfExport.api"
 import { asBoolean, asNullableString, asNumber, asString, isRecord } from "@/shared/utils/parsers"
 
 export type PaymentMethod = "mobile_money" | "cash" | "bank_transfer"
@@ -62,6 +63,32 @@ export type CashJournal = {
   entries: Array<Payment & { studentMatricule: string | null; studentName: string; classId: string; className: string }>
   totals: Record<PaymentMethod, number> & { grandTotal: number }
   count: number
+  pagination: CashJournalPagination
+}
+
+export type FinancialCacheStatus = "up_to_date" | "late" | "waived"
+
+export type PaymentHistoryFilter = {
+  schoolYearId: string
+  from?: string
+  to?: string
+  levelId?: string
+  classId?: string
+  status?: FinancialCacheStatus
+  page?: number
+  limit?: number
+}
+
+export type PaymentHistory = {
+  entries: Array<Payment & {
+    studentMatricule: string | null
+    studentName: string
+    classId: string
+    className: string
+    levelId: string
+    levelName: string
+    financialStatus: FinancialCacheStatus | null
+  }>
   pagination: CashJournalPagination
 }
 
@@ -238,6 +265,51 @@ export async function getCashJournal(filter: CashJournalFilter & Partial<Pick<Ca
   }
 }
 
+export async function getPaymentHistory(filter: PaymentHistoryFilter): Promise<PaymentHistory> {
+  const response = await apiClient.get("/finance/payment-history", {
+    params: {
+      school_year_id: filter.schoolYearId,
+      from: filter.from,
+      to: filter.to,
+      level_id: filter.levelId,
+      class_id: filter.classId,
+      status: filter.status,
+      page: filter.page,
+      limit: filter.limit,
+    },
+  })
+  const history = record(response.data.history)
+  const pagination = record(history.pagination)
+  return {
+    entries: (Array.isArray(history.entries) ? history.entries : []).map((item) => {
+      const row = record(item)
+      const status = row.financialStatus === "late" || row.financialStatus === "waived" ? row.financialStatus : row.financialStatus === "up_to_date" ? "up_to_date" : null
+      return {
+        ...parsePayment(item),
+        studentMatricule: asNullableString(row.studentMatricule),
+        studentName: asString(row.studentName),
+        classId: asString(row.classId),
+        className: asString(row.className),
+        levelId: asString(row.levelId),
+        levelName: asString(row.levelName),
+        financialStatus: status,
+      }
+    }),
+    pagination: {
+      page: asNumber(pagination.page, 1),
+      limit: asNumber(pagination.limit, 20),
+      total: asNumber(pagination.total),
+      totalPages: asNumber(pagination.totalPages, 1),
+    },
+  }
+}
+
+export async function recalculateFinancialCache(schoolYearId: string): Promise<{ schoolYearId: string; studentCount: number }> {
+  const response = await apiClient.post("/finance/recalculate", undefined, { params: { school_year_id: schoolYearId } })
+  const result = record(response.data.result)
+  return { schoolYearId: asString(result.schoolYearId), studentCount: asNumber(result.studentCount) }
+}
+
 export async function exportCashJournalPdf(filter: CashJournalFilter): Promise<{ jobId: string }> {
   const response = await apiClient.get("/payments/cash-journal/export", { params: { ...journalParams(filter), format: "pdf" } })
   return { jobId: String(response.data.jobId) }
@@ -245,12 +317,7 @@ export async function exportCashJournalPdf(filter: CashJournalFilter): Promise<{
 
 export async function exportCashJournalExcel(filter: CashJournalFilter): Promise<void> {
   const response = await apiClient.get("/payments/cash-journal/export", { params: { ...journalParams(filter), format: "xlsx" }, responseType: "blob" })
-  const url = URL.createObjectURL(response.data as Blob)
-  const anchor = document.createElement("a")
-  anchor.href = url
-  anchor.download = "journal-caisse.xlsx"
-  anchor.click()
-  URL.revokeObjectURL(url)
+  triggerBlobDownload(response.data as Blob, "journal-caisse.xlsx")
 }
 
 const fileForm = (file: File): FormData => { const form = new FormData(); form.append("file", file); return form }

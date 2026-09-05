@@ -21,6 +21,7 @@ export type ClassDecision = {
   studentMatricule: string | null
   className: string
   currentLevelName: string
+  generalAverage: number | null
   suggestedDecision: ClassDecisionValue | null
   finalDecision: ClassDecisionValue | null
   nextLevelId: string | null
@@ -29,10 +30,12 @@ export type ClassDecision = {
 }
 
 export type LevelOption = { id: string; name: string; orderIndex: number }
+export type ClassOption = { id: string; name: string; levelId: string }
 export type ClassDecisionsResponse = {
   schoolYear: EndOfYearSchoolYear
   decisions: ClassDecision[]
   levels: LevelOption[]
+  classes: ClassOption[]
 }
 
 export async function getEndOfYearReviewStatus(): Promise<EndOfYearReviewStatus> {
@@ -41,7 +44,11 @@ export async function getEndOfYearReviewStatus(): Promise<EndOfYearReviewStatus>
 }
 
 export async function listClassDecisions(): Promise<ClassDecisionsResponse> {
-  const response = await apiClient.get<ClassDecisionsResponse>("/class-decisions")
+  return listFilteredClassDecisions()
+}
+
+export async function listFilteredClassDecisions(filters: { levelId?: string; classId?: string } = {}): Promise<ClassDecisionsResponse> {
+  const response = await apiClient.get<ClassDecisionsResponse>("/class-decisions", { params: { level_id: filters.levelId, class_id: filters.classId } })
   return response.data
 }
 

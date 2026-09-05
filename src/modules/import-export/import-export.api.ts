@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { apiClient as api } from "@/shared/api/client"
+import { triggerBlobDownload } from "@/shared/api/pdfExport.api"
 
 // ─── Import history ───────────────────────────────────────────────────────────
 
@@ -266,14 +267,7 @@ export async function downloadTemplate(type: ImportType): Promise<void> {
     extractFilename(response.headers["content-disposition"]) ??
     `edutrack-import-${type}-template.xlsx`
 
-  const url = window.URL.createObjectURL(response.data)
-  const anchor = document.createElement("a")
-  anchor.href = url
-  anchor.download = filename
-  document.body.appendChild(anchor)
-  anchor.click()
-  anchor.remove()
-  window.URL.revokeObjectURL(url)
+  triggerBlobDownload(response.data, filename)
 }
 
 export async function dryRun(
