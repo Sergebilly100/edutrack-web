@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowRight, CalendarPlus, CheckCircle2, ClipboardCheck, Loader2, Minus, Plus, Sparkles } from "lucide-react"
+import { ArrowRight, CalendarPlus, CheckCircle2, ClipboardCheck, Loader2 } from "lucide-react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
@@ -14,7 +14,6 @@ import { listStudents, type StudentItem } from "@/modules/students/students.api"
 import { EmptyState } from "@/shared/components/EmptyState"
 import {
   createEvaluation,
-  createSpontaneousGrade,
   dayLabel,
   fetchEvaluationsScope,
   fetchTeacherAcademicContext,
@@ -24,8 +23,6 @@ import {
 } from "./academic.api"
 
 const GRADE_MAX = 20
-const sameSubject = (left: string, right: string) =>
-  left.localeCompare(right, "fr", { sensitivity: "base" }) === 0
 const formatEvaluationDate = (value: string | null) => value ? new Intl.DateTimeFormat("fr-FR").format(new Date(`${value}T00:00:00`)) : "Date non renseignée"
 
 export default function NotesPage() {
@@ -36,15 +33,8 @@ export default function NotesPage() {
   const [classId, setClassId] = useState(searchParams.get("classId") ?? "")
   const [selectedPeriodId, setSelectedPeriodId] = useState(searchParams.get("gradingPeriodId") ?? "")
   const [createOpen, setCreateOpen] = useState(false)
-  const [spontaneousOpen, setSpontaneousOpen] = useState(false)
   const [selectedEvaluationId, setSelectedEvaluationId] = useState<string | null>(null)
   const [draft, setDraft] = useState({ label: "", lessonSlotId: "", subjectId: "", coefficient: "1", evaluationDate: "" })
-  const [quickDraft, setQuickDraft] = useState({
-    lessonSlotId: searchParams.get("lessonSlotId") ?? "",
-    studentId: "",
-    adjustment: "0",
-    comment: "",
-  })
 
   const contextQuery = useQuery({
     queryKey: ["academic", "teacher-context"],
@@ -99,34 +89,6 @@ export default function NotesPage() {
     }),
   })
 
-  const spontaneousMutation = useMutation({
-    mutationFn: () => {
-      const slot = scopeQuery.data?.lessonSlots.find((item) => item.id === quickDraft.lessonSlotId)
-      const subject = scopeQuery.data?.subjects.find((item) => slot && sameSubject(item.name, slot.subjectName))
-      if (!subject) throw new Error("La matière du créneau n’est pas paramétrée pour cette classe.")
-      return createSpontaneousGrade({
-        lessonSlotId: quickDraft.lessonSlotId,
-        subjectId: subject.id,
-        classId,
-        gradingPeriodId,
-        studentId: quickDraft.studentId,
-        adjustment: Number(quickDraft.adjustment.replace(",", ".")),
-        comment: quickDraft.comment.trim(),
-      })
-    },
-    onSuccess: async () => {
-      await invalidateScope()
-      setQuickDraft((previous) => ({ ...previous, studentId: "", adjustment: "0", comment: "" }))
-      setSpontaneousOpen(false)
-      toast({ title: "Note spontanée enregistrée" })
-    },
-    onError: (error) => toast({
-      title: "Enregistrement impossible",
-      description: error instanceof Error ? error.message : undefined,
-      variant: "destructive",
-    }),
-  })
-
   const completionMutation = useMutation({
     mutationFn: (input: { subjectId: string; status: "in_progress" | "completed" }) =>
       markSubjectCompleted({ classId, subjectId: input.subjectId, gradingPeriodId, status: input.status }),
@@ -153,13 +115,12 @@ export default function NotesPage() {
   const completionBySubject = new Map((scopeQuery.data?.completion ?? []).map((item) => [item.subjectId, item]))
   const isSubjectClosed = (subjectId: string | null | undefined) =>
     isPeriodReadOnly || Boolean(subjectId && completionBySubject.get(subjectId)?.calculationStarted)
-  const quickSlot = scopeQuery.data?.lessonSlots.find((item) => item.id === quickDraft.lessonSlotId)
-  const quickSubject = scopeQuery.data?.subjects.find((item) => quickSlot && sameSubject(item.name, quickSlot.subjectName))
+  const selectedDraftSlot = scopeQuery.data?.lessonSlots.find((item) => item.id === draft.lessonSlotId)
+  const availableDraftSubjects = selectedDraftSlot?.subjectId
+    ? (scopeQuery.data?.subjects ?? []).filter((item) => item.id === selectedDraftSlot.subjectId)
+    : (scopeQuery.data?.subjects ?? [])
   const canCreate = draft.label.trim() !== "" && draft.lessonSlotId !== "" && draft.subjectId !== "" && draft.evaluationDate !== ""
     && Number.isFinite(Number(draft.coefficient)) && Number(draft.coefficient) > 0
-  const canSaveSpontaneous = quickDraft.lessonSlotId !== "" && quickDraft.studentId !== ""
-    && quickDraft.comment.trim() !== "" && Number.isFinite(Number(quickDraft.adjustment.replace(",", ".")))
-    && Number(quickDraft.adjustment.replace(",", ".")) !== 0 && Math.abs(Number(quickDraft.adjustment.replace(",", "."))) <= 20
   const selectedEvaluation = scheduledEvaluations.find((evaluation) => evaluation.id === selectedEvaluationId) ?? null
 
   return (
@@ -200,7 +161,7 @@ export default function NotesPage() {
             </Select>
           </div>
         </div>
-        {scopeEnabled ? <div className="mt-4 flex flex-col gap-2 border-t pt-4 sm:flex-row sm:justify-end"><Button type="button" variant="outline" className="min-h-12 sm:flex-1" onClick={() => setSpontaneousOpen(true)} disabled={isPeriodReadOnly || (scopeQuery.data?.lessonSlots.length ?? 0) === 0}><Sparkles className="mr-2 h-4 w-4" />Ajouter une note spontanée</Button><Button type="button" className="min-h-12 sm:flex-1" disabled={isPeriodReadOnly} onClick={() => setCreateOpen(true)}><CalendarPlus className="mr-2 h-4 w-4" />Programmer une évaluation</Button></div> : null}
+        {scopeEnabled ? <div className="mt-4 flex flex-col gap-2 border-t pt-4 sm:flex-row sm:justify-end"><Button type="button" className="min-h-12 sm:flex-1" disabled={isPeriodReadOnly} onClick={() => setCreateOpen(true)}><CalendarPlus className="mr-2 h-4 w-4" />Programmer une évaluation</Button></div> : null}
       </section>
 
       {!scopeEnabled ? (
@@ -243,10 +204,9 @@ export default function NotesPage() {
           <div className="space-y-4">
             <div className="space-y-2"><Label>Créneau de cours</Label><Select value={draft.lessonSlotId || "none"} onValueChange={(value) => {
               const slot = scopeQuery.data?.lessonSlots.find((item) => item.id === value)
-              const subject = scopeQuery.data?.subjects.find((item) => slot && sameSubject(item.name, slot.subjectName))
-              setDraft((previous) => ({ ...previous, lessonSlotId: value === "none" ? "" : value, subjectId: subject?.id ?? "" }))
+              setDraft((previous) => ({ ...previous, lessonSlotId: value === "none" ? "" : value, subjectId: slot?.subjectId ?? "" }))
             }}><SelectTrigger className="min-h-12"><SelectValue placeholder="Choisir un créneau" /></SelectTrigger><SelectContent>{(scopeQuery.data?.lessonSlots ?? []).map((slot) => <SelectItem key={slot.id} value={slot.id}>{dayLabel(slot.dayOfWeek)} · {slot.startTime}-{slot.endTime} · {slot.roomName}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-2"><Label>Matière</Label><Select value={draft.subjectId || "none"} onValueChange={(value) => setDraft((previous) => ({ ...previous, subjectId: value === "none" ? "" : value }))}><SelectTrigger className="min-h-12"><SelectValue placeholder="Choisir une matière" /></SelectTrigger><SelectContent>{(scopeQuery.data?.subjects ?? []).map((subject) => <SelectItem key={subject.id} value={subject.id}>{subject.name} · coef. matière {subject.coefficient}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-2"><Label>Matière</Label><Select value={draft.subjectId || "none"} onValueChange={(value) => setDraft((previous) => ({ ...previous, subjectId: value === "none" ? "" : value }))}><SelectTrigger className="min-h-12"><SelectValue placeholder="Choisir une matière" /></SelectTrigger><SelectContent>{availableDraftSubjects.map((subject) => <SelectItem key={subject.id} value={subject.id}>{subject.name} · coef. matière {subject.coefficient}</SelectItem>)}</SelectContent></Select></div>
             <div className="space-y-2"><Label htmlFor="evaluation-date">Date de l’évaluation</Label><Input id="evaluation-date" type="date" required value={draft.evaluationDate} onChange={(event) => setDraft((previous) => ({ ...previous, evaluationDate: event.target.value }))} /></div>
             <div className="space-y-2"><Label>Libellé</Label><Input placeholder="Devoir surveillé n°1" value={draft.label} onChange={(event) => setDraft((previous) => ({ ...previous, label: event.target.value }))} /></div>
             <div className="space-y-2"><Label>Coefficient de cette évaluation</Label><Input type="number" min={0.25} step={0.25} value={draft.coefficient} onChange={(event) => setDraft((previous) => ({ ...previous, coefficient: event.target.value }))} /><p className="text-xs text-muted-foreground">Ce coefficient ne modifie pas le coefficient général de la matière.</p></div>
@@ -262,18 +222,6 @@ export default function NotesPage() {
         onOpenChange={(open) => !open && setSelectedEvaluationId(null)}
       />
 
-      <Dialog open={spontaneousOpen} onOpenChange={setSpontaneousOpen}>
-        <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-xl overflow-y-auto rounded-lg sm:w-full"><DialogHeader><DialogTitle>Note spontanée, pendant le cours</DialogTitle><DialogDescription>Choisissez l’élève et le cours concernés.</DialogDescription></DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">Ajoutez ou retirez un point à chaque pression. Le justificatif reste obligatoire.</p>
-            <div className="space-y-2"><Label>Créneau</Label><Select value={quickDraft.lessonSlotId || "none"} onValueChange={(value) => setQuickDraft((previous) => ({ ...previous, lessonSlotId: value === "none" ? "" : value }))}><SelectTrigger className="min-h-12" aria-label="Créneau"><SelectValue placeholder="Cours concerné" /></SelectTrigger><SelectContent>{(scopeQuery.data?.lessonSlots ?? []).map((slot) => <SelectItem key={slot.id} value={slot.id}>{dayLabel(slot.dayOfWeek)} · {slot.startTime} · {slot.roomName}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-2"><Label>Élève</Label><Select disabled={isSubjectClosed(quickSubject?.id)} value={quickDraft.studentId || "none"} onValueChange={(value) => setQuickDraft((previous) => ({ ...previous, studentId: value === "none" ? "" : value }))}><SelectTrigger className="min-h-12" aria-label="Élève"><SelectValue placeholder="Choisir un élève" /></SelectTrigger><SelectContent>{(studentsQuery.data?.data ?? []).map((student) => <SelectItem key={student.id} value={student.id}>{student.firstName} {student.lastName}</SelectItem>)}</SelectContent></Select></div>
-            <div className="grid gap-4 sm:grid-cols-[auto_1fr] sm:items-end"><div className="space-y-2"><Label>Ajuster</Label><div className="flex gap-2" aria-label="Ajustement de la note spontanée"><Button type="button" disabled={isSubjectClosed(quickSubject?.id) || Number(quickDraft.adjustment.replace(",", ".")) >= 20} variant="default" className="min-h-12 min-w-12" aria-label="Ajouter un point" onClick={() => setQuickDraft((previous) => ({ ...previous, adjustment: String(Math.min(20, (Number(previous.adjustment.replace(",", ".")) || 0) + 1)) }))}><Plus className="h-4 w-4" /></Button><Button type="button" disabled={isSubjectClosed(quickSubject?.id) || Number(quickDraft.adjustment.replace(",", ".")) <= -20} variant="outline" className="min-h-12 min-w-12" aria-label="Retirer un point" onClick={() => setQuickDraft((previous) => ({ ...previous, adjustment: String(Math.max(-20, (Number(previous.adjustment.replace(",", ".")) || 0) - 1)) }))}><Minus className="h-4 w-4" /></Button></div></div><div className="space-y-2"><Label htmlFor="spontaneous-adjustment">Points</Label><Input id="spontaneous-adjustment" disabled={isSubjectClosed(quickSubject?.id)} type="number" min={-20} max={20} step={0.25} value={quickDraft.adjustment} onChange={(event) => setQuickDraft((previous) => ({ ...previous, adjustment: event.target.value }))} /></div></div>
-            <div className="space-y-2"><Label htmlFor="spontaneous-comment">Justificatif</Label><Input id="spontaneous-comment" disabled={isSubjectClosed(quickSubject?.id)} value={quickDraft.comment} placeholder="Bonne réponse, participation, perturbation…" onChange={(event) => setQuickDraft((previous) => ({ ...previous, comment: event.target.value }))} /></div>
-          </div>
-          <DialogFooter><Button type="button" disabled={isSubjectClosed(quickSubject?.id) || !canSaveSpontaneous || spontaneousMutation.isPending} onClick={() => spontaneousMutation.mutate()}>{spontaneousMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Enregistrer</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

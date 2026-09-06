@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { ArrowRight, BookOpenCheck, CalendarDays, Clock3, ClipboardList, Info } from "lucide-react"
@@ -29,11 +30,31 @@ const getFutureSchedules = <T extends { start_at: string }>(items: T[], now: Dat
     .filter((item) => new Date(item.start_at) > now)
     .sort((left, right) => +new Date(left.start_at) - +new Date(right.start_at))
 
+const getCourseStatus = (
+  schedule: { start_at: string; end_at: string; attendance_status?: "present" | "absent" | "late" | null },
+  now: Date,
+) => {
+  if (schedule.attendance_status === "absent") {
+    return { label: "Absent", className: "border-red-200 bg-red-50 text-red-700" }
+  }
+  if (now > new Date(schedule.end_at)) {
+    return { label: "Terminé", className: "border-slate-200 bg-slate-50 text-slate-700" }
+  }
+  if (now >= new Date(schedule.start_at)) {
+    return { label: "En cours", className: "border-green-200 bg-green-50 text-green-700" }
+  }
+  return { label: "À venir", className: "border-blue-200 bg-blue-50 text-blue-700" }
+}
+
 export default function TeacherDashboardPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const tour = useTourGuide("teacher-dashboard", true)
-  const now = new Date()
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(new Date()), 60_000)
+    return () => window.clearInterval(interval)
+  }, [])
 
   const scheduleQuery = useQuery({ queryKey: ["teacher-schedule", "me"], queryFn: fetchTeacherSchedule })
   const academicQuery = useQuery({ queryKey: ["academic", "teacher-context"], queryFn: fetchTeacherAcademicContext })
@@ -88,7 +109,7 @@ export default function TeacherDashboardPage() {
         </Card>
       ) : null}
 
-      {!scheduleQuery.isLoading && !scheduleQuery.isError ? <section aria-labelledby="today-courses-title" className="space-y-3"><div className="flex items-end justify-between gap-3"><div><h2 id="today-courses-title" className="text-lg font-semibold">Aujourd&apos;hui</h2><p className="text-sm text-muted-foreground">{schedules.length} cours planifié{schedules.length > 1 ? "s" : ""}</p></div><Button type="button" variant="ghost" className="min-h-12 text-primary" onClick={() => navigate("/attendance")}>Voir le planning</Button></div>{schedules.length > 0 ? <div className="divide-y rounded-lg border bg-card">{schedules.map((schedule) => { const isFocus = schedule.id === focusSchedule?.id; return <Button key={schedule.id} type="button" variant="ghost" className="min-h-16 w-full justify-start gap-3 rounded-none px-4 text-left first:rounded-t-lg last:rounded-b-lg" onClick={() => navigate("/attendance")}><span className="w-12 shrink-0 text-sm font-semibold tabular-nums">{formatTime(schedule.start_at)}</span><span className="min-w-0 flex-1"><span className="block truncate font-medium">{schedule.subject_name}</span><span className="block truncate text-sm font-normal text-muted-foreground">{schedule.class_name}</span></span>{isFocus ? <Badge variant="outline" className="shrink-0 border-blue-200 bg-blue-50 text-blue-700">{activeSchedule ? "En cours" : "À venir"}</Badge> : null}</Button> })}</div> : null}</section> : null}
+      {!scheduleQuery.isLoading && !scheduleQuery.isError ? <section aria-labelledby="today-courses-title" className="space-y-3"><div className="flex items-end justify-between gap-3"><div><h2 id="today-courses-title" className="text-lg font-semibold">Aujourd&apos;hui</h2><p className="text-sm text-muted-foreground">{schedules.length} cours planifié{schedules.length > 1 ? "s" : ""}</p></div><Button type="button" variant="ghost" className="min-h-12 text-primary" onClick={() => navigate("/attendance")}>Voir le planning</Button></div>{schedules.length > 0 ? <div className="divide-y rounded-lg border bg-card">{schedules.map((schedule) => { const status = getCourseStatus(schedule, now); return <Button key={schedule.id} type="button" variant="ghost" className="min-h-16 w-full justify-start gap-3 rounded-none px-4 text-left first:rounded-t-lg last:rounded-b-lg" onClick={() => navigate("/attendance")}><span className="w-12 shrink-0 text-sm font-semibold tabular-nums">{formatTime(schedule.start_at)}</span><span className="min-w-0 flex-1"><span className="block truncate font-medium">{schedule.subject_name}</span><span className="block truncate text-sm font-normal text-muted-foreground">{schedule.class_name}</span></span><Badge variant="outline" className={`shrink-0 transition-colors duration-200 ${status.className}`}>{status.label}</Badge></Button> })}</div> : null}</section> : null}
 
       <section aria-labelledby="teaching-title" className="space-y-3 border-t pt-5" data-tour="teacher-dashboard-classes"><div className="flex items-end justify-between gap-3"><div><h2 id="teaching-title" className="text-lg font-semibold">Mes classes et périodes</h2><p className="text-sm text-muted-foreground">Accédez directement à la saisie de la période en cours.</p></div>{currentPeriod ? <Badge variant="secondary">{currentPeriod.label}</Badge> : null}</div>{academicQuery.isLoading ? <div className="space-y-2"><Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" /></div> : null}{academicQuery.isError ? <Alert variant="destructive"><AlertDescription>Impossible de charger vos classes pour le moment.</AlertDescription></Alert> : null}{!academicQuery.isLoading && !academicQuery.isError && teachingClasses.length === 0 ? <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Aucune classe n&apos;est encore attribuée à votre compte.</p> : null}{!academicQuery.isLoading && teachingClasses.length > 0 ? <div className="divide-y rounded-lg border bg-card">{teachingClasses.map((teachingClass) => <Button key={teachingClass.id} type="button" variant="ghost" className="min-h-16 w-full justify-between rounded-none px-4 text-left first:rounded-t-lg last:rounded-b-lg" onClick={() => navigate(`/academic/notes?classId=${encodeURIComponent(teachingClass.id)}${currentPeriod ? `&gradingPeriodId=${encodeURIComponent(currentPeriod.id)}` : ""}`)}><span><span className="block font-medium">{teachingClass.name}</span><span className="mt-0.5 block text-sm font-normal text-muted-foreground">{teachingClass.levelName}</span></span><BookOpenCheck className="h-4 w-4 text-primary" /></Button>)}</div> : null}</section>
     </div>

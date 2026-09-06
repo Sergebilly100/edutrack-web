@@ -6,7 +6,7 @@ vi.mock("@/shared/api/client", () => ({
   apiClient: { get: getMock, post: postMock, patch: patchMock, delete: vi.fn() },
 }))
 
-import { createSubjectsBulk, fetchTeacherAcademicContext, listClasses, listLevels, listSchoolYears, updateSubjectsBulk } from "@/modules/academic/academic.api"
+import { createSpontaneousGrade, createSubjectsBulk, fetchTeacherAcademicContext, listClasses, listLevels, listSchoolYears, updateSubjectsBulk } from "@/modules/academic/academic.api"
 
 describe("academic.api", () => {
   beforeEach(() => vi.clearAllMocks())
@@ -83,5 +83,23 @@ describe("academic.api", () => {
       expect.objectContaining({ id: "s1", coefficient: 5 }),
     ])
     expect(patchMock).toHaveBeenCalledWith("/subjects/bulk", payload)
+  })
+
+  it("transmet la date exacte du créneau pour une note spontanée", async () => {
+    postMock.mockResolvedValueOnce({ data: { evaluation: { id: "evaluation-1" } } })
+    const payload = {
+      lessonSlotId: "slot-1",
+      subjectId: "subject-1",
+      classId: "class-1",
+      gradingPeriodId: "period-1",
+      evaluationDate: "2026-09-07",
+      studentId: "student-1",
+      adjustment: 2,
+      comment: "Bonne participation",
+    }
+
+    await createSpontaneousGrade(payload)
+
+    expect(postMock).toHaveBeenCalledWith("/evaluations/spontaneous", payload)
   })
 })

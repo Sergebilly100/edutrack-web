@@ -2,9 +2,13 @@ import { type ReactNode } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { beforeAll, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
 const submitBulk = vi.fn().mockResolvedValue({ savedCount: 2 })
+const { authState, listClassesMock } = vi.hoisted(() => ({
+  authState: { permissions: [] as string[] },
+  listClassesMock: vi.fn(),
+}))
 const fetchTeacherContext = vi.fn().mockResolvedValue({
   classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2026-2027" }],
   gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2026-09-01", endDate: "2026-12-20", isCurrent: true, isCompleted: false }],
@@ -27,7 +31,7 @@ beforeAll(() => {
 vi.mock("@/shared/store/auth.store", () => ({
   useAuthStore: (selector: (state: unknown) => unknown) => selector({
     user: { role: "teacher" },
-    permissions: [],
+    permissions: authState.permissions,
   }),
 }))
 
@@ -39,6 +43,7 @@ vi.mock("@/modules/academic/academic.api", async () => {
     ...actual,
     fetchTeacherAcademicContext: (...args: unknown[]) => fetchTeacherContext(...args),
     fetchTeacherConductScope: (...args: unknown[]) => fetchConductScope(...args),
+    listClasses: (...args: unknown[]) => listClassesMock(...args),
     submitBulkConductInputs: (...args: unknown[]) => submitBulk(...args),
   }
 })
@@ -55,6 +60,11 @@ function renderWithClient(ui: ReactNode) {
 }
 
 describe("ConductPage professeur", () => {
+  afterEach(() => {
+    authState.permissions = []
+    listClassesMock.mockReset()
+  })
+
   it("permet d’attribuer une même note à tous les élèves sélectionnés", async () => {
     renderWithClient(<ConductPage view="teacher" />)
 
@@ -103,5 +113,23 @@ describe("ConductPage professeur", () => {
 
     expect(await screen.findByText("Cette période est consultable, mais les notes de conduite sont verrouillées : elle est finalisée ou pas encore courante.")).toBeInTheDocument()
     expect(screen.queryByText("Attribution en masse")).not.toBeInTheDocument()
+  })
+
+  it("n’affiche à un professeur décisionnaire que ses classes enseignées", async () => {
+    authState.permissions = ["conduct.finalize"]
+    fetchTeacherContext.mockResolvedValueOnce({
+      classes: [
+        { id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2026-2027" },
+        { id: "c2", name: "5ème B", levelId: "l2", levelName: "5ème", schoolYearId: "y1", schoolYearLabel: "2026-2027" },
+      ],
+      gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2026-09-01", endDate: "2026-12-20", isCurrent: true, isCompleted: false }],
+    })
+
+    renderWithClient(<ConductPage view="decision" />)
+
+    fireEvent.click(await screen.findByRole("combobox", { name: "Classe enseignée" }))
+    expect(await screen.findByRole("option", { name: /6ème A/ })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: /5ème B/ })).toBeInTheDocument()
+    expect(listClassesMock).not.toHaveBeenCalled()
   })
 })

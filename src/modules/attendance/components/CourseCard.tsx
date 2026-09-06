@@ -1,7 +1,6 @@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { Link } from "react-router-dom"
 import type { ScheduleSlot, TeacherAttendance } from "@/modules/attendance/attendance.api"
 import { AbsentIcon, LateIcon, PresentIcon, RoomIcon } from "@/shared/components/icons"
 import { useRollCallStore } from "@/shared/store/rollCall.store"
@@ -12,6 +11,7 @@ interface CourseCardProps {
   slot: ScheduleSlot
   attendance?: TeacherAttendance
   onStartCourse: (slot: ScheduleSlot) => void
+  onAddSpontaneousGrade?: (slot: ScheduleSlot) => void
 }
 
 type CourseStatus = "upcoming" | "starting_soon" | "now" | "done" | "missed"
@@ -19,6 +19,7 @@ type CourseStatus = "upcoming" | "starting_soon" | "now" | "done" | "missed"
 const ROLLCALL_GRACE_AFTER_END_MS = 15 * 60 * 1000 // Durée pendant laquelle le bouton de pointage reste disponible après la fin du cours, pour permettre de faire l'appel en cas d'oubli immédiat
 const ABSENCE_NOTIFICATIONS_AFTER_END_MS = 20 * 60 * 1000 // Durée pendant laquelle les notifications d'absence sont envoyées après la fin du cours
 const FINISH_WINDOW_AFTER_END_MS = 30 * 60 * 1000 // Durée pendant laquelle la fenêtre de fin est accessible après la fin du cours
+const SPONTANEOUS_GRADE_WINDOW_AFTER_END_MS = 24 * 60 * 60 * 1000
 
 const toDateKey = (date: Date) => {
   const year = date.getFullYear()
@@ -59,7 +60,7 @@ const getStatus = (
   return "upcoming"
 }
 
-export default function CourseCard({ slot, attendance, onStartCourse, onEditRollCall }: CourseCardProps) {
+export default function CourseCard({ slot, attendance, onStartCourse, onEditRollCall, onAddSpontaneousGrade }: CourseCardProps) {
   const studentLabels = useStudentLabels()
   const now = new Date()
   const status = getStatus(slot, attendance, now)
@@ -139,7 +140,8 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
     // !attendance?.checked_out_at 
 
   const canAddSpontaneousGrade =
-    !courseClosed && (status === "now" || status === "starting_soon" || alreadyCheckedIn)
+    Boolean(onAddSpontaneousGrade) && now >= toDateTime(courseDateKey, slot.start_time)
+      && now <= new Date(end.getTime() + SPONTANEOUS_GRADE_WINDOW_AFTER_END_MS)
 
   const handleFinishWithoutRollCall = () => {
     markReadyToFinishWithoutRollCall(slot.id, courseDateKey)
@@ -263,7 +265,7 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
             <Button
               type="button"
               size="sm"
-              className="w-full sm:w-auto"
+              className="min-h-12 w-full sm:w-auto"
               data-testid={`teacher-start-course-${slot.id}`}
               onClick={() => onStartCourse(slot)}
             >
@@ -319,13 +321,11 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
               type="button"
               size="sm"
               variant="outline"
-              className="w-full sm:w-auto"
+              className="min-h-12 w-full sm:w-auto"
               data-testid={`teacher-spontaneous-grade-${slot.id}`}
-              asChild
+              onClick={() => onAddSpontaneousGrade?.(slot)}
             >
-              <Link to={`/academic/notes?classId=${encodeURIComponent(slot.class_id)}&lessonSlotId=${encodeURIComponent(slot.id)}`}>
-                Note spontanée
-              </Link>
+              Note spontanée
             </Button>
           ) : null}
 

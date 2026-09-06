@@ -51,6 +51,7 @@ export type TeacherSchedule = {
   room_name: string
   start_at: string
   end_at: string
+  attendance_status?: "present" | "absent" | "late" | null
 }
 
 type TeacherFlowProps = {

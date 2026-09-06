@@ -18,7 +18,6 @@ import {
   fetchConductOverview,
   fetchTeacherAcademicContext,
   fetchTeacherConductScope,
-  listClasses,
   submitBulkConductInputs,
   submitConductInput,
 } from "./academic.api"
@@ -307,32 +306,27 @@ function EducatorDecisionSection() {
   const [gradingPeriodId, setGradingPeriodId] = useState("")
   const [selectedStudentId, setSelectedStudentId] = useState("")
 
-  const classesQuery = useQuery({
-    queryKey: ["academic", "classes-for-decision"],
-    queryFn: () => listClasses(),
+  const contextQuery = useQuery({
+    queryKey: ["academic", "teacher-context"],
+    queryFn: fetchTeacherAcademicContext,
   })
-  const periodsQuery = useQuery({
-    queryKey: ["academic", "grading-periods"],
-    queryFn: async () => {
-      const { apiClient } = await import("@/shared/api/client")
-      return apiClient
-        .get<{ gradingPeriods: Array<{ id: string; label: string; isCurrent: boolean; isCompleted: boolean }> }>("/grading-periods")
-        .then((r) => r.data.gradingPeriods)
-    },
-  })
+  const selectedClass = contextQuery.data?.classes.find((item) => item.id === classId)
+  const periods = (contextQuery.data?.gradingPeriods ?? []).filter(
+    (period) => !selectedClass || period.schoolYearId === selectedClass.schoolYearId,
+  )
   const studentsQuery = useQuery({
     queryKey: ["students-list", classId],
     queryFn: () => listStudents({ classId, isActive: true, limit: 200 }),
     enabled: Boolean(classId),
   })
-  const selectedPeriod = periodsQuery.data?.find((period) => period.id === gradingPeriodId)
+  const selectedPeriod = periods.find((period) => period.id === gradingPeriodId)
   const isReadOnly = selectedPeriod?.isCurrent === false
 
   useEffect(() => {
-    if (gradingPeriodId || !periodsQuery.data?.length) return
-    const current = periodsQuery.data.find((period) => period.isCurrent)
+    if (gradingPeriodId || periods.length === 0) return
+    const current = periods.find((period) => period.isCurrent)
     if (current) setGradingPeriodId(current.id)
-  }, [gradingPeriodId, periodsQuery.data])
+  }, [gradingPeriodId, periods])
 
   return (
     <Card className="shadow-sm">
@@ -349,12 +343,16 @@ function EducatorDecisionSection() {
       <CardContent className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label>Classe assignée</Label>
-            <Select value={classId || "none"} onValueChange={(value) => setClassId(value === "none" ? "" : value)}>
-              <SelectTrigger className="min-h-12"><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
+            <Label>Classe enseignée</Label>
+            <Select value={classId || "none"} onValueChange={(value) => {
+              setClassId(value === "none" ? "" : value)
+              setGradingPeriodId("")
+              setSelectedStudentId("")
+            }}>
+              <SelectTrigger className="min-h-12" aria-label="Classe enseignée"><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
               <SelectContent>
-                {(classesQuery.data?.classes ?? []).map((klass) => (
-                  <SelectItem key={klass.id} value={klass.id}>{klass.name}</SelectItem>
+                {(contextQuery.data?.classes ?? []).map((klass) => (
+                  <SelectItem key={klass.id} value={klass.id}>{klass.name} · {klass.levelName}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -367,7 +365,7 @@ function EducatorDecisionSection() {
             >
               <SelectTrigger className="min-h-12"><SelectValue placeholder="Choisir une période" /></SelectTrigger>
               <SelectContent>
-                {(periodsQuery.data ?? []).map((period) => (
+                {periods.map((period) => (
                   <SelectItem key={period.id} value={period.id}>
                     {period.label}{period.isCurrent ? " · en cours" : period.isCompleted ? " · finalisée" : " · à venir"}
                   </SelectItem>

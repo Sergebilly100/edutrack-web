@@ -282,6 +282,7 @@ export type LessonSlot = {
   dayOfWeek: number
   startTime: string
   endTime: string
+  subjectId: string | null
   subjectName: string
   roomName: string
 }
@@ -354,6 +355,7 @@ export const createSpontaneousGrade = (payload: {
   subjectId: string
   classId: string
   gradingPeriodId: string
+  evaluationDate: string
   studentId: string
   adjustment: number
   comment: string

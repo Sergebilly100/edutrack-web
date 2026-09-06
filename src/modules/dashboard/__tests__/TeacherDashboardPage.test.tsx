@@ -66,4 +66,21 @@ describe("TeacherDashboardPage", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /6ème A/ })[1])
     expect(navigateMock).toHaveBeenCalledWith("/academic/notes?classId=class-1&gradingPeriodId=period-1")
   })
+
+  it("met à jour tous les statuts et affiche une journée libre quand les cours sont passés", async () => {
+    const now = Date.now()
+    scheduleMock.mockResolvedValue([{
+      id: "slot-past", class_id: "class-1", class_name: "6ème A", subject_name: "Mathématiques", room_id: "room-1", room_name: "A1",
+      start_at: new Date(now - 2 * 60 * 60 * 1000).toISOString(), end_at: new Date(now - 60 * 60 * 1000).toISOString(),
+    }, {
+      id: "slot-absent", class_id: "class-1", class_name: "6ème A", subject_name: "Français", room_id: "room-1", room_name: "A1",
+      start_at: new Date(now - 90 * 60 * 1000).toISOString(), end_at: new Date(now - 30 * 60 * 1000).toISOString(), attendance_status: "absent",
+    }])
+
+    renderWithClient(<TeacherDashboardPage />)
+
+    expect(await screen.findByText("Journée libre")).toBeInTheDocument()
+    expect(screen.getByText("Terminé")).toBeInTheDocument()
+    expect(screen.getByText("Absent")).toBeInTheDocument()
+  })
 })

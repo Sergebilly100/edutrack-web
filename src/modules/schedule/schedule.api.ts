@@ -73,6 +73,9 @@ export type ScheduleRow = {
     endTime: string    // toujours "HH:MM" normalisé
     sortOrder: number
   }
+  attendance?: {
+    status: "present" | "absent" | "late" | null
+  }
 }
 
 export type ScheduleCatalog = {
@@ -274,6 +277,7 @@ export const fetchTeacherSchedule = async (): Promise<TeacherSchedule[]> => {
     room_name: item.room.name,
     start_at: toIsoDateTime(date, item.timeSlot.startTime),
     end_at: toIsoDateTime(date, item.timeSlot.endTime),
+    attendance_status: item.attendance?.status ?? null,
   }))
 }
 

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 
@@ -108,15 +108,36 @@ describe("CourseCard rollcall windows", () => {
     expect(screen.queryByTestId("teacher-edit-rollcall-schedule-1")).not.toBeInTheDocument()
   })
 
-  it("propose la note spontanée pendant le cours avec la classe et le créneau préremplis", () => {
+  it("ouvre la note spontanée directement depuis le créneau pendant le cours", () => {
     flowState = null
     vi.setSystemTime(new Date("2026-06-09T08:30:00"))
+    const onAddSpontaneousGrade = vi.fn()
 
-    renderCard()
-
-    expect(screen.getByRole("link", { name: "Note spontanée" })).toHaveAttribute(
-      "href",
-      "/academic/notes?classId=class-1&lessonSlotId=schedule-1",
+    render(
+      <MemoryRouter>
+        <CourseCard
+          slot={slot}
+          attendance={attendance}
+          onStartCourse={vi.fn()}
+          onAddSpontaneousGrade={onAddSpontaneousGrade}
+        />
+      </MemoryRouter>
     )
+
+    fireEvent.click(screen.getByRole("button", { name: "Note spontanée" }))
+    expect(onAddSpontaneousGrade).toHaveBeenCalledWith(slot)
+  })
+
+  it("masque la note spontanée plus de 24 h après la fin du cours", () => {
+    flowState = null
+    vi.setSystemTime(new Date("2026-06-10T09:01:00"))
+
+    render(
+      <MemoryRouter>
+        <CourseCard slot={slot} attendance={attendance} onStartCourse={vi.fn()} onAddSpontaneousGrade={vi.fn()} />
+      </MemoryRouter>
+    )
+
+    expect(screen.queryByRole("button", { name: "Note spontanée" })).not.toBeInTheDocument()
   })
 })

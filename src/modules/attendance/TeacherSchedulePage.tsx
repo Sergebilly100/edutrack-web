@@ -6,6 +6,7 @@ import { teacherScheduleApi, type ScheduleSlot } from "@/modules/attendance/atte
 import CourseCard from "@/modules/attendance/components/CourseCard"
 import DayPicker, { startOfWeekMonday, toDateKey } from "@/modules/attendance/components/DayPicker"
 import TeacherCheckInFlow from "@/modules/attendance/components/TeacherCheckInFlow"
+import { SpontaneousGradeDialog } from "@/modules/academic/components/SpontaneousGradeDialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -65,6 +66,7 @@ export default function TeacherSchedulePage() {
 
   const [selectedDate, setSelectedDate] = useState(getDefaultTeachingDate)
   const [activeSlot, setActiveSlot] = useState<ScheduleSlot | null>(null)
+  const [spontaneousGradeSlot, setSpontaneousGradeSlot] = useState<ScheduleSlot | null>(null)
   // true quand le flux est ouvert en mode « correction de l'appel » (étape 3 directe).
   const [editingRollCall, setEditingRollCall] = useState(false)
   // Tick horloge : force un re-render périodique pour que les états dépendant de
@@ -308,6 +310,7 @@ export default function TeacherSchedulePage() {
               attendance={attendanceBySchedule.get(slot.id)}
               onStartCourse={(s) => { setEditingRollCall(false); setActiveSlot(s) }}
               onEditRollCall={(s) => { setEditingRollCall(true); setActiveSlot(s) }}
+              onAddSpontaneousGrade={setSpontaneousGradeSlot}
             />
           ))}
         </ul>
@@ -321,6 +324,11 @@ export default function TeacherSchedulePage() {
           onClose={() => { setActiveSlot(null); setEditingRollCall(false) }}
         />
       ) : null}
+      <SpontaneousGradeDialog
+        open={Boolean(spontaneousGradeSlot)}
+        slot={spontaneousGradeSlot}
+        onOpenChange={(open) => { if (!open) setSpontaneousGradeSlot(null) }}
+      />
     </div>
     </>
   )
