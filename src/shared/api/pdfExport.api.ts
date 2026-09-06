@@ -35,28 +35,6 @@ const resolveState = (raw: string | null | undefined): PdfExportJobState => {
   }
 }
 
-const API_PREFIX_PATTERN = /^https?:\/\/[^/]+\/api\/v1/i
-
-/**
- * Le backend renvoie une URL absolue (signée). On la normalise vers le chemin
- * relatif consommé par l'instance axios (baseURL = /api/v1) afin de conserver
- * les credentials et de ne pas dépendre du host.
- */
-const buildExportApiPath = (rawUrl: string): string => {
-  const stripped = rawUrl.replace(API_PREFIX_PATTERN, "")
-  return stripped.startsWith("/") ? stripped : `/${stripped}`
-}
-
-const FILENAME_PATTERN = /filename="?([^"]+)"?/i
-
-const extractFileName = (disposition: string | null): string | null => {
-  if (!disposition) {
-    return null
-  }
-  const match = FILENAME_PATTERN.exec(disposition)
-  return match?.[1] ?? null
-}
-
 export const getPdfExportJobStatus = async (jobId: string): Promise<PdfExportJobStatus> => {
   const response = await api.get(`/jobs/${jobId}/status`)
   const payload = response.data ?? {}
@@ -75,18 +53,24 @@ export const getPdfExportJobStatus = async (jobId: string): Promise<PdfExportJob
   }
 }
 
-export const downloadPdfExportFile = async (
-  downloadUrl: string
-): Promise<{ blob: Blob; fileName: string | null }> => {
-  const response = await api.get<Blob>(buildExportApiPath(downloadUrl), {
-    responseType: "blob",
-  })
-  const disposition =
-    (response.headers["content-disposition"] as string | undefined) ?? null
-  return {
-    blob: response.data,
-    fileName: extractFileName(disposition),
+/**
+ * Lance l'URL signée comme une navigation du navigateur.
+ *
+ * L'endpoint API redirige vers R2. Une requête XHR/Axios suivrait cette
+ * redirection et serait bloquée si R2 ne publie pas ses en-têtes CORS. Une
+ * navigation n'est pas soumise à CORS et R2 fournit déjà
+ * Content-Disposition: attachment avec le nom de fichier signé.
+ */
+export const triggerPdfExportDownload = (downloadUrl: string, fallbackFileName?: string): void => {
+  const link = document.createElement("a")
+  link.href = downloadUrl
+  if (fallbackFileName) {
+    link.download = fallbackFileName
   }
+  link.referrerPolicy = "no-referrer"
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
 }
 
 /** Déclenche le téléchargement du blob dans le navigateur. */

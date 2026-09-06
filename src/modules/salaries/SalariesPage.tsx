@@ -31,7 +31,7 @@ import {
   toSalaryRowStatus,
 } from "@/modules/salaries/salaries.helpers"
 import { useToast } from "@/components/ui/use-toast"
-import { downloadPdfExportFile, triggerBlobDownload } from "@/shared/api/pdfExport.api"
+import { triggerPdfExportDownload } from "@/shared/api/pdfExport.api"
 import { cn } from "@/lib/utils"
 import {
   computeSalaries,
@@ -123,7 +123,6 @@ export default function SalariesPage() {
   const [bulkExportTarget, setBulkExportTarget] = useState<string>("all")
   const [bulkPeriodFrom, setBulkPeriodFrom] = useState(getCurrentMonth)
   const [bulkPeriodTo, setBulkPeriodTo] = useState(getCurrentMonth)
-  const [isDownloadingExport, setIsDownloadingExport] = useState(false)
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
   const [detailsRow, setDetailsRow] = useState<SalarySummaryItem | null>(null)
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false)
@@ -758,25 +757,13 @@ export default function SalariesPage() {
     return Math.round(parsedHoursToPay * payDialogDetails.teacher.hourlyRate)
   }, [payDialogDetails, parsedHoursToPay])
 
-  const handleDownloadExport = async () => {
+  const handleDownloadExport = () => {
     const downloadUrl = exportJobQuery.data?.downloadUrl
     if (!downloadUrl) {
       return
     }
 
-    setIsDownloadingExport(true)
-    try {
-      const { blob, fileName } = await downloadPdfExportFile(downloadUrl)
-      triggerBlobDownload(blob, fileName ?? exportFileName ?? "export-salaires.pdf")
-    } catch {
-      toast({
-        title: "Erreur",
-        description: "Impossible de télécharger le fichier d'export.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsDownloadingExport(false)
-    }
+    triggerPdfExportDownload(downloadUrl, exportFileName ?? "export-salaires.pdf")
   }
 
   useEffect(() => {
@@ -930,7 +917,6 @@ export default function SalariesPage() {
             exportJobState={exportJobQuery.data?.state}
             downloadUrl={exportJobQuery.data?.downloadUrl}
             failedReason={exportJobQuery.data?.failedReason}
-            isDownloading={isDownloadingExport}
             onDownload={handleDownloadExport}
           />
         </header>

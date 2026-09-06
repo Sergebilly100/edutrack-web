@@ -10,7 +10,6 @@ export function SalaryExportSection({
   exportJobState,
   downloadUrl,
   failedReason,
-  isDownloading,
   onDownload,
 }: {
   exportJobId: string | null
@@ -18,7 +17,6 @@ export function SalaryExportSection({
   exportJobState: string | undefined
   downloadUrl: string | null | undefined
   failedReason: string | null | undefined
-  isDownloading: boolean
   onDownload: () => void
 }) {
   if (!exportJobId) return null
@@ -47,11 +45,10 @@ export function SalaryExportSection({
           size="sm"
           variant="secondary"
           onClick={onDownload}
-          disabled={isDownloading}
         >
           <Download className="mr-2 h-4 w-4" />
           <span data-testid="salaries-export-download-link">
-            {isDownloading ? "Téléchargement..." : "Télécharger"}
+            Télécharger
           </span>
         </Button>
       ) : null}

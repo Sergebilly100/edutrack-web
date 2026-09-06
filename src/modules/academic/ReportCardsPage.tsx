@@ -13,9 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/components/ui/use-toast"
 import { EmptyState } from "@/shared/components/EmptyState"
 import {
-  downloadPdfExportFile,
   getPdfExportJobStatus,
-  triggerBlobDownload,
+  triggerPdfExportDownload,
 } from "@/shared/api/pdfExport.api"
 import {
   fetchClassReportCards,
@@ -107,8 +106,7 @@ export default function ReportCardsPage() {
       for (let attempt = 0; attempt < 30; attempt += 1) {
         const status = await getPdfExportJobStatus(jobId)
         if (status.downloadUrl) {
-          const { blob, fileName } = await downloadPdfExportFile(status.downloadUrl)
-          triggerBlobDownload(blob, fileName ?? `bulletin_${cardId}.pdf`)
+          triggerPdfExportDownload(status.downloadUrl, `bulletin_${cardId}.pdf`)
           return
         }
         await new Promise((resolve) => setTimeout(resolve, 2000))

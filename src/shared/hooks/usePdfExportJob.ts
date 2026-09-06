@@ -3,9 +3,8 @@ import { useQuery } from "@tanstack/react-query"
 
 import { useToast } from "@/components/ui/use-toast"
 import {
-  downloadPdfExportFile,
   getPdfExportJobStatus,
-  triggerBlobDownload,
+  triggerPdfExportDownload,
 } from "@/shared/api/pdfExport.api"
 
 type LaunchResult = { jobId: string }
@@ -69,21 +68,9 @@ export function usePdfExportJob(options: UsePdfExportJobOptions = {}) {
 
     if (data.status === "done" && data.downloadUrl && downloadedJobRef.current !== jobId) {
       downloadedJobRef.current = jobId
-      void (async () => {
-        try {
-          const { blob, fileName } = await downloadPdfExportFile(data.downloadUrl as string)
-          triggerBlobDownload(blob, fileName ?? options.fallbackFileName ?? "bilan.pdf")
-          toast({ title: options.successMessage ?? "Bilan PDF téléchargé" })
-        } catch {
-          toast({
-            title: "Échec du téléchargement",
-            description: options.errorMessage ?? "Impossible de télécharger le PDF.",
-            variant: "destructive",
-          })
-        } finally {
-          setJobId(null)
-        }
-      })()
+      triggerPdfExportDownload(data.downloadUrl, options.fallbackFileName)
+      toast({ title: options.successMessage ?? "Bilan PDF téléchargé" })
+      setJobId(null)
     }
   }, [jobQuery.data, jobId, options.errorMessage, options.fallbackFileName, options.successMessage, toast])
 
