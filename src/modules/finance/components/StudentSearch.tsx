@@ -4,6 +4,7 @@ import { Check, Search, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { listStudents, type StudentItem } from "@/modules/students/students.api"
 
@@ -53,13 +54,9 @@ export function StudentSearch({
   }
 
   return (
-    <div
-      ref={wrapperRef}
-      className="relative"
-      onBlur={(event) => {
-        if (!wrapperRef.current?.contains(event.relatedTarget as Node | null)) setOpen(false)
-      }}
-    >
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>
+        <div ref={wrapperRef} className="relative">
       <Search className={cn("pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground", compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
       <Input
         ref={inputRef}
@@ -111,28 +108,33 @@ export function StudentSearch({
           <X className="h-4 w-4" />
         </Button>
       ) : null}
+        </div>
+      </PopoverAnchor>
       {open ? (
-        <div
+        <PopoverContent
           id={listId}
           role="listbox"
-          className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-md"
+          align="start"
+          side="bottom"
+          className="max-h-64 min-w-[var(--radix-popper-anchor-width)] overflow-y-auto"
+          onOpenAutoFocus={(event) => event.preventDefault()}
         >
           {searchQuery.isFetching ? <p className="px-3 py-2 text-sm text-muted-foreground">Recherche…</p> : null}
           {!searchQuery.isFetching && normalizedQuery.length >= 2 && students.length === 0 ? (
             <p className="px-3 py-2 text-sm text-muted-foreground">Aucun élève trouvé.</p>
           ) : null}
           {students.map((student, index) => (
-            <button
+            <Button
               key={student.id}
               id={`${listId}-${student.id}`}
               type="button"
+              variant="ghost"
               role="option"
               aria-selected={index === activeIndex}
               className={cn(
-                "flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "h-auto min-h-12 w-full justify-start gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors",
                 index === activeIndex ? "bg-accent text-accent-foreground" : "hover:bg-accent/70",
               )}
-              onMouseDown={(event) => event.preventDefault()}
               onMouseEnter={() => setActiveIndex(index)}
               onClick={() => choose(student)}
             >
@@ -141,10 +143,10 @@ export function StudentSearch({
                 <span className="block truncate font-medium">{student.lastName} {student.firstName}</span>
                 <span className="block truncate text-xs text-muted-foreground">{student.className}{student.matricule ? ` · ${student.matricule}` : ""}</span>
               </span>
-            </button>
+            </Button>
           ))}
-        </div>
+        </PopoverContent>
       ) : null}
-    </div>
+    </Popover>
   )
 }

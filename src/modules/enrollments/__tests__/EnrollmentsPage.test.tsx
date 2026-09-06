@@ -7,12 +7,17 @@ const mocks = vi.hoisted(() => ({
   listEnrollments: vi.fn(),
   listClassDecisions: vi.fn(),
   listSchoolYears: vi.fn(),
+  listLevels: vi.fn(),
   listClasses: vi.fn(),
+  listReEnrollmentCandidates: vi.fn(),
+  getStudentAcademicSummary: vi.fn(),
 }))
 
 vi.mock("../enrollments.api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../enrollments.api")>()),
   listEnrollments: mocks.listEnrollments,
+  listReEnrollmentCandidates: mocks.listReEnrollmentCandidates,
+  getStudentAcademicSummary: mocks.getStudentAcademicSummary,
   createEnrollment: vi.fn(),
 }))
 vi.mock("@/modules/class-decisions/class-decisions.api", () => ({
@@ -20,6 +25,7 @@ vi.mock("@/modules/class-decisions/class-decisions.api", () => ({
 }))
 vi.mock("@/modules/academic/academic.api", () => ({
   listSchoolYears: mocks.listSchoolYears,
+  listLevels: mocks.listLevels,
   listClasses: mocks.listClasses,
 }))
 vi.mock("@/shared/hooks/usePermissions", () => ({
@@ -51,7 +57,16 @@ describe("EnrollmentsPage", () => {
     vi.clearAllMocks()
     mocks.listClassDecisions.mockResolvedValue({ decisions: [] })
     mocks.listSchoolYears.mockResolvedValue([])
+    mocks.listLevels.mockResolvedValue([])
     mocks.listClasses.mockResolvedValue({ classes: [] })
+    mocks.listReEnrollmentCandidates.mockResolvedValue({
+      candidates: [],
+      pagination: { page: 1, limit: 20, total: 0, totalPages: 1 },
+    })
+    mocks.getStudentAcademicSummary.mockResolvedValue({
+      student: { id: "student-1", firstName: "Awa", lastName: "Koné", matricule: "MAT-001" },
+      years: [{ schoolYearId: "year-1", schoolYearLabel: "2026-2027", className: "6e A", decision: "Admis(e)", financialStatus: "settled", remainingDue: 0 }],
+    })
     mocks.listEnrollments.mockImplementation(({ page = 1 }: { page?: number }) => Promise.resolve({
       enrollments: [page === 1 ? enrollment("1", "Awa") : enrollment("2", "Aya")],
       pagination: { page, limit: 20, total: 21, totalPages: 2 },
@@ -91,5 +106,35 @@ describe("EnrollmentsPage", () => {
 
     expect(await screen.findByText("Koné Adjoua")).toBeInTheDocument()
     expect(screen.getByRole("table")).toBeInTheDocument()
+  })
+
+  it("affiche tous les élèves et le bouton Voir dossier avant la sélection de l’année cible", async () => {
+    mocks.listReEnrollmentCandidates.mockResolvedValue({
+      candidates: [{
+        studentId: "student-1", studentFirstName: "Awa", studentLastName: "Koné", studentMatricule: "MAT-001",
+        currentClassName: "6e A", currentSchoolYearId: "year-1", currentSchoolYearLabel: "2026-2027",
+        finalDecision: null, nextLevelId: null, nextLevelName: null, enrollment: null,
+      }],
+      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+    })
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter><EnrollmentsPage /></MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    // Radix Tabs changes its value on pointer/mouse down, before the native click.
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Réinscriptions" }), { button: 0 })
+
+    expect(await screen.findByText("MAT-001")).toBeInTheDocument()
+    expect(screen.getByLabelText("Année scolaire récente")).toBeInTheDocument()
+    expect(screen.getByLabelText("Niveau récent")).toBeInTheDocument()
+    expect(screen.getByLabelText("Classe récente")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Voir dossier" }))
+    expect(await screen.findByRole("dialog")).toBeInTheDocument()
+    expect(screen.getByText("Synthèse scolaire")).toBeInTheDocument()
+    await waitFor(() => expect(mocks.listReEnrollmentCandidates).toHaveBeenCalledWith({
+      schoolYearId: undefined, sourceSchoolYearId: undefined, levelId: undefined, classId: undefined, search: undefined, page: 1, limit: 20,
+    }))
   })
 })

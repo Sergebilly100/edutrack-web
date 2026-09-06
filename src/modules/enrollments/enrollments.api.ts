@@ -70,6 +70,38 @@ export type EnrollmentsListResponse = {
   pagination: { page: number; limit: number; total: number; totalPages: number }
 }
 
+export type ReEnrollmentCandidate = {
+  studentId: string
+  studentFirstName: string
+  studentLastName: string
+  studentMatricule: string | null
+  currentClassName: string
+  currentSchoolYearId: string
+  currentSchoolYearLabel: string
+  finalDecision: "promoted" | "repeat" | "expelled" | null
+  nextLevelId: string | null
+  nextLevelName: string | null
+  enrollment: { id: string; status: EnrollmentStatus; className: string } | null
+}
+
+export type ReEnrollmentCandidatesResponse = {
+  candidates: ReEnrollmentCandidate[]
+  pagination: { page: number; limit: number; total: number; totalPages: number }
+}
+
+export type StudentAcademicSummary = {
+  student: { id: string; firstName: string; lastName: string; matricule: string | null }
+  years: Array<{
+    schoolYearId: string
+    schoolYearLabel: string
+    className: string
+    decision: string
+    financialStatus: "settled" | "remaining_due" | "not_configured" | "unavailable"
+    remainingDue: number | null
+    currency: string
+  }>
+}
+
 const parseEnrollment = (value: unknown): Enrollment | null => {
   if (!isRecord(value)) return null
   const statusValue = asString(value.status)
@@ -149,6 +181,8 @@ export async function listEnrollments(params: {
   limit?: number
   type?: EnrollmentType
   schoolYearId?: string
+  levelId?: string
+  classId?: string
   status?: EnrollmentStatus
 } = {}): Promise<EnrollmentsListResponse> {
   const requestedPage = params.page ?? 1
@@ -159,10 +193,82 @@ export async function listEnrollments(params: {
       limit: requestedLimit,
       ...(params.type ? { type: params.type } : {}),
       ...(params.schoolYearId ? { school_year_id: params.schoolYearId } : {}),
+      ...(params.levelId ? { level_id: params.levelId } : {}),
+      ...(params.classId ? { class_id: params.classId } : {}),
       ...(params.status ? { status: params.status } : {}),
     },
   })
   return normalizeEnrollmentsListResponse(response.data, requestedPage, requestedLimit)
+}
+
+const parseReEnrollmentCandidate = (value: unknown): ReEnrollmentCandidate | null => {
+  if (!isRecord(value)) return null
+  const studentId = asString(value.studentId ?? value.student_id)
+  if (!studentId) return null
+  const enrollmentValue = isRecord(value.enrollment) ? value.enrollment : null
+  const enrollmentStatus = enrollmentValue ? asString(enrollmentValue.status) : ""
+  return {
+    studentId,
+    studentFirstName: asString(value.studentFirstName ?? value.student_first_name),
+    studentLastName: asString(value.studentLastName ?? value.student_last_name),
+    studentMatricule: asString(value.studentMatricule ?? value.student_matricule) || null,
+    currentClassName: asString(value.currentClassName ?? value.current_class_name),
+    currentSchoolYearId: asString(value.currentSchoolYearId ?? value.current_school_year_id),
+    currentSchoolYearLabel: asString(value.currentSchoolYearLabel ?? value.current_school_year_label),
+    finalDecision: value.finalDecision === "promoted" || value.finalDecision === "repeat" || value.finalDecision === "expelled"
+      ? value.finalDecision
+      : value.final_decision === "promoted" || value.final_decision === "repeat" || value.final_decision === "expelled"
+        ? value.final_decision
+      : null,
+    nextLevelId: asString(value.nextLevelId ?? value.next_level_id) || null,
+    nextLevelName: asString(value.nextLevelName ?? value.next_level_name) || null,
+    enrollment: enrollmentValue && (enrollmentStatus === "pending_cashier" || enrollmentStatus === "pending_dossier" || enrollmentStatus === "confirmed" || enrollmentStatus === "blocked_unpaid")
+      ? { id: asString(enrollmentValue.id), status: enrollmentStatus, className: asString(enrollmentValue.className ?? enrollmentValue.class_name) }
+      : null,
+  }
+}
+
+export async function listReEnrollmentCandidates(params: {
+  schoolYearId?: string
+  sourceSchoolYearId?: string
+  levelId?: string
+  classId?: string
+  search?: string
+  page?: number
+  limit?: number
+} = {}): Promise<ReEnrollmentCandidatesResponse> {
+  const requestedPage = params.page ?? 1
+  const requestedLimit = params.limit ?? 20
+  const response = await apiClient.get<unknown>("/enrollments/re-enrollment/candidates", {
+    params: {
+      page: requestedPage,
+      limit: requestedLimit,
+      ...(params.schoolYearId ? { school_year_id: params.schoolYearId } : {}),
+      ...(params.sourceSchoolYearId ? { source_school_year_id: params.sourceSchoolYearId } : {}),
+      ...(params.levelId ? { level_id: params.levelId } : {}),
+      ...(params.classId ? { class_id: params.classId } : {}),
+      ...(params.search?.trim() ? { search: params.search.trim() } : {}),
+    },
+  })
+  const payload = isRecord(response.data) ? response.data : {}
+  const pagination = isRecord(payload.pagination) ? payload.pagination : {}
+  return {
+    candidates: Array.isArray(payload.candidates) ? payload.candidates.flatMap((item) => {
+      const parsed = parseReEnrollmentCandidate(item)
+      return parsed ? [parsed] : []
+    }) : [],
+    pagination: {
+      page: asNumber(pagination.page, requestedPage),
+      limit: asNumber(pagination.limit, requestedLimit),
+      total: asNumber(pagination.total),
+      totalPages: asNumber(pagination.totalPages ?? pagination.total_pages, 1),
+    },
+  }
+}
+
+export async function getStudentAcademicSummary(studentId: string): Promise<StudentAcademicSummary> {
+  const response = await apiClient.get<StudentAcademicSummary>(`/enrollments/re-enrollment/students/${studentId}/summary`)
+  return response.data
 }
 
 export async function getEnrollment(id: string): Promise<Enrollment> {

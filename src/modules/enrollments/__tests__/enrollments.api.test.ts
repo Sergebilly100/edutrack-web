@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const { getMock, postMock, putMock, patchMock, deleteMock } = vi.hoisted(() => ({ getMock: vi.fn(), postMock: vi.fn(), putMock: vi.fn(), patchMock: vi.fn(), deleteMock: vi.fn() }))
 vi.mock("@/shared/api/client", () => ({ apiClient: { get: getMock, post: postMock, put: putMock, patch: patchMock, delete: deleteMock } }))
 
-import { archiveRequiredDocumentType, confirmEnrollmentPayment, createRequiredDocumentTypes, listEnrollments, listRequiredDocumentLevels, listRequiredDocumentTypes, syncRequiredDocumentTypes, updateEnrollment, updateRequiredDocumentType, updateStudentDocument, uploadStudentDocument, verifyStudentDocuments } from "../enrollments.api"
+import { archiveRequiredDocumentType, confirmEnrollmentPayment, createRequiredDocumentTypes, getStudentAcademicSummary, listEnrollments, listReEnrollmentCandidates, listRequiredDocumentLevels, listRequiredDocumentTypes, syncRequiredDocumentTypes, updateEnrollment, updateRequiredDocumentType, updateStudentDocument, uploadStudentDocument, verifyStudentDocuments } from "../enrollments.api"
 
 describe("enrollments.api", () => {
   beforeEach(() => vi.clearAllMocks())
@@ -40,6 +40,28 @@ describe("enrollments.api", () => {
     getMock.mockResolvedValueOnce({ data: { levels: [{ id: "level-1", name: "CP1" }] } })
     await expect(listRequiredDocumentLevels()).resolves.toEqual([{ id: "level-1", name: "CP1" }])
     expect(getMock).toHaveBeenCalledWith("/required-document-levels")
+  })
+
+  it("charge et normalise les élèves réinscriptibles ainsi que leur synthèse", async () => {
+    getMock.mockResolvedValueOnce({ data: {
+      candidates: [{
+        student_id: "student-1", student_first_name: "Awa", student_last_name: "Koné", student_matricule: "MAT-001",
+        current_class_name: "6e A", current_school_year_id: "year-1", current_school_year_label: "2026-2027",
+        final_decision: "promoted", next_level_id: "level-2", next_level_name: "5e", enrollment_id: null,
+      }],
+      pagination: { page: 1, limit: 20, total: 1, total_pages: 1 },
+    } }).mockResolvedValueOnce({ data: {
+      student: { id: "student-1", firstName: "Awa", lastName: "Koné", matricule: "MAT-001" },
+      years: [],
+    } })
+
+    await expect(listReEnrollmentCandidates({ search: "Awa", sourceSchoolYearId: "year-1", levelId: "level-1", classId: "class-1" })).resolves.toMatchObject({
+      candidates: [expect.objectContaining({ studentId: "student-1", finalDecision: "promoted" })],
+      pagination: { total: 1 },
+    })
+    await expect(getStudentAcademicSummary("student-1")).resolves.toMatchObject({ student: { matricule: "MAT-001" } })
+    expect(getMock).toHaveBeenCalledWith("/enrollments/re-enrollment/candidates", { params: { page: 1, limit: 20, source_school_year_id: "year-1", level_id: "level-1", class_id: "class-1", search: "Awa" } })
+    expect(getMock).toHaveBeenCalledWith("/enrollments/re-enrollment/students/student-1/summary")
   })
 
   it("branche la création, la modification et l’archivage des règles documentaires", async () => {
