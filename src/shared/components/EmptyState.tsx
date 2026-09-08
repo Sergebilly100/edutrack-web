@@ -23,6 +23,7 @@ type EmptyStateProps = {
   message?: string
   description?: string
   action?: EmptyStateAction
+  classNameRendu?: string
 }
 
 export const emptyStateIcons = {
@@ -53,14 +54,17 @@ const renderIconNode = (
   return <AppIcon icon={SearchIcon} size="md" className={className} />
 }
 
-export function EmptyState({ icon, title, message, description, action }: EmptyStateProps) {
+export function EmptyState({ icon, title, message, description, action, classNameRendu }: EmptyStateProps) {
   const contentMessage = message ?? description
+  const className = classNameRendu ?? "py-12"
 
   return (
-    <div className="flex flex-col items-center gap-3 py-12 text-center">
+    <div className={`flex flex-col items-center gap-3 text-center ${className}`}>
+      { !icon ? (
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-        {renderIconNode(icon)}
+       {renderIconNode(icon)}
       </div>
+      ) : null}
       <h3 className="text-sm font-medium">{title}</h3>
       {contentMessage ? <p className="max-w-xs text-sm text-muted-foreground">{contentMessage}</p> : null}
       {action ? (
