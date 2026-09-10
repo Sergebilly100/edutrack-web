@@ -18,7 +18,7 @@
     --card-foreground: 222.2 70% 8%;
     --popover: 214 42% 99.2%;
     --popover-foreground: 222.2 70% 8%;
-    --primary: 218 78% 46%;
+    --primary: 217 91% 60%;
     --primary-foreground: 214 45% 98.8%;
     --secondary: 212 35% 95.5%;
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -45,11 +45,11 @@
     --stat-default-bg: oklch(0.955 0.014 248);
     --stat-default-fg: oklch(0.36 0.035 248);
     --stat-success-bg: oklch(0.94 0.055 154);
-    --stat-success-fg: oklch(0.38 0.115 154);
+    --stat-success-fg: oklch(59.071% 0.16638 148.965);
     --stat-warning-bg: oklch(0.95 0.065 75);
-    --stat-warning-fg: oklch(0.43 0.115 65);
+    --stat-warning-fg: oklch(71.387% 0.12383 88.841);
     --stat-danger-bg: oklch(0.94 0.055 26);
-    --stat-danger-fg: oklch(0.42 0.14 26);
+    --stat-danger-fg: oklch(37.758% 0.14173 28.045);
     --help-info-bg: oklch(0.955 0.035 248);
     --help-info-fg: oklch(0.31 0.11 252);
     --help-info-border: oklch(0.82 0.07 248);

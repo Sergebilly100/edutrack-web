@@ -236,14 +236,14 @@ export default function SettingsPage() {
       ) : null}
 
       <Tabs defaultValue={defaultTab} className="space-y-4">
-      <TabsList className="h-auto flex-wrap">
-        {canManageGeneralSettings ? <TabsTrigger value="general">Général</TabsTrigger> : null}
-        {canManagePositions ? <TabsTrigger value="personnel">Personnel</TabsTrigger> : null}
-        {canViewRequiredDocuments ? <TabsTrigger value="scolarite">Scolarité</TabsTrigger> : null}
-        {canManageFinance ? <TabsTrigger value="finance">Finance</TabsTrigger> : null}
-        {canViewFinancialAlerts ? <TabsTrigger value="relances">Relances</TabsTrigger> : null}
-        {canManageRiskAlerts ? <TabsTrigger value="risques">Risques</TabsTrigger> : null}
-        {canAccessSmsTemplate ? <TabsTrigger value="communication">Communication</TabsTrigger> : null}
+      <TabsList className="flex-wrap h-auto w-full justify-start overflow-x-auto grid h-auto w-full rounded-xl border border-border grid-cols-7">
+        {canManageGeneralSettings ? <TabsTrigger value="general" className="min-h-12">Général</TabsTrigger> : null}
+        {canManagePositions ? <TabsTrigger value="personnel" className="min-h-12">Personnel</TabsTrigger> : null}
+        {canViewRequiredDocuments ? <TabsTrigger value="scolarite" className="min-h-12">Scolarité</TabsTrigger> : null}
+        {canManageFinance ? <TabsTrigger value="finance" className="min-h-12">Finance</TabsTrigger> : null}
+        {canViewFinancialAlerts ? <TabsTrigger value="relances" className="min-h-12">Relances</TabsTrigger> : null}
+        {canManageRiskAlerts ? <TabsTrigger value="risques" className="min-h-12">Risques</TabsTrigger> : null}
+        {canAccessSmsTemplate ? <TabsTrigger value="communication" className="min-h-12">Communication</TabsTrigger> : null}
       </TabsList>
       {canManageGeneralSettings ? (
         <TabsContent value="general" data-tour="settings-school-panel">

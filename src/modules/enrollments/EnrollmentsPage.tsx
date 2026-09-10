@@ -64,7 +64,7 @@ import {
 import { enrollmentStatusLabel } from "./enrollments.helpers";
 
 const statusClassName: Record<Enrollment["status"], string> = {
-  pending_cashier: "border-blue-200 bg-blue-50 text-blue-800",
+  pending_cashier: "border-blue-200 bg-blue-50 text-blue-500",
   pending_dossier: "border-amber-200 bg-amber-50 text-amber-800",
   confirmed: "border-green-200 bg-green-50 text-green-800",
   blocked_unpaid: "border-red-200 bg-red-50 text-red-800",

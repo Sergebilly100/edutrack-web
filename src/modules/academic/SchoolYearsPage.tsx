@@ -26,8 +26,8 @@ type ReviewDateForm = z.infer<typeof reviewDateSchema>
 
 const statusLabel = { draft: "Brouillon", active: "Active", closed: "Clôturée" } as const
 const formatDate = (value: string) => new Intl.DateTimeFormat("fr-FR").format(new Date(`${value}T00:00:00`))
-const previousIsoDate = (value: string) => {
-  const date = new Date(`${value}T00:00:00.000Z`)
+const previousIsoDate = (value: string) => { // retourne la date ISO du jour précédent pour une date donnée (ex: 2024-06-30 -> 2024-06-29)
+  const date = new Date(`${value}T00:00:00.000Z`) 
   date.setUTCDate(date.getUTCDate() - 1)
   return date.toISOString().slice(0, 10)
 }
@@ -102,7 +102,7 @@ export default function SchoolYearsPage() {
           <CardHeader>
             <CardTitle className="text-lg">Revue de fin d’année</CardTitle>
             <CardDescription>
-              Le menu Fin d’année devient visible à cette date pour {activeYear.label}. La date de fin reste fixée au {formatDate(activeYear.endDate)}.
+              Le menu Fin d’année devient visible à cette date pour l'année scolaire {activeYear.label}. La date de fin d'année reste fixée au {formatDate(activeYear.endDate)}.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -115,13 +115,13 @@ export default function SchoolYearsPage() {
                     <FormItem className="w-full sm:max-w-xs">
                       <FormLabel>Date de début de revue</FormLabel>
                       <FormControl><Input type="date" max={previousIsoDate(activeYear.endDate)} disabled={!canEdit || mutation.isPending} {...field} /></FormControl>
-                      <FormDescription>Par défaut, 30 jours avant la fin de l’année.</FormDescription>
+                      {/* <FormDescription>Par défaut, 30 jours avant la fin de l’année.</FormDescription> */}
                       <FormMessage />
                     </FormItem>
                   )}
                 />
                 {canEdit ? (
-                  <Button type="submit" className="min-h-12" disabled={mutation.isPending}>
+                  <Button type="submit" className="min-h-10" disabled={mutation.isPending}>
                     {mutation.isPending ? <Spinner size="sm" className="mr-2" /> : null}
                     {mutation.isPending ? "Enregistrement…" : "Enregistrer la date"}
                   </Button>

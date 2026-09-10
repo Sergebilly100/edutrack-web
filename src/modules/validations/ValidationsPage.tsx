@@ -1326,12 +1326,12 @@ export default function ValidationsPage() {
 
         <Tabs defaultValue="hours" className="space-y-4">
           <TabsList className="grid h-auto w-full grid-cols-1 gap-1 rounded-xl border border-border bg-muted/50 p-1 sm:grid-cols-3">
-            <TabsTrigger value="hours" data-tour="validations-short-hours">Heures à valider ({groups.short_hours.length})</TabsTrigger>
-            <TabsTrigger value="end-scan" data-tour="validations-tab-end-scan">
+            <TabsTrigger value="hours" data-tour="validations-short-hours" className="min-h-12">Heures à valider ({groups.short_hours.length})</TabsTrigger>
+            <TabsTrigger value="end-scan" data-tour="validations-tab-end-scan" className="min-h-12">
               <AlertTriangle className="mr-1 h-3.5 w-3.5" />
               Scan de fin ({endScanTotal})
             </TabsTrigger>
-            <TabsTrigger value="gps" data-tour="validations-tab-gps">Présences suspectes ({groups.gps_suspicious.length})</TabsTrigger>
+            <TabsTrigger value="gps" data-tour="validations-tab-gps" className="min-h-12">Présences suspectes ({groups.gps_suspicious.length})</TabsTrigger>
           </TabsList>
           <TabsContent value="hours" className="space-y-6">
             <div className="space-y-4">

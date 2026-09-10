@@ -146,8 +146,8 @@ export function RiskAlertRules() {
   }
 
   return (
-    <Card className="rounded-lg shadow-sm">
-      <CardHeader className="gap-3 pb-3">
+    <Card className="rounded-lg shadow-sm p-3">
+      <CardHeader className="gap-3 pb-3 border-none">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
             <CardTitle className="flex items-center gap-2">

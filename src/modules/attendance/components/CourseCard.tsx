@@ -316,7 +316,7 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
             </Button>
           ) : null}
 
-          {canAddSpontaneousGrade ? (
+          {canAddSpontaneousGrade && alreadyCheckedIn && checkinQrDone ? (
             <Button
               type="button"
               size="sm"

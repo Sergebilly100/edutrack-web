@@ -27,6 +27,7 @@ import {
   publishReportCard,
   requestReportCardPdf,
 } from "./academic.api"
+import { PageLayout } from "@/shared/components/PageLayout"
 
 export default function ReportCardsPage() {
   const { toast } = useToast()
@@ -141,15 +142,13 @@ export default function ReportCardsPage() {
   }
 
   return (
-    <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Bulletins</h1>
-        <p className="text-sm text-muted-foreground">
-          Génération figée par période, publication manuelle classe par classe.
-        </p>
-      </header>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+    <PageLayout
+      title="Bulletins"
+      subtitle="Génération figée par période, publication manuelle classe par classe."
+    >
+
+      <div className="grid gap-4 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="report-cards-class">Classe</Label>
           <Select value={classId || "none"} onValueChange={(value) => setClassId(value === "none" ? "" : value)}>
@@ -344,7 +343,7 @@ export default function ReportCardsPage() {
           </Card>
         </>
       )}
-    </div>
+    </PageLayout>
   )
 }
 

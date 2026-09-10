@@ -220,6 +220,9 @@ export default function SubscriptionRevenuePage() {
         </div>
       }
     >
+
+      <SubscriptionsStatsCards month={month} />
+
       {(commissionOverdueQuery.data?.count ?? 0) > 0 ? (
         <OverdueReversalBanner overdueMonths={(commissionOverdueQuery.data?.months ?? []).map((m) => ({
           month: monthLabel(m.month),
@@ -228,8 +231,6 @@ export default function SubscriptionRevenuePage() {
           daysPastDue: 0,
         }))} />
       ) : null}
-
-      <SubscriptionsStatsCards month={month} />
 
       {summary ? (
         <section className="space-y-3 rounded-lg border p-4" data-tour="revenue-commission">

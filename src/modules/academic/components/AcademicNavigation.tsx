@@ -26,21 +26,21 @@ export function AcademicNavigation() {
 
   return (
     <Tabs value={currentRoute} onValueChange={(value) => navigate(value)}>
-      <TabsList className="h-auto w-full justify-start overflow-x-auto">
+      <TabsList className="h-auto w-full justify-start overflow-x-auto grid h-auto w-full rounded-xl border border-border grid-cols-4 ">
         {canViewSchoolYears ? (
-          <TabsTrigger value={ACADEMIC_ROUTES.schoolYears} className="min-h-10">
+          <TabsTrigger value={ACADEMIC_ROUTES.schoolYears} className="min-h-12">
             Années scolaires
           </TabsTrigger>
         ) : null}
         {canViewClasses ? (
           <>
-            <TabsTrigger value={ACADEMIC_ROUTES.levels} className="min-h-10">
+            <TabsTrigger value={ACADEMIC_ROUTES.levels} className="min-h-12">
               Niveaux
             </TabsTrigger>
-            <TabsTrigger value={ACADEMIC_ROUTES.classes} className="min-h-10">
+            <TabsTrigger value={ACADEMIC_ROUTES.classes} className="min-h-12">
               Classes
             </TabsTrigger>
-            <TabsTrigger value={ACADEMIC_ROUTES.subjects} className="min-h-10">
+            <TabsTrigger value={ACADEMIC_ROUTES.subjects} className="min-h-12">
               Matières
             </TabsTrigger>
           </>

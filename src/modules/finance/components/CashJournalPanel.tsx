@@ -117,7 +117,7 @@ export function CashJournalPanel({ schoolYearId }: { schoolYearId: string }) {
       </div>
       {journal ? (
         <div className="grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-4">
-          <div className="bg-blue-700 p-4 text-blue-50">
+          <div className="bg-blue-500 p-4 text-blue-50">
             <p className="text-xs text-blue-100">Total confirmé</p>
             <p className="mt-1 text-xl font-semibold tabular-nums">
               {formatFcfa(journal.totals.grandTotal)}

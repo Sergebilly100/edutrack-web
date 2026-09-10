@@ -344,14 +344,14 @@ export default function StudentsPage() {
             <InfoIcon className="mr-1.5 h-4 w-4" />
             Guide
           </Button>
-          {canCreateStudent ? (
+          {/* {canCreateStudent ? (
             <OfflineGuard>
               <Button type="button" onClick={() => setCreateDialogOpen(true)} data-tour="students-add-btn">
                 <AddIcon className="mr-2 h-4 w-4" />
                 {`Ajouter un ${studentLabels.singularLower}`}
               </Button>
             </OfflineGuard>
-          ) : null}
+          ) : null} */}
         </div>
       }
     >
@@ -536,7 +536,7 @@ export default function StudentsPage() {
         ) : null}
       </Tabs>
 
-      <Dialog
+      {/* <Dialog
         open={createDialogOpen}
         onOpenChange={(open) => {
           setCreateDialogOpen(open)
@@ -620,7 +620,7 @@ export default function StudentsPage() {
               </div>
             </div>
 
-            <Alert>
+             <Alert>
               <InfoIcon className="h-4 w-4" />
               <AlertDescription>
                 Si vous renseignez le parent principal, son compte sera créé ou réutilisé. Les accès d’un nouveau compte seront envoyés par SMS.
@@ -736,7 +736,7 @@ export default function StudentsPage() {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog> */}
     </PageLayout>
     </>
   )

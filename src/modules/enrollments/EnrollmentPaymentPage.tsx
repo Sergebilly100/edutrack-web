@@ -69,7 +69,7 @@ export default function EnrollmentPaymentPage() {
                 <div className="bg-card p-4"><p className="text-sm text-muted-foreground">Classe</p><p className="font-medium">{enrollment?.className}</p></div>
                 <div className="bg-card p-4"><p className="text-sm text-muted-foreground">Année scolaire</p><p className="font-medium">{enrollment?.schoolYearLabel}</p></div>
                 <div className="bg-card p-4"><p className="text-sm text-muted-foreground">Statut</p><Badge variant="outline" className="mt-1">{enrollment ? enrollmentStatusLabel[enrollment.status] : ""}</Badge></div>
-                <div className="bg-blue-700 p-4 text-blue-50"><p className="text-sm text-blue-100">Reste de scolarité</p><p className="mt-1 text-2xl font-semibold tabular-nums">{formatFcfa(summary.amountDue)}</p>{summary.confirmedPaid > 0 ? <p className="mt-1 text-xs text-blue-100">{formatFcfa(summary.confirmedPaid)} déjà versés</p> : <p className="mt-1 text-xs text-blue-100">Scolarité totale : {formatFcfa(summary.totalDue)}</p>}</div>
+                <div className="bg-blue-500 p-4 text-blue-50"><p className="text-sm text-blue-100">Reste de scolarité</p><p className="mt-1 text-2xl font-semibold tabular-nums">{formatFcfa(summary.amountDue)}</p>{summary.confirmedPaid > 0 ? <p className="mt-1 text-xs text-blue-100">{formatFcfa(summary.confirmedPaid)} déjà versés</p> : <p className="mt-1 text-xs text-blue-100">Scolarité totale : {formatFcfa(summary.totalDue)}</p>}</div>
               </div>
 
               {enrollment?.status === "blocked_unpaid" ? (
