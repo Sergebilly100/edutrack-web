@@ -118,4 +118,19 @@ describe("CreateSubscriptionModal", () => {
     expect(screen.getByRole("button", { name: "Continuer" })).toBeEnabled()
     expect(screen.queryByText(/Utiliser Renouveler/i)).not.toBeInTheDocument()
   })
+
+  it("attend une saisie avant d’afficher les erreurs du nouveau parent", () => {
+    renderModal()
+
+    fireEvent.click(screen.getByRole("button", { name: "Ajouter un autre parent" }))
+
+    expect(screen.queryByText("Minimum 2 caractères requis.")).not.toBeInTheDocument()
+    expect(screen.queryByText("Format requis: 225 + 10 chiffres.")).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText("Nom complet"), { target: { value: "A" } })
+    fireEvent.change(screen.getByLabelText("Téléphone"), { target: { value: "225" } })
+
+    expect(screen.getByText("Minimum 2 caractères requis.")).toBeInTheDocument()
+    expect(screen.getByText("Format requis: 225 + 10 chiffres.")).toBeInTheDocument()
+  })
 })

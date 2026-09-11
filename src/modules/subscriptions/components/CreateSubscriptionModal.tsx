@@ -110,6 +110,11 @@ export default function CreateSubscriptionModal({
   const [parentMode, setParentMode] = useState<"existing" | "new">("existing")
   const [parentSearch, setParentSearch] = useState("")
   const [selectedParent, setSelectedParent] = useState<SubscriptionListItem | null>(null)
+  const [parentFormTouched, setParentFormTouched] = useState({
+    fullName: false,
+    phone: false,
+    email: false,
+  })
 
   const normalizedParentSearch = parentSearch.trim()
   const shouldSearchExistingParents =
@@ -203,6 +208,7 @@ export default function CreateSubscriptionModal({
     setParentMode("existing")
     setParentSearch("")
     setSelectedParent(null)
+    setParentFormTouched({ fullName: false, phone: false, email: false })
   }
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -308,6 +314,7 @@ export default function CreateSubscriptionModal({
                         setSelectedParent(null)
                         setForm((current) => ({ ...current, student_ids: [] }))
                         setSelectedStudentMap({})
+                        setParentFormTouched({ fullName: false, phone: false, email: false })
                       }}
                     >
                       <UserPlus className="h-4 w-4" /> Ajouter un autre parent
@@ -389,10 +396,13 @@ export default function CreateSubscriptionModal({
                         <Input
                           id="parent-full-name"
                           value={form.full_name}
-                          onChange={(event) => setForm((prev) => ({ ...prev, full_name: event.target.value }))}
+                          onChange={(event) => {
+                            setForm((prev) => ({ ...prev, full_name: event.target.value }))
+                            setParentFormTouched((current) => ({ ...current, fullName: true }))
+                          }}
                           placeholder="Nom et prénom du parent"
                         />
-                        {!fullNameValid ? <p className="text-xs text-red-600">Minimum 2 caractères requis.</p> : null}
+                        {parentFormTouched.fullName && !fullNameValid ? <p className="text-xs text-red-600">Minimum 2 caractères requis.</p> : null}
                       </div>
 
                       <div className="space-y-2">
@@ -400,10 +410,13 @@ export default function CreateSubscriptionModal({
                         <Input
                           id="parent-phone"
                           value={form.phone}
-                          onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value.replace(/\s+/g, "") }))}
+                          onChange={(event) => {
+                            setForm((prev) => ({ ...prev, phone: event.target.value.replace(/\s+/g, "") }))
+                            setParentFormTouched((current) => ({ ...current, phone: true }))
+                          }}
                           placeholder="2250700000000"
                         />
-                        {!phoneValid ? <p className="text-xs text-red-600">Format requis: 225 + 10 chiffres.</p> : null}
+                        {parentFormTouched.phone && !phoneValid ? <p className="text-xs text-red-600">Format requis: 225 + 10 chiffres.</p> : null}
                       </div>
 
                       <div className="space-y-2">
@@ -412,10 +425,13 @@ export default function CreateSubscriptionModal({
                           id="parent-email"
                           type="email"
                           value={form.email}
-                          onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+                          onChange={(event) => {
+                            setForm((prev) => ({ ...prev, email: event.target.value }))
+                            setParentFormTouched((current) => ({ ...current, email: true }))
+                          }}
                           placeholder="parent@email.ci"
                         />
-                        {!emailValid ? <p className="text-xs text-red-600">Email invalide.</p> : null}
+                        {parentFormTouched.email && !emailValid ? <p className="text-xs text-red-600">Email invalide.</p> : null}
                       </div>
                     </div>
                   )}
