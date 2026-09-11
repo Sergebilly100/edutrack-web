@@ -492,13 +492,67 @@ export default function DashboardPage() {
         onFinish={tour.markDone}
       />
 
-      <div className={`space-y-6 animate-fade-in rounded-lg ${refreshSuccess ? "fresh-data-pulse" : ""}`}>
+      <div
+        className={`space-y-6 animate-fade-in rounded-lg ${refreshSuccess ? "fresh-data-pulse" : ""}`}
+      >
         <header className="-mx-4 border-b bg-background px-4 py-4 md:sticky md:top-0 md:z-30 md:-mx-6 md:px-6">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
-              <h1 className="text-2xl font-semibold tracking-tight">Bonjour, {user?.name ?? ""}</h1>
-              <p className="text-sm text-muted-foreground">{formatToday(new Date())}</p>
-              <div className="mt-2 flex flex-wrap items-center gap-2"><Badge variant="outline">{schoolName}</Badge><Select value={schoolYearId} onValueChange={(value) => { setSchoolYearId(value); setGradingPeriodId("") }}><SelectTrigger className="min-h-10 w-[12.5rem]" aria-label="Année scolaire"><SelectValue placeholder="Année scolaire" /></SelectTrigger><SelectContent>{(schoolYearsQuery.data ?? []).map((year: SchoolYear) => <SelectItem key={year.id} value={year.id}>{year.label}</SelectItem>)}</SelectContent></Select>{gradingPeriodsQuery.data?.length ? <Select value={gradingPeriodId} onValueChange={setGradingPeriodId}><SelectTrigger className="min-h-10 w-[12.5rem]" aria-label="Période"><SelectValue placeholder="Période" /></SelectTrigger><SelectContent>{gradingPeriodsQuery.data.map((period) => <SelectItem key={period.id} value={period.id}>{period.label}{period.isCurrent ? " · en cours" : period.isCompleted ? " · finalisée" : " · à venir"}</SelectItem>)}</SelectContent></Select> : null}</div>
+              <h1 className="text-2xl font-semibold tracking-tight">
+                Bonjour, {user?.name ?? ""}
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {formatToday(new Date())}
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Badge variant="outline">{schoolName}</Badge>
+                <Select
+                  value={schoolYearId}
+                  onValueChange={(value) => {
+                    setSchoolYearId(value);
+                    setGradingPeriodId("");
+                  }}
+                >
+                  <SelectTrigger
+                    className="min-h-10 w-[12.5rem]"
+                    aria-label="Année scolaire"
+                  >
+                    <SelectValue placeholder="Année scolaire" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(schoolYearsQuery.data ?? []).map((year: SchoolYear) => (
+                      <SelectItem key={year.id} value={year.id}>
+                        {year.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {gradingPeriodsQuery.data?.length ? (
+                  <Select
+                    value={gradingPeriodId}
+                    onValueChange={setGradingPeriodId}
+                  >
+                    <SelectTrigger
+                      className="min-h-10 w-[12.5rem]"
+                      aria-label="Période"
+                    >
+                      <SelectValue placeholder="Période" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {gradingPeriodsQuery.data.map((period) => (
+                        <SelectItem key={period.id} value={period.id}>
+                          {period.label}
+                          {period.isCurrent
+                            ? " · en cours"
+                            : period.isCompleted
+                              ? " · finalisée"
+                              : " · à venir"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : null}
+              </div>
             </div>
             <div className="hidden items-center gap-2 md:flex">
               {isDirector ? (
@@ -508,8 +562,10 @@ export default function DashboardPage() {
                   size="sm"
                   className="text-muted-foreground"
                   onClick={() => {
-                    (document.scrollingElement ?? document.documentElement).scrollTo({ top: 0, behavior: "instant" })
-                    tour.restart()
+                    (
+                      document.scrollingElement ?? document.documentElement
+                    ).scrollTo({ top: 0, behavior: "instant" });
+                    tour.restart();
                   }}
                   aria-label="Revoir le tour guidé"
                 >
@@ -540,7 +596,9 @@ export default function DashboardPage() {
                   size="sm"
                   aria-label="Mettre à jour les données"
                   disabled={isRefreshing}
-                  onClick={() => { void handleDashboardRefresh() }}
+                  onClick={() => {
+                    void handleDashboardRefresh();
+                  }}
                   data-tour="dashboard-refresh"
                 >
                   {isRefreshing ? (
@@ -550,8 +608,8 @@ export default function DashboardPage() {
                     </>
                   ) : refreshSuccess ? (
                     <>
-                      <CheckCircle2 className="mr-1 h-4 w-4 text-green-600" />
-                      À jour
+                      <CheckCircle2 className="mr-1 h-4 w-4 text-green-600" />À
+                      jour
                     </>
                   ) : (
                     <>
@@ -583,8 +641,8 @@ export default function DashboardPage() {
             onDismissAll={dismissAllNotifications}
             onClose={() => setNotificationsOpen(false)}
             onNavigate={(href) => {
-              setNotificationsOpen(false)
-              navigate(href)
+              setNotificationsOpen(false);
+              navigate(href);
             }}
           />
         ) : null}
@@ -596,7 +654,9 @@ export default function DashboardPage() {
             canViewFinance={canViewFinance}
             historyData={historyQuery.data ?? []}
             todayCourses={todayQuery.data?.courses ?? []}
-            todayDate={todayQuery.data?.date ?? new Date().toISOString().slice(0, 10)}
+            todayDate={
+              todayQuery.data?.date ?? new Date().toISOString().slice(0, 10)
+            }
             schoolYearId={schoolYearId || undefined}
             gradingPeriodId={gradingPeriodId || undefined}
             priorityActions={priorityActions}
@@ -604,5 +664,5 @@ export default function DashboardPage() {
         </Suspense>
       </div>
     </>
-  )
+  );
 }

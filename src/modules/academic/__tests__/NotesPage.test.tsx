@@ -99,7 +99,8 @@ describe("NotesPage", () => {
 
     expect(await screen.findByRole("button", { name: "Programmer une évaluation" })).toBeEnabled()
     expect(screen.queryByText("Période terminée")).not.toBeInTheDocument()
-    expect(await screen.findByRole("button", { name: "Clôturer la saisie et calculer" })).toBeEnabled()
+    expect(await screen.findByRole("button", { name: "Calculer les moyennes" })).toBeDisabled()
+    expect(screen.getByText("Ajoutez au moins une évaluation.")).toBeInTheDocument()
   })
 
   it("n’ouvre qu’une grille de notes à la fois", async () => {
@@ -120,5 +121,19 @@ describe("NotesPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close" }))
     fireEvent.click(screen.getByRole("button", { name: /Devoir 2/ }))
     expect(screen.getAllByRole("spinbutton", { name: "Note de Awa Koné" })).toHaveLength(1)
+  })
+
+  it("laisse les notes modifiables tant que les moyennes ne sont pas validées", async () => {
+    fetchScope.mockResolvedValue({
+      lessonSlots: [{ id: "slot1", dayOfWeek: 1, startTime: "08:00", endTime: "09:00", subjectName: "Mathématiques" }],
+      subjects: [{ id: "s1", name: "Mathématiques", coefficient: 4 }],
+      evaluations: [{ id: "e1", label: "Devoir 1", type: "scheduled", coefficient: 1, subjectId: "s1", subjectName: "Mathématiques", grades: [{ studentId: "student-1", score: 12, maxScore: 20, comment: null }] }],
+      completion: [{ subjectId: "s1", subjectName: "Mathématiques", subjectCoefficient: 4, status: "in_progress", completedAt: null, calculationStarted: true, teacher: null }],
+    })
+    renderAcademicPage()
+
+    fireEvent.click(await screen.findByRole("button", { name: /Devoir 1/ }))
+    expect(screen.getByRole("spinbutton", { name: "Note de Awa Koné" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Enregistrer" })).toBeEnabled()
   })
 })

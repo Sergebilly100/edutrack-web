@@ -156,6 +156,16 @@ export default function CalculationPage() {
     [scopeQuery.data?.evaluations, subjectId],
   );
   const students = studentsQuery.data?.data ?? [];
+  const scheduledEvaluations = evaluations.filter(
+    (evaluation) => evaluation.type === "scheduled",
+  );
+  const isReadyForValidation =
+    scheduledEvaluations.length > 0 &&
+    scheduledEvaluations.every((evaluation) =>
+      students.every((student) =>
+        evaluation.grades.some((grade) => grade.studentId === student.id),
+      ),
+    );
   const detailsStudent =
     students.find((student) => student.id === detailsStudentId) ?? null;
   const finalConductStudent =
@@ -220,7 +230,7 @@ export default function CalculationPage() {
     return (
       <EmptyState
         title="Saisie encore ouverte"
-        description="Clôturez d’abord la saisie de cette matière depuis Évaluations & notes."
+        description="Calculez d’abord les moyennes de cette matière depuis Évaluations & notes."
         action={{
           label: "Retour aux évaluations",
           onClick: () =>
@@ -257,7 +267,7 @@ export default function CalculationPage() {
                 <Badge variant={ completion.status === "completed" ? "outline" : "secondary" }>
                   {completion.status === "completed"
                     ? "Moyennes validées"
-                    : "Saisie clôturée"}
+                    : "Calcul en cours"}
                 </Badge>
               </p>
             </div>
@@ -421,7 +431,7 @@ export default function CalculationPage() {
             <Button
               type="button"
               className="min-h-6 w-full"
-              disabled={validateMutation.isPending}
+              disabled={validateMutation.isPending || !isReadyForValidation}
               onClick={() => validateMutation.mutate()}
             >
               {validateMutation.isPending ? (
@@ -429,6 +439,11 @@ export default function CalculationPage() {
               ) : null}
               Valider mes moyennes de {subject.name}
             </Button>
+            {!isReadyForValidation ? (
+              <p className="text-center text-xs text-muted-foreground">
+                Ajoutez au moins une évaluation et terminez toutes les notes avant la validation.
+              </p>
+            ) : null}
             <p className="text-center text-xs text-muted-foreground">
               Après validation, les moyennes restent consultables mais ne sont
               plus modifiables.

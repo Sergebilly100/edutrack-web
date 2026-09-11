@@ -109,13 +109,20 @@ export default function NotesPage() {
   })
 
   const scheduledEvaluations = scopeQuery.data?.evaluations.filter((item) => item.type === "scheduled") ?? []
+  const activeStudents = studentsQuery.data?.data ?? []
   const scheduledCountBySubject = new Map<string, number>()
   for (const evaluation of scheduledEvaluations) {
     if (evaluation.subjectId) scheduledCountBySubject.set(evaluation.subjectId, (scheduledCountBySubject.get(evaluation.subjectId) ?? 0) + 1)
   }
   const completionBySubject = new Map((scopeQuery.data?.completion ?? []).map((item) => [item.subjectId, item]))
   const isSubjectClosed = (subjectId: string | null | undefined) =>
-    isPeriodReadOnly || Boolean(subjectId && completionBySubject.get(subjectId)?.calculationStarted)
+    isPeriodReadOnly || completionBySubject.get(subjectId ?? "")?.status === "completed"
+  const isSubjectReadyForCalculation = (subjectId: string) => {
+    const evaluations = scheduledEvaluations.filter((evaluation) => evaluation.subjectId === subjectId)
+    return evaluations.length > 0 && evaluations.every((evaluation) =>
+      activeStudents.every((student) => evaluation.grades.some((grade) => grade.studentId === student.id)),
+    )
+  }
   const selectedDraftSlot = scopeQuery.data?.lessonSlots.find((item) => item.id === draft.lessonSlotId)
   const availableDraftSubjects = selectedDraftSlot?.subjectId
     ? (scopeQuery.data?.subjects ?? []).filter((item) => item.id === selectedDraftSlot.subjectId)
@@ -307,11 +314,11 @@ export default function NotesPage() {
                 </span>
                 <div>
                   <h2 id="calculation-title" className="font-semibold">
-                    Clôturer et calculer par matière
+                    Calculer et valider par matière
                   </h2>
                   <p className="text-xs text-muted-foreground">
-                    Une fois toutes les notes saisies, fermez la matière pour
-                    contrôler les moyennes et la conduite avant validation.
+                    Une fois toutes les notes saisies, calculez les moyennes,
+                    puis validez-les lorsque vous ne souhaitez plus les modifier.
                   </p>
                 </div>
               </div>
@@ -328,12 +335,13 @@ export default function NotesPage() {
                     {(scopeQuery.data?.completion ?? []).map((subject) => {
                       const count =
                         scheduledCountBySubject.get(subject.subjectId) ?? 0;
+                      const readyForCalculation = isSubjectReadyForCalculation(subject.subjectId)
                       const actionLabel =
                         subject.status === "completed"
                           ? "Consulter les moyennes"
                           : subject.calculationStarted
                             ? "Ouvrir le calcul"
-                            : "Clôturer la saisie et calculer";
+                            : "Calculer les moyennes";
                       return (
                         <div
                           key={subject.subjectId}
@@ -368,6 +376,7 @@ export default function NotesPage() {
                               className="min-h-6 w-full sm:w-auto"
                               disabled={
                                 completionMutation.isPending ||
+                                (!subject.calculationStarted && !readyForCalculation) ||
                                 (isPeriodReadOnly && !subject.calculationStarted)
                               }
                               onClick={() =>
@@ -384,6 +393,13 @@ export default function NotesPage() {
                               {actionLabel}
                               <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
+                            {!subject.calculationStarted && !readyForCalculation ? (
+                              <p className="text-right text-xs text-muted-foreground">
+                                {count === 0
+                                  ? "Ajoutez au moins une évaluation."
+                                  : "Saisissez toutes les notes avant le calcul."}
+                              </p>
+                            ) : null}
                           </div>
                         </div>
                       );
