@@ -125,408 +125,411 @@ export default function NotesPage() {
   const selectedEvaluation = scheduledEvaluations.find((evaluation) => evaluation.id === selectedEvaluationId) ?? null
 
   return (
-    <div className="space-y-6 md:px-6 md:py-8">
+    <>
       <OfflineIndicator />
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="max-w-2xl space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            Espace d’enseignement
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Évaluations & notes
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Préparez, notez et validez vos matières pour une classe et une
-            période précises.
-          </p>
-        </div>
-      </header>
-
-      <section
-        aria-label="Contexte de notation"
-        className="rounded-lg border bg-card p-3 shadow-sm md:p-5"
-      >
-        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-          <div>
-            <h2 className="font-semibold">Classe et période</h2>
-            <p className="text-xs text-muted-foreground">
-              Toutes les actions ci-dessous concernent cette sélection.
+      <div className="space-y-6 md:px-6 md:py-8">
+        
+        <header className="flex flex-wrap items-end justify-between gap-4">
+          <div className="max-w-2xl space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Espace d’enseignement
+            </p>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Évaluations & notes
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Préparez, notez et validez vos matières pour une classe et une
+              période précises.
             </p>
           </div>
-          {selectedClass && gradingPeriodId ? (
-            <Badge variant={isPeriodReadOnly ? "outline" : "secondary"}>
-              {selectedClass.name} · {activePeriod?.label}
-              {isPeriodReadOnly ? " · lecture seule" : " · en cours"}
-            </Badge>
-          ) : null}
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Classe enseignée</Label>
-            <Select
-              value={classId || "none"}
-              onValueChange={(value) => {
-                setClassId(value === "none" ? "" : value);
-                setSelectedPeriodId("");
-              }}
-            >
-              <SelectTrigger className="min-h-6" aria-label="Classe enseignée">
-                <SelectValue placeholder="Choisir une classe" />
-              </SelectTrigger>
-              <SelectContent>
-                {(contextQuery.data?.classes ?? []).map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.name} · {item.levelName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {contextQuery.isError ? (
-              <p className="text-sm text-destructive">
-                Impossible de charger vos classes.
+        </header>
+
+        <section
+          aria-label="Contexte de notation"
+          className="rounded-lg border bg-card p-3 shadow-sm md:p-5"
+        >
+          <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+            <div>
+              <h2 className="font-semibold">Classe et période</h2>
+              <p className="text-xs text-muted-foreground">
+                Toutes les actions ci-dessous concernent cette sélection.
               </p>
+            </div>
+            {selectedClass && gradingPeriodId ? (
+              <Badge variant={isPeriodReadOnly ? "outline" : "secondary"}>
+                {selectedClass.name} · {activePeriod?.label}
+                {isPeriodReadOnly ? " · lecture seule" : " · en cours"}
+              </Badge>
             ) : null}
           </div>
-          <div className="space-y-2">
-            <Label>Période de calcul</Label>
-            <Select
-              value={gradingPeriodId || "none"}
-              onValueChange={(value) =>
-                setSelectedPeriodId(value === "none" ? "" : value)
-              }
-            >
-              <SelectTrigger className="min-h-6" aria-label="Période de calcul">
-                <SelectValue placeholder="Choisir une période" />
-              </SelectTrigger>
-              <SelectContent>
-                {periods.map((period) => (
-                  <SelectItem key={period.id} value={period.id}>
-                    {period.label}
-                    {period.isCurrent
-                      ? " · en cours"
-                      : period.isCompleted
-                        ? " · finalisée"
-                        : " · à venir"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        {scopeEnabled ? (
-          <div className="mt-4 flex flex-col gap-2 border-t pt-4 sm:flex-row sm:justify-end">
-            <Button
-              type="button"
-              className="min-h-5 sm:flex-1"
-              disabled={isPeriodReadOnly}
-              onClick={() => setCreateOpen(true)}
-            >
-              <CalendarPlus className="mr-2 h-4 w-4" />
-              Programmer une évaluation
-            </Button>
-          </div>
-        ) : null}
-      </section>
-
-      {!scopeEnabled ? (
-        <EmptyState
-          title="Choisissez une classe et une période"
-          description="Vos évaluations et vos élèves s’afficheront ici."
-          classNameRendu="py-0"
-        />
-      ) : scopeQuery.isLoading || studentsQuery.isLoading ? (
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Chargement…
-        </p>
-      ) : scopeQuery.isError || studentsQuery.isError ? (
-        <p className="text-sm text-destructive">
-          Impossible de charger votre espace de notation pour cette classe.
-        </p>
-      ) : (
-        <>
-          {isPeriodReadOnly ? (
-            <div className="rounded-lg border border-muted-foreground/20 bg-muted/40 p-4 text-sm text-muted-foreground">
-              Cette période reste consultable, mais elle est verrouillée car les
-              bulletins ont déjà été générés ou parce qu’elle n’est pas encore
-              la période courante.
-            </div>
-          ) : null}
-          <section
-            aria-labelledby="evaluations-title"
-            className="space-y-4 rounded-lg border bg-card p-2 shadow-sm md:p-5"
-          >
-            <div className="mb-2 flex gap-2 border-b pb-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted">
-                <CalendarPlus className="h-4 w-4" />
-              </span>
-              <div className="space-y-2 !mt-0">
-                <h2 id="evaluations-title" className="font-semibold">
-                  Évaluations programmées
-                  <Badge variant="outline" className="ml-3">
-                    {scheduledEvaluations.length}
-                    {/* prévue{scheduledEvaluations.length > 1 ? "s" : ""} */}
-                  </Badge>
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  Le coefficient pondère cette évaluation, sans modifier celui
-                  de la matière.
-                </p>
-              </div>
-            </div>
-            <div className="space-y-3">
-              {scheduledEvaluations.length === 0 ? (
-                <EmptyState
-                  title="Aucune évaluation programmée"
-                  description=""
-                  classNameRendu="py-0"
-                  icon="none"
-                />
-              ) : (
-                scheduledEvaluations.map((evaluation) => (
-                  <EvaluationGradeEditor
-                    key={evaluation.id}
-                    evaluation={evaluation}
-                    students={studentsQuery.data?.data ?? []}
-                    readOnly={isSubjectClosed(evaluation.subjectId)}
-                    onOpen={() => setSelectedEvaluationId(evaluation.id)}
-                  />
-                ))
-              )}
-            </div>
-          </section>
-
-          <section
-            aria-labelledby="calculation-title"
-            className="rounded-lg border bg-card p-2 shadow-sm md:p-5"
-          >
-            <div className="mb-2 flex gap-2 border-b pb-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted">
-                <ClipboardCheck className="h-4 w-4" />
-              </span>
-              <div>
-                <h2 id="calculation-title" className="font-semibold">
-                  Clôturer et calculer par matière
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  Une fois toutes les notes saisies, fermez la matière pour
-                  contrôler les moyennes et la conduite avant validation.
-                </p>
-              </div>
-            </div>
-            <div>
-              {(scopeQuery.data?.completion.length ?? 0) === 0 ? (
-                <EmptyState
-                  title="Aucune matière à clôturer"
-                  description=""
-                  classNameRendu="py-0"
-                  icon="none"
-                />
-              ) : (
-                <div className="divide-y rounded-lg border">
-                  {(scopeQuery.data?.completion ?? []).map((subject) => {
-                    const count =
-                      scheduledCountBySubject.get(subject.subjectId) ?? 0;
-                    const actionLabel =
-                      subject.status === "completed"
-                        ? "Consulter les moyennes"
-                        : subject.calculationStarted
-                          ? "Ouvrir le calcul"
-                          : "Clôturer la saisie et calculer";
-                    return (
-                      <div
-                        key={subject.subjectId}
-                        className="flex flex-col gap-2 p-2 flex-row justify-between"
-                      >
-                        <div className="inline-flex whitespace-nowrap justify-between gap-2 min-w-0">
-                          <p className="font-medium">{subject.subjectName}
-                            <span className="text-sm  text-muted-foreground"> ({count} évaluation{count > 1 ? "s" : ""}) </span>
-                          </p>
-                          <span>
-                            {subject.status === "completed" ? (
-                              <Badge variant="outline">
-                                <CheckCircle2 className="mr-1 h-3 w-3" />
-                                Validée
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary">
-                                {subject.calculationStarted
-                                  ? "Calcul en cours"
-                                  : "Saisie en cours"}
-                              </Badge>
-                            )}
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-2 sm:items-end">
-
-                          <Button
-                            type="button"
-                            variant={
-                              subject.calculationStarted ? "outline" : "default"
-                            }
-                            className="min-h-6 w-full sm:w-auto"
-                            disabled={
-                              completionMutation.isPending ||
-                              (isPeriodReadOnly && !subject.calculationStarted)
-                            }
-                            onClick={() =>
-                              subject.calculationStarted
-                                ? navigate(
-                                    `/academic/calculation?classId=${encodeURIComponent(classId)}&gradingPeriodId=${encodeURIComponent(gradingPeriodId)}&subjectId=${encodeURIComponent(subject.subjectId)}`,
-                                  )
-                                : completionMutation.mutate({
-                                    subjectId: subject.subjectId,
-                                    status: "in_progress",
-                                  })
-                            }
-                          >
-                            {actionLabel}
-                            <ArrowRight className="ml-2 h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </section>
-        </>
-      )}
-
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-xl overflow-y-auto rounded-lg sm:w-full">
-          <DialogHeader>
-            <DialogTitle>Programmer une évaluation</DialogTitle>
-            <DialogDescription>
-              Rattachez-la à un créneau et définissez son coefficient propre.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Créneau de cours</Label>
+              <Label>Classe enseignée</Label>
               <Select
-                value={draft.lessonSlotId || "none"}
+                value={classId || "none"}
                 onValueChange={(value) => {
-                  const slot = scopeQuery.data?.lessonSlots.find(
-                    (item) => item.id === value,
-                  );
-                  setDraft((previous) => ({
-                    ...previous,
-                    lessonSlotId: value === "none" ? "" : value,
-                    subjectId: slot?.subjectId ?? "",
-                  }));
+                  setClassId(value === "none" ? "" : value);
+                  setSelectedPeriodId("");
                 }}
               >
-                <SelectTrigger className="min-h-6">
-                  <SelectValue placeholder="Choisir un créneau" />
+                <SelectTrigger className="min-h-6" aria-label="Classe enseignée">
+                  <SelectValue placeholder="Choisir une classe" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(scopeQuery.data?.lessonSlots ?? []).map((slot) => (
-                    <SelectItem key={slot.id} value={slot.id}>
-                      {dayLabel(slot.dayOfWeek)} · {slot.startTime}-
-                      {slot.endTime} · {slot.roomName}
+                  {(contextQuery.data?.classes ?? []).map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.name} · {item.levelName}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {contextQuery.isError ? (
+                <p className="text-sm text-destructive">
+                  Impossible de charger vos classes.
+                </p>
+              ) : null}
             </div>
             <div className="space-y-2">
-              <Label>Matière</Label>
+              <Label>Période de calcul</Label>
               <Select
-                value={draft.subjectId || "none"}
+                value={gradingPeriodId || "none"}
                 onValueChange={(value) =>
-                  setDraft((previous) => ({
-                    ...previous,
-                    subjectId: value === "none" ? "" : value,
-                  }))
+                  setSelectedPeriodId(value === "none" ? "" : value)
                 }
               >
-                <SelectTrigger className="min-h-6">
-                  <SelectValue placeholder="Choisir une matière" />
+                <SelectTrigger className="min-h-6" aria-label="Période de calcul">
+                  <SelectValue placeholder="Choisir une période" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableDraftSubjects.map((subject) => (
-                    <SelectItem key={subject.id} value={subject.id}>
-                      {subject.name} · coef. matière {subject.coefficient}
+                  {periods.map((period) => (
+                    <SelectItem key={period.id} value={period.id}>
+                      {period.label}
+                      {period.isCurrent
+                        ? " · en cours"
+                        : period.isCompleted
+                          ? " · finalisée"
+                          : " · à venir"}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="evaluation-date">Date de l’évaluation</Label>
-              <Input
-                id="evaluation-date"
-                type="date"
-                required
-                value={draft.evaluationDate}
-                onChange={(event) =>
-                  setDraft((previous) => ({
-                    ...previous,
-                    evaluationDate: event.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Libellé</Label>
-              <Input
-                placeholder="Devoir surveillé n°1"
-                value={draft.label}
-                onChange={(event) =>
-                  setDraft((previous) => ({
-                    ...previous,
-                    label: event.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Coefficient de cette évaluation</Label>
-              <Input
-                type="number"
-                min={0.25}
-                step={0.25}
-                value={draft.coefficient}
-                onChange={(event) =>
-                  setDraft((previous) => ({
-                    ...previous,
-                    coefficient: event.target.value,
-                  }))
-                }
-              />
-              <p className="text-xs text-muted-foreground">
-                Ce coefficient ne modifie pas le coefficient général de la
-                matière.
-              </p>
-            </div>
           </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              disabled={!canCreate || createMutation.isPending}
-              onClick={() => createMutation.mutate()}
-            >
-              {createMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
-              Programmer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          {scopeEnabled ? (
+            <div className="mt-4 flex flex-col gap-2 border-t pt-4 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                className="min-h-5 sm:flex-1"
+                disabled={isPeriodReadOnly}
+                onClick={() => setCreateOpen(true)}
+              >
+                <CalendarPlus className="mr-2 h-4 w-4" />
+                Programmer une évaluation
+              </Button>
+            </div>
+          ) : null}
+        </section>
 
-      <EvaluationGradesDialog
-        evaluation={selectedEvaluation}
-        students={studentsQuery.data?.data ?? []}
-        readOnly={
-          selectedEvaluation
-            ? isSubjectClosed(selectedEvaluation.subjectId)
-            : true
-        }
-        onOpenChange={(open) => !open && setSelectedEvaluationId(null)}
-      />
-    </div>
+        {!scopeEnabled ? (
+          <EmptyState
+            title="Choisissez une classe et une période"
+            description="Vos évaluations et vos élèves s’afficheront ici."
+            classNameRendu="py-0"
+          />
+        ) : scopeQuery.isLoading || studentsQuery.isLoading ? (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Chargement…
+          </p>
+        ) : scopeQuery.isError || studentsQuery.isError ? (
+          <p className="text-sm text-destructive">
+            Impossible de charger votre espace de notation pour cette classe.
+          </p>
+        ) : (
+          <>
+            {isPeriodReadOnly ? (
+              <div className="rounded-lg border border-muted-foreground/20 bg-muted/40 p-4 text-sm text-muted-foreground">
+                Cette période reste consultable, mais elle est verrouillée car les
+                bulletins ont déjà été générés ou parce qu’elle n’est pas encore
+                la période courante.
+              </div>
+            ) : null}
+            <section
+              aria-labelledby="evaluations-title"
+              className="space-y-4 rounded-lg border bg-card p-2 shadow-sm md:p-5"
+            >
+              <div className="mb-2 flex gap-2 border-b pb-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted">
+                  <CalendarPlus className="h-4 w-4" />
+                </span>
+                <div className="space-y-2 !mt-0">
+                  <h2 id="evaluations-title" className="font-semibold">
+                    Évaluations programmées
+                    <Badge variant="outline" className="ml-3">
+                      {scheduledEvaluations.length}
+                      {/* prévue{scheduledEvaluations.length > 1 ? "s" : ""} */}
+                    </Badge>
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    Le coefficient pondère cette évaluation, sans modifier celui
+                    de la matière.
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {scheduledEvaluations.length === 0 ? (
+                  <EmptyState
+                    title="Aucune évaluation programmée"
+                    description=""
+                    classNameRendu="py-0"
+                    icon="none"
+                  />
+                ) : (
+                  scheduledEvaluations.map((evaluation) => (
+                    <EvaluationGradeEditor
+                      key={evaluation.id}
+                      evaluation={evaluation}
+                      students={studentsQuery.data?.data ?? []}
+                      readOnly={isSubjectClosed(evaluation.subjectId)}
+                      onOpen={() => setSelectedEvaluationId(evaluation.id)}
+                    />
+                  ))
+                )}
+              </div>
+            </section>
+
+            <section
+              aria-labelledby="calculation-title"
+              className="rounded-lg border bg-card p-2 shadow-sm md:p-5"
+            >
+              <div className="mb-2 flex gap-2 border-b pb-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted">
+                  <ClipboardCheck className="h-4 w-4" />
+                </span>
+                <div>
+                  <h2 id="calculation-title" className="font-semibold">
+                    Clôturer et calculer par matière
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    Une fois toutes les notes saisies, fermez la matière pour
+                    contrôler les moyennes et la conduite avant validation.
+                  </p>
+                </div>
+              </div>
+              <div>
+                {(scopeQuery.data?.completion.length ?? 0) === 0 ? (
+                  <EmptyState
+                    title="Aucune matière à clôturer"
+                    description=""
+                    classNameRendu="py-0"
+                    icon="none"
+                  />
+                ) : (
+                  <div className="divide-y rounded-lg border">
+                    {(scopeQuery.data?.completion ?? []).map((subject) => {
+                      const count =
+                        scheduledCountBySubject.get(subject.subjectId) ?? 0;
+                      const actionLabel =
+                        subject.status === "completed"
+                          ? "Consulter les moyennes"
+                          : subject.calculationStarted
+                            ? "Ouvrir le calcul"
+                            : "Clôturer la saisie et calculer";
+                      return (
+                        <div
+                          key={subject.subjectId}
+                          className="flex flex-col gap-2 p-2 flex-row justify-between"
+                        >
+                          <div className="inline-flex whitespace-nowrap justify-between gap-2 min-w-0">
+                            <p className="font-medium">{subject.subjectName}
+                              <span className="text-sm  text-muted-foreground"> ({count} évaluation{count > 1 ? "s" : ""}) </span>
+                            </p>
+                            <span>
+                              {subject.status === "completed" ? (
+                                <Badge variant="outline">
+                                  <CheckCircle2 className="mr-1 h-3 w-3" />
+                                  Validée
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary">
+                                  {subject.calculationStarted
+                                    ? "Calcul en cours"
+                                    : "Saisie en cours"}
+                                </Badge>
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex flex-col gap-2 sm:items-end">
+
+                            <Button
+                              type="button"
+                              variant={
+                                subject.calculationStarted ? "outline" : "default"
+                              }
+                              className="min-h-6 w-full sm:w-auto"
+                              disabled={
+                                completionMutation.isPending ||
+                                (isPeriodReadOnly && !subject.calculationStarted)
+                              }
+                              onClick={() =>
+                                subject.calculationStarted
+                                  ? navigate(
+                                      `/academic/calculation?classId=${encodeURIComponent(classId)}&gradingPeriodId=${encodeURIComponent(gradingPeriodId)}&subjectId=${encodeURIComponent(subject.subjectId)}`,
+                                    )
+                                  : completionMutation.mutate({
+                                      subjectId: subject.subjectId,
+                                      status: "in_progress",
+                                    })
+                              }
+                            >
+                              {actionLabel}
+                              <ArrowRight className="ml-2 h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </section>
+          </>
+        )}
+
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-xl overflow-y-auto rounded-lg sm:w-full">
+            <DialogHeader>
+              <DialogTitle>Programmer une évaluation</DialogTitle>
+              <DialogDescription>
+                Rattachez-la à un créneau et définissez son coefficient propre.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Créneau de cours</Label>
+                <Select
+                  value={draft.lessonSlotId || "none"}
+                  onValueChange={(value) => {
+                    const slot = scopeQuery.data?.lessonSlots.find(
+                      (item) => item.id === value,
+                    );
+                    setDraft((previous) => ({
+                      ...previous,
+                      lessonSlotId: value === "none" ? "" : value,
+                      subjectId: slot?.subjectId ?? "",
+                    }));
+                  }}
+                >
+                  <SelectTrigger className="min-h-6">
+                    <SelectValue placeholder="Choisir un créneau" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(scopeQuery.data?.lessonSlots ?? []).map((slot) => (
+                      <SelectItem key={slot.id} value={slot.id}>
+                        {dayLabel(slot.dayOfWeek)} · {slot.startTime}-
+                        {slot.endTime} · {slot.roomName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Matière</Label>
+                <Select
+                  value={draft.subjectId || "none"}
+                  onValueChange={(value) =>
+                    setDraft((previous) => ({
+                      ...previous,
+                      subjectId: value === "none" ? "" : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger className="min-h-6">
+                    <SelectValue placeholder="Choisir une matière" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableDraftSubjects.map((subject) => (
+                      <SelectItem key={subject.id} value={subject.id}>
+                        {subject.name} · coef. matière {subject.coefficient}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="evaluation-date">Date de l’évaluation</Label>
+                <Input
+                  id="evaluation-date"
+                  type="date"
+                  required
+                  value={draft.evaluationDate}
+                  onChange={(event) =>
+                    setDraft((previous) => ({
+                      ...previous,
+                      evaluationDate: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Libellé</Label>
+                <Input
+                  placeholder="Devoir surveillé n°1"
+                  value={draft.label}
+                  onChange={(event) =>
+                    setDraft((previous) => ({
+                      ...previous,
+                      label: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Coefficient de cette évaluation</Label>
+                <Input
+                  type="number"
+                  min={0.25}
+                  step={0.25}
+                  value={draft.coefficient}
+                  onChange={(event) =>
+                    setDraft((previous) => ({
+                      ...previous,
+                      coefficient: event.target.value,
+                    }))
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  Ce coefficient ne modifie pas le coefficient général de la
+                  matière.
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                disabled={!canCreate || createMutation.isPending}
+                onClick={() => createMutation.mutate()}
+              >
+                {createMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Programmer
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <EvaluationGradesDialog
+          evaluation={selectedEvaluation}
+          students={studentsQuery.data?.data ?? []}
+          readOnly={
+            selectedEvaluation
+              ? isSubjectClosed(selectedEvaluation.subjectId)
+              : true
+          }
+          onOpenChange={(open) => !open && setSelectedEvaluationId(null)}
+        />
+      </div>
+    </>
   );
 }
 

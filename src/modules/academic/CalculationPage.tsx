@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Eye,
   Loader2,
+  NotebookPen,
   ShieldCheck,
 } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -234,223 +235,226 @@ export default function CalculationPage() {
     completion.status !== "completed" && period?.isCurrent !== false;
   const canFinalizeConduct = selectedClass?.isHomeroomTeacher === true;
   return (
-    <div className="space-y-6 md:px-6 md:py-8">
+    <>
       <OfflineIndicator />
-      <header className="space-y-3">
-        <Button variant="ghost" className="min-h-6 px-0 py-0" asChild>
-          <Link
-            to={`/academic/notes?classId=${encodeURIComponent(classId)}&gradingPeriodId=${encodeURIComponent(gradingPeriodId)}`}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Retour aux évaluations
-          </Link>
-        </Button>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Calcul des moyennes
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {selectedClass?.name ?? "Classe"} · {subject.name} ·{" "}
-              {period?.label ?? "Période"} &nbsp;
-              <Badge variant={ completion.status === "completed" ? "outline" : "secondary" }>
-                {completion.status === "completed"
-                  ? "Moyennes validées"
-                  : "Saisie clôturée"}
-              </Badge>
-            </p>
+      <div className="space-y-6 md:px-6 md:py-8">
+        <header className="space-y-3">
+          <Button variant="ghost" className="min-h-6 px-0 py-0" asChild>
+            <Link
+              to={`/academic/notes?classId=${encodeURIComponent(classId)}&gradingPeriodId=${encodeURIComponent(gradingPeriodId)}`}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Retour aux évaluations
+            </Link>
+          </Button>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">
+                Calcul des moyennes
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {selectedClass?.name ?? "Classe"} · {subject.name} ·{" "}
+                {period?.label ?? "Période"} &nbsp;
+                <Badge variant={ completion.status === "completed" ? "outline" : "secondary" }>
+                  {completion.status === "completed"
+                    ? "Moyennes validées"
+                    : "Saisie clôturée"}
+                </Badge>
+              </p>
+            </div>
+            
           </div>
-          
-        </div>
-      </header>
-      <ol className="grid grid-cols-3 gap-2 text-center text-xs" aria-label="Étapes de calcul" >
-        <li className="rounded-lg border p-2 text-muted-foreground">
-          1. Notes terminées
-        </li>
-        <li
-          className={
-            currentStep === 2
-              ? "rounded-lg bg-primary p-2 font-medium text-primary-foreground"
-              : "rounded-lg border p-2 text-muted-foreground"
-          } >
-          2. Notes par élève
-        </li>
-        <li
-          className={
-            currentStep === 3
-              ? "rounded-lg bg-primary p-2 font-medium text-primary-foreground"
-              : "rounded-lg border p-2 text-muted-foreground"
-          }
-        >
-          3. Moyennes
-        </li>
-      </ol>
-      {completion.status === "completed" || period?.isCurrent === false ? (
-        <Card className="shadow-sm !mt-3">
-          <CardContent className="flex gap-3 p-4 text-xs">
-            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
-            {period?.isCurrent === false
-              ? "Cette période est consultable uniquement. Les données ne redeviennent jamais modifiables après la génération des bulletins."
-              : "Cette matière est validée. Les moyennes et le détail des notes restent consultables."}
-          </CardContent>
-        </Card>
-      ) : null}
-      {currentStep === 2 ? (
-        <Card className="shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle>Notes de {subject.name}</CardTitle>
-            <CardDescription>
-              Le détail des évaluations et des notes est disponible pour chaque
-              élève.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="overflow-x-auto p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Élève</TableHead>
-                  <TableHead>Notes</TableHead>
-                  <TableHead className="text-right">Détail</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {students.map((student) => (
-                  <TableRow key={student.id}>
-                    <TableCell className="font-medium">
-                      {student.firstName} {student.lastName}
-                    </TableCell>
-                    <TableCell>
-                      {evaluationCount(evaluations, student.id)} note
-                      {evaluationCount(evaluations, student.id) > 1 ? "s" : ""}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="min-h-6"
-                        onClick={() => setDetailsStudentId(student.id)}
-                      >
-                        <Eye className="mr-2 h-4 w-4" />
-                        Consulter
-                      </Button>
-                    </TableCell>
+        </header>
+        <ol className="grid grid-cols-3 gap-2 text-center text-xs" aria-label="Étapes de calcul" >
+          <li className="rounded-lg border p-2 text-muted-foreground">
+            1. Notes terminées
+          </li>
+          <li
+            className={
+              currentStep === 2
+                ? "rounded-lg bg-primary p-2 font-medium text-primary-foreground"
+                : "rounded-lg border p-2 text-muted-foreground"
+            } >
+            2. Notes par élève
+          </li>
+          <li
+            className={
+              currentStep === 3
+                ? "rounded-lg bg-primary p-2 font-medium text-primary-foreground"
+                : "rounded-lg border p-2 text-muted-foreground"
+            }
+          >
+            3. Moyennes
+          </li>
+        </ol>
+        {completion.status === "completed" || period?.isCurrent === false ? (
+          <Card className="shadow-sm !mt-3">
+            <CardContent className="flex gap-3 p-4 text-xs">
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
+              {period?.isCurrent === false
+                ? "Cette période est consultable uniquement. Les données ne redeviennent jamais modifiables après la génération des bulletins."
+                : "Cette matière est validée. Les moyennes et le détail des notes restent consultables."}
+            </CardContent>
+          </Card>
+        ) : null}
+        {currentStep === 2 ? (
+          <Card className="shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle>Notes de {subject.name}</CardTitle>
+              <CardDescription>
+                Le détail des évaluations et des notes est disponible pour chaque
+                élève.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="overflow-x-auto p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Élève</TableHead>
+                    <TableHead>Notes</TableHead>
+                    <TableHead className="text-right">Détail</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle>Moyennes de {subject.name}</CardTitle>
-            <CardDescription>
-              Consultez les moyennes et, pour le professeur principal, arrêtez
-              la conduite finale de chaque élève.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="overflow-x-auto p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Élève</TableHead>
-                  <TableHead>Moyenne / 20</TableHead>
-                  {canFinalizeConduct ? (
-                    <TableHead>Conduite finale</TableHead>
-                  ) : null}
-                  <TableHead className="text-right">Détail</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {students.map((student) => (
-                  <TableRow key={student.id} >
-                    <TableCell className="font-medium px-2 py-1" pNone="true">
-                      {student.firstName} {student.lastName}
-                    </TableCell>
-                    <TableCell className="font-medium px-2 py-1" pNone="true">
-                      {formatAverage(subjectAverage(evaluations, student.id))}
-                    </TableCell>
-                    {canFinalizeConduct ? (
-                      <TableCell className="px-2 py-1" pNone="true">
+                </TableHeader>
+                <TableBody>
+                  {students.map((student) => (
+                    <TableRow key={student.id}>
+                      <TableCell className="font-medium">
+                        {student.firstName} {student.lastName}
+                      </TableCell>
+                      <TableCell>
+                        {evaluationCount(evaluations, student.id)} note
+                        {evaluationCount(evaluations, student.id) > 1 ? "s" : ""}
+                      </TableCell>
+                      <TableCell className="text-right">
                         <Button
                           type="button"
                           variant="outline"
                           className="min-h-6"
-                          disabled={!editable}
-                          onClick={() => setFinalConductStudentId(student.id)}
+                          onClick={() => setDetailsStudentId(student.id)}
                         >
-                          <ShieldCheck className="mr-2 h-4 w-4" />
-                          {savedFinalConducts[student.id] ?? "Définir"}
+                          <Eye className=" h-4 w-4" />
                         </Button>
                       </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle>Moyennes de {subject.name}</CardTitle>
+              <CardDescription>
+                Consultez les moyennes et, pour le professeur principal, arrêtez
+                la conduite finale de chaque élève.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="overflow-x-auto p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Élève</TableHead>
+                    <TableHead>Moyenne / 20</TableHead>
+                    {canFinalizeConduct ? (
+                      <TableHead>Conduite finale</TableHead>
                     ) : null}
-                    <TableCell className="text-right px-2 py-1"  pNone="true">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="min-h-6"
-                        onClick={() => setDetailsStudentId(student.id)}
-                      >
-                        Notes
-                      </Button>
-                    </TableCell>
+                    <TableHead className="text-right">Détail</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-      {editable && currentStep === 2 ? (
-        <Button type="button" className="min-h-6 w-full" onClick={() => setCurrentStep(3)}>
-          Voir les moyennes par élève
-        </Button>
-      ) : null}
-      {editable && currentStep === 3 ? (
-        <div className="sticky bottom-0 space-y-2 border-t bg-background/95 py-3">
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-6 w-full"
-            onClick={() => setCurrentStep(2)}
-          >
-            Revenir aux notes par élève
-          </Button>
-          <Button
-            type="button"
-            className="min-h-6 w-full"
-            disabled={validateMutation.isPending}
-            onClick={() => validateMutation.mutate()}
-          >
-            {validateMutation.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : null}
-            Valider mes moyennes de {subject.name}
-          </Button>
-          <p className="text-center text-xs text-muted-foreground">
-            Après validation, les moyennes restent consultables mais ne sont
-            plus modifiables.
-          </p>
-        </div>
-      ) : null}
-      <StudentNotesDialog
-        student={detailsStudent}
-        evaluations={evaluations}
-        onOpenChange={(open) => !open && setDetailsStudentId(null)}
-      />
-      <FinalConductDialog
-        student={finalConductStudent}
-        gradingPeriodId={gradingPeriodId}
-        editable={editable}
-        onOpenChange={(open) => !open && setFinalConductStudentId(null)}
-        onSaved={(note) =>
-          setSavedFinalConducts((current) =>
-            finalConductStudent
-              ? { ...current, [finalConductStudent.id]: note }
-              : current,
-          )
-        }
-      />
-    </div>
+                </TableHeader>
+                <TableBody>
+                  {students.map((student) => (
+                    <TableRow key={student.id} >
+                      <TableCell className="font-medium px-2 py-2" pNone="true">
+                        {student.firstName} {student.lastName}
+                      </TableCell>
+                      <TableCell className="font-medium px-2 py-2" pNone="true">
+                        {formatAverage(subjectAverage(evaluations, student.id))}
+                      </TableCell>
+                      {canFinalizeConduct ? (
+                        <TableCell className="px-2 py-2" pNone="true">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="min-h-6"
+                            disabled={!editable}
+                            onClick={() => setFinalConductStudentId(student.id)}
+                          >
+                            <NotebookPen className="h-4 w-4" />
+                            {savedFinalConducts[student.id] ?? ""}
+                          </Button>
+                        </TableCell>
+                      ) : null}
+                      <TableCell className="text-right px-2 py-2"  pNone="true">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="min-h-6"
+                          onClick={() => setDetailsStudentId(student.id)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+        {editable && currentStep === 2 ? (
+          <div className="sticky bottom-0 space-y-2 border-t bg-background/95 py-3">
+            <Button type="button" className="min-h-6 w-full" onClick={() => setCurrentStep(3)}>
+              Voir les moyennes par élève
+            </Button>
+          </div>
+        ) : null}
+        {editable && currentStep === 3 ? (
+          <div className="sticky bottom-0 space-y-2 border-t bg-background/95 py-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-6 w-full"
+              onClick={() => setCurrentStep(2)}
+            >
+              Revenir aux notes par élève
+            </Button>
+            <Button
+              type="button"
+              className="min-h-6 w-full"
+              disabled={validateMutation.isPending}
+              onClick={() => validateMutation.mutate()}
+            >
+              {validateMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Valider mes moyennes de {subject.name}
+            </Button>
+            <p className="text-center text-xs text-muted-foreground">
+              Après validation, les moyennes restent consultables mais ne sont
+              plus modifiables.
+            </p>
+          </div>
+        ) : null}
+        <StudentNotesDialog
+          student={detailsStudent}
+          evaluations={evaluations}
+          onOpenChange={(open) => !open && setDetailsStudentId(null)}
+        />
+        <FinalConductDialog
+          student={finalConductStudent}
+          gradingPeriodId={gradingPeriodId}
+          editable={editable}
+          onOpenChange={(open) => !open && setFinalConductStudentId(null)}
+          onSaved={(note) =>
+            setSavedFinalConducts((current) =>
+              finalConductStudent
+                ? { ...current, [finalConductStudent.id]: note }
+                : current,
+            )
+          }
+        />
+      </div>
+    </>
   );
 }
 
@@ -500,7 +504,7 @@ function StudentNotesDialog({
     );
   return (
     <Dialog open={Boolean(student)} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-2xl overflow-y-auto rounded-lg p-0 sm:w-full">
+      <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-2xl overflow-y-auto rounded-lg p-0 sm:w-full gap-0">
         <DialogHeader className="border-b px-5 py-5 text-left sm:px-6">
           <DialogTitle>
             Notes de{" "}
@@ -642,7 +646,7 @@ function FinalConductDialog({
     parsed <= MAX_GRADE;
   return (
     <Dialog open={Boolean(student)} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-2xl overflow-y-auto rounded-lg p-0 sm:w-full">
+      <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-2xl overflow-y-auto rounded-lg p-0 sm:w-full gap-2">
         <DialogHeader className="border-b px-5 py-5 text-left sm:px-6">
           <DialogTitle>
             Conduite finale de{" "}
