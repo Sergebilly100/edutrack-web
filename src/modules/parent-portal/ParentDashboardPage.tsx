@@ -226,7 +226,7 @@ export default function ParentDashboardPage() {
       <section data-tour="parent-student-selector">
         {(studentsQuery.data?.length ?? 0) > 1 ? (
           <div className="rounded-xl border bg-card p-2 shadow-card">
-            <p className="mb-2 text-sm text-muted-foreground">Enfant sélectionné</p>
+            <p className="mb-2 text-sm font-semibold">Enfant sélectionné</p>
             {/* justify-start (et non center) : avec overflow-x, center rend le 1er/dernier
                 enfant inaccessibles au scroll. snap-x + scroll-px ajoutent l'affordance tactile. */}
             <div
@@ -244,7 +244,7 @@ export default function ParentDashboardPage() {
                     role="radio"
                     aria-checked={active}
                     className={cn(
-                      "h-auto min-w-[8.75rem] flex-shrink-0 snap-start justify-start gap-2.5 rounded-lg border px-3 py-2.5 text-left",
+                      "h-auto min-w-[10rem] flex-shrink-0 snap-start justify-start gap-2.5 rounded-lg border px-3 py-2.5 text-left",
                       active ? "border-primary bg-primary text-primary-foreground shadow-sm hover:bg-primary" : "border-transparent bg-muted/50"
                     )}
                     onClick={() => handleSelectStudent(student.id)}
@@ -353,7 +353,7 @@ export default function ParentDashboardPage() {
               to="/parent/report-cards"
               className="flex items-center gap-3 rounded-xl border bg-blue-50 p-4 shadow-card transition-colors hover:bg-blue-100/60 dark:border-blue-900 dark:bg-blue-950/30"
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-700 text-white">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
                 <GraduationCap className="h-5 w-5" />
               </span>
               <span className="min-w-0 flex-1">
@@ -384,7 +384,8 @@ export default function ParentDashboardPage() {
                   <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">Toléré</Badge>
                 ) : (
                   <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
-                    En retard{overviewQuery.data.financial.daysLate !== null ? ` (${overviewQuery.data.financial.daysLate} j)` : ""}
+                    En retard
+                    {/* {overviewQuery.data.financial.daysLate !== null ? ` (${overviewQuery.data.financial.daysLate} j)` : ""} */}
                   </Badge>
                 )}
               </div>
@@ -392,13 +393,12 @@ export default function ParentDashboardPage() {
                 <p className="text-lg font-semibold">
                   {new Intl.NumberFormat("fr-FR").format(Math.round(overviewQuery.data.financial.remainingDue))} FCFA
                 </p>
-                <p className="text-xs text-muted-foreground">restant dû sur l'année</p>
+                <p className="text-xs text-muted-foreground">restant dû sur l'année scolaire</p>
               </div>
             </div>
           ) : null}
         </section>
       ) : null}
-
 
       <section className="grid grid-cols-2 gap-2.5 sm:gap-3" data-tour="parent-stats">
         <div className="rounded-xl border bg-card p-3 shadow-card sm:p-4">
@@ -531,41 +531,6 @@ export default function ParentDashboardPage() {
         </Link>
       </section>
 
-      {/* <section className="rounded-xl border bg-card p-3.5 shadow-card sm:p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-base font-semibold">Absences récentes</h2>
-          <Link to="/parent/absences" className="inline-flex items-center gap-1 text-sm font-semibold text-primary">
-            Voir tout <ChevronRight className="h-4 w-4" />
-          </Link>
-        </div>
-        {absencesQuery.isLoading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-14 w-full rounded-lg" />
-            <Skeleton className="h-14 w-full rounded-lg" />
-          </div>
-        ) : absencesQuery.data?.length ? (
-          <div className="divide-y">
-            {absencesQuery.data.slice(0, 3).map((row, index) => (
-              <Link
-                key={`${row.date}-${index}`}
-                to="/parent/absences"
-                className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
-              >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
-                  <XCircle className="h-5 w-5" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold">{formatDateFr(row.date)}</span>
-                  <span className="block truncate text-xs text-muted-foreground">{row.subject} · {row.time_label}</span>
-                </span>
-                <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <EmptyState title="Aucune absence" message="Aucune absence récente pour cet élève." />
-        )}
-      </section> */}
     </div>
     </>
   )

@@ -52,7 +52,7 @@ export default function ParentAbsenceHistoryPage() {
     <div className="space-y-4 text-base">
       <OfflineIndicator />
       <div className="space-y-2">
-        <h1 className="text-xl font-semibold">
+        <h1 className="text-xl font-semibold mb-3">
           Historique des absences - {selectedStudent?.first_name ?? studentLabels.singular}
         </h1>
 
@@ -64,7 +64,7 @@ export default function ParentAbsenceHistoryPage() {
               sessionStorage.setItem(SELECTED_STUDENT_STORAGE_KEY, value)
             }}
           >
-            <SelectTrigger className="h-12 text-base">
+            <SelectTrigger className="h-10 text-base">
               <SelectValue placeholder={`Sélectionnez un ${studentLabels.singularLower}`} />
             </SelectTrigger>
             <SelectContent>
@@ -80,7 +80,7 @@ export default function ParentAbsenceHistoryPage() {
             value={month}
             onChange={setMonth}
             months={schoolMonths}
-            className="h-12 text-base"
+            className="h-10 text-base"
           />
         </div>
       </div>

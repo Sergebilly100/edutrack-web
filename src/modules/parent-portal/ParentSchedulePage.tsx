@@ -112,7 +112,7 @@ export default function ParentSchedulePage() {
                     type="button"
                     variant="ghost"
                     className={cn(
-                      "h-auto min-w-[8.75rem] flex-shrink-0 justify-start gap-2.5 rounded-lg border px-3 py-2.5 text-left",
+                      "h-auto min-w-[10rem] flex-shrink-0 justify-start gap-2.5 rounded-lg border px-3 py-2.5 text-left",
                       active ? "border-primary bg-primary text-primary-foreground shadow-sm hover:bg-primary" : "border-transparent bg-muted/50"
                     )}
                     onClick={() => handleSelectStudent(student.id)}
@@ -151,7 +151,7 @@ export default function ParentSchedulePage() {
               variant="ghost"
               size="icon"
               aria-label="Afficher la semaine précédente"
-              className="h-10 w-10 bg-muted"
+              className="h-10 w-10 bg-muted  border"
               onClick={() => setWeek((prev) => shiftIsoWeek(prev, -1))}
             >
               <ChevronLeft className="h-5 w-5" />
@@ -162,7 +162,7 @@ export default function ParentSchedulePage() {
               variant="ghost"
               size="icon"
               aria-label="Afficher la semaine suivante"
-              className="h-10 w-10  bg-muted"
+              className="h-10 w-10  bg-muted  border"
               onClick={() => setWeek((prev) => shiftIsoWeek(prev, 1))}
             >
               <ChevronRight className="h-5 w-5" />

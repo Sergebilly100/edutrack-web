@@ -60,14 +60,14 @@ export default function ParentPaymentsPage() {
     <div className="animate-fade-in space-y-5 py-5 sm:py-6">
       <div className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div><h1 className="text-2xl font-semibold tracking-tight">Frais et paiements</h1><p className="mt-1 text-sm text-muted-foreground">Consultez les versements reconnus par l’établissement et téléchargez vos reçus.</p></div>
-        {students.length > 1 ? <Select value={studentId} onValueChange={setSelectedStudentId}><SelectTrigger className="min-h-12 w-full sm:w-64" aria-label="Enfant"><SelectValue /></SelectTrigger><SelectContent>{students.map((student) => <SelectItem key={student.id} value={student.id}>{student.last_name} {student.first_name}</SelectItem>)}</SelectContent></Select> : null}
+        {students.length > 1 ? <Select value={studentId} onValueChange={setSelectedStudentId}><SelectTrigger className="min-h-6 w-full sm:w-64" aria-label="Enfant"><SelectValue /></SelectTrigger><SelectContent>{students.map((student) => <SelectItem key={student.id} value={student.id}>{student.last_name} {student.first_name}</SelectItem>)}</SelectContent></Select> : null}
       </div>
 
       {studentsQuery.isError || schoolConfigQuery.isError ? <QueryErrorState message="Impossible de charger le dossier financier." onRetry={() => { void studentsQuery.refetch(); void schoolConfigQuery.refetch() }} /> : null}
 
       {statusQuery.data ? (
         <section className="grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-3" aria-label="Situation financière">
-          <div className="bg-blue-700 p-4 text-blue-50"><p className="text-xs text-blue-100">Total des frais</p><p className="mt-1 text-2xl font-semibold tabular-nums">{formatFcfa(statusQuery.data.totalDue)}</p></div>
+          <div className="bg-blue-500 p-4 text-blue-50"><p className="text-xs text-blue-100">Total des frais</p><p className="mt-1 text-2xl font-semibold tabular-nums">{formatFcfa(statusQuery.data.totalDue)}</p></div>
           <div className="bg-card p-4"><p className="text-xs text-muted-foreground">Déjà versé</p><p className="mt-1 text-2xl font-semibold tabular-nums">{formatFcfa(statusQuery.data.confirmedPaid)}</p></div>
           <div className="bg-card p-4"><p className="text-xs text-muted-foreground">Reste à payer</p><p className="mt-1 text-2xl font-semibold tabular-nums">{formatFcfa(statusQuery.data.remainingDue)}</p><Badge variant="outline" className={statusQuery.data.standing === "late" ? "mt-2 border-amber-200 bg-amber-50 text-amber-700" : "mt-2 border-green-200 bg-green-50 text-green-700"}>{statusQuery.data.standing === "late" ? "Cumul en retard" : "Cumul à jour"}</Badge></div>
         </section>
