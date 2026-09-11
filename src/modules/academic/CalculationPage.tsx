@@ -51,6 +51,7 @@ import {
   type ConductOverviewResponse,
   type EvaluationWithGrades,
 } from "./academic.api";
+import { OfflineIndicator } from "@/shared/components/OfflineIndicator";
 
 const MAX_GRADE = 20;
 
@@ -234,6 +235,7 @@ export default function CalculationPage() {
   const canFinalizeConduct = selectedClass?.isHomeroomTeacher === true;
   return (
     <div className="space-y-6 md:px-6 md:py-8">
+      <OfflineIndicator />
       <header className="space-y-3">
         <Button variant="ghost" className="min-h-6 px-0 py-0" asChild>
           <Link
@@ -249,41 +251,42 @@ export default function CalculationPage() {
             </h1>
             <p className="text-sm text-muted-foreground">
               {selectedClass?.name ?? "Classe"} · {subject.name} ·{" "}
-              {period?.label ?? "Période"}
+              {period?.label ?? "Période"} &nbsp;
+              <Badge variant={ completion.status === "completed" ? "outline" : "secondary" }>
+                {completion.status === "completed"
+                  ? "Moyennes validées"
+                  : "Saisie clôturée"}
+              </Badge>
             </p>
           </div>
-          <Badge variant={ completion.status === "completed" ? "outline" : "secondary" }>
-            {completion.status === "completed"
-              ? "Moyennes validées"
-              : "Saisie clôturée"}
-          </Badge>
+          
         </div>
       </header>
-      <ol className="grid grid-cols-3 gap-2 text-center text-sm" aria-label="Étapes de calcul" >
-        <li className="rounded-lg border p-3 text-muted-foreground">
+      <ol className="grid grid-cols-3 gap-2 text-center text-xs" aria-label="Étapes de calcul" >
+        <li className="rounded-lg border p-2 text-muted-foreground">
           1. Notes terminées
         </li>
         <li
           className={
             currentStep === 2
-              ? "rounded-lg bg-primary p-3 font-medium text-primary-foreground"
-              : "rounded-lg border p-3 text-muted-foreground"
+              ? "rounded-lg bg-primary p-2 font-medium text-primary-foreground"
+              : "rounded-lg border p-2 text-muted-foreground"
           } >
           2. Notes par élève
         </li>
         <li
           className={
             currentStep === 3
-              ? "rounded-lg bg-primary p-3 font-medium text-primary-foreground"
-              : "rounded-lg border p-3 text-muted-foreground"
+              ? "rounded-lg bg-primary p-2 font-medium text-primary-foreground"
+              : "rounded-lg border p-2 text-muted-foreground"
           }
         >
           3. Moyennes
         </li>
       </ol>
       {completion.status === "completed" || period?.isCurrent === false ? (
-        <Card className="shadow-sm">
-          <CardContent className="flex gap-3 p-4 text-sm">
+        <Card className="shadow-sm !mt-3">
+          <CardContent className="flex gap-3 p-4 text-xs">
             <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
             {period?.isCurrent === false
               ? "Cette période est consultable uniquement. Les données ne redeviennent jamais modifiables après la génération des bulletins."

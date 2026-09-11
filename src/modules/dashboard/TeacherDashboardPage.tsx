@@ -15,6 +15,9 @@ import { TourGuide } from "@/shared/components/TourGuide"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { teacherDashboardTourSteps } from "@/shared/lib/tour-steps"
 import { useAuthStore } from "@/shared/store/auth.store"
+import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
+import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
+
 
 const formatTime = (dateValue: string) =>
   new Date(dateValue).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
@@ -47,6 +50,7 @@ const getCourseStatus = (
 }
 
 export default function TeacherDashboardPage() {
+  const { isOnline } = useNetworkStatus()
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const tour = useTourGuide("teacher-dashboard", true)
@@ -79,11 +83,21 @@ export default function TeacherDashboardPage() {
         onStepChange={tour.setStepIndex}
         onFinish={tour.markDone}
       />
+
     <div className="space-y-6 py-2">
+      {!isOnline ? (
+        <OfflineIndicator forceState="offline" offlineCapable />
+      ) : (
+        <OfflineIndicator offlineCapable />
+      )}
       <header className="flex items-start justify-between gap-3" data-tour="teacher-dashboard-header">
         <div className="space-y-1">
-          <p className="text-sm font-medium capitalize text-muted-foreground">{formatToday(now)}</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Bonjour, {user?.name?.split(" ")[0] ?? "Professeur"}</h1>
+          <p className="text-sm font-medium capitalize text-muted-foreground">
+            <Badge variant="outline" className="px-2.5">
+              {formatToday(now)}
+            </Badge>
+          </p>
+          {/* <h1 className="text-2xl font-semibold tracking-tight">Bonjour, {user?.name?.split(" ")[0] ?? "Professeur"}</h1> */}
           {/* <p className="text-sm text-muted-foreground">Vos cours et vos saisies à traiter aujourd&apos;hui.</p> */}
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -96,11 +110,11 @@ export default function TeacherDashboardPage() {
       {scheduleQuery.isError ? <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center justify-between gap-3"><span>Vos cours ne sont pas disponibles. Vérifiez la connexion puis réessayez.</span><Button type="button" variant="outline" className="min-h-12" onClick={() => void scheduleQuery.refetch()}>Réessayer</Button></AlertDescription></Alert> : null}
 
       {!scheduleQuery.isLoading && !scheduleQuery.isError ? (
-        <Card className="border-0 bg-blue-700 text-blue-50 shadow-sm" data-tour="teacher-dashboard-course">
+        <Card className="border-0 bg-blue-600 text-blue-50 shadow-sm" data-tour="teacher-dashboard-course">
           <CardContent className="p-5">
             {focusSchedule ? <>
               <div className="flex items-start justify-between gap-4"><div className="min-w-0"><p className="text-sm font-medium text-blue-100">{activeSchedule ? "Cours en cours" : "Prochain cours"}</p><h2 className="mt-1 truncate text-xl font-semibold">{focusSchedule.subject_name}</h2><p className="mt-1 text-sm text-blue-100">{focusSchedule.class_name} · {formatTime(focusSchedule.start_at)} – {formatTime(focusSchedule.end_at)}</p></div><Clock3 className="mt-1 h-5 w-5 shrink-0 text-blue-100" /></div>
-              <div className="mt-5 grid gap-2 sm:grid-cols-2"><Button type="button" variant="secondary" className="min-h-12 justify-between" onClick={() => navigate("/attendance")}>{activeSchedule ? "Ouvrir le cours" : "Préparer le cours"}<ArrowRight className="h-4 w-4" /></Button><Button type="button" variant="ghost" className="min-h-6 justify-between text-blue-50 hover:bg-blue-600 hover:text-white" onClick={() => navigate(notesUrl)}>Saisir les notes<ClipboardList className="h-4 w-4" /></Button></div>
+              <div className="mt-5 grid gap-2 sm:grid-cols-2"><Button type="button" variant="secondary" className="min-h-6 justify-between" onClick={() => navigate("/attendance")}>{activeSchedule ? "Ouvrir le cours" : "Préparer le cours"}<ArrowRight className="h-4 w-4" /></Button><Button type="button" variant="ghost" className="min-h-6 justify-between text-blue-50 hover:bg-blue-600 hover:text-white" onClick={() => navigate(notesUrl)}>Saisir les notes<ClipboardList className="h-4 w-4" /></Button></div>
             </> : <>
               <div className="flex items-start gap-3"><CalendarDays className="mt-0.5 h-5 w-5" /><div><p className="text-sm font-medium text-blue-100">Journée libre</p><h2 className="mt-1 text-xl font-semibold">Aucun cours aujourd&apos;hui</h2><p className="mt-1 text-sm text-blue-100">Consultez votre planning ou préparez vos prochaines évaluations.</p></div></div>
               <Button type="button" variant="secondary" className="mt-5 min-h-12 w-full justify-between" onClick={() => navigate("/attendance")}>Consulter mes cours<ArrowRight className="h-4 w-4" /></Button>

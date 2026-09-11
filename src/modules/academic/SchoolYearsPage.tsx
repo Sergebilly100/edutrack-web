@@ -113,7 +113,7 @@ export default function SchoolYearsPage() {
                   name="endOfYearReviewStartDate"
                   render={({ field }) => (
                     <FormItem className="w-full sm:max-w-xs">
-                      <FormLabel>Date de début de revue</FormLabel>
+                      <FormLabel>Date de début de revue (arrêt des notes)</FormLabel>
                       <FormControl><Input type="date" max={previousIsoDate(activeYear.endDate)} disabled={!canEdit || mutation.isPending} {...field} /></FormControl>
                       {/* <FormDescription>Par défaut, 30 jours avant la fin de l’année.</FormDescription> */}
                       <FormMessage />
