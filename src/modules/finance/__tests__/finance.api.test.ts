@@ -64,12 +64,13 @@ describe("finance.api", () => {
     expect(journal.entries[0]).toMatchObject({ studentName: "Awa Koné", paymentDate: "2026-08-19" })
 
     getMock.mockResolvedValueOnce({ data: { statement: {
-      student: { id: "student-1", name: "Awa Koné", classId: "class-1", className: "6ème A" },
+      student: { id: "student-1", name: "Awa Koné", matricule: "MAT-1", classId: "class-1", className: "6ème A" },
       schoolYearId: "year-1", currency: "FCFA", totalDue: "100000",
       movements: [{ id: "payment-1", amount: "25000", method: "cash", status: "confirmed", paymentDate: "2026-08-19", runningPaid: "25000", balanceAfter: "75000" }],
     } } })
     const statement = await getStudentAccountStatement("student-1", "year-1")
     expect(statement.movements[0]).toMatchObject({ runningPaid: 25000, balanceAfter: 75000 })
+    expect(statement.student).toMatchObject({ name: "Awa Koné", matricule: "MAT-1" })
   })
 
   it("demande une page précise de l’historique des relances", async () => {

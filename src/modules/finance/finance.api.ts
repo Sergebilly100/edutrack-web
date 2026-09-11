@@ -37,7 +37,7 @@ export type Payment = {
 }
 
 export type StudentAccountStatement = {
-  student: { id: string; name: string; classId: string; className: string }
+  student: { id: string; name: string; matricule: string | null; classId: string; className: string }
   schoolYearId: string
   currency: string
   totalDue: number
@@ -223,7 +223,7 @@ const parseStatement = (value: unknown): StudentAccountStatement => {
   const row = record(value)
   const student = record(row.student)
   return {
-    student: { id: asString(student.id), name: asString(student.name), classId: asString(student.classId), className: asString(student.className) },
+    student: { id: asString(student.id), name: asString(student.name), matricule: asNullableString(student.matricule), classId: asString(student.classId), className: asString(student.className) },
     schoolYearId: asString(row.schoolYearId),
     currency: asString(row.currency, "FCFA"),
     totalDue: asNumber(row.totalDue),

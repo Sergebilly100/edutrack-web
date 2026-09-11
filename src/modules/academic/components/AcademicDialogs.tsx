@@ -532,7 +532,6 @@ export function ClassDialog({
   teachersLoading: boolean
   onSubmit: (payload: ClassPayload) => Promise<void> | void
 }) {
-  const [teacherSearch, setTeacherSearch] = useState("")
   const form = useForm<ClassFormValues>({
     resolver: zodResolver(classSchema),
     defaultValues: { name: "", levelId: "", homeroomTeacherId: NO_TEACHER },
@@ -540,21 +539,12 @@ export function ClassDialog({
 
   useEffect(() => {
     if (!open) return
-    setTeacherSearch("")
     form.reset({
       name: schoolClass?.name ?? "",
       levelId: schoolClass?.level.id ?? levels[0]?.id ?? "",
       homeroomTeacherId: schoolClass?.homeroomTeacher?.id ?? NO_TEACHER,
     })
   }, [form, levels, open, schoolClass])
-
-  const filteredTeachers = useMemo(() => {
-    const search = teacherSearch.trim().toLocaleLowerCase("fr")
-    if (!search) return teachers
-    return teachers.filter((teacher) =>
-      `${teacher.fullName} ${teacher.matricule ?? ""}`.toLocaleLowerCase("fr").includes(search)
-    )
-  }, [teacherSearch, teachers])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -601,15 +591,6 @@ export function ClassDialog({
                 </FormItem>
               )}
             />
-            <div className="space-y-2">
-              <Label htmlFor="teacher-search">Rechercher un professeur principal</Label>
-              <Input
-                id="teacher-search"
-                value={teacherSearch}
-                onChange={(event) => setTeacherSearch(event.target.value)}
-                placeholder="Nom ou matricule"
-              />
-            </div>
             <FormField
               control={form.control}
               name="homeroomTeacherId"
@@ -624,7 +605,7 @@ export function ClassDialog({
                     </FormControl>
                     <SelectContent>
                       <SelectItem value={NO_TEACHER}>Aucun professeur principal</SelectItem>
-                      {filteredTeachers.map((teacher) => (
+                      {teachers.map((teacher) => (
                         <SelectItem key={teacher.id} value={teacher.id}>
                           {teacher.fullName}{teacher.matricule ? ` (${teacher.matricule})` : ""}
                         </SelectItem>

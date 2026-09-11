@@ -14,6 +14,7 @@ export type TeacherListItem = {
   type: TeacherType
   subjects: string[]
   teachingAssignments: Array<{ subjectId: string; subjectName: string; classId: string; className: string }>
+  homeroomClasses: Array<{ id: string; name: string }>
   hourlyRate: number | null
   monthlySalary: number | null
   isActive: boolean
@@ -185,6 +186,13 @@ const mapTeacher = (value: unknown): TeacherListItem => {
   const lastNameFromPayload = asString(item.last_name) || asString(item.lastName)
 
   const isActive = asBoolean(item.is_active ?? item.isActive, true)
+  const homeroomClassesValue = item.homeroom_classes ?? item.homeroomClasses
+  const homeroomClasses = Array.isArray(homeroomClassesValue)
+    ? homeroomClassesValue
+      .filter(isRecord)
+      .map((schoolClass) => ({ id: asString(schoolClass.id), name: asString(schoolClass.name) }))
+      .filter((schoolClass) => schoolClass.id.length > 0 && schoolClass.name.length > 0)
+    : []
 
   // is_blocked est maintenant un champ dédié sur teachers, renvoyé directement
   // par l'API. On ne le déduit plus de !isActive pour éviter les faux positifs.
@@ -220,6 +228,7 @@ const mapTeacher = (value: unknown): TeacherListItem => {
     type: (asString(item.type) === "permanent" ? "permanent" : "vacataire") as TeacherType,
     subjects: normalizeSubjects(item.subjects ?? item.subject),
     teachingAssignments,
+    homeroomClasses,
     hourlyRate:
       item.hourly_rate === null
         ? null
@@ -288,6 +297,18 @@ export async function getTeachers(params: GetTeachersParams = {}): Promise<Teach
     data: rawData.map(mapTeacher),
     pagination: mapPagination(payload.pagination, params),
   }
+}
+
+export async function getAllTeachers(): Promise<TeacherListItem[]> {
+  const firstPage = await getTeachers({ page: 1, limit: 200 })
+  const teachers = [...firstPage.data]
+
+  for (let page = 2; page <= firstPage.pagination.totalPages; page += 1) {
+    const response = await getTeachers({ page, limit: 200 })
+    teachers.push(...response.data)
+  }
+
+  return teachers
 }
 
 export async function createTeacher(payload: TeacherUpsertPayload): Promise<TeacherListItem> {

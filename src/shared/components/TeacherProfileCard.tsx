@@ -14,6 +14,7 @@ type TeacherProfile = {
   email?: string | null
   subjects?: string[]
   teachingAssignments?: Array<{ subjectName: string; className: string }>
+  homeroomClasses?: Array<{ id: string; name: string }>
   type: "vacataire" | "permanent"
   blockReason?: string
 }
@@ -94,6 +95,11 @@ export function TeacherProfileCard({
             >
               {isBlocked ? "Bloqué" : "Actif"}
             </Badge>
+            {(teacher.homeroomClasses ?? []).map((schoolClass) => (
+              <Badge key={schoolClass.id} variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+                Principal : {schoolClass.name}
+              </Badge>
+            ))}
           </div>
         </div>
 

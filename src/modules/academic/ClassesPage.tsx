@@ -30,7 +30,7 @@ import {
 } from "@/modules/academic/academic.api"
 import { AcademicNavigation } from "@/modules/academic/components/AcademicNavigation"
 import { ClassDialog } from "@/modules/academic/components/AcademicDialogs"
-import { getTeachers } from "@/modules/teachers/teachers.api"
+import { getAllTeachers } from "@/modules/teachers/teachers.api"
 import { DataTable, EmptyState, PageLayout, QueryErrorState, Spinner } from "@/shared/components"
 import { AddIcon, ClassIcon, DeleteIcon, EditIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
@@ -83,7 +83,7 @@ export default function ClassesPage() {
     ""
   const teachersQuery = useQuery({
     queryKey: ["teachers", "academic", "homeroom-options"],
-    queryFn: () => getTeachers({ page: 1, limit: 200 }),
+    queryFn: getAllTeachers,
     enabled: dialogOpen,
     staleTime: 60_000,
   })
@@ -187,7 +187,7 @@ export default function ClassesPage() {
         isPending={saveMutation.isPending}
         schoolClass={selectedClass}
         levels={levelsQuery.data ?? []}
-        teachers={teachersQuery.data?.data ?? []}
+        teachers={teachersQuery.data ?? []}
         teachersLoading={teachersQuery.isLoading}
         onOpenChange={setDialogOpen}
         onSubmit={(payload) => saveMutation.mutate({ schoolClass: selectedClass, payload })}

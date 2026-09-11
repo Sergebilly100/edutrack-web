@@ -894,6 +894,7 @@ export default function TeacherDetailPage() {
         email: teacher.email,
         subjects: teacher.subjects,
         teachingAssignments: teacher.teachingAssignments,
+        homeroomClasses: teacher.homeroomClasses,
         type: teacher.type,
         blockReason: teacher.blockReason ?? undefined,
       }}

@@ -540,7 +540,7 @@ export default function DashboardPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {gradingPeriodsQuery.data.map((period) => (
-                        <SelectItem key={period.id} value={period.id}>
+                        <SelectItem key={period.id} value={period.id} disabled={!period.isCurrent && !period.isCompleted}>
                           {period.label}
                           {period.isCurrent
                             ? " · en cours"

@@ -29,6 +29,7 @@ describe("ClassDialog", () => {
 
     expect(screen.getByRole("dialog")).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Ajouter une classe" })).toBeInTheDocument()
-    expect(screen.getByLabelText("Rechercher un professeur principal")).toBeInTheDocument()
+    expect(screen.queryByLabelText("Rechercher un professeur principal")).not.toBeInTheDocument()
+    expect(screen.getByText("Professeur principal")).toBeInTheDocument()
   })
 })

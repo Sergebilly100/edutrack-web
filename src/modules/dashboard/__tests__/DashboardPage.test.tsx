@@ -11,6 +11,16 @@ const { navigateMock } = vi.hoisted(() => ({ navigateMock: vi.fn() }))
 vi.mock("@/shared/api/client", () => ({
   apiClient: {
     get: vi.fn((url: string) => {
+      if (url === "/grading-periods") {
+        return Promise.resolve({
+          data: {
+            gradingPeriods: [
+              { id: "period-current", school_year_id: "school-year-1", label: "Trimestre 1", isCurrent: true, isCompleted: false },
+              { id: "period-upcoming", school_year_id: "school-year-1", label: "Trimestre 2", isCurrent: false, isCompleted: false },
+            ],
+          },
+        })
+      }
       if (url === "/dashboard/action-items") {
         return Promise.resolve({
           data: {
@@ -51,6 +61,7 @@ const fetchSchoolInfoMock = vi.fn()
 const getTodayAbsencesMock = vi.fn()
 const getStudentAbsenceStatsMock = vi.fn()
 const fetchFinancialSummaryMock = vi.fn()
+const listSchoolYearsMock = vi.fn()
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom")
@@ -96,6 +107,10 @@ vi.mock("@/modules/students/students.api", () => {
 
 vi.mock("@/modules/finance/finance.api", () => ({
   fetchFinancialSummary: () => fetchFinancialSummaryMock(),
+}))
+
+vi.mock("@/modules/academic/academic.api", () => ({
+  listSchoolYears: () => listSchoolYearsMock(),
 }))
 
 import DashboardPage from "@/modules/dashboard/DashboardPage"
@@ -214,6 +229,9 @@ describe("DashboardPage", () => {
       levels: [{ level_id: "level-1", level_name: "6e", total_expected_to_date: "600000", total_paid: "420000", students_late_count: 2 }],
       upcomingInstallments: [{ due_date: "2026-06-15", expected_amount: "350000", student_count: 42 }],
     })
+    listSchoolYearsMock.mockResolvedValue([
+      { id: "school-year-1", label: "2025-2026", status: "active" },
+    ])
   })
 
   it("affiche une vue de pilotage unique pour un directeur", async () => {
@@ -304,4 +322,14 @@ describe("DashboardPage", () => {
     expect(screen.queryByRole("tab")).not.toBeInTheDocument()
     expect(getSalarySummaryMock).not.toHaveBeenCalled()
   })
+
+  it("rend une période à venir indisponible à la sélection", async () => {
+    renderWithQueryClient(<DashboardPage />)
+
+    await screen.findByText("Trimestre 1 · en cours")
+    fireEvent.click(await screen.findByRole("combobox", { name: "Période" }))
+
+    expect(screen.getByRole("option", { name: /trimestre 2.*à venir/i })).toHaveAttribute("aria-disabled", "true")
+  })
+
 })

@@ -169,7 +169,7 @@ export default function ReportCardsPage() {
             <SelectTrigger id="report-cards-period" className="min-h-12"><SelectValue placeholder="Choisir une période" /></SelectTrigger>
             <SelectContent>
               {(periodsQuery.data ?? []).map((period) => (
-                <SelectItem key={period.id} value={period.id}>{period.label}{period.isCurrent ? " · en cours" : period.isCompleted ? " · finalisée" : " · à venir"}</SelectItem>
+                <SelectItem key={period.id} value={period.id} disabled={!period.isCurrent && !period.isCompleted}>{period.label}{period.isCurrent ? " · en cours" : period.isCompleted ? " · finalisée" : " · à venir"}</SelectItem>
               ))}
             </SelectContent>
           </Select>

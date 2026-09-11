@@ -111,6 +111,10 @@ export default function CreateSubscriptionModal({
   const [parentSearch, setParentSearch] = useState("")
   const [selectedParent, setSelectedParent] = useState<SubscriptionListItem | null>(null)
 
+  const normalizedParentSearch = parentSearch.trim()
+  const shouldSearchExistingParents =
+    open && step === 1 && parentMode === "existing" && normalizedParentSearch.length > 0
+
   const fullNameValid = form.full_name.trim().length >= 2
   const phoneValid = PHONE_REGEX.test(form.phone.trim())
   const emailValid = form.email.trim().length === 0 || /.+@.+\..+/.test(form.email.trim())
@@ -131,14 +135,14 @@ export default function CreateSubscriptionModal({
   })
 
   const existingParentsQuery = useQuery({
-    queryKey: ["subscriptions", "parents", "create-modal", parentSearch],
+    queryKey: ["subscriptions", "parents", "create-modal", normalizedParentSearch],
     queryFn: () =>
       listSubscriptionParents({
         page: 1,
         limit: 20,
-        search: parentSearch.trim() || undefined,
+        search: normalizedParentSearch,
       }),
-    enabled: open && step === 1 && parentMode === "existing",
+    enabled: shouldSearchExistingParents,
   })
 
   const classStudentsQuery = useQuery({
@@ -177,9 +181,9 @@ export default function CreateSubscriptionModal({
     (studentPagination?.page ?? studentPage) * (studentPagination?.limit ?? 25),
     studentTotal
   )
-  const eligibleExistingParents = (existingParentsQuery.data?.data ?? []).filter(
-    (parent) => parent.latest_subscription === null
-  )
+  const eligibleExistingParents = shouldSearchExistingParents
+    ? (existingParentsQuery.data?.data ?? []).filter((parent) => parent.latest_subscription === null)
+    : []
 
   const canGoStep2 =
     parentMode === "existing"
@@ -327,15 +331,15 @@ export default function CreateSubscriptionModal({
                       </div>
 
                       <div className="max-h-64 divide-y overflow-y-auto rounded-lg border border-border">
-                        {existingParentsQuery.isLoading ? (
+                        {shouldSearchExistingParents && existingParentsQuery.isLoading ? (
                           <p className="p-4 text-sm text-muted-foreground">Chargement des parents…</p>
                         ) : null}
-                        {!existingParentsQuery.isLoading && eligibleExistingParents.length === 0 ? (
+                        {shouldSearchExistingParents && !existingParentsQuery.isLoading && eligibleExistingParents.length === 0 ? (
                           <p className="p-4 text-sm text-muted-foreground">
                             Aucun parent sans abonnement trouvé. Choisissez « Ajouter un autre parent ».
                           </p>
                         ) : null}
-                        {eligibleExistingParents.map((parent) => {
+                        {shouldSearchExistingParents ? eligibleExistingParents.map((parent) => {
                           const selected = selectedParent?.parent_id === parent.parent_id
                           return (
                             <Button
@@ -375,7 +379,7 @@ export default function CreateSubscriptionModal({
                               </span>
                             </Button>
                           )
-                        })}
+                        }) : null}
                       </div>
                     </div>
                   ) : (

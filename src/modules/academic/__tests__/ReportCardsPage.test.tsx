@@ -66,4 +66,17 @@ describe("ReportCardsPage", () => {
     expect(screen.getByRole("button", { name: /générer les bulletins/i })).toBeDisabled()
     expect(screen.getByText("Clôturez et validez les moyennes de chaque matière avant de générer.")).toBeInTheDocument()
   })
+
+  it("rend une période à venir indisponible à la sélection", async () => {
+    mocks.listGradingPeriods.mockResolvedValue([
+      { id: "period-1", label: "Trimestre 1", isCurrent: true, isCompleted: false },
+      { id: "period-2", label: "Trimestre 2", isCurrent: false, isCompleted: false },
+    ])
+    renderPage()
+
+    await screen.findByText("Trimestre 1 · en cours")
+    fireEvent.click(await screen.findByRole("combobox", { name: /période/i }))
+
+    expect(screen.getByRole("option", { name: /trimestre 2.*à venir/i })).toHaveAttribute("aria-disabled", "true")
+  })
 })

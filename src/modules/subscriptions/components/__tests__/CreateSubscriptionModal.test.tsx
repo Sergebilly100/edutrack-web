@@ -22,10 +22,11 @@ vi.mock("@/modules/subscriptions/subscriptions.api", async () => {
   }
 })
 
-const renderModal = () => {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  })
+const createQueryClient = () => new QueryClient({
+  defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+})
+
+const renderModal = (queryClient = createQueryClient()) => {
   return render(
     <QueryClientProvider client={queryClient}>
       <CreateSubscriptionModal
@@ -65,10 +66,46 @@ describe("CreateSubscriptionModal", () => {
   it("permet de sélectionner un parent déjà lié à un élève", async () => {
     renderModal()
 
+    fireEvent.change(screen.getByLabelText("Rechercher un parent lié à un élève"), { target: { value: "Awa" } })
     fireEvent.click(await screen.findByRole("button", { name: /Awa Kouassi/ }))
     fireEvent.click(screen.getByRole("button", { name: "Continuer" }))
 
     expect(await screen.findByText("Classe (vous pouvez changer à tout moment)")).toBeInTheDocument()
+  })
+
+  it("ne recherche ni n’affiche de parent avant une saisie", () => {
+    renderModal()
+
+    expect(listParentsMock).not.toHaveBeenCalled()
+    expect(screen.queryByRole("button", { name: /Awa Kouassi/ })).not.toBeInTheDocument()
+    expect(screen.queryByText("Aucun parent sans abonnement trouvé. Choisissez « Ajouter un autre parent »."))
+      .not.toBeInTheDocument()
+  })
+
+  it("n’affiche pas un parent mis en cache avant une saisie", () => {
+    const queryClient = createQueryClient()
+    queryClient.setQueryData(["subscriptions", "parents", "create-modal", ""], {
+      data: [
+        {
+          parent_id: "cached-parent",
+          full_name: "Parent Mis En Cache",
+          phone: "2250700000002",
+          email: null,
+          access_sent_at: null,
+          created_by: null,
+          created_by_name: null,
+          latest_subscription: null,
+          students: [{ id: "student-cached", full_name: "Élève Mis En Cache" }],
+        },
+      ],
+      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+      schemaName: "school_test",
+    })
+
+    renderModal(queryClient)
+
+    expect(screen.queryByRole("button", { name: /Parent Mis En Cache/ })).not.toBeInTheDocument()
+    expect(listParentsMock).not.toHaveBeenCalled()
   })
 
   it("permet de saisir un parent différent sans bloquer son numéro côté client", async () => {
