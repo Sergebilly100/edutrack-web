@@ -116,7 +116,7 @@ export type StudentDetail = {
 }
 
 export type StudentDossierEvent = {
-  type: "enrollment" | "payment" | "report_card" | "absence" | "document"
+  type: "enrollment" | "payment" | "report_card" | "document"
   date: string
   label: string
   detail: string | null

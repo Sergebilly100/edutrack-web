@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 
@@ -15,6 +15,11 @@ Object.defineProperty(window, "matchMedia", {
     removeEventListener: vi.fn(),
     dispatchEvent: vi.fn(),
   })),
+})
+
+Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+  writable: true,
+  value: vi.fn(),
 })
 
 const fetchWeeklyScheduleMock = vi.fn()
@@ -135,5 +140,42 @@ describe("SchedulePeriods", () => {
     await waitFor(() => {
       expect(fetchWeeklyScheduleMock).toHaveBeenCalled()
     })
+  })
+
+  it("empêche de sélectionner un professeur bloqué dans le formulaire", async () => {
+    fetchWeeklyScheduleMock.mockResolvedValue({
+      ...makeScheduleData({
+        id: "p1",
+        name: "Trimestre 1",
+        validFrom: "2026-01-01",
+        validTo: "2026-12-31",
+        isActive: true,
+      }),
+      catalog: {
+        teachers: [{
+          id: "teacher-blocked",
+          name: "Mme Kouamé",
+          username: "kouame.anne",
+          isBlocked: true,
+          subjects: ["Mathématiques"],
+          teachingAssignments: [],
+        }],
+        classes: [],
+        rooms: [],
+        timeSlots: [],
+      },
+    })
+
+    const view = renderSchedulePage()
+
+    await screen.findByText(/trimestre 1/i)
+    const addButton = view.container.querySelector<HTMLButtonElement>('[data-tour="schedule-add-btn"]')
+    expect(addButton).not.toBeNull()
+    fireEvent.click(addButton!)
+    const comboboxes = screen.getAllByRole("combobox")
+    fireEvent.click(comboboxes[1]!)
+
+    const option = await screen.findByRole("option", { name: "Mme Kouamé (bloqué)" })
+    expect(option).toHaveAttribute("data-disabled")
   })
 })

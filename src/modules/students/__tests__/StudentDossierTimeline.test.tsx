@@ -13,13 +13,13 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 )
 
 describe("StudentDossierTimeline", () => {
-  it("affiche pour un professeur uniquement les événements académiques reçus, sans paiement", async () => {
+  it("affiche les événements du dossier sans absence", async () => {
     server.use(
       http.get("*/students/student-1/dossier", () =>
         HttpResponse.json({
           student: { id: "student-1", firstName: "Mariam", lastName: "Bamba", className: "3e A", matricule: "MAT-01" },
           events: [
-            { type: "absence", date: "2026-08-21", label: "Absence", detail: "Mathématiques" },
+            { type: "document", date: "2026-08-21", label: "Certificat médical", detail: "fourni" },
             { type: "report_card", date: "2026-07-18", label: "Bulletin publié · Trimestre 3", detail: "Moyenne 14/20" },
           ],
         })
@@ -29,7 +29,7 @@ describe("StudentDossierTimeline", () => {
     render(<StudentDossierTimeline studentId="student-1" />, { wrapper })
 
     expect(await screen.findByText("Bulletin publié · Trimestre 3")).toBeInTheDocument()
-    expect(screen.getByText("Absence")).toBeInTheDocument()
+    expect(screen.getByText("Certificat médical")).toBeInTheDocument()
     expect(screen.queryByText(/Paiement/)).not.toBeInTheDocument()
   })
 })

@@ -247,6 +247,9 @@ export const getScheduleConflictMessage = (error: unknown): string => {
   if (status === 409 && code === "TEACHER_SCHEDULE_CONFLICT") {
     return "Conflit: ce professeur a déjà un cours sur ce créneau."
   }
+  if (status === 409 && code === "TEACHER_BLOCKED") {
+    return "Ce professeur est bloqué. Débloquez-le avant de lui ajouter un créneau."
+  }
   if (status === 409 && code === "ROOM_SCHEDULE_CONFLICT") {
     return "Conflit: cette salle est déjà occupée sur ce créneau."
   }

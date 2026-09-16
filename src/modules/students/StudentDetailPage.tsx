@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
@@ -37,6 +38,8 @@ import {
 import { DocumentList, DocumentUpload, OfflineDisabledFieldset, PageLayout, PresenceDonut, StatCard } from "@/shared/components"
 import { StudentDossierTimeline } from "@/modules/students/components/StudentDossierTimeline"
 import { DocumentChecklist } from "@/modules/enrollments/components/DocumentChecklist"
+import { listStudentDocuments } from "@/modules/enrollments/enrollments.api"
+import { countMissingMandatoryDocuments } from "@/modules/enrollments/enrollments.helpers"
 import { BackIcon, InfoIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabel, useStudentLabels } from "@/shared/hooks/useStudentLabel"
@@ -84,6 +87,7 @@ export default function StudentDetailPage() {
   const { hasPermission } = usePermissions()
   const canManageStudentDocuments = hasPermission("students.documents")
   const canViewEnrollmentDocuments = hasPermission("enrollments.view")
+  const canManageEnrollmentDocuments = hasPermission("enrollments.edit")
   const canViewDocuments = canManageStudentDocuments || canViewEnrollmentDocuments
   const canEditStudent = hasPermission("students.edit")
   const canViewAttendance = hasPermission("attendance.view")
@@ -116,6 +120,14 @@ export default function StudentDetailPage() {
     queryFn: () => getStudentById(studentId),
     enabled: studentId.trim().length > 0,
   })
+
+  const enrollmentDocumentsQuery = useQuery({
+    queryKey: ["enrollments", "documents", studentId],
+    queryFn: () => listStudentDocuments(studentId),
+    enabled: canViewEnrollmentDocuments && studentId.trim().length > 0,
+  })
+  const isEnrollmentDossierComplete = enrollmentDocumentsQuery.isSuccess &&
+    countMissingMandatoryDocuments(enrollmentDocumentsQuery.data ?? []) === 0
 
   const absenceRecordsQuery = useQuery({
     queryKey: [
@@ -356,8 +368,8 @@ export default function StudentDetailPage() {
         onFinish={tour.markDone}
       />
     <PageLayout
-      title={`Fiche ${studentLabel.toLowerCase()}`}
-      subtitle={`${student.lastName} ${student.firstName}`.trim()}
+      title={`Profil détaillé ${studentLabel.toLowerCase()}`}
+      subtitle=""
       actions={
         <div className="flex gap-2">
           <Button
@@ -411,11 +423,11 @@ export default function StudentDetailPage() {
         </div>
         <div className="grid gap-px bg-border sm:grid-cols-4">
           <div className="bg-background px-4 py-3">
-            <p className="text-[11px] font-medium uppercase text-muted-foreground">Absences mois</p>
+            <p className="text-[11px] font-medium uppercase text-muted-foreground">Absences ce mois</p>
             <p className="mt-1 text-lg font-semibold tabular-nums">{student.absenceSummary.thisMonth}</p>
           </div>
           <div className="bg-background px-4 py-3">
-            <p className="text-[11px] font-medium uppercase text-muted-foreground">Cette semaine</p>
+            <p className="text-[11px] font-medium uppercase text-muted-foreground">Absences cette semaine</p>
             <p className="mt-1 text-lg font-semibold tabular-nums">{student.absenceSummary.thisWeek}</p>
           </div>
           <div className="bg-background px-4 py-3">
@@ -430,12 +442,18 @@ export default function StudentDetailPage() {
       </div>
 
       <Tabs defaultValue="absences" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mt-2">
-          <TabsTrigger value="absences" data-tour="student-detail-tab-absences">Absences</TabsTrigger>
-          <TabsTrigger value="dossier">Dossier</TabsTrigger>
-          <TabsTrigger value="informations" data-tour="student-detail-tab-informations">Informations</TabsTrigger>
-          {canViewDocuments ? <TabsTrigger value="documents" data-tour="student-detail-tab-documents">Documents</TabsTrigger> : null}
-          <TabsTrigger value="sms" data-tour="student-detail-tab-sms">Notifications Parents</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mt-4 h-auto w-full">
+          <TabsTrigger value="absences" data-tour="student-detail-tab-absences" className="min-h-12">Absences</TabsTrigger>
+          <TabsTrigger value="dossier" className="min-h-12">Fil d'activité</TabsTrigger>
+          {canViewDocuments ? <TabsTrigger value="documents" data-tour="student-detail-tab-documents" className="min-h-12">
+            Dossier
+          </TabsTrigger> : null}
+          <TabsTrigger value="informations" data-tour="student-detail-tab-informations" className="min-h-12">
+            Infos Parents
+          </TabsTrigger>
+          <TabsTrigger value="sms" data-tour="student-detail-tab-sms" className="min-h-12">
+            Notifications Parents
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="absences" className="space-y-4">
@@ -462,7 +480,7 @@ export default function StudentDetailPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Filtres */}
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 mt-4">
                 <Select
                   value={absenceFilterMonth}
                   onValueChange={(v) => { setAbsenceFilterMonth(v); setRecentAbsencesPage(1) }}
@@ -616,7 +634,48 @@ export default function StudentDetailPage() {
         <TabsContent value="dossier" className="space-y-4">
           <StudentDossierTimeline studentId={student.id} />
         </TabsContent>
-        
+
+        {canViewDocuments ? (
+          <TabsContent value="documents" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex flex-wrap items-center gap-2">
+                  <CardTitle className="text-base">Documents du Dossier</CardTitle>
+                  {isEnrollmentDossierComplete ? <Badge className="bg-green-600 text-white hover:bg-green-600">Complet</Badge> : null}
+                  
+                </div>
+                <p className="text-xs text-muted-foreground">Toute pièce ajoutée est rattachée au dossier de cet élève.</p>
+              </CardHeader>
+              <CardContent className="space-y-6 mt-5">
+                {canManageStudentDocuments ? (
+                  <div className="space-y-3">
+                    <DocumentUpload entityType="student" entityId={student.id} onUploadSuccess={() => undefined} />
+                  </div>
+                ) : null}
+                <DocumentList
+                  entityType="student"
+                  entityId={student.id}
+                  includeSharedDocuments={canManageStudentDocuments}
+                  includeEnrollmentDocuments={canViewEnrollmentDocuments}
+                  canManageEnrollmentDocuments={canManageEnrollmentDocuments}
+                />
+                {canViewEnrollmentDocuments && !isEnrollmentDossierComplete ? (
+                  <>
+                    <Separator />
+                    <div className="space-y-3">
+                      <div>
+                        <h3 className="text-sm font-medium">Pièces requises</h3>
+                        <p className="text-xs text-muted-foreground">Complétez ou mettez à jour les pièces demandées pour l’inscription.</p>
+                      </div>
+                      <DocumentChecklist studentId={student.id} canEdit={hasPermission("enrollments.edit")} />
+                    </div>
+                  </>
+                ) : null}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        ) : null}
+
         <TabsContent value="informations" className="space-y-4">
           <Card>
             <CardHeader>
@@ -721,38 +780,6 @@ export default function StudentDetailPage() {
             </CardContent>
           </Card>
         </TabsContent>
-
-        {canViewDocuments ? (
-          <TabsContent value="documents" className="space-y-4">
-            {canViewEnrollmentDocuments ? <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Dossier d’inscription</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <DocumentChecklist studentId={student.id} canEdit={hasPermission("enrollments.edit")} />
-              </CardContent>
-            </Card> : null}
-            {canManageStudentDocuments ? <>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Ajouter un document</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <DocumentUpload entityType="student" entityId={student.id} onUploadSuccess={() => undefined} />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Documents</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <DocumentList entityType="student" entityId={student.id} />
-                </CardContent>
-              </Card>
-            </> : null}
-          </TabsContent>
-        ) : null}
 
         <TabsContent value="sms" className="space-y-4">
           <Card>

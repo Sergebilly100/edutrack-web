@@ -43,6 +43,7 @@ export function DocumentChecklist({
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey })
+      await queryClient.invalidateQueries({ queryKey: ["students", "dossier", studentId] })
       toast({ title: "Document ajouté", description: "La pièce a été enregistrée dans le dossier." })
     },
     onError: (error) => toast({ title: "Upload impossible", description: errorMessage(error), variant: "destructive" }),
@@ -50,7 +51,10 @@ export function DocumentChecklist({
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: "missing" | "to_renew" }) => updateStudentDocument(id, { status }),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey })
+      await queryClient.invalidateQueries({ queryKey: ["students", "dossier", studentId] })
+    },
     onError: (error) => toast({ title: "Mise à jour impossible", description: errorMessage(error), variant: "destructive" }),
   })
 

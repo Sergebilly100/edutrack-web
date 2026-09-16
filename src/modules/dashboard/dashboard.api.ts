@@ -91,6 +91,7 @@ export type DashboardTodayData = {
 export type DashboardHistoryPoint = {
   date: string
   presentCount: number
+  lateCount: number
   absentCount: number
   notCheckedCount: number
   totalCount: number
@@ -462,17 +463,19 @@ const normalizeHistoryPoint = (item: unknown, index: number): DashboardHistoryPo
     row.present_count ?? row.presentCount ?? row.present ?? row.attended,
     0
   )
+  const lateCount = asNumber(row.late_count ?? row.lateCount ?? row.late, 0)
   const absentCount = asNumber(row.absent_count ?? row.absentCount ?? row.absent, Math.max(0, totalCount - presentCount))
-  const notCheckedCount = asNumber(row.not_checked_count ?? row.notCheckedCount ?? row.unmarkedCount, Math.max(0, totalCount - presentCount - absentCount))
+  const notCheckedCount = asNumber(row.not_checked_count ?? row.notCheckedCount ?? row.unmarkedCount, Math.max(0, totalCount - presentCount - lateCount - absentCount))
 
   let attendanceRate = asNumber(row.attendance_rate ?? row.attendanceRate ?? row.rate, Number.NaN)
   if (!Number.isFinite(attendanceRate)) {
-    attendanceRate = totalCount > 0 ? (presentCount / totalCount) * 100 : 0
+    attendanceRate = totalCount > 0 ? ((presentCount + lateCount) / totalCount) * 100 : 0
   }
 
   return {
     date,
     presentCount,
+    lateCount,
     absentCount,
     notCheckedCount,
     totalCount,

@@ -87,7 +87,7 @@ export default function FinancePage({ view, studentId, initialSchoolYearId }: { 
           <div className="space-y-1 text-left">
             <Button className="min-h-12" disabled={recalculateMutation.isPending} onClick={() => recalculateMutation.mutate()}>
               {recalculateMutation.isPending ? <Spinner size="sm" className="mr-2" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-              {recalculateMutation.isPending ? "Recalcul en cours…" : "Recalculer"}
+              {recalculateMutation.isPending ? "Recalcul en cours…" : "Recalculer les données"}
             </Button>
             <p className="text-xs text-muted-foreground">
               {school?.last_computed_at ? `Dernier calcul: ${new Date(school.last_computed_at).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" })}` : "Aucun calcul disponible"}

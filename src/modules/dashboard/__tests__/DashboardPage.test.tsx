@@ -236,19 +236,43 @@ describe("DashboardPage", () => {
 
   it("affiche une vue de pilotage unique pour un directeur", async () => {
     getAttendanceHistoryMock.mockResolvedValue([
-      { date: "2026-05-11", presentCount: 10, absentCount: 2, notCheckedCount: 1, totalCount: 13, attendanceRate: 76.92 },
-      { date: "2026-05-12", presentCount: 12, absentCount: 1, notCheckedCount: 0, totalCount: 13, attendanceRate: 92.31 },
+      { date: "2026-05-11", presentCount: 10, lateCount: 1, absentCount: 2, notCheckedCount: 0, totalCount: 13, attendanceRate: 84.62 },
+      { date: "2026-05-12", presentCount: 12, lateCount: 0, absentCount: 1, notCheckedCount: 0, totalCount: 13, attendanceRate: 92.31 },
     ])
     renderWithQueryClient(<DashboardPage />)
 
     expect(await screen.findByText("Bonjour, Directeur Test")).toBeInTheDocument()
     expect(await screen.findByText("Vue de pilotage")).toBeInTheDocument()
-    expect(await screen.findByText("Présences aujourd’hui")).toBeInTheDocument()
+    expect(await screen.findByText("Présences professeurs aujourd’hui")).toBeInTheDocument()
     expect(screen.getByText("Notes saisies")).toBeInTheDocument()
     expect(screen.getByText("Notes ≥ 10/20")).toBeInTheDocument()
-    expect(screen.getByLabelText("Légende du graphique")).toHaveTextContent("Non pointés")
+    expect(screen.getByLabelText("Légende du graphique")).toHaveTextContent("Retards")
     expect(await screen.findByText("Suivi financier")).toBeInTheDocument()
+    expect(screen.getAllByText("Taux de recouvrement")[0]?.parentElement).toHaveTextContent("70%")
+    expect(screen.getByRole("progressbar", { name: "Recouvrement 6e, 70%" })).toHaveClass("[&>div]:bg-blue-600")
     expect(screen.queryByRole("tab")).not.toBeInTheDocument()
+  })
+
+  it("actualise toutes les données visibles du dashboard", async () => {
+    renderWithQueryClient(<DashboardPage />)
+
+    const refreshButton = await screen.findByRole("button", { name: "Mettre à jour les données" })
+    const initialCalls = {
+      pilotage: getDashboardPilotageMock.mock.calls.length,
+      stats: getDashboardStatsMock.mock.calls.length,
+      financial: fetchFinancialSummaryMock.mock.calls.length,
+      actionItems: getDashboardActionItemsMock.mock.calls.length,
+      schoolYears: listSchoolYearsMock.mock.calls.length,
+    }
+    fireEvent.click(refreshButton)
+
+    await waitFor(() => {
+      expect(getDashboardPilotageMock.mock.calls.length).toBeGreaterThan(initialCalls.pilotage)
+      expect(getDashboardStatsMock.mock.calls.length).toBeGreaterThan(initialCalls.stats)
+      expect(fetchFinancialSummaryMock.mock.calls.length).toBeGreaterThan(initialCalls.financial)
+      expect(getDashboardActionItemsMock.mock.calls.length).toBeGreaterThan(initialCalls.actionItems)
+      expect(listSchoolYearsMock.mock.calls.length).toBeGreaterThan(initialCalls.schoolYears)
+    })
   })
 
   it("garde la cloche et les priorités synchronisées après une résolution serveur", async () => {

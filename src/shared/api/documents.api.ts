@@ -78,12 +78,20 @@ export const uploadDocument = async (input: {
   formData.append("name", input.name ?? input.file.name)
   formData.append("file", input.file)
 
-  const response = await apiClient.post<unknown>(`/documents/${input.entityType}/${input.entityId}`, formData, {
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
-  })
+  // Le navigateur ajoute la boundary multipart. La définir manuellement
+  // produit une requête que Fastify ne peut pas lire correctement.
+  const response = await apiClient.post<unknown>(`/documents/${input.entityType}/${input.entityId}`, formData)
 
+  return normalizeDocumentItem(response.data)
+}
+
+export const replaceDocument = async (documentId: string, file: File): Promise<DocumentItem> => {
+  const formData = new FormData()
+  formData.append("type", "autre")
+  formData.append("name", file.name)
+  formData.append("file", file)
+
+  const response = await apiClient.put<unknown>(`/documents/${documentId}`, formData)
   return normalizeDocumentItem(response.data)
 }
 

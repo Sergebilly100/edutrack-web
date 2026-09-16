@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { BookOpenCheck, FileText, GraduationCap, ReceiptText, UserRoundCheck } from "lucide-react"
+import { FileText, GraduationCap, ReceiptText, UserRoundCheck } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -10,7 +10,6 @@ const eventPresentation: Record<StudentDossierEvent["type"], { icon: typeof Grad
   enrollment: { icon: UserRoundCheck, className: "bg-blue-50 text-blue-700" },
   payment: { icon: ReceiptText, className: "bg-green-50 text-green-700" },
   report_card: { icon: GraduationCap, className: "bg-violet-50 text-violet-700" },
-  absence: { icon: BookOpenCheck, className: "bg-amber-50 text-amber-700" },
   document: { icon: FileText, className: "bg-slate-50 text-slate-700" },
 }
 
@@ -32,7 +31,7 @@ export function DossierTimeline({ events }: { events: StudentDossierEvent[] }) {
     return (
       <EmptyState
         title="Aucun événement au dossier"
-        description="Les inscriptions, absences, bulletins et documents apparaîtront ici au fil de l’année."
+        description="Les inscriptions, paiements, bulletins et documents apparaîtront ici au fil de l’année."
       />
     )
   }

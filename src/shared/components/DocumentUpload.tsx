@@ -3,6 +3,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Loader2, UploadCloud } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import {
   type DocumentEntityType,
@@ -23,13 +25,22 @@ const getExtension = (filename: string) => filename.split(".").pop()?.toLowerCas
 
 const toUserError = (error: unknown) => {
   if (typeof error === "object" && error !== null) {
-    const maybeResponse = error as { response?: { data?: { code?: string } } }
-    const code = maybeResponse.response?.data?.code
+    const maybeResponse = error as { code?: string; message?: string; response?: { data?: { code?: string } } }
+    const code = maybeResponse.code ?? maybeResponse.response?.data?.code
     if (code === "INVALID_FILE_EXTENSION" || code === "INVALID_DOCUMENT_TYPE") {
       return "Type de fichier non supporté (PDF, JPG, JPEG, PNG uniquement)."
     }
+    if (code === "DOCUMENT_INVALID_MIME" || code === "DOCUMENT_MIME_MISMATCH") {
+      return "Le contenu du fichier ne correspond pas à son format. Choisissez un PDF ou une image valide."
+    }
     if (code === "DOCUMENT_FILE_TOO_LARGE") {
       return "Taille dépassée. Maximum autorisé: 10 Mo."
+    }
+    if (code === "ENTITY_NOT_FOUND") {
+      return "Ce dossier n'est plus disponible. Actualisez la page puis réessayez."
+    }
+    if (maybeResponse.message && maybeResponse.message !== "Network Error") {
+      return maybeResponse.message
     }
   }
 
@@ -39,6 +50,7 @@ const toUserError = (error: unknown) => {
 export function DocumentUpload({ entityType, entityId, onUploadSuccess }: DocumentUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
+  const { toast } = useToast()
 
   const [dragActive, setDragActive] = useState(false)
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null)
@@ -51,10 +63,16 @@ export function DocumentUpload({ entityType, entityId, onUploadSuccess }: Docume
       setUploadedFileName(document.name)
       setErrorMessage(null)
       queryClient.invalidateQueries({ queryKey: ["documents", entityType, entityId] })
+      if (entityType === "student") {
+        queryClient.invalidateQueries({ queryKey: ["students", "dossier", entityId] })
+      }
       onUploadSuccess(document)
+      toast({ title: "Document ajouté", description: "Le document a été enregistré dans le dossier." })
     },
     onError: (error) => {
-      setErrorMessage(toUserError(error))
+      const message = toUserError(error)
+      setErrorMessage(message)
+      toast({ title: "Téléversement impossible", description: message, variant: "destructive" })
     },
   })
 
@@ -84,11 +102,12 @@ export function DocumentUpload({ entityType, entityId, onUploadSuccess }: Docume
   }
 
   return (
-    <div className="space-y-2">
-      <button
+    <div className="space-y-2 pb-5">
+      <Button
         type="button"
+        variant="outline"
         className={cn(
-          "w-full rounded-xl border border-dashed border-border/80 bg-background p-5 text-left transition",
+          "h-auto min-h-12 w-full rounded-lg border-dashed border-border/80 bg-background p-5 text-left transition",
           "hover:border-primary/40 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
           dragActive ? "border-primary bg-primary/5" : ""
         )}
@@ -139,7 +158,7 @@ export function DocumentUpload({ entityType, entityId, onUploadSuccess }: Docume
             <span className="truncate text-xs text-muted-foreground">{uploadedFileName}</span>
           </div>
         ) : null}
-      </button>
+      </Button>
 
       {errorMessage ? <p className="text-xs text-red-600">{errorMessage}</p> : null}
 

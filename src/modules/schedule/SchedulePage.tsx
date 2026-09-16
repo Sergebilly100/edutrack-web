@@ -297,6 +297,10 @@ export default function SchedulePage() {
     [teachersQuery.data?.data]
   )
 
+  const isTeacherBlocked = (teacherId: string) =>
+    blockedTeachers.has(teacherId) ||
+    data?.catalog.teachers.some((teacher) => teacher.id === teacherId && teacher.isBlocked === true) === true
+
   const formPeriodOptions = useMemo<SchedulePeriodSummary[]>(() => {
     const map = new Map<string, SchedulePeriodSummary>()
     for (const p of activePeriodsQuery.data ?? []) {
@@ -544,6 +548,14 @@ export default function SchedulePage() {
     const payload = toPayload(formState)
     if (!payload.teacherId || !payload.classId || !payload.roomId || !payload.subject) {
       toast({ variant: "destructive", title: "Formulaire incomplet", description: "Renseignez tous les champs." })
+      return
+    }
+    if (isTeacherBlocked(payload.teacherId)) {
+      toast({
+        variant: "destructive",
+        title: "Professeur bloqué",
+        description: "Débloquez ce professeur avant de lui ajouter un créneau.",
+      })
       return
     }
 
@@ -1400,7 +1412,9 @@ export default function SchedulePage() {
                 <SelectTrigger><SelectValue placeholder="Choisir un professeur" /></SelectTrigger>
                 <SelectContent>
                   {(data?.catalog.teachers ?? []).map((t) => (
-                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    <SelectItem key={t.id} value={t.id} disabled={isTeacherBlocked(t.id)}>
+                      {t.name}{isTeacherBlocked(t.id) ? " (bloqué)" : ""}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1551,7 +1565,7 @@ export default function SchedulePage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setFormOpen(false)}>Annuler</Button>
             <Button onClick={() => void handleSubmit()}
-              disabled={upsertMutation.isPending || !formState.schedulePeriodId}>
+              disabled={upsertMutation.isPending || !formState.schedulePeriodId || isTeacherBlocked(formState.teacherId)}>
               {upsertMutation.isPending ? "Enregistrement..." : editingSchedule ? "Enregistrer les modifications" : "Ajouter le créneau"}
             </Button>
           </DialogFooter>

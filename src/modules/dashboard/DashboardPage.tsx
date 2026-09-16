@@ -343,24 +343,19 @@ export default function DashboardPage() {
     try {
       setIsRefreshing(true)
       setRefreshSuccess(false)
-      await queryClient.invalidateQueries({ queryKey: ["dashboard"] })
-      await queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] })
       await Promise.all([
-        todayQuery.refetch(),
-        countsQuery.refetch(),
-        historyQuery.refetch(),
-        schoolQuery.refetch(),
+        queryClient.refetchQueries({ queryKey: ["dashboard"], type: "active" }),
+        queryClient.refetchQueries({ queryKey: ["dashboard-stats"], type: "active" }),
+        queryClient.refetchQueries({ queryKey: ["finance", "financial-summary"], type: "active" }),
+        queryClient.refetchQueries({ queryKey: ["academic", "school-years"], type: "active" }),
+        queryClient.refetchQueries({ queryKey: ["academic", "grading-periods"], type: "active" }),
       ])
       setRefreshSuccess(true)
     } finally {
       setIsRefreshing(false)
     }
   }, [
-    countsQuery,
-    historyQuery,
     queryClient,
-    schoolQuery,
-    todayQuery,
   ])
 
   const actionItemsQuery = useQuery({
