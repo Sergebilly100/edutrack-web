@@ -107,7 +107,7 @@ export default function SchoolYearsPage() {
           </CardHeader>
           <CardContent>
             <Form {...form}>
-              <form className="flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
+              <form className="flex flex-col gap-4 sm:flex-row sm:items-end my-4" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
                 <FormField
                   control={form.control}
                   name="endOfYearReviewStartDate"
