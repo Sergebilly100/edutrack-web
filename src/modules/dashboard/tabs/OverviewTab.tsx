@@ -138,7 +138,7 @@ function PilotageHero({
   const teacherExpected = (stats?.teacherAttendance.fullTime.expected ?? 0) + (stats?.teacherAttendance.partTime.expected ?? 0)
 
   return (
-    <Card className="rounded-lg border-0 bg-blue-600 text-blue-50 shadow-sm" data-tour="dashboard-stats">
+    <Card className="rounded-lg border-0 bg-blue-500 text-blue-50 shadow-sm" data-tour="dashboard-stats">
       <CardContent className="p-5 sm:p-6">
         <div className="flex items-center justify-between gap-3">
           <div>
