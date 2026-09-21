@@ -1,16 +1,20 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
-const { listMock, validateMock } = vi.hoisted(() => ({
+const { listMock, validateMock, previewMock, bulkValidateMock } = vi.hoisted(() => ({
   listMock: vi.fn(),
   validateMock: vi.fn(),
+  previewMock: vi.fn(),
+  bulkValidateMock: vi.fn(),
 }))
 
 vi.mock("@/modules/class-decisions/class-decisions.api", () => ({
   listClassDecisions: () => listMock(),
   listFilteredClassDecisions: () => listMock(),
   validateClassDecision: (studentId: string, payload: unknown) => validateMock(studentId, payload),
+  previewBulkClassDecisions: (payload: unknown) => previewMock(payload),
+  validateBulkClassDecisions: (payload: unknown) => bulkValidateMock(payload),
 }))
 
 vi.mock("@/shared/hooks/usePermissions", () => ({
@@ -43,6 +47,13 @@ const renderPage = () => render(
 )
 
 describe("ClassDecisionsPage", () => {
+  beforeAll(() => {
+    Object.defineProperty(Element.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    })
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     listMock.mockResolvedValue({
@@ -57,6 +68,15 @@ describe("ClassDecisionsPage", () => {
       classes: [{ id: "class-1", name: "6ème A", levelId: "level-1" }],
     })
     validateMock.mockResolvedValue(decision)
+    previewMock.mockResolvedValue({
+      items: [{ ...decision, currentLevelId: "level-1", proposedDecision: "promoted", proposedNextLevelId: "level-1", proposedNextLevelName: "5ème", isEligible: true, blockingReason: null }],
+      eligibleCount: 1,
+      pendingCount: 0,
+      canApply: true,
+    })
+    bulkValidateMock.mockResolvedValue({
+      items: [], eligibleCount: 1, pendingCount: 0, canApply: true,
+    })
   })
 
   it("affiche la saisie manuelle lorsque le module Notes n’est pas disponible", async () => {
@@ -75,5 +95,20 @@ describe("ClassDecisionsPage", () => {
       finalDecision: "repeat",
       nextLevelId: null,
     }))
+  })
+
+  it("prévisualise les décisions groupées avant leur validation finale", async () => {
+    renderPage()
+    fireEvent.click(await screen.findByRole("combobox", { name: "Niveau" }))
+    fireEvent.click(await screen.findByRole("option", { name: "5ème" }))
+    fireEvent.click(await screen.findByRole("combobox", { name: /note supérieure.*niveau de destination/i }))
+    fireEvent.click(await screen.findByRole("option", { name: "5ème" }))
+    fireEvent.click(screen.getByRole("button", { name: /prévisualiser les décisions/i }))
+
+    expect(await screen.findByText("Décision proposée")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /valider définitivement/i })).toBeEnabled()
+
+    fireEvent.click(screen.getByRole("button", { name: /valider définitivement/i }))
+    await waitFor(() => expect(bulkValidateMock).toHaveBeenCalledTimes(1))
   })
 })

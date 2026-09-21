@@ -168,6 +168,41 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount }
 
           {!stepsValid && total > 0 ? <Alert variant="destructive"><AlertDescription>Chaque seuil doit avoir une date croissante et un cumul compris entre 0 et {formatFcfa(total)}.</AlertDescription></Alert> : null}
           {canEdit ? <div className="flex justify-end"><Button type="button" className="min-h-12" disabled={!levelId || total <= 0 || !stepsValid || planMutation.isPending} onClick={() => planMutation.mutate()}>{planMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}Enregistrer le plan</Button></div> : null}
+        
+          
+          {canGrantDiscount ? (
+            <Card className="mt-6">
+              <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><CalendarClock className="h-5 w-5 text-primary" />Courbe individuelle</CardTitle></CardHeader>
+              <CardContent className="space-y-4 mb-6">
+                <p className="text-sm text-muted-foreground">Pour un cas particulier, remplacez la Courbe cumulative attendue pour cet élève uniquement. Les alertes et le statut de paiement suivront cette nouvelle courbe.</p>
+                <div className="space-y-2"><Label>Élève</Label><StudentSearch value={scheduleStudent} onChange={setScheduleStudent} placeholder="Rechercher un élève à personnaliser" /></div>
+                {scheduleStudent ? (
+                  <div className="space-y-3">
+                    {studentScheduleQuery.isLoading ? <p className="text-sm text-muted-foreground">Chargement de la courbe de l’élève…</p> : null}
+                    {studentScheduleQuery.isError ? <Alert variant="destructive"><AlertDescription>Impossible de charger la courbe actuelle de cet élève.</AlertDescription></Alert> : null}
+                    {!studentScheduleQuery.isLoading && !studentScheduleQuery.isError ? <>
+                      <div className="flex items-center justify-between gap-3"><div><Label>Seuils cumulés attendus</Label><p className="mt-1 text-xs text-muted-foreground">Chaque cumul doit progresser et rester dans les frais de scolarité de l’élève.</p></div><Button type="button" variant="outline" size="sm" className="min-h-12" disabled={studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending} onClick={() => setStudentScheduleSteps((current) => [...current, blankStep()])}><Plus className="mr-2 h-4 w-4" />Ajouter un seuil</Button></div>
+                      <div className="space-y-2">
+                        {studentScheduleSteps.map((step, index) => (
+                          <div key={`${scheduleStudent.id}-${step.id ?? index}`} className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[2rem_1fr_1fr_3rem] sm:items-end">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{index + 1}</span>
+                            <div className="space-y-1.5"><Label htmlFor={`student-step-date-${index}`}>Date seuil</Label><Input id={`student-step-date-${index}`} type="date" disabled={studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending} value={step.dueDate} onChange={(event) => setStudentScheduleSteps((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, dueDate: event.target.value } : item))} /></div>
+                            <div className="space-y-1.5"><Label htmlFor={`student-step-amount-${index}`}>Cumul attendu</Label><Input id={`student-step-amount-${index}`} inputMode="numeric" disabled={studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending} value={step.cumulativeAmountExpected || ""} onChange={(event) => setStudentScheduleSteps((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, cumulativeAmountExpected: Number(event.target.value.replace(/\D/g, "")) } : item))} /></div>
+                            <Button type="button" variant="ghost" size="icon" className="min-h-12 min-w-12 text-muted-foreground hover:text-red-700" aria-label={`Supprimer le seuil individuel ${index + 1}`} disabled={studentScheduleSteps.length === 1 || studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending} onClick={() => setStudentScheduleSteps((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 className="h-4 w-4" /></Button>
+                          </div>
+                        ))}
+                      </div>
+                      {!studentScheduleValid ? <Alert variant="destructive"><AlertDescription>Chaque seuil doit avoir une date croissante et un cumul au moins égal au précédent.</AlertDescription></Alert> : null}
+                      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                        <Button type="button" variant="outline" className="min-h-12" disabled={studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending || studentScheduleQuery.data?.length === 0} onClick={() => setIsResetScheduleDialogOpen(true)}>{resetStudentScheduleMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}Revenir au plan du niveau</Button>
+                        <Button type="button" className="min-h-12" disabled={!studentScheduleValid || studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending} onClick={() => studentScheduleMutation.mutate()}>{studentScheduleMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}Enregistrer la courbe</Button>
+                      </div>
+                    </> : null}
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null} 
         </CardContent>
       </Card>
 
@@ -187,39 +222,6 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount }
         </Card>
       ) : null}
 
-      {canGrantDiscount ? (
-        <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><CalendarClock className="h-5 w-5 text-primary" />Courbe individuelle</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">Pour un cas particulier, remplacez la courbe du niveau pour cet élève uniquement. Les alertes et le statut de paiement suivront cette nouvelle courbe.</p>
-            <div className="space-y-2"><Label>Élève</Label><StudentSearch value={scheduleStudent} onChange={setScheduleStudent} placeholder="Rechercher un élève à personnaliser" /></div>
-            {scheduleStudent ? (
-              <div className="space-y-3">
-                {studentScheduleQuery.isLoading ? <p className="text-sm text-muted-foreground">Chargement de la courbe de l’élève…</p> : null}
-                {studentScheduleQuery.isError ? <Alert variant="destructive"><AlertDescription>Impossible de charger la courbe actuelle de cet élève.</AlertDescription></Alert> : null}
-                {!studentScheduleQuery.isLoading && !studentScheduleQuery.isError ? <>
-                  <div className="flex items-center justify-between gap-3"><div><Label>Seuils cumulés attendus</Label><p className="mt-1 text-xs text-muted-foreground">Chaque cumul doit progresser et rester dans les frais de scolarité de l’élève.</p></div><Button type="button" variant="outline" size="sm" className="min-h-12" disabled={studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending} onClick={() => setStudentScheduleSteps((current) => [...current, blankStep()])}><Plus className="mr-2 h-4 w-4" />Ajouter un seuil</Button></div>
-                  <div className="space-y-2">
-                    {studentScheduleSteps.map((step, index) => (
-                      <div key={`${scheduleStudent.id}-${step.id ?? index}`} className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[2rem_1fr_1fr_3rem] sm:items-end">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{index + 1}</span>
-                        <div className="space-y-1.5"><Label htmlFor={`student-step-date-${index}`}>Date seuil</Label><Input id={`student-step-date-${index}`} type="date" disabled={studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending} value={step.dueDate} onChange={(event) => setStudentScheduleSteps((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, dueDate: event.target.value } : item))} /></div>
-                        <div className="space-y-1.5"><Label htmlFor={`student-step-amount-${index}`}>Cumul attendu</Label><Input id={`student-step-amount-${index}`} inputMode="numeric" disabled={studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending} value={step.cumulativeAmountExpected || ""} onChange={(event) => setStudentScheduleSteps((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, cumulativeAmountExpected: Number(event.target.value.replace(/\D/g, "")) } : item))} /></div>
-                        <Button type="button" variant="ghost" size="icon" className="min-h-12 min-w-12 text-muted-foreground hover:text-red-700" aria-label={`Supprimer le seuil individuel ${index + 1}`} disabled={studentScheduleSteps.length === 1 || studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending} onClick={() => setStudentScheduleSteps((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 className="h-4 w-4" /></Button>
-                      </div>
-                    ))}
-                  </div>
-                  {!studentScheduleValid ? <Alert variant="destructive"><AlertDescription>Chaque seuil doit avoir une date croissante et un cumul au moins égal au précédent.</AlertDescription></Alert> : null}
-                  <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                    <Button type="button" variant="outline" className="min-h-12" disabled={studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending || studentScheduleQuery.data?.length === 0} onClick={() => setIsResetScheduleDialogOpen(true)}>{resetStudentScheduleMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}Revenir au plan du niveau</Button>
-                    <Button type="button" className="min-h-12" disabled={!studentScheduleValid || studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending} onClick={() => studentScheduleMutation.mutate()}>{studentScheduleMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}Enregistrer la courbe</Button>
-                  </div>
-                </> : null}
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
       <AlertDialog open={isResetScheduleDialogOpen} onOpenChange={setIsResetScheduleDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>Revenir au plan du niveau ?</AlertDialogTitle><AlertDialogDescription>La courbe particulière de {scheduleStudent ? `${scheduleStudent.lastName} ${scheduleStudent.firstName}` : "cet élève"} sera supprimée. Les alertes et le statut financier suivront de nouveau le plan commun.</AlertDialogDescription></AlertDialogHeader>
