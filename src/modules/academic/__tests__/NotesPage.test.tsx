@@ -136,4 +136,18 @@ describe("NotesPage", () => {
     expect(screen.getByRole("spinbutton", { name: "Note de Awa Koné" })).toBeEnabled()
     expect(screen.getByRole("button", { name: "Enregistrer" })).toBeEnabled()
   })
+
+  it("permet de programmer une évaluation sans créneau lorsque l’EDT n’est pas configuré", async () => {
+    fetchScope.mockResolvedValue({
+      lessonSlots: [],
+      subjects: [{ id: "s1", name: "Mathématiques", coefficient: 4 }],
+      evaluations: [],
+      completion: [{ subjectId: "s1", subjectName: "Mathématiques", subjectCoefficient: 4, status: "in_progress", completedAt: null, calculationStarted: false, teacher: null }],
+    })
+    renderAcademicPage()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Programmer une évaluation" }))
+    expect(screen.getByText("Aucun créneau — EDT non configuré")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Programmer" })).toBeDisabled()
+  })
 })

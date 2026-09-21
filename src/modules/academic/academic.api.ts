@@ -270,7 +270,7 @@ export type EvaluationWithGrades = {
   subjectId: string | null
   subjectName: string | null
   evaluationDate: string | null
-  dayOfWeek: number
+  dayOfWeek: number | null
   startTime: string
   endTime: string
   roomName: string
@@ -340,7 +340,7 @@ export const fetchEvaluationsScope = (classId: string, gradingPeriodId: string) 
     .then((response) => response.data)
 
 export const createEvaluation = (payload: {
-  lessonSlotId: string
+  lessonSlotId?: string
   subjectId: string
   classId: string
   gradingPeriodId: string

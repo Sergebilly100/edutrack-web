@@ -68,7 +68,7 @@ export default function NotesPage() {
 
   const createMutation = useMutation({
     mutationFn: () => createEvaluation({
-      lessonSlotId: draft.lessonSlotId,
+      ...(draft.lessonSlotId ? { lessonSlotId: draft.lessonSlotId } : {}),
       subjectId: draft.subjectId,
       classId,
       gradingPeriodId,
@@ -127,7 +127,7 @@ export default function NotesPage() {
   const availableDraftSubjects = selectedDraftSlot?.subjectId
     ? (scopeQuery.data?.subjects ?? []).filter((item) => item.id === selectedDraftSlot.subjectId)
     : (scopeQuery.data?.subjects ?? [])
-  const canCreate = draft.label.trim() !== "" && draft.lessonSlotId !== "" && draft.subjectId !== "" && draft.evaluationDate !== ""
+  const canCreate = draft.label.trim() !== "" && draft.subjectId !== "" && draft.evaluationDate !== ""
     && Number.isFinite(Number(draft.coefficient)) && Number(draft.coefficient) > 0
   const selectedEvaluation = scheduledEvaluations.find((evaluation) => evaluation.id === selectedEvaluationId) ?? null
 
@@ -416,12 +416,12 @@ export default function NotesPage() {
             <DialogHeader>
               <DialogTitle>Programmer une évaluation</DialogTitle>
               <DialogDescription>
-                Rattachez-la à un créneau et définissez son coefficient propre.
+                Choisissez la matière et la date. Le créneau EDT reste facultatif.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Créneau de cours</Label>
+                <Label>Créneau de cours (facultatif)</Label>
                 <Select
                   value={draft.lessonSlotId || "none"}
                   onValueChange={(value) => {
@@ -431,14 +431,15 @@ export default function NotesPage() {
                     setDraft((previous) => ({
                       ...previous,
                       lessonSlotId: value === "none" ? "" : value,
-                      subjectId: slot?.subjectId ?? "",
+                      subjectId: slot?.subjectId ?? previous.subjectId,
                     }));
                   }}
                 >
                   <SelectTrigger className="min-h-6">
-                    <SelectValue placeholder="Choisir un créneau" />
+                    <SelectValue placeholder="Aucun créneau EDT" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">Aucun créneau — EDT non configuré</SelectItem>
                     {(scopeQuery.data?.lessonSlots ?? []).map((slot) => (
                       <SelectItem key={slot.id} value={slot.id}>
                         {dayLabel(slot.dayOfWeek)} · {slot.startTime}-
@@ -556,7 +557,7 @@ function EvaluationGradeEditor({ evaluation, students, readOnly, onOpen }: { eva
     <Button type="button" variant="ghost" className="min-h-6 w-full justify-between gap-3 px-0 text-left" onClick={onOpen}>
       <span className="min-w-0">
         <span className="block truncate font-semibold">{evaluation.label}</span>
-        <span className="mt-1 block text-xs text-muted-foreground">{evaluation.subjectName ?? "-"} · {formatEvaluationDate(evaluation.evaluationDate)} · {evaluation.startTime}</span>
+        <span className="mt-1 block text-xs text-muted-foreground">{evaluation.subjectName ?? "-"} · {formatEvaluationDate(evaluation.evaluationDate)} · {evaluation.startTime || "Sans créneau EDT"}</span>
       </span>
       <span className="shrink-0 text-right">
         <Badge variant={readOnly ? "success" : "secondary"}>{readOnly ? "Saisie clôturée" : `${completedCount}/${totalCount} notes`}</Badge>
