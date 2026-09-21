@@ -93,11 +93,11 @@ export default function TeacherDashboardPage() {
 
       <header className="flex items-start justify-between gap-3" data-tour="teacher-dashboard-header">
         <div className="space-y-1 !mt-4">
-          <p className="text-sm font-medium capitalize text-muted-foreground">
+          <div className="text-sm font-medium capitalize text-muted-foreground">
             <Badge variant="outline" className="px-2.5">
               {formatToday(now)}
             </Badge>
-          </p>
+          </div>
           {/* <h1 className="text-2xl font-semibold tracking-tight">Bonjour, {user?.name?.split(" ")[0] ?? "Professeur"}</h1> */}
           {/* <p className="text-sm text-muted-foreground">Vos cours et vos saisies à traiter aujourd&apos;hui.</p> */}
         </div>
