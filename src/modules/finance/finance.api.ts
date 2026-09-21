@@ -462,6 +462,37 @@ export async function grantTuitionOverride(payload: {
   await apiClient.post("/tuition/overrides", payload)
 }
 
+const parseTuitionScheduleSteps = (input: unknown): TuitionScheduleStep[] =>
+  Array.isArray(input) ? input.map((step) => {
+    const row = isRecord(step) ? step : {}
+    return {
+      dueDate: asString(row.dueDate ?? row.due_date),
+      cumulativeAmountExpected: asNumber(row.cumulativeAmountExpected ?? row.cumulative_amount_expected),
+    }
+  }) : []
+
+export async function getStudentTuitionSchedule(studentId: string, schoolYearId: string): Promise<TuitionScheduleStep[]> {
+  const response = await apiClient.get(`/tuition/student-schedules/${studentId}`, { params: { school_year_id: schoolYearId } })
+  return parseTuitionScheduleSteps(response.data.scheduleSteps)
+}
+
+export async function saveStudentTuitionSchedule(payload: {
+  studentId: string
+  schoolYearId: string
+  scheduleSteps: Array<{ dueDate: string; cumulativeAmountExpected: number }>
+}): Promise<TuitionScheduleStep[]> {
+  const response = await apiClient.put(`/tuition/student-schedules/${payload.studentId}`, {
+    schoolYearId: payload.schoolYearId,
+    scheduleSteps: payload.scheduleSteps,
+  })
+  return parseTuitionScheduleSteps(response.data.scheduleSteps)
+}
+
+export async function resetStudentTuitionSchedule(studentId: string, schoolYearId: string): Promise<boolean> {
+  const response = await apiClient.delete(`/tuition/student-schedules/${studentId}`, { params: { school_year_id: schoolYearId } })
+  return asBoolean(response.data.deleted)
+}
+
 export async function listProviderSettings(): Promise<ProviderSetting[]> {
   const response = await apiClient.get("/payment-provider-settings")
   return (Array.isArray(response.data.settings) ? response.data.settings : []).map(parseProviderSetting)

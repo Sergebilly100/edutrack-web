@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CalendarClock, CheckCircle2, Loader2, Plus, Tag, Trash2 } from "lucide-react"
+import { CalendarClock, CheckCircle2, Loader2, Plus, RotateCcw, Tag, Trash2 } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -13,7 +14,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { listLevels } from "@/modules/academic/academic.api"
 import type { StudentItem } from "@/modules/students/students.api"
 import { formatFcfa } from "@/shared/utils/formatting"
-import { grantTuitionOverride, listTuitionPlans, upsertTuitionPlan, type TuitionScheduleStep } from "../finance.api"
+import { getStudentTuitionSchedule, grantTuitionOverride, listTuitionPlans, resetStudentTuitionSchedule, saveStudentTuitionSchedule, upsertTuitionPlan, type TuitionScheduleStep } from "../finance.api"
 import { StudentSearch } from "./StudentSearch"
 
 type TuitionConfigurationProps = {
@@ -36,8 +37,16 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount }
   const [overrideType, setOverrideType] = useState<"discount" | "total">("discount")
   const [overrideAmount, setOverrideAmount] = useState("")
   const [overrideReason, setOverrideReason] = useState("")
+  const [scheduleStudent, setScheduleStudent] = useState<StudentItem | null>(null)
+  const [studentScheduleSteps, setStudentScheduleSteps] = useState<TuitionScheduleStep[]>([blankStep()])
+  const [isResetScheduleDialogOpen, setIsResetScheduleDialogOpen] = useState(false)
   const levels = levelsQuery.data ?? []
   const selectedPlan = useMemo(() => plansQuery.data?.find((plan) => plan.levelId === levelId), [plansQuery.data, levelId])
+  const studentScheduleQuery = useQuery({
+    queryKey: ["finance", "student-tuition-schedule", schoolYearId, scheduleStudent?.id],
+    queryFn: () => getStudentTuitionSchedule(scheduleStudent!.id, schoolYearId),
+    enabled: Boolean(schoolYearId && scheduleStudent),
+  })
 
   useEffect(() => {
     if (!levelId && levels[0]) setLevelId(levels[0].id)
@@ -47,6 +56,16 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount }
     setTotalAmount(selectedPlan ? String(selectedPlan.totalAmount) : "")
     setSteps(selectedPlan?.scheduleSteps.length ? selectedPlan.scheduleSteps : [blankStep()])
   }, [levelId, selectedPlan])
+
+  useEffect(() => {
+    if (!scheduleStudent) {
+      setStudentScheduleSteps([blankStep()])
+      return
+    }
+    if (studentScheduleQuery.data) {
+      setStudentScheduleSteps(studentScheduleQuery.data.length > 0 ? studentScheduleQuery.data : [blankStep()])
+    }
+  }, [scheduleStudent, studentScheduleQuery.data])
 
   const planMutation = useMutation({
     mutationFn: () => upsertTuitionPlan(levelId, {
@@ -78,10 +97,47 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount }
     onError: (error) => toast({ title: "Modification impossible", description: error instanceof Error ? error.message : "Vérifiez les informations saisies.", variant: "destructive" }),
   })
 
+  const studentScheduleMutation = useMutation({
+    mutationFn: () => saveStudentTuitionSchedule({
+      studentId: scheduleStudent!.id,
+      schoolYearId,
+      scheduleSteps: studentScheduleSteps.map((step) => ({
+        dueDate: step.dueDate,
+        cumulativeAmountExpected: Number(step.cumulativeAmountExpected),
+      })),
+    }),
+    onSuccess: async (savedSteps) => {
+      setStudentScheduleSteps(savedSteps)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["finance", "student-tuition-schedule", schoolYearId, scheduleStudent?.id] }),
+        queryClient.invalidateQueries({ queryKey: ["finance", "financial-summary"] }),
+      ])
+      toast({ title: "Courbe individuelle enregistrée", description: "Les statuts financiers et les relances utilisent désormais cet échéancier." })
+    },
+    onError: (error) => toast({ title: "Enregistrement impossible", description: error instanceof Error ? error.message : "Vérifiez les dates et les montants de la courbe.", variant: "destructive" }),
+  })
+
+  const resetStudentScheduleMutation = useMutation({
+    mutationFn: () => resetStudentTuitionSchedule(scheduleStudent!.id, schoolYearId),
+    onSuccess: async () => {
+      setStudentScheduleSteps([blankStep()])
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["finance", "student-tuition-schedule", schoolYearId, scheduleStudent?.id] }),
+        queryClient.invalidateQueries({ queryKey: ["finance", "financial-summary"] }),
+      ])
+      toast({ title: "Courbe individuelle réinitialisée", description: "L’élève suit de nouveau le plan de son niveau." })
+    },
+    onError: (error) => toast({ title: "Réinitialisation impossible", description: error instanceof Error ? error.message : "Réessayez dans quelques instants.", variant: "destructive" }),
+  })
+
   const total = Number(totalAmount)
   const stepsValid = steps.every((step, index) => {
     const previous = steps[index - 1]
     return Boolean(step.dueDate) && step.cumulativeAmountExpected >= 0 && step.cumulativeAmountExpected <= total && (!previous || (step.dueDate > previous.dueDate && step.cumulativeAmountExpected >= previous.cumulativeAmountExpected))
+  })
+  const studentScheduleValid = studentScheduleSteps.every((step, index) => {
+    const previous = studentScheduleSteps[index - 1]
+    return Boolean(step.dueDate) && step.cumulativeAmountExpected >= 0 && (!previous || (step.dueDate > previous.dueDate && step.cumulativeAmountExpected >= previous.cumulativeAmountExpected))
   })
 
   return (
@@ -97,7 +153,7 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount }
           </div>
 
           <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3"><div><Label>Courbe cumulative attendue</Label><p className="mt-1 text-xs text-muted-foreground">Les dates et montants doivent progresser dans l’ordre.</p></div>{canEdit ? <Button type="button" variant="outline" size="sm" className="min-h-10" onClick={() => setSteps((current) => [...current, blankStep()])}><Plus className="mr-2 h-4 w-4" />Ajouter un seuil</Button> : null}</div>
+            <div className="flex items-center justify-between gap-3"><div><Label>Courbe cumulative attendue</Label><p className="mt-1 text-xs text-muted-foreground">Les dates et montants doivent progresser dans l’ordre.</p></div>{canEdit ? <Button type="button" variant="outline" size="sm" className="min-h-12" onClick={() => setSteps((current) => [...current, blankStep()])}><Plus className="mr-2 h-4 w-4" />Ajouter un seuil</Button> : null}</div>
             <div className="space-y-2">
               {steps.map((step, index) => (
                 <div key={step.id ?? index} className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[2rem_1fr_1fr_3rem] sm:items-end">
@@ -130,6 +186,49 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount }
           </CardContent>
         </Card>
       ) : null}
+
+      {canGrantDiscount ? (
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><CalendarClock className="h-5 w-5 text-primary" />Courbe individuelle</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">Pour un cas particulier, remplacez la courbe du niveau pour cet élève uniquement. Les alertes et le statut de paiement suivront cette nouvelle courbe.</p>
+            <div className="space-y-2"><Label>Élève</Label><StudentSearch value={scheduleStudent} onChange={setScheduleStudent} placeholder="Rechercher un élève à personnaliser" /></div>
+            {scheduleStudent ? (
+              <div className="space-y-3">
+                {studentScheduleQuery.isLoading ? <p className="text-sm text-muted-foreground">Chargement de la courbe de l’élève…</p> : null}
+                {studentScheduleQuery.isError ? <Alert variant="destructive"><AlertDescription>Impossible de charger la courbe actuelle de cet élève.</AlertDescription></Alert> : null}
+                {!studentScheduleQuery.isLoading && !studentScheduleQuery.isError ? <>
+                  <div className="flex items-center justify-between gap-3"><div><Label>Seuils cumulés attendus</Label><p className="mt-1 text-xs text-muted-foreground">Chaque cumul doit progresser et rester dans les frais de scolarité de l’élève.</p></div><Button type="button" variant="outline" size="sm" className="min-h-12" disabled={studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending} onClick={() => setStudentScheduleSteps((current) => [...current, blankStep()])}><Plus className="mr-2 h-4 w-4" />Ajouter un seuil</Button></div>
+                  <div className="space-y-2">
+                    {studentScheduleSteps.map((step, index) => (
+                      <div key={`${scheduleStudent.id}-${step.id ?? index}`} className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[2rem_1fr_1fr_3rem] sm:items-end">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{index + 1}</span>
+                        <div className="space-y-1.5"><Label htmlFor={`student-step-date-${index}`}>Date seuil</Label><Input id={`student-step-date-${index}`} type="date" disabled={studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending} value={step.dueDate} onChange={(event) => setStudentScheduleSteps((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, dueDate: event.target.value } : item))} /></div>
+                        <div className="space-y-1.5"><Label htmlFor={`student-step-amount-${index}`}>Cumul attendu</Label><Input id={`student-step-amount-${index}`} inputMode="numeric" disabled={studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending} value={step.cumulativeAmountExpected || ""} onChange={(event) => setStudentScheduleSteps((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, cumulativeAmountExpected: Number(event.target.value.replace(/\D/g, "")) } : item))} /></div>
+                        <Button type="button" variant="ghost" size="icon" className="min-h-12 min-w-12 text-muted-foreground hover:text-red-700" aria-label={`Supprimer le seuil individuel ${index + 1}`} disabled={studentScheduleSteps.length === 1 || studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending} onClick={() => setStudentScheduleSteps((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    ))}
+                  </div>
+                  {!studentScheduleValid ? <Alert variant="destructive"><AlertDescription>Chaque seuil doit avoir une date croissante et un cumul au moins égal au précédent.</AlertDescription></Alert> : null}
+                  <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                    <Button type="button" variant="outline" className="min-h-12" disabled={studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending || studentScheduleQuery.data?.length === 0} onClick={() => setIsResetScheduleDialogOpen(true)}>{resetStudentScheduleMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}Revenir au plan du niveau</Button>
+                    <Button type="button" className="min-h-12" disabled={!studentScheduleValid || studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending} onClick={() => studentScheduleMutation.mutate()}>{studentScheduleMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}Enregistrer la courbe</Button>
+                  </div>
+                </> : null}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+      <AlertDialog open={isResetScheduleDialogOpen} onOpenChange={setIsResetScheduleDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Revenir au plan du niveau ?</AlertDialogTitle><AlertDialogDescription>La courbe particulière de {scheduleStudent ? `${scheduleStudent.lastName} ${scheduleStudent.firstName}` : "cet élève"} sera supprimée. Les alertes et le statut financier suivront de nouveau le plan commun.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="min-h-12">Annuler</AlertDialogCancel>
+            <AlertDialogAction className="min-h-12" onClick={() => resetStudentScheduleMutation.mutate()}>Revenir au plan commun</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   )
 }
