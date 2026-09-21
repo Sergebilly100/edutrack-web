@@ -107,13 +107,13 @@ export default function SchoolYearsPage() {
           </CardHeader>
           <CardContent>
             <Form {...form}>
-              <form className="flex flex-col gap-4 sm:flex-row sm:items-end my-4" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
+              <form className="my-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-6" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
                 <FormField
                   control={form.control}
                   name="endOfYearReviewStartDate"
                   render={({ field }) => (
-                    <FormItem className="w-full sm:max-w-xs">
-                      <FormLabel>Date de début de revue (arrêt des notes)</FormLabel>
+                    <FormItem className="w-full sm:max-w-[25rem] sm:min-w-[25rem]">
+                      <FormLabel className="whitespace-nowrap">Date de début de revue (arrêt des notes de fin d'année)</FormLabel>
                       <FormControl><Input type="date" max={previousIsoDate(activeYear.endDate)} disabled={!canEdit || mutation.isPending} {...field} /></FormControl>
                       {/* <FormDescription>Par défaut, 30 jours avant la fin de l’année.</FormDescription> */}
                       <FormMessage />
@@ -121,7 +121,7 @@ export default function SchoolYearsPage() {
                   )}
                 />
                 {canEdit ? (
-                  <Button type="submit" className="min-h-10" disabled={mutation.isPending}>
+                  <Button type="submit" className="min-h-10 self-start sm:self-end" disabled={mutation.isPending}>
                     {mutation.isPending ? <Spinner size="sm" className="mr-2" /> : null}
                     {mutation.isPending ? "Enregistrement…" : "Enregistrer la date"}
                   </Button>

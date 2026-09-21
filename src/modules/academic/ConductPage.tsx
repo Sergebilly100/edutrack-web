@@ -482,7 +482,7 @@ function EducatorDecisionPanel({
             {overview.teacherInputs.map((input) => (
               <li key={input.id} className="text-sm">
                 <span className="font-medium">{input.teacherName}</span> : {input.note}/20
-                {input.observation ? ` — ${input.observation}` : ""}
+                {input.observation ? ` - ${input.observation}` : ""}
               </li>
             ))}
           </ul>

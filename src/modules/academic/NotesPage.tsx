@@ -209,7 +209,7 @@ export default function NotesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {periods.map((period) => (
-                    <SelectItem key={period.id} value={period.id}>
+                    <SelectItem key={period.id} value={period.id}  disabled={!period.isCurrent && !period.isCompleted}>
                       {period.label}
                       {period.isCurrent
                         ? " · en cours"
@@ -439,7 +439,7 @@ export default function NotesPage() {
                     <SelectValue placeholder="Aucun créneau EDT" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Aucun créneau — EDT non configuré</SelectItem>
+                    <SelectItem value="none">Aucun créneau - EDT non configuré</SelectItem>
                     {(scopeQuery.data?.lessonSlots ?? []).map((slot) => (
                       <SelectItem key={slot.id} value={slot.id}>
                         {dayLabel(slot.dayOfWeek)} · {slot.startTime}-

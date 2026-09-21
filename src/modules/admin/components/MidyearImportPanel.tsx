@@ -110,7 +110,7 @@ export function MidyearImportPanel({ tenantId }: { tenantId: string }) {
     <div className="space-y-6">
       <Card className="shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2"><FileSpreadsheet className="h-4 w-4" />Import « prise en main » — ordre strict</CardTitle>
+          <CardTitle className="flex items-center gap-2"><FileSpreadsheet className="h-4 w-4" />Import « prise en main » - ordre strict</CardTitle>
           <CardDescription>Configurez les correspondances pour chaque fichier. Elles sont mémorisées et peuvent être modifiées avant un prochain import.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
