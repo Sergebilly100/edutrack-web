@@ -261,7 +261,7 @@ export default function CalculationPage() {
               <h1 className="text-2xl font-semibold tracking-tight">
                 Calcul des moyennes
               </h1>
-              <p className="text-sm text-muted-foreground">
+              <div className="text-sm text-muted-foreground">
                 {selectedClass?.name ?? "Classe"} · {subject.name} ·{" "}
                 {period?.label ?? "Période"} &nbsp;
                 <Badge variant={ completion.status === "completed" ? "outline" : "secondary" }>
@@ -269,7 +269,7 @@ export default function CalculationPage() {
                     ? "Moyennes validées"
                     : "Calcul en cours"}
                 </Badge>
-              </p>
+              </div>
             </div>
             
           </div>

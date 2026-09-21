@@ -133,7 +133,7 @@ export function FinanceSettings({ canManageProviders, canViewPlans, canEditPlans
 
       {canViewPlans ? (
         <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Settings2 className="h-5 w-5 text-primary" />Plans d’abonnement</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Settings2 className="h-5 w-5 text-primary" />Plans d’abonnement (alerte Parents)</CardTitle></CardHeader>
           <CardContent className="space-y-5">
             {(plansQuery.data ?? []).length > 0 ? (
               <div className="divide-y rounded-lg border">
