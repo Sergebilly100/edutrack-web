@@ -5,6 +5,7 @@ import axios from "axios"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
@@ -140,6 +141,8 @@ export default function ClassDecisionsPage() {
   const [classFilter, setClassFilter] = useState(ALL_FILTER)
   const [bulkDraft, setBulkDraft] = useState<BulkDecisionDraft>(defaultBulkDecisionDraft)
   const [bulkPreview, setBulkPreview] = useState<BulkClassDecisionsPreview | null>(null)
+  const [isConfigDialogOpen, setConfigDialogOpen] = useState(false)
+  const [isPreviewDialogOpen, setPreviewDialogOpen] = useState(false)
   const filters = { levelId: levelFilter === ALL_FILTER ? undefined : levelFilter, classId: classFilter === ALL_FILTER ? undefined : classFilter }
   const query = useQuery({ queryKey: [...DECISIONS_KEY, filters], queryFn: () => listFilteredClassDecisions(filters) })
   const mutation = useMutation({
@@ -169,11 +172,8 @@ export default function ClassDecisionsPage() {
     atOrAbove: bulkDraft.atOrAbove,
     below: bulkDraft.below,
   })
-  const selectedScopeLevelId = classFilter !== ALL_FILTER
-    ? query.data?.classes.find((schoolClass) => schoolClass.id === classFilter)?.levelId
-    : levelFilter === ALL_FILTER ? undefined : levelFilter
-  const isBulkScopeSelected = selectedScopeLevelId !== undefined
-  const isBulkConfigComplete = isBulkScopeSelected
+  const isLevelSelected = levelFilter !== ALL_FILTER
+  const isBulkConfigComplete = isLevelSelected
     && bulkDraft.threshold.trim() !== ""
     && Number.isFinite(Number(bulkDraft.threshold))
     && Number(bulkDraft.threshold) >= 0
@@ -182,7 +182,11 @@ export default function ClassDecisionsPage() {
     && (bulkDraft.below.finalDecision === "expelled" || bulkDraft.below.nextLevelId !== null)
   const previewMutation = useMutation({
     mutationFn: () => previewBulkClassDecisions(bulkPayload()),
-    onSuccess: (preview) => setBulkPreview(preview),
+    onSuccess: (preview) => {
+      setBulkPreview(preview)
+      setConfigDialogOpen(false)
+      setPreviewDialogOpen(true)
+    },
     onError: (error) => toast({
       title: "Prévisualisation impossible",
       description: axios.isAxiosError(error) && typeof error.response?.data?.error === "string"
@@ -196,6 +200,7 @@ export default function ClassDecisionsPage() {
     mutationFn: () => validateBulkClassDecisions(bulkPayload()),
     onSuccess: async (result) => {
       setBulkPreview(result)
+      setPreviewDialogOpen(false)
       await queryClient.invalidateQueries({ queryKey: DECISIONS_KEY })
       toast({ title: `${result.eligibleCount} décision(s) de fin d’année validée(s)` })
     },
@@ -308,34 +313,53 @@ export default function ClassDecisionsPage() {
             <div className="space-y-2"><label className="text-sm font-medium" htmlFor="class-decisions-class">Classe</label><Select value={classFilter} onValueChange={(value) => updateScope(levelFilter, value)}><SelectTrigger id="class-decisions-class" className="min-h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={ALL_FILTER}>Toutes les classes</SelectItem>{classes.map((schoolClass) => <SelectItem key={schoolClass.id} value={schoolClass.id}>{schoolClass.name}</SelectItem>)}</SelectContent></Select></div>
           </div>
           {canValidate ? (
-            <section className="space-y-4 rounded-lg border p-4" aria-labelledby="bulk-decision-title">
-              <div className="space-y-1">
-                <h2 id="bulk-decision-title" className="text-lg font-medium">Décisions groupées</h2>
-                <p className="text-sm text-muted-foreground">Configurez les règles, prévisualisez chaque résultat, puis validez l’ensemble.</p>
-              </div>
-              <div className="grid gap-4 lg:grid-cols-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="button" className="min-h-12" onClick={() => setConfigDialogOpen(true)} disabled={!isLevelSelected}>
+                Décision automatique
+              </Button>
+              {!isLevelSelected ? <p className="text-sm text-muted-foreground">Sélectionnez d’abord un niveau pour appliquer une règle commune.</p> : null}
+            </div>
+          ) : null}
+          <Dialog open={isConfigDialogOpen} onOpenChange={setConfigDialogOpen}>
+            <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Configurer la décision automatique</DialogTitle>
+                <DialogDescription>Les règles seront appliquées aux élèves du niveau sélectionné{classFilter !== ALL_FILTER ? " et de la classe filtrée" : ""}.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2"><label className="text-sm font-medium" htmlFor="bulk-threshold">Seuil d’admission (/20)</label><Input id="bulk-threshold" type="number" min="0" max="20" step="0.01" inputMode="decimal" value={bulkDraft.threshold} onChange={(event) => { setBulkDraft((current) => ({ ...current, threshold: event.target.value })); setBulkPreview(null) }} className="min-h-12" /></div>
                 <BulkRuleControls label="Note supérieure ou égale au seuil" rule={bulkDraft.atOrAbove} levels={query.data?.levels ?? []} onChange={(rule) => { setBulkDraft((current) => ({ ...current, atOrAbove: rule })); setBulkPreview(null) }} />
                 <BulkRuleControls label="Note inférieure au seuil" rule={bulkDraft.below} levels={query.data?.levels ?? []} onChange={(rule) => { setBulkDraft((current) => ({ ...current, below: rule })); setBulkPreview(null) }} />
               </div>
-              {!isBulkScopeSelected ? <p className="text-sm text-amber-800">Choisissez un niveau ou une classe avant de prévisualiser la décision groupée.</p> : null}
-              <Button type="button" className="min-h-12" onClick={() => previewMutation.mutate()} disabled={previewMutation.isPending || !isBulkConfigComplete}>
-                {previewMutation.isPending ? <Spinner size="sm" className="mr-2" /> : null}
-                {previewMutation.isPending ? "Prévisualisation…" : "Prévisualiser les décisions"}
-              </Button>
-              {bulkPreview ? (
-                <div className="space-y-4 border-t pt-4">
-                  <div className="flex flex-wrap items-center gap-2"><Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">{bulkPreview.eligibleCount} prêt(s) à valider</Badge>{bulkPreview.pendingCount > 0 ? <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">{bulkPreview.pendingCount} moyenne(s) en attente</Badge> : null}</div>
-                  <DataTable columns={previewColumns} data={bulkPreview.items} searchKey="student" searchPlaceholder="Rechercher dans la prévisualisation…" emptyState={<EmptyState icon={StudentsIcon} title="Aucun élève dans ce périmètre" message="Modifiez le niveau ou la classe sélectionnée." />} mobileCard={(item) => <div className="space-y-2 rounded-lg border bg-card p-4"><p className="font-medium">{item.studentLastName} {item.studentFirstName}</p><p className="text-sm text-muted-foreground">Moyenne : {formatGeneralAverage(item.generalAverage)}</p><p className="text-sm">{item.isEligible && item.proposedDecision ? `${decisionLabels[item.proposedDecision]} · ${item.proposedNextLevelName ?? "Sans niveau suivant"}` : "Moyenne générale en attente"}</p></div>} />
-                  {!bulkPreview.canApply ? <p className="text-sm text-amber-800">La validation reste bloquée tant que toutes les moyennes générales du périmètre ne sont pas finalisées.</p> : null}
-                  <Button type="button" className="min-h-12" onClick={() => bulkValidationMutation.mutate()} disabled={bulkValidationMutation.isPending || !bulkPreview.canApply}>
-                    {bulkValidationMutation.isPending ? <Spinner size="sm" className="mr-2" /> : null}
-                    {bulkValidationMutation.isPending ? "Validation finale…" : "Valider définitivement ces décisions"}
-                  </Button>
-                </div>
-              ) : null}
-            </section>
-          ) : null}
+              <DialogFooter>
+                <Button type="button" variant="outline" className="min-h-12" onClick={() => setConfigDialogOpen(false)}>Annuler</Button>
+                <Button type="button" className="min-h-12" onClick={() => previewMutation.mutate()} disabled={previewMutation.isPending || !isBulkConfigComplete}>
+                  {previewMutation.isPending ? <Spinner size="sm" className="mr-2" /> : null}
+                  {previewMutation.isPending ? "Prévisualisation…" : "Voir la prévisualisation"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={isPreviewDialogOpen} onOpenChange={setPreviewDialogOpen}>
+            <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-5xl overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Prévisualisation des décisions</DialogTitle>
+                <DialogDescription>Vérifiez chaque résultat avant la validation définitive.</DialogDescription>
+              </DialogHeader>
+              {bulkPreview ? <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-2"><Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">{bulkPreview.eligibleCount} prêt(s) à valider</Badge>{bulkPreview.pendingCount > 0 ? <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">{bulkPreview.pendingCount} moyenne(s) en attente</Badge> : null}</div>
+                <DataTable columns={previewColumns} data={bulkPreview.items} searchKey="student" searchPlaceholder="Rechercher dans la prévisualisation…" emptyState={<EmptyState icon={StudentsIcon} title="Aucun élève dans ce périmètre" message="Modifiez le niveau ou la classe sélectionnée." />} mobileCard={(item) => <div className="space-y-2 rounded-lg border bg-card p-4"><p className="font-medium">{item.studentLastName} {item.studentFirstName}</p><p className="text-sm text-muted-foreground">Moyenne : {formatGeneralAverage(item.generalAverage)}</p><p className="text-sm">{item.isEligible && item.proposedDecision ? `${decisionLabels[item.proposedDecision]} · ${item.proposedNextLevelName ?? "Sans niveau suivant"}` : "Moyenne générale en attente"}</p></div>} />
+                {!bulkPreview.canApply ? <p className="text-sm text-amber-800">La validation reste bloquée tant que toutes les moyennes générales du périmètre ne sont pas finalisées.</p> : null}
+              </div> : null}
+              <DialogFooter>
+                <Button type="button" variant="outline" className="min-h-12" onClick={() => { setPreviewDialogOpen(false); setConfigDialogOpen(true) }}>Modifier la configuration</Button>
+                <Button type="button" className="min-h-12" onClick={() => bulkValidationMutation.mutate()} disabled={bulkValidationMutation.isPending || !bulkPreview?.canApply}>
+                  {bulkValidationMutation.isPending ? <Spinner size="sm" className="mr-2" /> : null}
+                  {bulkValidationMutation.isPending ? "Validation finale…" : "Valider définitivement"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <DataTable
           columns={columns}
           data={query.data?.decisions ?? []}

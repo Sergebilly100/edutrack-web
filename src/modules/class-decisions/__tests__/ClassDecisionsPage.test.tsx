@@ -99,16 +99,20 @@ describe("ClassDecisionsPage", () => {
 
   it("prévisualise les décisions groupées avant leur validation finale", async () => {
     renderPage()
+    expect(await screen.findByRole("button", { name: "Décision automatique" })).toBeDisabled()
     fireEvent.click(await screen.findByRole("combobox", { name: "Niveau" }))
     fireEvent.click(await screen.findByRole("option", { name: "5ème" }))
+    fireEvent.click(screen.getByRole("button", { name: "Décision automatique" }))
+    expect(await screen.findByRole("heading", { name: "Configurer la décision automatique" })).toBeInTheDocument()
     fireEvent.click(await screen.findByRole("combobox", { name: /note supérieure.*niveau de destination/i }))
     fireEvent.click(await screen.findByRole("option", { name: "5ème" }))
-    fireEvent.click(screen.getByRole("button", { name: /prévisualiser les décisions/i }))
+    fireEvent.click(screen.getByRole("button", { name: /voir la prévisualisation/i }))
 
-    expect(await screen.findByText("Décision proposée")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /valider définitivement/i })).toBeEnabled()
+    expect(await screen.findByRole("heading", { name: "Prévisualisation des décisions" })).toBeInTheDocument()
+    expect(screen.getByText("Décision proposée")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Valider définitivement" })).toBeEnabled()
 
-    fireEvent.click(screen.getByRole("button", { name: /valider définitivement/i }))
+    fireEvent.click(screen.getByRole("button", { name: "Valider définitivement" }))
     await waitFor(() => expect(bulkValidateMock).toHaveBeenCalledTimes(1))
   })
 })
