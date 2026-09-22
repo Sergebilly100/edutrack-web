@@ -902,7 +902,7 @@ export default function TeachersPage() {
       {/* ── Modal : créer un professeur ── */}
       {canCreateTeacher ? (
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-2xl ">
             <DialogHeader>
               <DialogTitle>Ajouter un professeur</DialogTitle>
               <DialogDescription>

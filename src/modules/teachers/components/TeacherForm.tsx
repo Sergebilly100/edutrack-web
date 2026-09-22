@@ -340,51 +340,53 @@ export default function TeacherForm({
             </FormItem>
           )}
         />
+        <div className="grid gap-4 md:grid-cols-2">
+          <FormField
+            control={form.control}
+            name="phone"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Téléphone</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="2250701234567"
+                    inputMode="tel"
+                    maxLength={13}
+                    autoComplete="tel"
+                    {...field}
+                    onChange={(event) => field.onChange(event.target.value.replace(/\D/g, "").slice(0, 13))}
+                  />
+                </FormControl>
+                <p className="text-xs text-muted-foreground">Format attendu: 225XXXXXXXXXX.</p>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <FormField
-          control={form.control}
-          name="phone"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Téléphone</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="2250701234567"
-                  inputMode="tel"
-                  maxLength={13}
-                  autoComplete="tel"
-                  {...field}
-                  onChange={(event) => field.onChange(event.target.value.replace(/\D/g, "").slice(0, 13))}
-                />
-              </FormControl>
-              <p className="text-xs text-muted-foreground">Format attendu: 225XXXXXXXXXX.</p>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
-                  placeholder="prof@ecole.ci"
-                  {...field}
-                />
-              </FormControl>
-              <p className="text-xs text-muted-foreground">
-                Utilisé pour l'envoi des identifiants et la réinitialisation du mot de passe.
-              </p>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    placeholder="prof@ecole.ci"
+                    {...field}
+                  />
+                </FormControl>
+                <p className="text-xs text-muted-foreground">
+                  Utilisé pour l'envoi des identifiants et la réinitialisation du mot de passe.
+                </p>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        
 
         <FormField
           control={form.control}
@@ -408,41 +410,45 @@ export default function TeacherForm({
           )}
         />
 
-        <FormField control={form.control} name="subjectNames" render={() => (
-          <FormItem>
-            <FormLabel>Matières enseignées</FormLabel>
-            <MultiSelectCombobox
-              title="Matières"
-              description="Choisissez les matières enseignées. Une matière n’apparaît qu’une fois, quel que soit son coefficient ou son niveau."
-              selectedValues={subjectNames}
-              options={subjectOptions.map((name) => ({ value: name, label: name }))}
-              disabled={lockSubjects || subjectsQuery.isLoading}
-              onChange={(values) => form.setValue("subjectNames", values, { shouldValidate: true })}
-            />
-            <p className="text-xs text-muted-foreground">Les matières seront automatiquement associées aux classes du même niveau.</p>
-            <FormMessage />
-          </FormItem>
-        )} />
+        <div className="grid gap-4 md:grid-cols-2">
+          <FormField control={form.control} name="subjectNames" render={() => (
+            <FormItem>
+              <FormLabel>Matières enseignées</FormLabel>
+              <MultiSelectCombobox
+                title="Matières"
+                description="Choisissez les matières enseignées. Une matière n’apparaît qu’une fois, quel que soit son coefficient ou son niveau."
+                selectedValues={subjectNames}
+                options={subjectOptions.map((name) => ({ value: name, label: name }))}
+                disabled={lockSubjects || subjectsQuery.isLoading}
+                onChange={(values) => form.setValue("subjectNames", values, { shouldValidate: true })}
+              />
+              <p className="text-xs text-muted-foreground">Les matières seront automatiquement associées aux classes du même niveau.</p>
+              <FormMessage />
+            </FormItem>
+          )} />
 
-        <FormField control={form.control} name="classIds" render={() => (
-          <FormItem>
-            <FormLabel>Classes enseignées</FormLabel>
-            <MultiSelectCombobox
-              title="Classes"
-              description="Choisissez une ou plusieurs classes. L’effectif confirmé est affiché pour aider à répartir les charges."
-              selectedValues={classIds}
-              options={(classesQuery.data?.classes ?? []).map((schoolClass) => ({
-                value: schoolClass.id,
-                label: schoolClass.name,
-                description: `${schoolClass.level.name} · ${schoolClass.studentCount} élèves`,
-              }))}
-              disabled={classesQuery.isLoading}
-              onChange={(values) => form.setValue("classIds", values, { shouldValidate: true })}
-            />
-            <p className="text-xs text-muted-foreground">Les associations sont créées uniquement pour les niveaux correspondants.</p>
-            <FormMessage />
-          </FormItem>
-        )} />
+          <FormField control={form.control} name="classIds" render={() => (
+            <FormItem>
+              <FormLabel>Classes enseignées</FormLabel>
+              <MultiSelectCombobox
+                title="Classes"
+                description="Choisissez une ou plusieurs classes. L’effectif confirmé est affiché pour aider à répartir les charges."
+                selectedValues={classIds}
+                options={(classesQuery.data?.classes ?? []).map((schoolClass) => ({
+                  value: schoolClass.id,
+                  label: schoolClass.name,
+                  description: `${schoolClass.level.name} · ${schoolClass.studentCount} élèves`,
+                }))}
+                disabled={classesQuery.isLoading}
+                onChange={(values) => form.setValue("classIds", values, { shouldValidate: true })}
+              />
+              <p className="text-xs text-muted-foreground">Les associations sont créées uniquement pour les niveaux correspondants.</p>
+              <FormMessage />
+            </FormItem>
+          )} />
+        </div>
+
+
 
         {type === "vacataire" ? (
           <FormField
