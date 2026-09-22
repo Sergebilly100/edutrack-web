@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { AlertCircle, CheckCircle2, Download, Loader2, ReceiptText, Smartphone } from "lucide-react"
 
@@ -41,7 +41,13 @@ export default function ParentPaymentsPage() {
   const optionsQuery = useQuery({ queryKey: ["parent", "payment-options"], queryFn: getParentPaymentOptions })
   const [selectedStudentId, setSelectedStudentId] = useState("")
   const students = studentsQuery.data ?? []
-  const studentId = selectedStudentId || students[0]?.id || ""
+  const requestedStudentId = new URLSearchParams(window.location.search).get("student") ?? ""
+  useEffect(() => {
+    if (requestedStudentId && students.some((student) => student.id === requestedStudentId)) {
+      setSelectedStudentId(requestedStudentId)
+    }
+  }, [requestedStudentId, students])
+  const studentId = selectedStudentId || (students.some((student) => student.id === requestedStudentId) ? requestedStudentId : students[0]?.id) || ""
   const schoolYearId = schoolConfigQuery.data?.activeSchoolYear ?? ""
   const statusQuery = useQuery({
     queryKey: ["parent", "financial-status", studentId, schoolYearId],
@@ -60,7 +66,7 @@ export default function ParentPaymentsPage() {
     <div className="animate-fade-in space-y-5 py-5 sm:py-6">
       <div className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div><h1 className="text-2xl font-semibold tracking-tight">Frais et paiements</h1><p className="mt-1 text-sm text-muted-foreground">Consultez les versements reconnus par l’établissement et téléchargez vos reçus.</p></div>
-        {students.length > 1 ? <Select value={studentId} onValueChange={setSelectedStudentId}><SelectTrigger className="min-h-6 w-full sm:w-64" aria-label="Enfant"><SelectValue /></SelectTrigger><SelectContent>{students.map((student) => <SelectItem key={student.id} value={student.id}>{student.last_name} {student.first_name}</SelectItem>)}</SelectContent></Select> : null}
+        {students.length > 1 ? <Select value={studentId} onValueChange={(nextStudentId) => { setSelectedStudentId(nextStudentId); const next = new URLSearchParams(window.location.search); next.set("student", nextStudentId); window.history.replaceState(null, "", `${window.location.pathname}?${next.toString()}`) }}><SelectTrigger className="min-h-6 w-full sm:w-64" aria-label="Enfant"><SelectValue /></SelectTrigger><SelectContent>{students.map((student) => <SelectItem key={student.id} value={student.id}>{student.last_name} {student.first_name}</SelectItem>)}</SelectContent></Select> : null}
       </div>
 
       {studentsQuery.isError || schoolConfigQuery.isError ? <QueryErrorState message="Impossible de charger le dossier financier." onRetry={() => { void studentsQuery.refetch(); void schoolConfigQuery.refetch() }} /> : null}

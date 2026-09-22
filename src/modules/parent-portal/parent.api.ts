@@ -25,6 +25,16 @@ export type ParentStudent = {
   class_name: string
 }
 
+export type ParentNotification = {
+  id: string
+  type: "payment_reminder"
+  message: string
+  createdAt: string
+  readAt: string | null
+  studentId: string | null
+  studentName: string | null
+}
+
 export type ParentScheduleSlot = {
   time: string
   subject: string
@@ -102,6 +112,22 @@ export const parentLogin = async (payload: { phone: string; password: string }) 
 export const listParentStudents = async (): Promise<ParentStudent[]> => {
   const response = await apiClient.get<{ data: ParentStudent[] }>("/parent/students")
   return response.data.data
+}
+
+export const listParentNotifications = async (): Promise<{
+  notifications: ParentNotification[]
+  unreadCount: number
+}> => {
+  const response = await apiClient.get<{ notifications: ParentNotification[]; unreadCount: number }>("/parent/notifications")
+  return response.data
+}
+
+export const markParentNotificationRead = async (notificationId: string): Promise<void> => {
+  await apiClient.patch(`/parent/notifications/${notificationId}/read`)
+}
+
+export const markAllParentNotificationsRead = async (): Promise<void> => {
+  await apiClient.patch("/parent/notifications/read-all")
 }
 
 export const getParentSchedule = async (studentId: string, week: string): Promise<ParentScheduleResponse> => {

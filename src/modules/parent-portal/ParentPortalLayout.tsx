@@ -1,11 +1,11 @@
 import { useEffect } from "react"
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
-import { CalendarDays, CalendarX2, Info, GraduationCap, Home, LogOut, Moon, ReceiptText, Sun, UserCircle2 } from "lucide-react"
+import { Bell, CalendarDays, CalendarX2, Info, GraduationCap, Home, LogOut, Moon, ReceiptText, Sun, UserCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { logout as logoutRequest } from "@/modules/auth/auth.api"
-import { fetchParentSchoolInfo } from "@/modules/parent-portal/parent.api"
+import { fetchParentSchoolInfo, listParentNotifications } from "@/modules/parent-portal/parent.api"
 import { useParentAuthStore } from "@/modules/parent-portal/parent-auth.store"
 import { useTheme } from "@/shared/hooks/useTheme"
 import { TourGuide } from "@/shared/components/TourGuide"
@@ -30,6 +30,13 @@ export default function ParentPortalLayout() {
     queryKey: ["parent", "school-info"],
     queryFn: fetchParentSchoolInfo,
     enabled: Boolean(user),
+  })
+  const notificationsQuery = useQuery({
+    queryKey: ["parent", "notifications"],
+    queryFn: listParentNotifications,
+    enabled: Boolean(user) && !user?.mustChangePassword,
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
   })
   const tour = useTourGuide("parent-portal", true)
 
@@ -75,6 +82,12 @@ export default function ParentPortalLayout() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button asChild type="button" variant="outline" size="icon" className="relative h-10 w-10 rounded-lg" aria-label="Voir les notifications">
+                <NavLink to="/parent/notifications">
+                  <Bell className="h-4 w-4" />
+                  {(notificationsQuery.data?.unreadCount ?? 0) > 0 ? <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-white">{notificationsQuery.data?.unreadCount}</span> : null}
+                </NavLink>
+              </Button>
               <Button
                 type="button"
                 variant="outline"

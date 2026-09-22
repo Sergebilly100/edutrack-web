@@ -28,6 +28,7 @@ const AccountPage = lazy(() => import("@/modules/account/AccountPage"))
 const FirstLoginPasswordPage = lazy(() => import("@/modules/account/FirstLoginPasswordPage"))
 const AttendancePage = lazy(() => import("@/modules/attendance/AttendancePage"))
 const DashboardPage = lazy(() => import("@/modules/dashboard/DashboardPage"))
+const RiskDetailsPage = lazy(() => import("@/modules/dashboard/RiskDetailsPage"))
 const TeacherDashboardPage = lazy(() => import("@/modules/dashboard/TeacherDashboardPage"))
 const ImportPage = lazy(() => import("@/modules/import-export/ImportPage"))
 const OnboardingWizard = lazy(() => import("@/modules/onboarding/OnboardingWizard"))
@@ -46,6 +47,7 @@ const ParentSchedulePage = lazy(() => import("@/modules/parent-portal/ParentSche
 const ParentAbsenceHistoryPage = lazy(() => import("@/modules/parent-portal/ParentAbsenceHistoryPage"))
 const ParentAccountPage = lazy(() => import("@/modules/parent-portal/ParentAccountPage"))
 const ParentPaymentsPage = lazy(() => import("@/modules/parent-portal/ParentPaymentsPage"))
+const ParentNotificationsPage = lazy(() => import("@/modules/parent-portal/ParentNotificationsPage"))
 const StudentDetailPage = lazy(() => import("@/modules/students/StudentDetailPage"))
 const StudentsPage = lazy(() => import("@/modules/students/StudentsPage"))
 const TeacherDetailPage = lazy(() => import("@/modules/teachers/TeacherDetailPage"))
@@ -649,12 +651,13 @@ export default function App() {
           <Route path="/subscriptions" element={<PermissionRoute href="/subscriptions" element={<SubscriptionsPage />} />} />
           <Route path="/subscriptions/revenue" element={<PermissionRoute href="/subscriptions/revenue" element={<SubscriptionRevenuePage />} />} />
           <Route path="/settings" element={<PermissionRoute href="/settings" element={<SettingsPage />} />} />
+          <Route path="/dashboard/risks" element={<PermissionRoute href="/dashboard" requiredAnyPermissions={["students.view", "attendance.view"]} element={<RiskDetailsPage />} />} />
         </Route>
 
         <Route element={<TeacherAcademicShellRoute />}>
           <Route path="/academic/notes" element={<NotesPage />} />
           <Route path="/academic/calculation" element={<CalculationPage />} />
-          <Route path="/academic/conduct" element={<Navigate to="/academic/notes" replace />} />
+          <Route path="/academic/conduct" element={<ConductPage view="teacher" />} />
           <Route path="/academic/conduct/decision" element={<ConductPage view="decision" />} />
         </Route>
 
@@ -666,6 +669,7 @@ export default function App() {
           <Route path="absences" element={<ParentAbsenceHistoryPage />} />
           <Route path="schedule" element={<ParentSchedulePage />} />
           <Route path="payments" element={<ParentPaymentsPage />} />
+          <Route path="notifications" element={<ParentNotificationsPage />} />
           <Route path="report-cards" element={<ParentReportCardsPage />} />
           <Route path="account" element={<ParentAccountPage />} />
         </Route>

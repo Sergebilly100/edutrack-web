@@ -30,16 +30,16 @@ type ConductView = "teacher" | "decision" | "all"
 export default function ConductPage({ view = "all" }: { view?: ConductView }) {
   const user = useAuthStore((state) => state.user)
   const permissions = useAuthStore((state) => state.permissions)
-  const isTeacher = user?.role === "teacher" || user?.role === "director"
+  const isTeacher = user?.role === "teacher"
   const canFinalize =
-    user?.role === "director" || (permissions as string[] | undefined)?.includes("conduct.finalize") === true
+    isTeacher || user?.role === "director" || (permissions as string[] | undefined)?.includes("conduct.finalize") === true
 
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Conduite</h1>
         <p className="text-sm text-muted-foreground">
-          Saisie des notes de conduite par les professeurs, décision finale par l&apos;éducateur assigné.
+          Saisie par les professeurs, puis décision finale par le professeur principal de classe ou l&apos;éducateur assigné.
         </p>
       </header>
 

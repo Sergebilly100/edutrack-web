@@ -968,3 +968,60 @@ export const getDashboardStats = async (date?: string, month?: string): Promise<
   })
   return normalizeDashboardStats(response.data)
 }
+
+export type RiskLevel = "none" | "attention" | "warning" | "critical"
+export type StudentRiskCategory = "absences" | "grades" | "payments"
+
+export type RiskPagination = { page: number; limit: number; total: number; totalPages: number }
+
+export type StudentRiskItem = {
+  studentId: string; studentName: string; schoolLevelId: string | null; schoolLevelName: string | null; classId: string | null; className: string | null
+  absencesSignal: boolean; gradesSignal: boolean; paymentSignal: boolean; riskScore: number; level: RiskLevel; computedAt: string
+}
+
+export type TeacherRiskItem = {
+  teacherId: string; teacherName: string; absenceCount: number; attendanceRate: number; absencesSignal: boolean; riskScore: number; level: RiskLevel
+}
+
+type RiskListParams = { page: number; limit: number }
+type StudentRiskListParams = RiskListParams & { schoolLevelId?: string; classId?: string; category?: StudentRiskCategory; riskLevel?: Exclude<RiskLevel, "none">; atRisk?: boolean }
+type TeacherRiskListParams = RiskListParams & { month?: string; atRisk?: boolean }
+
+const parseRiskPagination = (value: unknown): RiskPagination => {
+  const row = isRecord(value) ? value : {}
+  return { page: asNumber(row.page, 1), limit: asNumber(row.limit, 10), total: asNumber(row.total, 0), totalPages: asNumber(row.totalPages ?? row.total_pages, 1) }
+}
+
+const parseRiskLevel = (value: unknown): RiskLevel => value === "none" || value === "warning" || value === "critical" ? value : "attention"
+
+const parseStudentRisk = (value: unknown): StudentRiskItem => {
+  const row = isRecord(value) ? value : {}
+  return {
+    studentId: asString(row.studentId ?? row.student_id), studentName: asString(row.studentName ?? row.student_name),
+    schoolLevelId: asNullableString(row.schoolLevelId ?? row.school_level_id), schoolLevelName: asNullableString(row.schoolLevelName ?? row.school_level_name),
+    classId: asNullableString(row.classId ?? row.class_id), className: asNullableString(row.className ?? row.class_name),
+    absencesSignal: asBoolean(row.absencesSignal ?? row.absences_signal), gradesSignal: asBoolean(row.gradesSignal ?? row.grades_signal), paymentSignal: asBoolean(row.paymentSignal ?? row.payment_signal),
+    riskScore: asNumber(row.riskScore ?? row.risk_score, 0), level: parseRiskLevel(row.level), computedAt: asString(row.computedAt ?? row.computed_at),
+  }
+}
+
+const parseTeacherRisk = (value: unknown): TeacherRiskItem => {
+  const row = isRecord(value) ? value : {}
+  return {
+    teacherId: asString(row.teacherId ?? row.teacher_id), teacherName: asString(row.teacherName ?? row.teacher_name),
+    absenceCount: asNumber(row.absenceCount ?? row.absence_count, 0), attendanceRate: asNumber(row.attendanceRate ?? row.attendance_rate, 0),
+    absencesSignal: asBoolean(row.absencesSignal ?? row.absences_signal), riskScore: asNumber(row.riskScore ?? row.risk_score, 0), level: parseRiskLevel(row.level),
+  }
+}
+
+export const listStudentRisks = async (params: StudentRiskListParams): Promise<{ students: StudentRiskItem[]; pagination: RiskPagination }> => {
+  const response = await api.get("/risk/students", { params })
+  const payload = isRecord(response.data) ? response.data : {}
+  return { students: (Array.isArray(payload.students) ? payload.students : []).map(parseStudentRisk), pagination: parseRiskPagination(payload.pagination) }
+}
+
+export const listTeacherRisks = async (params: TeacherRiskListParams): Promise<{ teachers: TeacherRiskItem[]; pagination: RiskPagination }> => {
+  const response = await api.get("/risk/teachers", { params })
+  const payload = isRecord(response.data) ? response.data : {}
+  return { teachers: (Array.isArray(payload.teachers) ? payload.teachers : []).map(parseTeacherRisk), pagination: parseRiskPagination(payload.pagination) }
+}

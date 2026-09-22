@@ -254,7 +254,65 @@ function AcademicProgress({ levels, isLoading, isError }: { levels: Awaited<Retu
 
 function RiskSummary({ risks, canViewTeachers }: { risks: Awaited<ReturnType<typeof getDashboardPilotage>>["risks"] | undefined; canViewTeachers: boolean }) {
   const studentTotal = (risks?.studentAbsences ?? 0) + (risks?.studentGrades ?? 0) + (risks?.studentPayments ?? 0)
-  return <Card className="rounded-lg shadow-sm"><CardHeader className="pb-3 border-none"><CardTitle className="text-lg">Risques élèves et professeurs</CardTitle><CardDescription>Signaux calculés selon les règles de l’établissement</CardDescription></CardHeader><CardContent className="space-y-4"><RiskGroup title="Élèves" total={studentTotal} rows={[{ label: "Absentéisme à surveiller", value: risks?.studentAbsences ?? 0, href: "/students?tab=absences" }, { label: "Baisse de moyenne", value: risks?.studentGrades ?? 0, href: "/students" }, { label: "Paiements en retard", value: risks?.studentPayments ?? 0, href: "/finance/dashboard" }]} />{canViewTeachers ? <RiskGroup title="Professeurs" total={risks?.teacherAbsences ?? 0} rows={[{ label: "Absences répétées", value: risks?.teacherAbsences ?? 0, href: "/teachers?tab=analyse" }]} /> : null}</CardContent></Card>
+  return (
+    <Card className="rounded-lg shadow-sm">
+      <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3 border-none">
+        <div>
+          <CardTitle className="text-lg">
+            Risques élèves et professeurs
+          </CardTitle>
+          <CardDescription>
+            Signaux calculés selon les règles de l’établissement
+          </CardDescription>
+        </div>
+        <Button
+          asChild
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="min-h-10 text-blue-700"
+        >
+          <Link to="/dashboard/risks">Voir plus</Link>
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <RiskGroup
+          title="Élèves"
+          total={studentTotal}
+          rows={[
+            {
+              label: "Absentéisme à surveiller",
+              value: risks?.studentAbsences ?? 0,
+              href: "/dashboard/risks?tab=students",
+            },
+            {
+              label: "Baisse de moyenne",
+              value: risks?.studentGrades ?? 0,
+              href: "/dashboard/risks?tab=students",
+            },
+            {
+              label: "Paiements en retard",
+              value: risks?.studentPayments ?? 0,
+              href: "/dashboard/risks?tab=students",
+            },
+          ]}
+        />
+        {canViewTeachers ? (
+          <RiskGroup
+            title="Professeurs"
+            total={risks?.teacherAbsences ?? 0}
+            rows={[
+              {
+                label: "Absences répétées",
+                value: risks?.teacherAbsences ?? 0,
+                href: "/dashboard/risks?tab=teachers",
+              },
+            ]}
+          />
+        ) : null}
+      </CardContent>
+    </Card>
+  );
 }
 
 function RiskGroup({ title, total, rows }: { title: string; total: number; rows: Array<{ label: string; value: number; href: string }> }) {

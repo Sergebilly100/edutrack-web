@@ -250,13 +250,20 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: true,
   },
   {
+    label: "Conduite",
+    href: "/academic/conduct",
+    icon: ClipboardCheck,
+    group: "Enseignement",
+    roles: ["teacher"],
+    mobileVisible: true,
+  },
+  {
     label: "Décision finale de conduite",
     href: "/academic/conduct/decision",
     icon: ClipboardCheck,
     group: "Enseignement",
     roles: ["teacher"],
-    requiredPermissions: ["conduct.finalize"],
-    mobileVisible: true,
+    mobileVisible: false,
   },
   {
     label: "Compte",
