@@ -263,8 +263,9 @@ function AttendancePanel({ teacherId, canViewAttendance }: { teacherId: string; 
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="pt-4">
-          <div className="max-w-60 space-y-2">
+        <CardContent className="pt-4  space-y-4">
+
+          <div className="max-w-full  space-y-2">
             <p className="text-sm font-medium">Mois analysé</p>
             <Select
               value={month}
@@ -281,51 +282,56 @@ function AttendancePanel({ teacherId, canViewAttendance }: { teacherId: string; 
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </div> 
+
+          <div className="grid gap-3 sm:grid-cols-2">  
+            <div className="space-y-4  gap-3"> 
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-xs text-muted-foreground">Heures prévues</p>
+                    <p className="text-lg font-semibold tabular-nums">
+                      {formatDecimalHours(data.summary.hoursPlanned)}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-xs text-muted-foreground">Heures faites (heures à valider non incluses)</p>
+                    <p className="text-lg font-semibold tabular-nums">
+                      {formatDecimalHours(data.summary.hoursDone)}
+                    </p>
+                  </CardContent>
+                </Card> 
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2"> 
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-xs text-muted-foreground">Heures d'absence</p>
+                    <p className="text-lg font-semibold tabular-nums text-red-700">
+                      {formatDecimalHours(absenceHours)}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-xs text-muted-foreground">Heures restantes</p>
+                    <p className="text-lg font-semibold tabular-nums text-amber-900">
+                      {formatDecimalHours(remainingHours)}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>  
+            <Card>
+              <CardContent className="pt-6">
+                <PresenceHeatmap month={data.month} rows={data.rows} />
+              </CardContent>
+            </Card> 
+          </div> 
         </CardContent>
       </Card>
-
-      <Card>
-        <CardContent className="pt-6">
-          <PresenceHeatmap month={data.month} rows={data.rows} />
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-3 sm:grid-cols-4">
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-xs text-muted-foreground">Heures prévues</p>
-            <p className="text-lg font-semibold tabular-nums">
-              {formatDecimalHours(data.summary.hoursPlanned)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-xs text-muted-foreground">Heures faites (heures à valider non incluses)</p>
-            <p className="text-lg font-semibold tabular-nums">
-              {formatDecimalHours(data.summary.hoursDone)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-xs text-muted-foreground">Heures d'absence</p>
-            <p className="text-lg font-semibold tabular-nums text-red-700">
-              {formatDecimalHours(absenceHours)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-xs text-muted-foreground">Heures restantes</p>
-            <p className="text-lg font-semibold tabular-nums text-amber-900">
-              {formatDecimalHours(remainingHours)}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
+ 
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Détail des présences</CardTitle>
