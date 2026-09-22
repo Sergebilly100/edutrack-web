@@ -17,6 +17,7 @@ import { teacherDashboardTourSteps } from "@/shared/lib/tour-steps"
 import { useAuthStore } from "@/shared/store/auth.store"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
+import { InstallPwaCard } from "@/shared/pwa/InstallPwaCard"
 
 
 const formatTime = (dateValue: string) =>
@@ -90,6 +91,12 @@ export default function TeacherDashboardPage() {
       />
 
     <div className="space-y-6">
+
+        <InstallPwaCard
+          audience="user"
+          headline="Installez IvoirEdu pour pointer plus vite"
+          className="!mb-4 !mt-0"
+        />
 
       <header className="flex items-start justify-between gap-3" data-tour="teacher-dashboard-header">
         <div className="space-y-1 !mt-4">
