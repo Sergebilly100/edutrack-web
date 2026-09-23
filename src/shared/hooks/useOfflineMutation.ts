@@ -1,6 +1,7 @@
 import { useEffect } from "react"
 import { useMutation, type UseMutationResult } from "@tanstack/react-query"
 import axios from "axios"
+import { ApiError } from "@/shared/api/client"
 
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
 import { useAuthStore } from "@/shared/store/auth.store"
@@ -22,6 +23,8 @@ export class OfflineMutationQueuedError extends Error {
 // safe à requeue. On exclut les vraies erreurs HTTP (4xx/5xx) où le serveur
 // a répondu : requeue les rejouerait inutilement.
 const isNetworkLevelError = (error: unknown): boolean => {
+  // The API interceptor wraps Axios errors while preserving their cause.
+  if (error instanceof ApiError) error = error.cause
   if (typeof navigator !== "undefined" && !navigator.onLine) {
     return true
   }

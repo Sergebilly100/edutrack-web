@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { z } from "zod"
 
 import { Button } from "@/components/ui/button"
@@ -176,7 +176,7 @@ export function SubjectGroupDialog({
     resolver: zodResolver(subjectGroupSchema),
     defaultValues: { name: "", newLevelIds: [], coefficients: {} },
   })
-  const newLevelIds = form.watch("newLevelIds")
+  const newLevelIds = useWatch({ control: form.control, name: "newLevelIds" })
   const existingLevelIds = useMemo(() => new Set(subjects.map((subject) => subject.levelId)), [subjects])
   const availableLevels = useMemo(
     () => levels.filter((level) => !existingLevelIds.has(level.id)),
@@ -362,8 +362,8 @@ export function SubjectBulkDialog({
     resolver: zodResolver(bulkSubjectSchema),
     defaultValues: { name: "", defaultCoefficient: "1", levelIds: [], coefficients: {} },
   })
-  const selectedLevelIds = form.watch("levelIds")
-  const defaultCoefficient = form.watch("defaultCoefficient")
+  const selectedLevelIds = useWatch({ control: form.control, name: "levelIds" })
+  const defaultCoefficient = useWatch({ control: form.control, name: "defaultCoefficient" })
   const selectedClassesCount = selectedLevelIds.reduce(
     (total, levelId) => total + (classesByLevel.get(levelId) ?? 0),
     0

@@ -20,10 +20,12 @@ vi.mock("../parent.api", async (importOriginal) => ({
 vi.mock("@/shared/hooks/usePdfExportJob", () => ({ usePdfExportJob: () => ({ launch: vi.fn(), isRunning: false }) }))
 
 import ParentPaymentsPage from "../ParentPaymentsPage"
+import { fetchParentSchoolConfig } from "../parent.api"
 
 describe("ParentPaymentsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(fetchParentSchoolConfig).mockResolvedValue({ activeSchoolYear: "year-1" })
     financeMocks.status.mockResolvedValue({ totalDue: 100000, confirmedPaid: 25000, remainingDue: 75000, cumulativeExpectedAtDate: 20000, standing: "up_to_date", currency: "FCFA" })
     financeMocks.payments.mockResolvedValue({ movements: [{ id: "payment-1", amount: 25000, method: "cash", status: "confirmed", receiptNumber: "REC-1", paymentDate: "2026-08-19", createdAt: "2026-08-19T10:00:00.000Z", balanceAfter: 75000 }] })
     financeMocks.options.mockResolvedValue({ inAppPaymentActive: false, disabledReason: "temporarily_disabled", manualPaymentChannels: [{ provider: "orange_money", merchantNumber: "0700000000" }] })
@@ -38,5 +40,21 @@ describe("ParentPaymentsPage", () => {
     expect(screen.getByText("0700000000")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /^Payer$/ })).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Télécharger le reçu" })).toBeInTheDocument()
+    expect(financeMocks.status).toHaveBeenCalledWith("student-1", "year-1")
+  })
+
+  it("signale l’absence d’année active sans annoncer un historique vide", async () => {
+    vi.mocked(fetchParentSchoolConfig).mockResolvedValue({ activeSchoolYear: null })
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ParentPaymentsPage /></QueryClientProvider>)
+    expect(await screen.findByText(/Aucune année scolaire active/)).toBeInTheDocument()
+    expect(financeMocks.status).not.toHaveBeenCalled()
+    expect(financeMocks.payments).not.toHaveBeenCalled()
+    expect(screen.queryByText("Aucun paiement enregistré")).not.toBeInTheDocument()
+  })
+
+  it("annonce le chargement tant que le solde n’est pas disponible", async () => {
+    financeMocks.status.mockReturnValue(new Promise(() => undefined))
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ParentPaymentsPage /></QueryClientProvider>)
+    expect(await screen.findByRole("status")).toHaveTextContent("Chargement du dossier financier")
   })
 })

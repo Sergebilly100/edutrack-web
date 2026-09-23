@@ -109,7 +109,7 @@ describe("CourseCard rollcall windows", () => {
   })
 
   it("ouvre la note spontanée directement depuis le créneau pendant le cours", () => {
-    flowState = null
+    flowState = "checkin_qr_done"
     vi.setSystemTime(new Date("2026-06-09T08:30:00"))
     const onAddSpontaneousGrade = vi.fn()
 
@@ -129,7 +129,7 @@ describe("CourseCard rollcall windows", () => {
   })
 
   it("masque la note spontanée plus de 24 h après la fin du cours", () => {
-    flowState = null
+    flowState = "checkin_qr_done"
     vi.setSystemTime(new Date("2026-06-10T09:01:00"))
 
     render(

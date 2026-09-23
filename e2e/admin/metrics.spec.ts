@@ -1,15 +1,15 @@
 import { expect, test } from "@playwright/test"
 
-import { createAdminApiAuth, createSchoolViaApi, loginAsAdminUI } from "./helpers"
+import { API_BASE_URL, createAdminApiAuth, createSchoolViaApi, loginAsAdminUI } from "./helpers"
 
 test.describe("Console Super Admin - Métriques", () => {
   test.describe.configure({ mode: "serial" })
 
-  test("les 4 StatCards se chargent sans erreur", async ({ page }) => {
+  test("les indicateurs de recouvrement et d’activité se chargent", async ({ page }) => {
     await loginAsAdminUI(page)
-    await expect(page.getByText("Total écoles actives")).toBeVisible()
-    await expect(page.getByText("MRR total FCFA")).toBeVisible()
-    await expect(page.getByText("DAU (7j)")).toBeVisible()
+    await expect(page.getByText("Écoles actives (7j)")).toBeVisible()
+    await expect(page.getByText("Encaissé ce mois")).toBeVisible()
+    await expect(page.getByText("Impayé cumulé")).toBeVisible()
     await expect(page.getByText("Taux de rétention")).toBeVisible()
   })
 
@@ -19,7 +19,7 @@ test.describe("Console Super Admin - Métriques", () => {
 
     await loginAsAdminUI(page)
 
-    const revenueResponse = await request.get("http://localhost:3000/api/v1/admin/metrics/revenue", {
+    const revenueResponse = await request.get(`${API_BASE_URL}/admin/metrics/revenue`, {
       headers: auth.headers,
     })
     expect(revenueResponse.ok()).toBeTruthy()
@@ -27,7 +27,7 @@ test.describe("Console Super Admin - Métriques", () => {
     const payload = (await revenueResponse.json()) as Array<{ month: string; mrr_fcfa: number }>
     expect(payload.length).toBeGreaterThan(0)
 
-    await expect(page.getByText("MRR sur 12 mois")).toBeVisible()
+    await expect(page.getByText("Encaissements réels vs MRR cible - 12 mois")).toBeVisible()
     await expect(page.locator(".recharts-responsive-container")).toBeVisible()
   })
 
@@ -38,6 +38,7 @@ test.describe("Console Super Admin - Métriques", () => {
 
     await loginAsAdminUI(page)
 
+    await page.getByRole("link", { name: "Écoles", exact: true }).click()
     const planSelectTrigger = page.getByText("Plan", { exact: true }).first().locator("..").getByRole("combobox")
     await planSelectTrigger.click()
     await page.getByRole("option", { name: "pro", exact: true }).click()

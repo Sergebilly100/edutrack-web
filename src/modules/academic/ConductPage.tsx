@@ -316,7 +316,15 @@ function EducatorDecisionSection() {
   )
   const studentsQuery = useQuery({
     queryKey: ["students-list", classId],
-    queryFn: () => listStudents({ classId, isActive: true, limit: 200 }),
+    queryFn: async () => {
+      const first = await listStudents({ classId, isActive: true, limit: 100, page: 1 })
+      const data = [...first.data]
+      for (let page = 2; page <= first.pagination.totalPages; page += 1) {
+        const next = await listStudents({ classId, isActive: true, limit: 100, page })
+        data.push(...next.data)
+      }
+      return { ...first, data }
+    },
     enabled: Boolean(classId),
   })
   const selectedPeriod = periods.find((period) => period.id === gradingPeriodId)
@@ -363,7 +371,7 @@ function EducatorDecisionSection() {
               value={gradingPeriodId || "none"}
               onValueChange={(value) => setGradingPeriodId(value === "none" ? "" : value)}
             >
-              <SelectTrigger className="min-h-12"><SelectValue placeholder="Choisir une période" /></SelectTrigger>
+              <SelectTrigger className="min-h-12" aria-label="Période"><SelectValue placeholder="Choisir une période" /></SelectTrigger>
               <SelectContent>
                 {periods.map((period) => (
                   <SelectItem key={period.id} value={period.id}>
@@ -382,7 +390,7 @@ function EducatorDecisionSection() {
               value={selectedStudentId || "none"}
               onValueChange={(value) => setSelectedStudentId(value === "none" ? "" : value)}
             >
-              <SelectTrigger className="min-h-12"><SelectValue placeholder="Choisir un élève" /></SelectTrigger>
+              <SelectTrigger className="min-h-12" aria-label="Élève"><SelectValue placeholder="Choisir un élève" /></SelectTrigger>
               <SelectContent>
                 {(studentsQuery.data?.data ?? []).map((student) => (
                   <SelectItem key={student.id} value={student.id}>

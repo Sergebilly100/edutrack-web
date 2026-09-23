@@ -19,7 +19,8 @@ build
 !.env.example
 
 # Test output
-e2e/
+e2e/.auth/
+e2e/.env*
 playwright-report/
 test-results/
 coverage/

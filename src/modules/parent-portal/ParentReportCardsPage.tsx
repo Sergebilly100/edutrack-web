@@ -32,6 +32,8 @@ export default function ParentReportCardsPage() {
   const cardsQuery = useQuery({
     queryKey: ["parent", "report-cards", studentId],
     queryFn: () => listParentReportCards(studentId),
+    // A publication can occur in another session while this empty list is cached.
+    staleTime: 0,
     enabled: Boolean(studentId),
   })
 

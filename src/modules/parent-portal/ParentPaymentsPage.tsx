@@ -70,6 +70,8 @@ export default function ParentPaymentsPage() {
       </div>
 
       {studentsQuery.isError || schoolConfigQuery.isError ? <QueryErrorState message="Impossible de charger le dossier financier." onRetry={() => { void studentsQuery.refetch(); void schoolConfigQuery.refetch() }} /> : null}
+      {studentsQuery.isLoading || schoolConfigQuery.isLoading || statusQuery.isLoading || paymentsQuery.isLoading ? <p role="status" className="text-sm text-muted-foreground">Chargement du dossier financier…</p> : null}
+      {schoolConfigQuery.isSuccess && !schoolYearId ? <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>Aucune année scolaire active. Contactez l’établissement pour consulter les frais.</AlertDescription></Alert> : null}
 
       {statusQuery.data ? (
         <section className="grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-3" aria-label="Situation financière">
@@ -89,7 +91,7 @@ export default function ParentPaymentsPage() {
       <section className="space-y-3">
         <div><h2 className="text-lg font-semibold">Historique des paiements</h2><p className="text-sm text-muted-foreground">Les paiements annulés restent visibles pour garantir la traçabilité.</p></div>
         {paymentsQuery.isError ? <QueryErrorState message="Impossible de charger les paiements." onRetry={() => void paymentsQuery.refetch()} /> : null}
-        {!paymentsQuery.isLoading && payments.length === 0 && !paymentsQuery.isError ? <EmptyState icon={ReceiptText} title="Aucun paiement enregistré" message="Les versements reconnus par l’établissement apparaîtront ici." /> : null}
+        {paymentsQuery.isSuccess && payments.length === 0 ? <EmptyState icon={ReceiptText} title="Aucun paiement enregistré" message="Les versements reconnus par l’établissement apparaîtront ici." /> : null}
         {payments.map((payment) => (
           <div key={payment.id} className="flex flex-col gap-3 rounded-lg border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-lg font-semibold tabular-nums">{formatFcfa(payment.amount)}</p>{payment.status === "cancelled" ? <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">Annulé</Badge> : <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700"><CheckCircle2 className="mr-1 h-3 w-3" />Confirmé</Badge>}</div><p className="mt-1 text-sm text-muted-foreground">{formatDate(`${payment.paymentDate}T00:00:00`)} · {methodLabels[payment.method]}</p><p className="mt-1 text-xs text-muted-foreground">Reçu {payment.receiptNumber}</p><p className="mt-2 text-sm font-medium text-blue-800 dark:text-blue-200">Reste après ce paiement : {formatFcfa(payment.balanceAfter)}</p>{payment.cancellationReason ? <p className="mt-2 text-sm text-red-700">Motif : {payment.cancellationReason}</p> : null}</div>

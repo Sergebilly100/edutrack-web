@@ -44,6 +44,11 @@ export default defineConfig({
       testIgnore: /setup\//,
     },
     {
+      name: "subscription-tests",
+      use: { ...devices["Desktop Chrome"] },
+      testMatch: /subscriptions\/.*\.spec\.ts/,
+    },
+    {
       name: "parent-tests",
       use: { ...devices["Pixel 5"], storageState: "e2e/.auth/parent.json" },
       dependencies: ["setup-parent"],

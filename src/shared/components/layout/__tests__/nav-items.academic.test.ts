@@ -49,12 +49,14 @@ describe("navigation académique professeur", () => {
       "Aujourd’hui",
       "Mes cours",
       "Notes",
+      "Conduite",
+      "Décision finale de conduite",
       "Compte",
     ])
   })
 
-  it("n'expose la décision finale qu'au détenteur de conduct.finalize", () => {
-    expect(getNavItemsByRole("teacher").map((item) => item.href)).not.toContain("/academic/conduct/decision")
+  it("expose la décision aux professeurs et réserve le menu staff à conduct.finalize", () => {
+    expect(getNavItemsByRole("teacher").map((item) => item.href)).toContain("/academic/conduct/decision")
     expect(getNavItemsByRole("teacher", ["conduct.finalize"]).map((item) => item.href)).toContain("/academic/conduct/decision")
     const staffConductItems = getNavItemsByRole("staff", ["conduct.finalize"])
       .filter((item) => item.href === "/academic/conduct/decision")
@@ -94,7 +96,7 @@ describe("groupes de navigation direction", () => {
     const items = getNavItemsByRole("director")
     expect(items.slice(0, 2)).toEqual([
       expect.objectContaining({ label: "Tableau de bord", group: "Pilotage" }),
-      expect.objectContaining({ label: "Validations", group: "Pilotage" }),
+      expect.objectContaining({ label: "Validations horaires", group: "Pilotage" }),
     ])
   })
 })

@@ -340,6 +340,7 @@ export default function CalculationPage() {
                           variant="outline"
                           className="min-h-6"
                           onClick={() => setDetailsStudentId(student.id)}
+                          aria-label={`Consulter les notes de ${student.firstName} ${student.lastName}`}
                         >
                           <Eye className=" h-4 w-4" />
                         </Button>
@@ -388,6 +389,7 @@ export default function CalculationPage() {
                             className="min-h-6"
                             disabled={!editable}
                             onClick={() => setFinalConductStudentId(student.id)}
+                            aria-label={`Définir la conduite de ${student.firstName} ${student.lastName}`}
                           >
                             <NotebookPen className="h-4 w-4" />
                             {savedFinalConducts[student.id] ?? ""}
@@ -400,6 +402,7 @@ export default function CalculationPage() {
                           variant="outline"
                           className="min-h-6"
                           onClick={() => setDetailsStudentId(student.id)}
+                          aria-label={`Consulter les notes de ${student.firstName} ${student.lastName}`}
                         >
                           <Eye className="h-4 w-4" />
                         </Button>

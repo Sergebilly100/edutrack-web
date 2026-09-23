@@ -17,4 +17,13 @@ describe("getMyPermissions", () => {
       "payments.record", "payments.view", "tuition.edit", "subscription_plans.edit",
     ])
   })
+  it("conserve les droits de publication et de conduite attribués au personnel", async () => {
+    getMock.mockResolvedValue({ data: { permissions: [
+      "report_cards.view", "report_cards.publish", "conduct.finalize", "invented.permission",
+    ] } })
+    await expect(getMyPermissions()).resolves.toEqual([
+      "report_cards.view", "report_cards.publish", "conduct.finalize",
+    ])
+  })
+
 })

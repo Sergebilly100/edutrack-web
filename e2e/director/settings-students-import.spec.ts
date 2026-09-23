@@ -1,3 +1,4 @@
+import { navigateMenu } from "../ui-helpers"
 import { expect, test } from "@playwright/test"
 
 import { loginAsDirectorUI, mockDirectorAuth } from "./helpers"
@@ -99,8 +100,7 @@ test.describe("Directeur - settings/students/import", () => {
 
   test("navigation vers la page élèves", async ({ page }) => {
     await loginAsDirectorUI(page)
-    await page.getByRole("button", { name: "Ouvrir le menu de navigation" }).click()
-    await page.getByRole("link", { name: "Élèves" }).click()
+    await navigateMenu(page, "Vie scolaire", "Élèves")
 
     await expect(page).toHaveURL(/\/students/)
     await expect(page.getByRole("tab", { name: "Liste" })).toBeVisible()
@@ -108,8 +108,7 @@ test.describe("Directeur - settings/students/import", () => {
 
   test("navigation vers la page paramètres", async ({ page }) => {
     await loginAsDirectorUI(page)
-    await page.getByRole("button", { name: "Ouvrir le menu de navigation" }).click()
-    await page.getByRole("link", { name: "Paramètres" }).click()
+    await navigateMenu(page, "Administration", "Paramètres")
 
     await expect(page).toHaveURL(/\/settings/)
     await expect(page.getByText("Paramètres école")).toBeVisible()
@@ -118,8 +117,7 @@ test.describe("Directeur - settings/students/import", () => {
 
   test("navigation vers la page import", async ({ page }) => {
     await loginAsDirectorUI(page)
-    await page.getByRole("button", { name: "Ouvrir le menu de navigation" }).click()
-    await page.getByRole("link", { name: "Import" }).click()
+    await navigateMenu(page, "Administration", "Import de données")
 
     await expect(page).toHaveURL(/\/import/)
     await expect(page.getByRole("heading", { name: "Import de données" })).toBeVisible()

@@ -42,7 +42,7 @@ test.describe("Console Super Admin - Écoles", () => {
     await dialog.getByLabel("Nom complet").fill(`Directeur E2E ${uniq}`)
     await dialog.getByLabel("Téléphone").fill(`22507${String(uniq).slice(-8)}`)
     await dialog.getByLabel("Email (optionnel)").fill(`directeur.${uniq}@edutrack.ci`)
-    await dialog.getByLabel("Année scolaire active").fill("2025-2026")
+    await dialog.getByLabel("Année scolaire active").fill("09/2026 - 06/2027")
 
     await dialog.getByRole("combobox").nth(1).click()
     await page.getByRole("option", { name: "Pro" }).click()
@@ -75,23 +75,17 @@ test.describe("Console Super Admin - Écoles", () => {
     await page.getByRole("option", { name: "Secondaire" }).click()
     await dialog.getByLabel("Nom complet").fill(directorName)
     await dialog.getByLabel("Téléphone").fill(directorPhone)
-    await dialog.getByLabel("Année scolaire active").fill("2025-2026")
+    await dialog.getByLabel("Année scolaire active").fill("09/2026 - 06/2027")
 
     await dialog.getByRole("button", { name: "Créer l'école" }).click()
 
+    await expect(dialog.getByText("Identifiants directeur", { exact: true })).toBeVisible()
+    await expect(dialog.getByText(directorName, { exact: true })).toBeVisible()
+    await expect(dialog.getByText(directorPhone, { exact: true })).toBeVisible()
+    await expect(dialog.getByText("Mot de passe généré").locator("..").locator("dd")).not.toBeEmpty()
+    await dialog.getByRole("button", { name: "Accéder à la config école" }).click()
     await expect(page).toHaveURL(/\/admin\/schools\/.+/)
-    await page.getByRole("tab", { name: "Utilisateurs" }).click()
 
-    const credentialsAlert = page.getByRole("alert").filter({ hasText: "Accès responsable" })
-    await expect(credentialsAlert).toBeVisible()
-    await expect(credentialsAlert.getByText(`Nom: ${directorName}`, { exact: false })).toBeVisible()
-    await expect(credentialsAlert.getByText(`Téléphone: ${directorPhone}`, { exact: false })).toBeVisible()
-
-    const accessTitle = page.getByText("Accès responsable", { exact: true })
-    if ((await accessTitle.count()) > 0) {
-      await expect(accessTitle).toBeVisible()
-      await expect(page.getByText(/Mot de passe:/)).toBeVisible()
-    }
   })
 
   test("la navigation vers le détail école fonctionne", async ({ page, request }) => {
@@ -104,10 +98,10 @@ test.describe("Console Super Admin - Écoles", () => {
     const row = page.locator("tbody tr").filter({ hasText: created.schoolName }).first()
     await expect(row).toBeVisible()
 
-    await row.getByRole("button", { name: "Voir détail" }).click({ force: true })
+    await row.getByRole("button", { name: "Voir détail" }).click()
 
     await expect(page).toHaveURL(/\/admin\/schools\/.+/)
-    await expect(page.getByText("Configuration école", { exact: true })).toBeVisible()
+    await expect(page.getByRole("heading", { name: created.schoolName, exact: true })).toBeVisible()
   })
 
   test("la modification du plan d'une école est sauvegardée", async ({ page, request }) => {
@@ -120,16 +114,18 @@ test.describe("Console Super Admin - Écoles", () => {
     const row = page.locator("tbody tr").filter({ hasText: created.schoolName }).first()
     await expect(row).toBeVisible()
 
-    await row.getByRole("button", { name: "Config" }).click({ force: true })
+    await row.getByRole("button", { name: "Config" }).click()
     await expect(page).toHaveURL(/\/admin\/schools\/.+/)
 
     const planCombobox = page.getByText("Plan", { exact: true }).locator("..").getByRole("combobox")
-    await planCombobox.click()
+    await expect(page.getByRole("heading", { name: created.schoolName, exact: true })).toBeVisible()
+    await planCombobox.focus()
+    await planCombobox.press("ArrowDown")
     await page.getByRole("option", { name: "pro", exact: true }).click()
 
     await page.getByRole("button", { name: "Enregistrer la configuration" }).click()
 
-    await expect(page.getByText("Configuration école mise à jour", { exact: true }).first()).toBeVisible()
+    await expect(page.getByText("Configuration mise à jour", { exact: true }).first()).toBeVisible()
     await expect(planCombobox).toContainText("pro")
   })
 })

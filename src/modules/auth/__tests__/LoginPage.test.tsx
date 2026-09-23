@@ -106,7 +106,7 @@ describe("LoginPage", () => {
     })
   })
 
-  it("redirige vers /attendance après connexion réussie pour un prof", async () => {
+  it("redirige vers /dashboard après connexion réussie pour un prof", async () => {
     loginMock.mockResolvedValueOnce({
       accessToken: TEACHER_TOKEN,
       user: { id: "u1", role: "teacher", name: "Yao Marie", phone: null, email: null, profilePhotoUrl: null },
@@ -119,7 +119,7 @@ describe("LoginPage", () => {
     fireEvent.submit(screen.getByRole("button", { name: /se connecter/i }).closest("form")!)
 
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith("/attendance")
+      expect(navigateMock).toHaveBeenCalledWith("/dashboard")
     })
   })
 })

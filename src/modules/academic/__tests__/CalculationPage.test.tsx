@@ -57,7 +57,7 @@ describe("CalculationPage", () => {
     expect(screen.getByText("1 note")).toBeInTheDocument()
     expect(screen.queryByText("Moyenne / 20")).not.toBeInTheDocument()
     expect(screen.queryByText("Conduite en masse")).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Consulter" }))
+    fireEvent.click(screen.getByRole("button", { name: "Consulter les notes de Awa Koné" }))
     expect(await screen.findByText("Notes de Awa Koné")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Close" }))
 
@@ -74,7 +74,7 @@ describe("CalculationPage", () => {
 
     expect(await screen.findByText("Moyenne / 20")).toBeInTheDocument()
     expect(screen.getByText("Cette matière est validée. Les moyennes et le détail des notes restent consultables.")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Notes" }))
+    fireEvent.click(screen.getByRole("button", { name: "Consulter les notes de Awa Koné" }))
     expect(await screen.findByText("Notes de Awa Koné")).toBeInTheDocument()
   })
 
@@ -93,7 +93,7 @@ describe("CalculationPage", () => {
 
     await screen.findByText("Notes de Mathématiques")
     fireEvent.click(screen.getByRole("button", { name: "Voir les moyennes par élève" }))
-    fireEvent.click(await screen.findByRole("button", { name: "Définir" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Définir la conduite de Awa Koné" }))
     expect(await screen.findByText("Avis des enseignants")).toBeInTheDocument()
     expect(screen.getByText("Mme Traoré · 17/20")).toBeInTheDocument()
     fireEvent.change(screen.getByRole("spinbutton", { name: "Note finale / 20" }), { target: { value: "18" } })

@@ -1,48 +1,26 @@
 import { expect, test } from "@playwright/test"
+import { returningUser } from "../ui-helpers"
 
 test.describe("Parent portal flow", () => {
   test.use({ storageState: "e2e/.auth/parent.json" })
 
   test("dashboard, absences et compte", async ({ page }) => {
-    await page.route("**/api/v1/school/info", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ name: "E2E School" }),
-      })
-    })
-
+    await returningUser(page)
     await page.goto("/parent/dashboard")
-    if (page.url().includes("/parent/login")) {
-      const credentials = await page.evaluate(() => ({
-        phone: window.localStorage.getItem("e2e_parent_phone") ?? "",
-        password: window.localStorage.getItem("e2e_parent_password") ?? "",
-      }))
-      await page.getByLabel("Votre numéro de téléphone").fill(credentials.phone)
-      await page.getByLabel("Mot de passe").fill(credentials.password)
-      await page.getByRole("button", { name: "Se connecter" }).click()
-      await page.waitForURL("**/parent/dashboard**")
-    }
-    await expect(page.getByRole("heading", { name: "Suivi de présence" })).toBeVisible()
+    await expect(page).toHaveURL(/\/parent\/dashboard$/)
     await expect(page.getByRole("heading", { name: "Présence aujourd'hui" })).toBeVisible()
     await expect(page.getByText("Absences cette semaine")).toBeVisible()
     await expect(page.getByText("Taux d'absence ce mois")).toBeVisible()
 
-    await page.evaluate(() => {
-      const link = document.querySelector('a[href="/parent/absences"]') as HTMLAnchorElement | null
-      link?.click()
-    })
+    await page.getByRole("link", { name: "Absences", exact: true }).click()
     await expect(page).toHaveURL(/\/parent\/absences/)
     await expect(page.getByRole("heading", { name: /Historique des absences/ })).toBeVisible()
 
-    await page.evaluate(() => {
-      const link = document.querySelector('a[href="/parent/account"]') as HTMLAnchorElement | null
-      link?.click()
-    })
+    await page.getByRole("link", { name: "Compte", exact: true }).click()
     await expect(page).toHaveURL(/\/parent\/account/)
-    await expect(page.getByRole("heading", { name: "Mon compte" })).toBeVisible()
+    await expect(page.getByText("Mon compte", { exact: true })).toBeVisible()
 
-    const currentPassword = await page.evaluate(() => window.localStorage.getItem("e2e_parent_password") ?? "0000")
+    const currentPassword = process.env.E2E_PARENT_PASSWORD!
     await page.getByLabel("Mot de passe actuel").fill(currentPassword)
     await page.getByLabel("Nouveau mot de passe").fill("Parent1234!")
     await page.getByLabel("Confirmer le mot de passe").fill("Parent1234!")

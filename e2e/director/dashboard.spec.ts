@@ -164,7 +164,7 @@ test.describe("Dashboard directeur", () => {
     await expect(page.getByRole("tab")).toHaveCount(0)
   })
 
-  test('navigation vers /teachers depuis "Voir tous"', async ({ page }) => {
+  test('navigation vers les présences professeurs depuis "Voir tout"', async ({ page }) => {
     await mockDirectorAuth(page)
     await mockDashboardStats(page)
     await mockTodayAttendance(page)
@@ -188,7 +188,7 @@ test.describe("Dashboard directeur", () => {
 
     await loginAsDirectorUI(page)
 
-    await page.getByTestId("dashboard-risk-see-all").click()
+    await page.locator('a[href="/teachers?tab=analyse"]').click()
     await expect(page).toHaveURL(/\/teachers/)
   })
 })

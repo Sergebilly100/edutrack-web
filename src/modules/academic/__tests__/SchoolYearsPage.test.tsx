@@ -54,7 +54,7 @@ describe("SchoolYearsPage", () => {
 
   it("modifie uniquement la date de début de revue", async () => {
     renderPage()
-    const input = await screen.findByLabelText("Date de début de revue")
+    const input = await screen.findByLabelText(/Date de début de revue/)
     fireEvent.change(input, { target: { value: "2027-05-15" } })
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer la date" }))
 

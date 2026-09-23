@@ -1,3 +1,4 @@
+import { navigateMenu } from "../ui-helpers"
 import { expect, test } from "@playwright/test"
 
 import { loginAsDirectorUI, mockDirectorAuth } from "./helpers"
@@ -91,8 +92,7 @@ test.describe("Directeur - module paramètres", () => {
     if (await skipTour.isVisible().catch(() => false)) {
       await skipTour.click()
     }
-    await page.getByRole("button", { name: "Ouvrir le menu de navigation" }).click()
-    await page.getByRole("link", { name: "Paramètres" }).click()
+    await navigateMenu(page, "Administration", "Paramètres")
     await expect(page).toHaveURL(/\/settings/)
     await expect(page.getByText("Paramètres école")).toBeVisible()
   })
@@ -112,12 +112,14 @@ test.describe("Directeur - module paramètres", () => {
   test("le directeur voit le bouton 'Nouveau poste'", async ({ page }) => {
     await loginAsDirectorUI(page)
     await page.goto("/settings")
+    await page.getByRole("tab", { name: "Personnel" }).click()
     await expect(page.getByRole("button", { name: "Nouveau poste" })).toBeVisible()
   })
 
   test("ouvre le modal de création de poste en cliquant sur 'Nouveau poste'", async ({ page }) => {
     await loginAsDirectorUI(page)
     await page.goto("/settings")
+    await page.getByRole("tab", { name: "Personnel" }).click()
     await page.getByRole("button", { name: "Nouveau poste" }).click()
     await expect(page.getByRole("dialog")).toBeVisible()
     await expect(page.getByRole("dialog").getByText("Nouveau poste")).toBeVisible()
@@ -127,6 +129,7 @@ test.describe("Directeur - module paramètres", () => {
   test("ferme le modal de création avec le bouton Annuler", async ({ page }) => {
     await loginAsDirectorUI(page)
     await page.goto("/settings")
+    await page.getByRole("tab", { name: "Personnel" }).click()
     await page.getByRole("button", { name: "Nouveau poste" }).click()
     await expect(page.getByRole("dialog")).toBeVisible()
     await page.getByRole("button", { name: "Annuler" }).click()
@@ -147,6 +150,7 @@ test.describe("Directeur - module paramètres", () => {
     })
     await loginAsDirectorUI(page)
     await page.goto("/settings")
+    await page.getByRole("tab", { name: "Personnel" }).click()
     await page.getByRole("button", { name: "Nouveau poste" }).click()
     await expect(page.getByRole("dialog")).toBeVisible()
 
@@ -160,6 +164,7 @@ test.describe("Directeur - module paramètres", () => {
   test("le bouton 'Créer le poste' est actif quand le nom est valide", async ({ page }) => {
     await loginAsDirectorUI(page)
     await page.goto("/settings")
+    await page.getByRole("tab", { name: "Personnel" }).click()
     await page.getByRole("button", { name: "Nouveau poste" }).click()
     await expect(page.getByRole("dialog")).toBeVisible()
 
@@ -171,6 +176,7 @@ test.describe("Directeur - module paramètres", () => {
   test("affiche la section 'Template SMS absence élève' pour le directeur", async ({ page }) => {
     await loginAsDirectorUI(page)
     await page.goto("/settings")
+    await page.getByRole("tab", { name: "Communication" }).click()
     await expect(page.getByText("Template SMS absence élève")).toBeVisible()
   })
 

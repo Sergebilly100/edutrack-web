@@ -12,8 +12,7 @@ export const loginAsStaffUI = async (page: Page) => {
     if (page.url().includes("/login")) {
       await expect(page.getByLabel("Identifiant")).toBeVisible()
       await page.getByLabel("Identifiant").fill(STAFF_IDENTIFIER)
-      await page.getByLabel("Mot de passe").fill(STAFF_PASSWORD)
-      await page.getByLabel("Schéma tenant").fill(TENANT_SCHEMA)
+      await page.getByLabel("Mot de passe", { exact: true }).fill(STAFF_PASSWORD)
       await page.getByRole("button", { name: "Se connecter" }).click()
     }
 

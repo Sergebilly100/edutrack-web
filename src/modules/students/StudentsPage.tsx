@@ -489,8 +489,8 @@ export default function StudentsPage() {
                   title={`Aucun ${studentLabels.singularLower}`}
                   message={`Aucun ${studentLabels.singularLower} trouvé avec les filtres actuels.`}
                   action={
-                    canCreateStudent
-                      ? { label: `Ajouter un ${studentLabels.singularLower}`, onClick: () => setCreateDialogOpen(true), icon: AddIcon }
+                    hasPermission("enrollments.create")
+                      ? { label: `Inscrire un ${studentLabels.singularLower}`, onClick: () => navigate("/enrollments/new"), icon: AddIcon }
                       : undefined
                   }
                 />

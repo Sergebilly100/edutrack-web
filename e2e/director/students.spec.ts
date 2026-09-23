@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-import { mockDirectorAuth } from "./helpers"
+import { returningUser } from "../ui-helpers"
 
 const STUDENT_ID = "student-e2e-1"
 
@@ -23,6 +23,7 @@ const STUDENT = {
 }
 
 async function setupStudentsPage(page: import("@playwright/test").Page, students: unknown[] = [STUDENT]) {
+  await returningUser(page)
   await page.setViewportSize({ width: 1280, height: 900 })
 
   // Un seul catch-all qui gère toutes les routes par path - pas de conflits de priorité
@@ -47,7 +48,7 @@ async function setupStudentsPage(page: import("@playwright/test").Page, students
       return route.fulfill({ status: 200, contentType: "application/json",
         body: JSON.stringify({ permissions: [
           "teachers.view", "teachers.edit", "teachers.block", "teachers.documents",
-          "students.view", "students.create",
+          "students.view", "students.create", "enrollments.create", "enrollments.view",
           "schedule.view", "schedule.edit",
           "attendance.view",
           "salary.view", "salary.mark_paid", "salary.export",
@@ -130,8 +131,8 @@ async function setupStudentsPage(page: import("@playwright/test").Page, students
 
 test.describe("Gestion élèves - directeur", () => {
   test("la page élèves s'affiche avec le titre", async ({ page }) => {
-    await setupStudentsPage(page)
-    await expect(page.getByRole("heading", { name: /élèves/i })).toBeVisible({ timeout: 10000 })
+    await setupStudentsPage(page, [])
+    await expect(page.getByRole("heading", { name: /élèves/i }).first()).toBeVisible({ timeout: 10000 })
   })
 
   test("la liste affiche un élève avec son nom et sa classe", async ({ page }) => {
@@ -154,11 +155,11 @@ test.describe("Gestion élèves - directeur", () => {
     await expect(page).toHaveURL(new RegExp(`/students/${STUDENT_ID}`))
   })
 
-  test("le bouton 'Ajouter un élève' ouvre la modale", async ({ page }) => {
-    await setupStudentsPage(page)
-    await expect(page.getByRole("heading", { name: /élèves/i })).toBeVisible({ timeout: 10000 })
-    await page.getByRole("button", { name: /ajouter un élève/i }).click()
-    await expect(page.getByRole("dialog")).toBeVisible()
-    await expect(page.getByRole("dialog").getByRole("heading", { name: /ajouter un élève/i })).toBeVisible()
+  test("la liste vide ouvre le parcours d’inscription", async ({ page }) => {
+    await setupStudentsPage(page, [])
+    await expect(page.getByRole("heading", { name: /élèves/i }).first()).toBeVisible({ timeout: 10000 })
+    await page.getByRole("button", { name: /inscrire un élève/i }).click()
+    await expect(page).toHaveURL(/\/enrollments\/new$/)
+    await expect(page.getByRole("heading", { name: "Nouvelle inscription" })).toBeVisible()
   })
 })

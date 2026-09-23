@@ -55,7 +55,7 @@ const mockOnboardingApis = async (page: import("@playwright/test").Page) => {
         body: JSON.stringify({ success: true }),
       })
     } else {
-      await route.continue()
+      await route.fallback()
     }
   })
 
@@ -77,7 +77,7 @@ const mockOnboardingApis = async (page: import("@playwright/test").Page) => {
         body: JSON.stringify({ data: [], pagination: { page: 1, limit: 200, total: 0, totalPages: 0 } }),
       })
     } else {
-      await route.continue()
+      await route.fallback()
     }
   })
 
@@ -90,7 +90,7 @@ const mockOnboardingApis = async (page: import("@playwright/test").Page) => {
         body: JSON.stringify({ data: [], pagination: { page: 1, limit: 100, total: 0, totalPages: 0 } }),
       })
     } else {
-      await route.continue()
+      await route.fallback()
     }
   })
 
@@ -144,4 +144,54 @@ test.describe("Onboarding wizard - directeur", () => {
     await expect(page.getByRole("heading", { name: /étape 1.*infos école/i })).toBeVisible({ timeout: 10000 })
     await expect(page.getByRole("button", { name: /continuer/i })).toBeVisible()
   })
+})
+
+test("F35 : parcourt les cinq étapes et conserve la progression après rechargement", async ({ page }) => {
+  await mockDirectorAuth(page)
+  await mockOnboardingApis(page)
+  let completed = false
+  let school: Record<string, unknown> = { name: "", phone: "", address: "" }
+  let teacher: Record<string, unknown> | null = null
+  await page.route("**/api/v1/school/info*", async (route) => {
+    if (route.request().method() === "PATCH") school = route.request().postDataJSON()
+    await route.fulfill({ json: { ...school, onboarding_completed: completed, teaching_type: "secondaire" } })
+  })
+  await page.route("**/api/v1/teachers*", async (route) => {
+    if (route.request().method() === "POST") {
+      teacher = { id: "teacher-onboarding-qa", ...route.request().postDataJSON() }
+      await route.fulfill({ status: 201, json: teacher })
+    } else {
+      await route.fulfill({ json: teacher ? [teacher] : [] })
+    }
+  })
+  await page.route("**/api/v1/school/onboarding-complete*", async (route) => {
+    expect(route.request().method()).toBe("PATCH")
+    completed = true
+    await route.fulfill({ json: { success: true } })
+  })
+  await loginAndGoToOnboarding(page)
+  await page.getByLabel("Nom de l'école").fill("École configuration QA")
+  await page.getByLabel("Téléphone", { exact: true }).fill("2250700001122")
+  await page.getByLabel("Adresse", { exact: true }).fill("Abidjan")
+  await page.getByRole("button", { name: "Continuer", exact: true }).click()
+  await expect(page.getByRole("heading", { name: "Étape 2 - Professeurs" })).toBeVisible()
+  expect(school).toEqual({ name: "École configuration QA", phone: "2250700001122", address: "Abidjan" })
+  await expect(page.getByRole("button", { name: "Continuer", exact: true })).toBeDisabled()
+  await page.getByPlaceholder("Nom du prof").fill("Professeur QA")
+  await page.getByPlaceholder("Matière", { exact: true }).fill("Mathématiques")
+  await page.getByRole("button", { name: "Ajouter le professeur" }).click()
+  await expect(page.getByText("1 professeur(s)", { exact: true })).toBeVisible()
+  expect(teacher).toMatchObject({ name: "Professeur QA", subjects: ["Mathématiques"], type: "vacataire" })
+  await page.reload()
+  await expect(page.getByRole("heading", { name: "Étape 2 - Professeurs" })).toBeVisible()
+  await page.getByRole("button", { name: "Continuer", exact: true }).click()
+  await expect(page.getByRole("heading", { name: /Étape 3/ })).toBeVisible()
+  await page.getByRole("button", { name: "Passer cette étape", exact: true }).click()
+  await expect(page.getByRole("heading", { name: "Étape 4 - Emploi du temps" })).toBeVisible()
+  await page.getByRole("button", { name: "Continuer", exact: true }).click()
+  await expect(page.getByRole("heading", { name: /Configuration terminée/ })).toBeVisible()
+  await page.getByRole("button", { name: "Accéder au tableau de bord" }).click()
+  await expect(page).toHaveURL(/\/dashboard$/)
+  expect(completed).toBe(true)
+  expect(await page.evaluate(() => localStorage.getItem("onboarding_progress"))).toBeNull()
 })

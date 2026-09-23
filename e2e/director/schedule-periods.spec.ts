@@ -118,35 +118,6 @@ test.describe("Périodes EDT - directeur", () => {
     await expect(page.getByText(/trimestre 1/i)).toBeVisible({ timeout: 10000 })
   })
 
-  test("dupliquer une période → message de succès", async ({ page }) => {
-    await mockScheduleApis(page, true)
-    await page.setViewportSize({ width: 1280, height: 900 })
-    await page.addInitScript(() => localStorage.setItem("schedule-view-mode", "list"))
-    await loginAsDirectorUI(page)
-
-    await page.goto("/schedule")
-    await expect(page.getByText(/trimestre 1/i)).toBeVisible({ timeout: 10000 })
-
-    // Si un bouton "Dupliquer" est présent, l'utiliser
-    const duplicateButton = page.getByRole("button", { name: /dupliquer/i })
-    const hasDuplicate = await duplicateButton.isVisible({ timeout: 3000 }).catch(() => false)
-
-    if (hasDuplicate) {
-      await duplicateButton.click()
-      // Remplir le dialog de duplication si nécessaire
-      const dialog = page.getByRole("dialog")
-      const dialogVisible = await dialog.isVisible({ timeout: 3000 }).catch(() => false)
-      if (dialogVisible) {
-        const nameInput = dialog.getByPlaceholder(/nom/i)
-        if (await nameInput.isVisible({ timeout: 1000 }).catch(() => false)) {
-          await nameInput.fill("Trimestre 2")
-        }
-        await dialog.getByRole("button", { name: /dupliquer|confirmer/i }).click()
-      }
-      await expect(page.getByText(/trimestre 2|dupliqué|copié/i)).toBeVisible({ timeout: 5000 })
-    } else {
-      // La feature de duplication est backend-only pour l'instant - vérifier juste l'affichage
-      test.skip(true, "Bouton de duplication non présent dans l'UI actuelle")
-    }
-  })
+  // Duplication is API-only in the current product, covered with persistence
+  // by qa.school-workflows.routes.test.ts; no conditionally skipped UI promise.
 })

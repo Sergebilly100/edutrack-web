@@ -77,7 +77,7 @@ test.describe("Workflow attendance prof - offline → online", () => {
 
     // Vérifier qu'on est bien sur l'interface PROF (pas directeur)
     await expect(page.getByRole("heading", { name: "Mon planning" })).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText("Espace professeur")).toBeVisible()
+    await expect(page.getByRole("link", { name: "Mes cours" })).toBeVisible()
 
     // 2) Couper le réseau attendance
     await setApiOffline(page)

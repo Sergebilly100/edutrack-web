@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test"
+import { returningUser } from "../ui-helpers"
 
 const TEACHER_IDENTIFIER = process.env.E2E_TEACHER_IDENTIFIER ?? "kouadio.nguessan@sainte-marie.ci"
 const TEACHER_PASSWORD = process.env.E2E_TEACHER_PASSWORD ?? "Test1234!"
@@ -83,6 +84,7 @@ export const mockTeacherFlowApis = async (
   page: Page,
   options: TeacherFlowMockOptions = {}
 ): Promise<{ slot: Slot; todayKey: string }> => {
+  await returningUser(page)
   const baseSlot = createCurrentSlot()
   const slot: Slot = { ...baseSlot, ...(options.slot ?? {}) }
   const todayKey = toDateKey(new Date())
@@ -255,12 +257,10 @@ export const loginAsTeacherUI = async (page: Page) => {
       await page.waitForURL(/\/dashboard(\/|\?|$)/, { timeout: 20000 })
     } else {
       await expect(page.getByLabel("Identifiant")).toBeVisible({ timeout: 15000 })
-      await expect(page.getByLabel("Mot de passe")).toBeVisible({ timeout: 15000 })
-      await expect(page.getByLabel("Schéma tenant")).toBeVisible({ timeout: 15000 })
+      await expect(page.getByLabel("Mot de passe", { exact: true })).toBeVisible({ timeout: 15000 })
 
       await page.getByLabel("Identifiant").fill(TEACHER_IDENTIFIER)
-      await page.getByLabel("Mot de passe").fill(TEACHER_PASSWORD)
-      await page.getByLabel("Schéma tenant").fill(TENANT_SCHEMA)
+      await page.getByLabel("Mot de passe", { exact: true }).fill(TEACHER_PASSWORD)
       await page.getByRole("button", { name: "Se connecter" }).click()
       await page.waitForURL(/\/dashboard(\/|\?|$)/, { timeout: 20000 })
     }

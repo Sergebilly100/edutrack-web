@@ -3,7 +3,7 @@ import { expect, type APIRequestContext, type Page } from "@playwright/test"
 export const ADMIN_IDENTIFIER = process.env.E2E_ADMIN_IDENTIFIER ?? "admin@edutrack.ci"
 export const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? "Test1234!"
 export const ADMIN_SCHEMA = process.env.E2E_ADMIN_SCHEMA_NAME ?? "school_sainte_marie"
-const API_BASE_URL = process.env.E2E_API_URL ?? process.env.VITE_API_URL ?? "http://localhost:3000/api/v1"
+export const API_BASE_URL = process.env.E2E_API_URL ?? process.env.VITE_API_URL ?? "http://localhost:3000/api/v1"
 
 type LoginPayload = {
   accessToken: string
@@ -33,29 +33,11 @@ export type AdminApiAuth = {
 }
 
 export const loginAsAdminUI = async (page: Page) => {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    await page.goto("/login")
-    await page.waitForURL(/\/(login|admin)(\/|\?|$)/, { timeout: 15000 })
-
-    if (page.url().includes("/login")) {
-      await expect(page.getByLabel("Identifiant")).toBeVisible()
-      await page.getByLabel("Identifiant").fill(ADMIN_IDENTIFIER)
-      await page.getByLabel("Mot de passe").fill(ADMIN_PASSWORD)
-      await page.getByLabel("Schéma tenant").fill(ADMIN_SCHEMA)
-      await page.getByRole("button", { name: "Se connecter" }).click()
-    }
-
-    try {
-      await page.waitForURL(/\/admin(\/|\?|$)/, { timeout: 25000 })
-      break
-    } catch (error) {
-      if (attempt === 1) {
-        throw error
-      }
-    }
-  }
-
-  await expect(page).toHaveURL(/\/admin/)
+  await page.goto("/admin/login")
+  await page.getByLabel("Identifiant", { exact: true }).fill(ADMIN_IDENTIFIER)
+  await page.getByLabel("Mot de passe", { exact: true }).fill(ADMIN_PASSWORD)
+  await page.getByRole("button", { name: "Se connecter" }).click()
+  await expect(page).toHaveURL(/\/admin$/)
 }
 
 export const createAdminApiAuth = async (request: APIRequestContext): Promise<AdminApiAuth> => {
@@ -67,7 +49,7 @@ export const createAdminApiAuth = async (request: APIRequestContext): Promise<Ad
     }
   }
 
-  const loginResponse = await request.post(`${API_BASE_URL}/auth/login/teacher`, {
+  const loginResponse = await request.post(`${API_BASE_URL}/auth/login/admin`, {
     headers: {
       "x-tenant-schema": ADMIN_SCHEMA,
     },
@@ -108,7 +90,7 @@ export const createSchoolViaApi = async (
     teaching_type: "secondaire",
     plan,
     max_admin_positions: 5,
-    active_school_year: `${currentYear}-${currentYear + 1}`,
+    active_school_year: `09/${currentYear} - 06/${currentYear + 1}`,
     director_name: `Directeur E2E ${uniq}`,
     director_phone: `22507${String(uniq).slice(-8)}`,
     director_email: `directeur.${uniq}@edutrack.ci`,
@@ -119,7 +101,7 @@ export const createSchoolViaApi = async (
     data: payload,
   })
 
-  expect(createResponse.ok(), "Create school API failed").toBeTruthy()
+  expect(createResponse.ok(), await createResponse.text()).toBeTruthy()
   const created = (await createResponse.json()) as CreateSchoolResponse
 
   return {

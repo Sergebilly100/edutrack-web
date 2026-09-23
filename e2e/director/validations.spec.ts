@@ -173,6 +173,8 @@ test.describe("Validations - directeur", () => {
     await page.goto("/validations")
 
     await page.getByRole("tab", { name: /scan de fin/i }).click()
+    await page.getByRole("combobox", { name: "Statut des scans de fin" }).click()
+    await page.getByRole("option", { name: "Tous les statuts" }).click()
 
     await expect(page.getByText("M. Diallo")).toBeVisible()
     // Badge "X sanction" visible dans la ligne du prof
@@ -210,6 +212,8 @@ test.describe("Validations - directeur", () => {
     await page.goto("/validations")
 
     await page.getByRole("tab", { name: /scan de fin/i }).click()
+    await page.getByRole("combobox", { name: "Statut des scans de fin" }).click()
+    await page.getByRole("option", { name: "Tous les statuts" }).click()
     await page.getByText("M. Diallo").click()
 
     await expect(page.getByRole("button", { name: /tolérer avec avertissement/i })).toBeVisible()
@@ -250,6 +254,8 @@ test.describe("Validations - directeur", () => {
     await page.goto("/validations")
 
     await page.getByRole("tab", { name: /scan de fin/i }).click()
+    await page.getByRole("combobox", { name: "Statut des scans de fin" }).click()
+    await page.getByRole("option", { name: "Tous les statuts" }).click()
     await page.getByText("M. Diallo").click()
     await page.getByRole("button", { name: /tolérer avec avertissement/i }).click()
 
@@ -288,6 +294,8 @@ test.describe("Validations - directeur", () => {
     await page.goto("/validations")
 
     await page.getByRole("tab", { name: /scan de fin/i }).click()
+    await page.getByRole("combobox", { name: "Statut des scans de fin" }).click()
+    await page.getByRole("option", { name: "Tous les statuts" }).click()
     await page.getByText("M. Diallo").click()
 
     await expect(page.getByText("Sanctionné").filter({ visible: true }).first()).toBeVisible()

@@ -40,10 +40,10 @@ function renderWithClient(ui: ReactNode) {
   )
 }
 
-function renderAcademicPage() {
+function renderAcademicPage(path = "/academic/notes?classId=c1&gradingPeriodId=p1&lessonSlotId=slot1") {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <MemoryRouter initialEntries={["/academic/notes?classId=c1&gradingPeriodId=p1&lessonSlotId=slot1"]}>
+    <MemoryRouter initialEntries={[path]}>
       <QueryClientProvider client={queryClient}><NotesPage /></QueryClientProvider>
     </MemoryRouter>,
   )
@@ -144,10 +144,10 @@ describe("NotesPage", () => {
       evaluations: [],
       completion: [{ subjectId: "s1", subjectName: "Mathématiques", subjectCoefficient: 4, status: "in_progress", completedAt: null, calculationStarted: false, teacher: null }],
     })
-    renderAcademicPage()
+    renderAcademicPage("/academic/notes?classId=c1&gradingPeriodId=p1")
 
     fireEvent.click(await screen.findByRole("button", { name: "Programmer une évaluation" }))
-    expect(screen.getByText("Aucun créneau — EDT non configuré")).toBeInTheDocument()
+    expect(screen.getByText("Aucun créneau - EDT non configuré")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Programmer" })).toBeDisabled()
   })
 })

@@ -1,9 +1,8 @@
 import { expect, type Page, type PlaywrightTestArgs } from "@playwright/test"
+import { returningUser } from "../ui-helpers"
 
 export const mockDirectorAuth = async (page: Page) => {
-  await page.addInitScript(() => {
-    localStorage.setItem("ivoiredu-tour-done-dashboard", "1")
-  })
+  await returningUser(page)
   await page.route("**/api/v1/auth/refresh*", async (route) => {
     await route.fulfill({
       status: 200,
@@ -36,7 +35,9 @@ export const mockDirectorAuth = async (page: Page) => {
       body: JSON.stringify({
         permissions: [
           "teachers.view", "teachers.edit", "teachers.block", "teachers.documents",
-          "students.view",
+          "students.view", "students.create", "students.edit",
+          "enrollments.view", "enrollments.create", "enrollments.confirm_payment",
+          "school_years.view", "classes.view", "report_cards.view", "report_cards.publish",
           "schedule.view", "schedule.edit",
           "attendance.view",
           "salary.view", "salary.mark_paid", "salary.export",
@@ -135,7 +136,7 @@ export const loginAsDirectorUI = async (page: Page) => {
     if (page.url().includes("/login")) {
       await expect(page.getByLabel("Identifiant")).toBeVisible()
       await page.getByLabel("Identifiant").fill(DIRECTOR_IDENTIFIER)
-      await page.getByLabel("Mot de passe").fill(DIRECTOR_PASSWORD)
+      await page.getByLabel("Mot de passe", { exact: true }).fill(DIRECTOR_PASSWORD)
       const schemaInput = page.getByLabel("Schéma tenant")
       if (await schemaInput.count()) {
         await schemaInput.fill(TENANT_SCHEMA)

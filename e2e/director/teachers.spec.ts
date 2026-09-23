@@ -1,3 +1,4 @@
+import { navigateMenu } from "../ui-helpers"
 import { expect, test } from "@playwright/test"
 
 import { loginAsDirectorUI, mockDirectorAuth } from "./helpers"
@@ -126,8 +127,7 @@ test.describe("Gestion profs", () => {
     await mockDirectorAuth(page)
     await mockTeachersApis(page)
     await loginAsDirectorUI(page)
-    await page.getByRole("button", { name: "Ouvrir le menu de navigation" }).click()
-    await page.getByRole("link", { name: "Professeurs" }).click()
+    await navigateMenu(page, "Vie scolaire", "Professeurs")
     await expect(page).toHaveURL(/\/teachers/)
     await expect(page.getByRole("heading", { name: /Professeurs/i })).toBeVisible()
   })

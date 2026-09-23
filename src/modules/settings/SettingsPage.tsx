@@ -236,7 +236,7 @@ export default function SettingsPage() {
       ) : null}
 
       <Tabs defaultValue={defaultTab} className="space-y-4">
-      <TabsList className="flex-wrap h-auto w-full justify-start overflow-x-auto grid h-auto w-full rounded-xl border border-border grid-cols-7">
+      <TabsList className="grid h-auto w-full grid-cols-2 rounded-xl border border-border sm:grid-cols-4 lg:grid-cols-7">
         {canManageGeneralSettings ? <TabsTrigger value="general" className="min-h-12">Général</TabsTrigger> : null}
         {canManagePositions ? <TabsTrigger value="personnel" className="min-h-12">Personnel</TabsTrigger> : null}
         {canViewRequiredDocuments ? <TabsTrigger value="scolarite" className="min-h-12">Scolarité</TabsTrigger> : null}

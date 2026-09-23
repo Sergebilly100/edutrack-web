@@ -5,6 +5,10 @@ import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
 const submitBulk = vi.fn().mockResolvedValue({ savedCount: 2 })
+const listStudentsMock = vi.fn()
+vi.mock("@/modules/students/students.api", () => ({
+  listStudents: (...args: unknown[]) => listStudentsMock(...args),
+}))
 const { authState, listClassesMock } = vi.hoisted(() => ({
   authState: { permissions: [] as string[] },
   listClassesMock: vi.fn(),
@@ -63,6 +67,21 @@ describe("ConductPage professeur", () => {
   afterEach(() => {
     authState.permissions = []
     listClassesMock.mockReset()
+    listStudentsMock.mockReset()
+  })
+
+  it("charge aussi la deuxième page d’élèves pour la décision finale, avec la limite API de 100", async () => {
+    listStudentsMock
+      .mockResolvedValueOnce({ data: [{ id: "s1", firstName: "Awa", lastName: "Koné" }], pagination: { page: 1, limit: 100, total: 101, totalPages: 2 } })
+      .mockResolvedValueOnce({ data: [{ id: "s101", firstName: "Dernier", lastName: "Élève" }], pagination: { page: 2, limit: 100, total: 101, totalPages: 2 } })
+    renderWithClient(<ConductPage view="decision" />)
+    fireEvent.click(await screen.findByRole("combobox", { name: "Classe enseignée" }))
+    fireEvent.click(await screen.findByRole("option", { name: /6ème A/ }))
+    await waitFor(() => expect(listStudentsMock).toHaveBeenCalledTimes(2))
+    expect(listStudentsMock).toHaveBeenNthCalledWith(1, { classId: "c1", isActive: true, limit: 100, page: 1 })
+    expect(listStudentsMock).toHaveBeenNthCalledWith(2, { classId: "c1", isActive: true, limit: 100, page: 2 })
+    fireEvent.click(await screen.findByRole("combobox", { name: "Élève" }))
+    expect(await screen.findByRole("option", { name: "Dernier Élève" })).toBeInTheDocument()
   })
 
   it("permet d’attribuer une même note à tous les élèves sélectionnés", async () => {

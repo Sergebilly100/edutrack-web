@@ -1,3 +1,4 @@
+import { navigateMenu } from "../ui-helpers"
 import { expect, test } from "@playwright/test"
 
 import { loginAsDirectorUI, mockDirectorAuth, selectSalaryMonth, formatMonthLabel } from "./helpers"
@@ -145,7 +146,7 @@ test.describe("Page salaires", () => {
     await mockDirectorAuth(page)
     await mockSalaryApis(page)
     await loginAsDirectorUI(page)
-    await page.locator('a[href="/salaries"]:visible').first().click()
+    await navigateMenu(page, "Administration", "Salaires professeurs")
     await expect(page).toHaveURL(/\/salaries/)
     await selectSalaryMonth(page, PAYABLE_MONTH)
     await expect(page.getByTestId("salaries-page")).toBeVisible()

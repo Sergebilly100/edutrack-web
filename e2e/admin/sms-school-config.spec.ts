@@ -7,7 +7,7 @@ test.describe("Console Super Admin - SMS & configuration école", () => {
 
   test("la sidebar distingue correctement Dashboard et Écoles", async ({ page }) => {
     await loginAsAdminUI(page)
-    await expect(page.getByRole("heading", { name: "Console EduTrack" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Console IvoirEdu" })).toBeVisible()
 
     await page.getByRole("link", { name: "Écoles" }).click()
     await expect(page).toHaveURL(/\/admin\/schools/)
@@ -15,14 +15,15 @@ test.describe("Console Super Admin - SMS & configuration école", () => {
 
     await page.getByRole("link", { name: "Dashboard" }).click()
     await expect(page).toHaveURL(/\/admin$/)
-    await expect(page.getByRole("heading", { name: "Console EduTrack" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Console IvoirEdu" })).toBeVisible()
   })
 
   test("les templates globaux SMS se chargent et peuvent être enregistrés", async ({ page }) => {
     await loginAsAdminUI(page)
-    await page.getByRole("link", { name: "SMS & Notifs" }).click()
+    await page.getByRole("button", { name: "Plateforme", exact: true }).click()
+    await page.getByRole("link", { name: "Pilotage SMS" }).click()
 
-    await expect(page.getByRole("heading", { name: "SMS & Notifs" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Pilotage SMS" })).toBeVisible()
     await page.getByRole("tab", { name: "Gouvernance" }).click()
 
     await expect(page.getByText("Templates globaux SMS", { exact: true })).toBeVisible()
@@ -57,23 +58,26 @@ test.describe("Console Super Admin - SMS & configuration école", () => {
 
     const row = page.locator("tbody tr").filter({ hasText: created.schoolName }).first()
     await expect(row).toBeVisible()
-    await row.getByRole("button", { name: "Config" }).click({ force: true })
+    await row.getByRole("button", { name: "Config" }).click()
 
     await expect(page).toHaveURL(/\/admin\/schools\/.+/)
 
     await page.getByRole("tab", { name: "SMS" }).click()
-    await expect(page.getByText("Accès SMS côté école")).toBeVisible()
-    await expect(page.getByText("Personnalisation templates école")).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Paramètres SMS" })).toBeVisible()
+    await page.getByLabel("Gratuit", { exact: true }).check()
+    await page.getByRole("button", { name: "Sauvegarder le mode" }).click()
+    await expect(page.getByText("Configuration SMS mise à jour", { exact: true }).first()).toBeVisible()
 
-    await page.getByRole("button", { name: "Enregistrer ce paramètre" }).click()
-    await expect(page.getByText("Paramètre SMS mis à jour", { exact: true }).first()).toBeVisible()
-
-    await page.getByRole("tab", { name: "Abonnement & Paiements" }).click()
-    await expect(page.getByText("Enregistrer un paiement manuel")).toBeVisible()
-
+    await page.getByRole("tab", { name: "Facturation", exact: true }).click()
+    await expect(page.getByText("Enregistrer un paiement", { exact: true })).toBeVisible()
+    const paymentForm = page.getByText("Enregistrer un paiement", { exact: true }).locator("../..")
     const reference = `E2E-PAY-${Date.now()}`
-    await page.getByPlaceholder("Ex: 25000").fill("15000")
-    await page.getByPlaceholder("Optionnel").fill(reference)
+    await paymentForm.getByRole("spinbutton").fill("15000")
+    await paymentForm.getByPlaceholder("Optionnel").fill(reference)
+    await paymentForm.getByRole("combobox").nth(1).click()
+    await page.getByRole("option").first().click()
+    await paymentForm.getByRole("combobox").nth(2).click()
+    await page.getByRole("option").first().click()
 
     const paymentResponsePromise = page.waitForResponse(
       (response) =>
@@ -81,7 +85,7 @@ test.describe("Console Super Admin - SMS & configuration école", () => {
         response.request().method() === "POST"
     )
 
-    await page.getByRole("button", { name: "+ Enregistrer le paiement" }).click()
+    await page.getByRole("button", { name: "Enregistrer le paiement", exact: true }).click()
     const paymentResponse = await paymentResponsePromise
     expect(paymentResponse.ok()).toBeTruthy()
     await expect(page.getByText("Paiement enregistré", { exact: true }).first()).toBeVisible()
