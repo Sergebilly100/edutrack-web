@@ -5,6 +5,16 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,6 +45,7 @@ export default function NotesPage() {
   const [classId, setClassId] = useState(searchParams.get("classId") ?? "")
   const [selectedPeriodId, setSelectedPeriodId] = useState(searchParams.get("gradingPeriodId") ?? "")
   const [createOpen, setCreateOpen] = useState(false)
+  const [pendingCalculationSubjectId, setPendingCalculationSubjectId] = useState<string | null>(null)
   const [selectedEvaluationId, setSelectedEvaluationId] = useState<string | null>(null)
   const [draft, setDraft] = useState({ label: "", lessonSlotId: "", subjectId: "", coefficient: "1", evaluationDate: "" })
 
@@ -78,11 +89,16 @@ export default function NotesPage() {
       label: draft.label.trim(),
       evaluationDate: draft.evaluationDate,
     }),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await invalidateScope()
       setCreateOpen(false)
       setDraft({ label: "", lessonSlotId: "", subjectId: "", coefficient: "1", evaluationDate: "" })
-      toast({ title: "Évaluation programmée" })
+      toast({
+        title: "Évaluation programmée",
+        description: result.routedToPeriod
+          ? `Elle a été rattachée à ${result.routedToPeriod.label}.`
+          : undefined,
+      })
     },
     onError: (error) => toast({
       title: "Création impossible",
@@ -110,6 +126,7 @@ export default function NotesPage() {
   })
 
   const scheduledEvaluations = scopeQuery.data?.evaluations.filter((item) => item.type === "scheduled") ?? []
+  const hasEnteredScheduledGrade = scheduledEvaluations.some((evaluation) => evaluation.grades.length > 0)
   const activeStudents = studentsQuery.data?.data ?? []
   const scheduledCountBySubject = new Map<string, number>()
   for (const evaluation of scheduledEvaluations) {
@@ -117,7 +134,7 @@ export default function NotesPage() {
   }
   const completionBySubject = new Map((scopeQuery.data?.completion ?? []).map((item) => [item.subjectId, item]))
   const isSubjectClosed = (subjectId: string | null | undefined) =>
-    isPeriodReadOnly || completionBySubject.get(subjectId ?? "")?.status === "completed"
+    isPeriodReadOnly || completionBySubject.get(subjectId ?? "")?.calculationStarted === true
   const isSubjectReadyForCalculation = (subjectId: string) => {
     const evaluations = scheduledEvaluations.filter((evaluation) => evaluation.subjectId === subjectId)
     return evaluations.length > 0 && evaluations.every((evaluation) =>
@@ -128,9 +145,18 @@ export default function NotesPage() {
   const availableDraftSubjects = selectedDraftSlot?.subjectId
     ? (scopeQuery.data?.subjects ?? []).filter((item) => item.id === selectedDraftSlot.subjectId)
     : (scopeQuery.data?.subjects ?? [])
+  const nextPeriod = periods
+    .filter((period) => activePeriod && period.startDate > activePeriod.startDate)
+    .sort((left, right) => left.startDate.localeCompare(right.startDate))[0]
+  const draftSubjectIsLocked = completionBySubject.get(draft.subjectId)?.calculationStarted === true
+  const draftTargetPeriod = draftSubjectIsLocked ? nextPeriod : activePeriod
   const canCreate = draft.label.trim() !== "" && draft.subjectId !== "" && draft.evaluationDate !== ""
+    && (!draftSubjectIsLocked || Boolean(nextPeriod))
     && Number.isFinite(Number(draft.coefficient)) && Number(draft.coefficient) > 0
   const selectedEvaluation = scheduledEvaluations.find((evaluation) => evaluation.id === selectedEvaluationId) ?? null
+  const pendingCalculationSubject = (scopeQuery.data?.completion ?? []).find(
+    (subject) => subject.subjectId === pendingCalculationSubjectId,
+  )
 
   return (
     <>
@@ -309,112 +335,148 @@ export default function NotesPage() {
               </div>
             </section>
 
-            <section
-              aria-labelledby="calculation-title"
-              className="rounded-lg border bg-card p-2 shadow-sm md:p-5"
-            >
-              <div className="mb-2 flex gap-2 border-b pb-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted">
-                  <ClipboardCheck className="h-4 w-4" />
-                </span>
-                <div>
-                  <h2 id="calculation-title" className="font-semibold">
-                    Calculer et valider par matière
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    Une fois toutes les notes saisies, calculez les moyennes,
-                    puis validez-les lorsque vous ne souhaitez plus les modifier.
-                  </p>
-                </div>
-              </div>
-              <div>
-                {(scopeQuery.data?.completion.length ?? 0) === 0 ? (
-                  <EmptyState
-                    title="Aucune matière à clôturer"
-                    description=""
-                    classNameRendu="py-0"
-                    icon="none"
-                  />
-                ) : (
-                  <div className="divide-y rounded-lg border">
-                    {(scopeQuery.data?.completion ?? []).map((subject) => {
-                      const count =
-                        scheduledCountBySubject.get(subject.subjectId) ?? 0;
-                      const readyForCalculation = isSubjectReadyForCalculation(subject.subjectId)
-                      const actionLabel =
-                        subject.status === "completed"
-                          ? "Consulter les moyennes"
-                          : subject.calculationStarted
-                            ? "Ouvrir le calcul"
-                            : "Calculer les moyennes";
-                      return (
-                        <div
-                          key={subject.subjectId}
-                          className="flex flex-col gap-2 p-2 flex-row justify-between"
-                        >
-                          <div className="inline-flex whitespace-nowrap justify-between gap-2 min-w-0">
-                            <p className="font-medium">{subject.subjectName}
-                              <span className="text-sm  text-muted-foreground"> ({count} évaluation{count > 1 ? "s" : ""}) </span>
-                            </p>
-                            <span>
-                              {subject.status === "completed" ? (
-                                <Badge variant="outline">
-                                  <CheckCircle2 className="mr-1 h-3 w-3" />
-                                  Validée
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary">
-                                  {subject.calculationStarted
-                                    ? "Calcul en cours"
-                                    : "Saisie en cours"}
-                                </Badge>
-                              )}
-                            </span>
-                          </div>
-                          <div className="flex flex-col gap-2 sm:items-end">
-
-                            <Button
-                              type="button"
-                              variant={
-                                subject.calculationStarted ? "outline" : "default"
-                              }
-                              className="min-h-6 w-full sm:w-auto"
-                              disabled={
-                                completionMutation.isPending ||
-                                (!subject.calculationStarted && !readyForCalculation) ||
-                                (isPeriodReadOnly && !subject.calculationStarted)
-                              }
-                              onClick={() =>
-                                subject.calculationStarted
-                                  ? navigate(
-                                      `/academic/calculation?classId=${encodeURIComponent(classId)}&gradingPeriodId=${encodeURIComponent(gradingPeriodId)}&subjectId=${encodeURIComponent(subject.subjectId)}`,
-                                    )
-                                  : completionMutation.mutate({
-                                      subjectId: subject.subjectId,
-                                      status: "in_progress",
-                                    })
-                              }
-                            >
-                              {actionLabel}
-                              <ArrowRight className="ml-2 h-4 w-4" />
-                            </Button>
-                            {!subject.calculationStarted && !readyForCalculation ? (
-                              <p className="text-right text-xs text-muted-foreground">
-                                {count === 0
-                                  ? "Ajoutez au moins une évaluation."
-                                  : "Saisissez toutes les notes avant le calcul."}
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-                      );
-                    })}
+            {hasEnteredScheduledGrade ? (
+              <section
+                aria-labelledby="calculation-title"
+                className="rounded-lg border bg-card p-2 shadow-sm md:p-5"
+              >
+                <div className="mb-2 flex gap-2 border-b pb-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted">
+                    <ClipboardCheck className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <h2 id="calculation-title" className="font-semibold">
+                      Calculer et valider par matière
+                    </h2>
+                    <p className="text-xs text-muted-foreground">
+                      Une fois toutes les notes saisies, calculez les moyennes,
+                      puis validez-les lorsque vous ne souhaitez plus les modifier.
+                    </p>
                   </div>
-                )}
-              </div>
-            </section>
+                </div>
+                <div>
+                  {(scopeQuery.data?.completion.length ?? 0) === 0 ? (
+                    <EmptyState
+                      title="Aucune matière à clôturer"
+                      description=""
+                      classNameRendu="py-0"
+                      icon="none"
+                    />
+                  ) : (
+                    <div className="divide-y rounded-lg border">
+                      {(scopeQuery.data?.completion ?? []).map((subject) => {
+                        const count =
+                          scheduledCountBySubject.get(subject.subjectId) ?? 0;
+                        const readyForCalculation = isSubjectReadyForCalculation(subject.subjectId)
+                        const actionLabel =
+                          subject.status === "completed"
+                            ? "Consulter les moyennes"
+                            : subject.calculationStarted
+                              ? "Ouvrir le calcul"
+                              : "Calculer les moyennes";
+                        return (
+                          <div
+                            key={subject.subjectId}
+                            className="flex flex-col gap-2 p-2 flex-row justify-between"
+                          >
+                            <div className="inline-flex whitespace-nowrap justify-between gap-2 min-w-0">
+                              <p className="font-medium">{subject.subjectName}
+                                <span className="text-sm  text-muted-foreground"> ({count} évaluation{count > 1 ? "s" : ""}) </span>
+                              </p>
+                              <span>
+                                {subject.status === "completed" ? (
+                                  <Badge variant="outline">
+                                    <CheckCircle2 className="mr-1 h-3 w-3" />
+                                    Validée
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="secondary">
+                                    {subject.calculationStarted
+                                      ? "Calcul en cours"
+                                      : "Saisie en cours"}
+                                  </Badge>
+                                )}
+                              </span>
+                            </div>
+                            <div className="flex flex-col gap-2 sm:items-end">
+
+                              <Button
+                                type="button"
+                                variant={
+                                  subject.calculationStarted ? "outline" : "default"
+                                }
+                                className="min-h-6 w-full sm:w-auto"
+                                disabled={
+                                  completionMutation.isPending ||
+                                  (!subject.calculationStarted && !readyForCalculation) ||
+                                  (isPeriodReadOnly && !subject.calculationStarted)
+                                }
+                                onClick={() =>
+                                  subject.calculationStarted
+                                    ? navigate(
+                                        `/academic/calculation?classId=${encodeURIComponent(classId)}&gradingPeriodId=${encodeURIComponent(gradingPeriodId)}&subjectId=${encodeURIComponent(subject.subjectId)}`,
+                                      )
+                                    : setPendingCalculationSubjectId(subject.subjectId)
+                                }
+                              >
+                                {actionLabel}
+                                <ArrowRight className="ml-2 h-4 w-4" />
+                              </Button>
+                              {!subject.calculationStarted && !readyForCalculation ? (
+                                <p className="text-right text-xs text-muted-foreground">
+                                  {count === 0
+                                    ? "Ajoutez au moins une évaluation."
+                                    : "Saisissez toutes les notes avant le calcul."}
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </section>
+            ) : null}
           </>
         )}
+
+        <AlertDialog
+          open={Boolean(pendingCalculationSubjectId)}
+          onOpenChange={(open) => !open && setPendingCalculationSubjectId(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Passer au calcul des moyennes ?</AlertDialogTitle>
+              <AlertDialogDescription className="space-y-2">
+                <span className="block">
+                  Les notes d’évaluation déjà saisies en {pendingCalculationSubject?.subjectName ?? "cette matière"} pour {activePeriod?.label ?? "cette période"} ne pourront plus être modifiées.
+                </span>
+                <span className="block">
+                  {nextPeriod
+                    ? `Les prochaines évaluations de cette matière seront rattachées à ${nextPeriod.label}.`
+                    : "Aucune période suivante n’est configurée : aucune nouvelle évaluation de cette matière ne pourra être programmée après ce verrouillage."}
+                </span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={completionMutation.isPending}
+                onClick={() => {
+                  if (!pendingCalculationSubjectId) return
+                  completionMutation.mutate({
+                    subjectId: pendingCalculationSubjectId,
+                    status: "in_progress",
+                  })
+                  setPendingCalculationSubjectId(null)
+                }}
+              >
+                {completionMutation.isPending ? "Verrouillage…" : "Verrouiller et calculer"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-xl overflow-y-auto rounded-lg sm:w-full">
@@ -483,6 +545,8 @@ export default function NotesPage() {
                   id="evaluation-date"
                   type="date"
                   required
+                  min={draftTargetPeriod?.startDate}
+                  max={draftTargetPeriod?.endDate}
                   value={draft.evaluationDate}
                   onChange={(event) =>
                     setDraft((previous) => ({
@@ -491,6 +555,13 @@ export default function NotesPage() {
                     }))
                   }
                 />
+                {draftSubjectIsLocked ? (
+                  <p className="text-xs text-muted-foreground">
+                    {nextPeriod
+                      ? `Le calcul est déjà lancé pour cette matière. Cette évaluation sera rattachée à ${nextPeriod.label}.`
+                      : "Le calcul est déjà lancé et aucune période suivante n’est configurée."}
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label>Libellé</Label>

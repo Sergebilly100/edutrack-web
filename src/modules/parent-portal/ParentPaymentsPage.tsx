@@ -63,9 +63,9 @@ export default function ParentPaymentsPage() {
   const payments = paymentsQuery.data?.movements ?? []
 
   return (
-    <div className="animate-fade-in space-y-5 py-5 sm:py-6">
+    <div className="animate-fade-in space-y-4 py-4 sm:py-6">
       <div className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
-        <div><h1 className="text-2xl font-semibold tracking-tight">Frais et paiements</h1><p className="mt-1 text-sm text-muted-foreground">Consultez les versements reconnus par l’établissement et téléchargez vos reçus.</p></div>
+        <div><h1 className="text-xl font-semibold tracking-tight">Frais et paiements</h1><p className="mt-1 text-sm text-muted-foreground">Consultez les versements reconnus par l’établissement et téléchargez vos reçus.</p></div>
         {students.length > 1 ? <Select value={studentId} onValueChange={(nextStudentId) => { setSelectedStudentId(nextStudentId); const next = new URLSearchParams(window.location.search); next.set("student", nextStudentId); window.history.replaceState(null, "", `${window.location.pathname}?${next.toString()}`) }}><SelectTrigger className="min-h-6 w-full sm:w-64" aria-label="Enfant"><SelectValue /></SelectTrigger><SelectContent>{students.map((student) => <SelectItem key={student.id} value={student.id}>{student.last_name} {student.first_name}</SelectItem>)}</SelectContent></Select> : null}
       </div>
 
@@ -83,10 +83,10 @@ export default function ParentPaymentsPage() {
 
       {statusQuery.isError ? <QueryErrorState message="La situation financière n’est pas disponible. Contactez l’établissement si le problème persiste." onRetry={() => void statusQuery.refetch()} /> : null}
 
-      <section className="space-y-3 rounded-lg border bg-card p-4 shadow-sm">
+      {/* <section className="space-y-3 rounded-lg border bg-card p-4 shadow-sm">
         <div className="flex items-start gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"><Smartphone className="h-5 w-5" /></div><div><h2 className="font-semibold">Comment effectuer un versement ?</h2><p className="mt-1 text-sm text-muted-foreground">Le paiement direct dans IvoirEdu est temporairement indisponible. Utilisez l’un des numéros ci-dessous ou passez à la caisse. Le staff enregistrera ensuite le versement.</p></div></div>
         {(optionsQuery.data?.manualPaymentChannels ?? []).length > 0 ? <div className="grid gap-2 sm:grid-cols-2">{optionsQuery.data?.manualPaymentChannels.map((channel) => <div key={`${channel.provider}-${channel.merchantNumber}`} className="rounded-lg border bg-muted/20 px-4 py-3"><p className="text-xs text-muted-foreground">{providerLabels[channel.provider]}</p><p className="mt-1 font-semibold tracking-wide">{channel.merchantNumber}</p></div>)}</div> : <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>Aucun numéro de versement n’est publié. Contactez directement l’établissement ou présentez-vous à la caisse.</AlertDescription></Alert>}
-      </section>
+      </section> */}
 
       <section className="space-y-3">
         <div><h2 className="text-lg font-semibold">Historique des paiements</h2><p className="text-sm text-muted-foreground">Les paiements annulés restent visibles pour garantir la traçabilité.</p></div>
@@ -95,7 +95,7 @@ export default function ParentPaymentsPage() {
         {payments.map((payment) => (
           <div key={payment.id} className="flex flex-col gap-3 rounded-lg border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-lg font-semibold tabular-nums">{formatFcfa(payment.amount)}</p>{payment.status === "cancelled" ? <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">Annulé</Badge> : <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700"><CheckCircle2 className="mr-1 h-3 w-3" />Confirmé</Badge>}</div><p className="mt-1 text-sm text-muted-foreground">{formatDate(`${payment.paymentDate}T00:00:00`)} · {methodLabels[payment.method]}</p><p className="mt-1 text-xs text-muted-foreground">Reçu {payment.receiptNumber}</p><p className="mt-2 text-sm font-medium text-blue-800 dark:text-blue-200">Reste après ce paiement : {formatFcfa(payment.balanceAfter)}</p>{payment.cancellationReason ? <p className="mt-2 text-sm text-red-700">Motif : {payment.cancellationReason}</p> : null}</div>
-            {payment.status !== "cancelled" ? <Button type="button" variant="outline" className="min-h-12 shrink-0" disabled={receipt.isRunning} onClick={() => void receipt.launch(() => requestParentPaymentReceipt(studentId, payment.id))}>{receipt.isRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Télécharger le reçu</Button> : null}
+            {payment.status !== "cancelled" ? <Button type="button" variant="outline" className="min-h-6 shrink-0" disabled={receipt.isRunning} onClick={() => void receipt.launch(() => requestParentPaymentReceipt(studentId, payment.id))}>{receipt.isRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Télécharger le reçu</Button> : null}
           </div>
         ))}
       </section>

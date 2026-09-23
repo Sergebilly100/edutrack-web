@@ -339,6 +339,11 @@ export const fetchEvaluationsScope = (classId: string, gradingPeriodId: string) 
     .get<EvaluationsScope>("/evaluations/scope", { params: { classId, gradingPeriodId } })
     .then((response) => response.data)
 
+export type CreateEvaluationResponse = {
+  evaluation: { id: string; gradingPeriodId: string }
+  routedToPeriod: { id: string; label: string } | null
+}
+
 export const createEvaluation = (payload: {
   lessonSlotId?: string
   subjectId: string
@@ -348,7 +353,7 @@ export const createEvaluation = (payload: {
   coefficient: number
   label: string
   evaluationDate: string
-}) => api.post<{ evaluation: { id: string } }>("/evaluations", payload).then((r) => r.data.evaluation)
+}) => api.post<CreateEvaluationResponse>("/evaluations", payload).then((r) => r.data)
 
 export const createSpontaneousGrade = (payload: {
   lessonSlotId: string
@@ -408,13 +413,20 @@ export type ConductOverviewResponse = {
   student: { id: string; fullName: string; className: string }
   gradingPeriod: { id: string; label: string }
   teacherInputs: Array<{
-    id: string
+    id: string | null
+    teacherId: string
     teacherName: string
     subjectLabel: string | null
-    note: number
+    note: number | null
     observation: string | null
-    createdAt: string
+    createdAt: string | null
+    isSubmitted: boolean
   }>
+  inputSummary: {
+    expectedCount: number
+    submittedCount: number
+    isComplete: boolean
+  }
   spontaneousEvaluations: Array<{
     id: string
     label: string

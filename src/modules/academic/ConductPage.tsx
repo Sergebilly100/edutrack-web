@@ -341,7 +341,7 @@ function EducatorDecisionSection() {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2">
           <Gavel className="h-4 w-4" />
-          Décision finale (éducateur)
+          Décision finale de conduite
         </CardTitle>
         <CardDescription>
           Consultez les notes des professeurs et les remarques spontanées, puis arrêtez la note
@@ -482,19 +482,33 @@ function EducatorDecisionPanel({
       </div>
 
       <div>
-        <p className="mb-2 text-sm font-medium">Notes saisies par les professeurs</p>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-medium">Notes saisies par les professeurs</p>
+          <Badge variant={overview.inputSummary.isComplete ? "success" : "secondary"}>
+            {overview.inputSummary.submittedCount}/{overview.inputSummary.expectedCount} renseignés
+          </Badge>
+        </div>
         {overview.teacherInputs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucune saisie pour cette période.</p>
+          <p className="text-sm text-muted-foreground">Aucun enseignant n’est affecté à cette classe.</p>
         ) : (
-          <ul className="space-y-1">
+          <ul className="divide-y rounded-lg border">
             {overview.teacherInputs.map((input) => (
-              <li key={input.id} className="text-sm">
-                <span className="font-medium">{input.teacherName}</span> : {input.note}/20
-                {input.observation ? ` - ${input.observation}` : ""}
+              <li key={input.teacherId} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
+                <span>
+                  <span className="font-medium">{input.teacherName}</span>
+                  {input.isSubmitted ? ` : ${input.note}/20` : ""}
+                  {input.observation ? ` - ${input.observation}` : ""}
+                </span>
+                {!input.isSubmitted ? <Badge variant="outline">À renseigner</Badge> : null}
               </li>
             ))}
           </ul>
         )}
+        {!overview.inputSummary.isComplete ? (
+          <p className="mt-2 text-sm text-destructive">
+            La décision finale sera disponible après la saisie de tous les enseignants.
+          </p>
+        ) : null}
       </div>
 
       {overview.spontaneousEvaluations.length > 0 ? (
@@ -512,22 +526,23 @@ function EducatorDecisionPanel({
 
       <div className="flex items-end gap-3">
         <div className="space-y-1">
-          <Label>Note définitive / {CONDUCT_MAX}</Label>
+          <Label htmlFor="final-conduct-decision">Note définitive / {CONDUCT_MAX}</Label>
           <Input
+            id="final-conduct-decision"
             type="number"
             min={0}
             max={CONDUCT_MAX}
             step={0.5}
             className="max-w-24"
             value={note}
-            disabled={readOnly}
+            disabled={readOnly || !overview.inputSummary.isComplete}
             onChange={(event) => setNote(event.target.value)}
           />
         </div>
         <Button
           type="button"
           className="min-h-12"
-          disabled={readOnly || !valid || decideMutation.isPending}
+          disabled={readOnly || !overview.inputSummary.isComplete || !valid || decideMutation.isPending}
           onClick={() => decideMutation.mutate()}
         >
           {decideMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

@@ -31,13 +31,12 @@ describe("ParentPaymentsPage", () => {
     financeMocks.options.mockResolvedValue({ inAppPaymentActive: false, disabledReason: "temporarily_disabled", manualPaymentChannels: [{ provider: "orange_money", merchantNumber: "0700000000" }] })
   })
 
-  it("affiche les consignes manuelles sans bouton Payer", async () => {
+  it("affiche le solde et les reçus sans bouton Payer", async () => {
     render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ParentPaymentsPage /></QueryClientProvider>)
 
     expect(await screen.findByText((_content, element) =>
       element?.tagName === "P" && element.textContent?.replace(/\s/g, "") === "75000FCFA",
     )).toBeInTheDocument()
-    expect(screen.getByText("0700000000")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /^Payer$/ })).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Télécharger le reçu" })).toBeInTheDocument()
     expect(financeMocks.status).toHaveBeenCalledWith("student-1", "year-1")

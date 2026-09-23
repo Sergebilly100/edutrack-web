@@ -1,10 +1,11 @@
 import { type ReactNode } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const fetchScope = vi.fn()
+const markSubjectCompleted = vi.fn()
 const fetchContext = vi.fn().mockResolvedValue({
   classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2026-2027" }],
   gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2026-09-01", endDate: "2026-12-20" }],
@@ -18,6 +19,7 @@ vi.mock("@/modules/academic/academic.api", async () => {
     ...actual,
     fetchTeacherAcademicContext: (...args: unknown[]) => fetchContext(...args),
     fetchEvaluationsScope: (...args: unknown[]) => fetchScope(...args),
+    markSubjectCompleted: (...args: unknown[]) => markSubjectCompleted(...args),
   }
 })
 
@@ -50,6 +52,11 @@ function renderAcademicPage(path = "/academic/notes?classId=c1&gradingPeriodId=p
 }
 
 describe("NotesPage", () => {
+  beforeEach(() => {
+    fetchScope.mockReset()
+    markSubjectCompleted.mockReset()
+    markSubjectCompleted.mockResolvedValue({ completion: { status: "in_progress" } })
+  })
   it("affiche l'état vide tant qu'aucune classe/période n'est choisie", () => {
     renderWithClient(<NotesPage />)
     expect(screen.getByText("Choisissez une classe et une période")).toBeInTheDocument()
@@ -60,7 +67,7 @@ describe("NotesPage", () => {
     fetchScope.mockResolvedValue({
       lessonSlots: [{ id: "slot1", dayOfWeek: 1, startTime: "08:00", endTime: "09:00", subjectName: "Mathématiques" }],
       subjects: [{ id: "s1", name: "Mathématiques", coefficient: 4 }],
-      evaluations: [],
+      evaluations: [{ id: "e1", label: "Devoir 1", type: "scheduled", coefficient: 1, subjectId: "s1", subjectName: "Mathématiques", grades: [{ studentId: "student-1", score: 12, maxScore: 20, comment: null }] }],
       completion: [{ subjectId: "s1", subjectName: "Mathématiques", subjectCoefficient: 4, status: "in_progress", completedAt: null, calculationStarted: true, teacher: null }],
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -79,7 +86,7 @@ describe("NotesPage", () => {
     expect(fetchScope).toHaveBeenCalledWith("c1", "p1")
   })
 
-  it("laisse la saisie ouverte après la date de période tant que le professeur ne lance pas le calcul", async () => {
+  it("masque le calcul tant qu’aucune note effective n’a été saisie", async () => {
     fetchContext.mockResolvedValueOnce({
       classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2024-2025" }],
       gradingPeriods: [{ id: "p-old", schoolYearId: "y1", label: "1er trimestre", startDate: "2024-09-01", endDate: "2024-12-20" }],
@@ -99,8 +106,22 @@ describe("NotesPage", () => {
 
     expect(await screen.findByRole("button", { name: "Programmer une évaluation" })).toBeEnabled()
     expect(screen.queryByText("Période terminée")).not.toBeInTheDocument()
-    expect(await screen.findByRole("button", { name: "Calculer les moyennes" })).toBeDisabled()
-    expect(screen.getByText("Ajoutez au moins une évaluation.")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Calculer et valider par matière" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Calculer les moyennes" })).not.toBeInTheDocument()
+  })
+
+  it("masque aussi le calcul lorsqu’une évaluation existe sans aucune note saisie", async () => {
+    fetchScope.mockResolvedValue({
+      lessonSlots: [{ id: "slot1", dayOfWeek: 1, startTime: "08:00", endTime: "09:00", subjectName: "Mathématiques" }],
+      subjects: [{ id: "s1", name: "Mathématiques", coefficient: 4 }],
+      evaluations: [{ id: "e1", label: "Devoir 1", type: "scheduled", coefficient: 1, subjectId: "s1", subjectName: "Mathématiques", grades: [] }],
+      completion: [{ subjectId: "s1", subjectName: "Mathématiques", subjectCoefficient: 4, status: "in_progress", completedAt: null, calculationStarted: false, teacher: null }],
+    })
+    renderAcademicPage()
+
+    await screen.findByText("Devoir 1")
+    expect(screen.queryByRole("heading", { name: "Calculer et valider par matière" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Calculer les moyennes" })).not.toBeInTheDocument()
   })
 
   it("n’ouvre qu’une grille de notes à la fois", async () => {
@@ -123,7 +144,7 @@ describe("NotesPage", () => {
     expect(screen.getAllByRole("spinbutton", { name: "Note de Awa Koné" })).toHaveLength(1)
   })
 
-  it("laisse les notes modifiables tant que les moyennes ne sont pas validées", async () => {
+  it("verrouille les notes dès que le calcul des moyennes a commencé", async () => {
     fetchScope.mockResolvedValue({
       lessonSlots: [{ id: "slot1", dayOfWeek: 1, startTime: "08:00", endTime: "09:00", subjectName: "Mathématiques" }],
       subjects: [{ id: "s1", name: "Mathématiques", coefficient: 4 }],
@@ -133,8 +154,39 @@ describe("NotesPage", () => {
     renderAcademicPage()
 
     fireEvent.click(await screen.findByRole("button", { name: /Devoir 1/ }))
-    expect(screen.getByRole("spinbutton", { name: "Note de Awa Koné" })).toBeEnabled()
-    expect(screen.getByRole("button", { name: "Enregistrer" })).toBeEnabled()
+    expect(screen.getByRole("spinbutton", { name: "Note de Awa Koné" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Enregistrer" })).toBeDisabled()
+  })
+
+  it("avertit explicitement avant de verrouiller les notes et annonce la période suivante", async () => {
+    fetchContext.mockResolvedValueOnce({
+      classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2026-2027" }],
+      gradingPeriods: [
+        { id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2026-09-01", endDate: "2026-12-20", isCurrent: true, isCompleted: false },
+        { id: "p2", schoolYearId: "y1", label: "2e trimestre", startDate: "2027-01-01", endDate: "2027-03-31", isCurrent: false, isCompleted: false },
+      ],
+    })
+    fetchScope.mockResolvedValue({
+      lessonSlots: [],
+      subjects: [{ id: "s1", name: "Mathématiques", coefficient: 4 }],
+      evaluations: [{ id: "e1", label: "Devoir 1", type: "scheduled", coefficient: 1, subjectId: "s1", subjectName: "Mathématiques", grades: [{ studentId: "student-1", score: 12, maxScore: 20, comment: null }] }],
+      completion: [{ subjectId: "s1", subjectName: "Mathématiques", subjectCoefficient: 4, status: "in_progress", completedAt: null, calculationStarted: false, teacher: null }],
+    })
+    renderAcademicPage()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Calculer les moyennes" }))
+    expect(screen.getByRole("alertdialog", { name: "Passer au calcul des moyennes ?" })).toBeInTheDocument()
+    expect(screen.getByText(/ne pourront plus être modifiées/)).toBeInTheDocument()
+    expect(screen.getByText(/seront rattachées à 2e trimestre/)).toBeInTheDocument()
+    expect(markSubjectCompleted).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Verrouiller et calculer" }))
+    await waitFor(() => expect(markSubjectCompleted).toHaveBeenCalledWith({
+      classId: "c1",
+      subjectId: "s1",
+      gradingPeriodId: "p1",
+      status: "in_progress",
+    }))
   })
 
   it("permet de programmer une évaluation sans créneau lorsque l’EDT n’est pas configuré", async () => {

@@ -6,6 +6,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
 const submitBulk = vi.fn().mockResolvedValue({ savedCount: 2 })
 const listStudentsMock = vi.fn()
+const fetchConductOverview = vi.fn()
 vi.mock("@/modules/students/students.api", () => ({
   listStudents: (...args: unknown[]) => listStudentsMock(...args),
 }))
@@ -47,6 +48,7 @@ vi.mock("@/modules/academic/academic.api", async () => {
     ...actual,
     fetchTeacherAcademicContext: (...args: unknown[]) => fetchTeacherContext(...args),
     fetchTeacherConductScope: (...args: unknown[]) => fetchConductScope(...args),
+    fetchConductOverview: (...args: unknown[]) => fetchConductOverview(...args),
     listClasses: (...args: unknown[]) => listClassesMock(...args),
     submitBulkConductInputs: (...args: unknown[]) => submitBulk(...args),
   }
@@ -68,6 +70,7 @@ describe("ConductPage professeur", () => {
     authState.permissions = []
     listClassesMock.mockReset()
     listStudentsMock.mockReset()
+    fetchConductOverview.mockReset()
   })
 
   it("charge aussi la deuxième page d’élèves pour la décision finale, avec la limite API de 100", async () => {
@@ -150,5 +153,35 @@ describe("ConductPage professeur", () => {
     expect(await screen.findByRole("option", { name: /6ème A/ })).toBeInTheDocument()
     expect(screen.getByRole("option", { name: /5ème B/ })).toBeInTheDocument()
     expect(listClassesMock).not.toHaveBeenCalled()
+  })
+
+  it("liste les professeurs manquants et bloque la décision finale", async () => {
+    listStudentsMock.mockResolvedValue({
+      data: [{ id: "s1", firstName: "Awa", lastName: "Koné" }],
+      pagination: { page: 1, limit: 100, total: 1, totalPages: 1 },
+    })
+    fetchConductOverview.mockResolvedValue({
+      student: { id: "s1", fullName: "Awa Koné", className: "6ème A" },
+      gradingPeriod: { id: "p1", label: "1er trimestre" },
+      teacherInputs: [
+        { id: "i1", teacherId: "t1", teacherName: "Mme Traoré", subjectLabel: "Mathématiques", note: 16, observation: null, createdAt: "2026-09-10", isSubmitted: true },
+        { id: null, teacherId: "t2", teacherName: "M. Yao", subjectLabel: "Français", note: null, observation: null, createdAt: null, isSubmitted: false },
+      ],
+      inputSummary: { expectedCount: 2, submittedCount: 1, isComplete: false },
+      spontaneousEvaluations: [],
+      finalGrade: null,
+    })
+    renderWithClient(<ConductPage view="decision" />)
+
+    fireEvent.click(await screen.findByRole("combobox", { name: "Classe enseignée" }))
+    fireEvent.click(await screen.findByRole("option", { name: /6ème A/ }))
+    fireEvent.click(await screen.findByRole("combobox", { name: "Élève" }))
+    fireEvent.click(await screen.findByRole("option", { name: "Awa Koné" }))
+
+    expect(await screen.findByText("1/2 renseignés")).toBeInTheDocument()
+    expect(screen.getByText("M. Yao")).toBeInTheDocument()
+    expect(screen.getByText("À renseigner")).toBeInTheDocument()
+    expect(screen.getByRole("spinbutton", { name: "Note définitive / 20" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Arrêter la note" })).toBeDisabled()
   })
 })

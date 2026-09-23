@@ -75,7 +75,7 @@ npm run e2e:qa -- --project=critical-real
 Trois parcours sans interception HTTP :
 
 1. Inscription → pièces → caisse : rejet du dépassement, paiement de 25 000 FCFA, statut confirmé conservé après rechargement.
-2. Conduite finale 18/20 → moyenne matière 16/20 coefficient 4 → validation → génération/publication → consultation parent de la moyenne pondérée 16,40/20 ; absence des brouillons vérifiée.
+2. Saisie de conduite par le professeur → consultation complète par le professeur principal → conduite finale 18/20 → moyenne matière 16/20 coefficient 4 → validation → génération/publication → consultation parent de la moyenne pondérée 16,40/20 ; absence des brouillons vérifiée.
 3. Lot réel de relances → cloche du parent → lecture → paiement du bon enfant → état lu persistant et lecture de toutes les notifications.
 
 La fixture prépare deux élèves, deux parents séparés pour les parcours, une année active, un niveau et un plan de 120 000 FCFA. Elle appelle le vrai worker financier pour recalculer les soldes et déposer les rappels. Les mutations évaluées par les tests sont faites depuis l’interface, avec lectures API complémentaires pour identifier les données de fixture et vérifier les réponses.
@@ -87,6 +87,14 @@ npm run test:integration -- tests/integration/financial-alerts.routes.test.ts te
 ```
 
 Ce contrôle inclut parent autorisé/autre famille/direction, lecture individuelle et globale, parent inactif, reprise SMS sans doublon in-app, paiement anticipé, remise, courbe individuelle et identifiant d’année utilisable par la finance parent.
+
+Contrôle ciblé du verrouillage des notes et de la conduite :
+
+```sh
+npm run test:integration -- tests/integration/academic-grading.routes.test.ts tests/integration/conduct.routes.test.ts
+```
+
+Ce contrôle vérifie le verrouillage serveur dès le lancement du calcul, le report d’une nouvelle évaluation vers la période suivante, la liste de tous les professeurs attendus, les avis manquants et le refus d’une décision finale incomplète.
 
 ## Limites à respecter dans les conclusions
 

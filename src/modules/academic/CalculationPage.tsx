@@ -387,7 +387,6 @@ export default function CalculationPage() {
                             type="button"
                             variant="outline"
                             className="min-h-6"
-                            disabled={!editable}
                             onClick={() => setFinalConductStudentId(student.id)}
                             aria-label={`Définir la conduite de ${student.firstName} ${student.lastName}`}
                           >
@@ -656,8 +655,10 @@ function FinalConductDialog({
       }),
   });
   const parsed = Number(note.replace(",", "."));
+  const allTeacherInputsCompleted = overviewQuery.data?.inputSummary.isComplete === true;
   const valid =
     editable &&
+    allTeacherInputsCompleted &&
     note !== "" &&
     Number.isFinite(parsed) &&
     parsed >= 0 &&
@@ -697,7 +698,7 @@ function FinalConductDialog({
               min={0}
               max={MAX_GRADE}
               step={0.5}
-              disabled={!editable}
+              disabled={!editable || !allTeacherInputsCompleted}
               value={note}
               onChange={(event) => setNote(event.target.value)}
             />
@@ -726,6 +727,11 @@ function FinalConductDialog({
               ? "Enregistrement…"
               : "Enregistrer la note finale"}
           </Button>
+          {overviewQuery.data && !allTeacherInputsCompleted ? (
+            <p className="w-full text-sm text-destructive sm:text-right">
+              La décision finale sera disponible après la saisie de tous les enseignants.
+            </p>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -739,18 +745,27 @@ function TeacherConductInputs({
 }) {
   return (
     <div className="space-y-2">
-      <p className="font-medium">Avis des enseignants</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-medium">Avis des enseignants</p>
+        <Badge variant={overview.inputSummary.isComplete ? "success" : "secondary"}>
+          {overview.inputSummary.submittedCount}/{overview.inputSummary.expectedCount} renseignés
+        </Badge>
+      </div>
       {overview.teacherInputs.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Aucun avis de conduite n’a encore été saisi.
+          Aucun enseignant n’est affecté à cette classe.
         </p>
       ) : (
         <ul className="divide-y rounded-lg border">
           {overview.teacherInputs.map((input) => (
-            <li key={input.id} className="p-3 text-sm">
-              <p className="font-medium">
-                {input.teacherName} · {input.note}/20
-              </p>
+            <li key={input.teacherId} className="p-3 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-medium">
+                  {input.teacherName}
+                  {input.isSubmitted ? ` · ${input.note}/20` : ""}
+                </p>
+                {!input.isSubmitted ? <Badge variant="outline">À renseigner</Badge> : null}
+              </div>
               {input.subjectLabel ? (
                 <p className="text-muted-foreground">{input.subjectLabel}</p>
               ) : null}

@@ -299,15 +299,17 @@ Exécuter sur ordinateur puis sur Chrome Android réel (Tecno/Itel si disponible
 
 ### F23 — Évaluations et saisie des notes
 
-**Prérequis :** professeur affecté à la classe/matière ; période ouverte ; calcul pas encore validé.
+**Prérequis :** professeur affecté à la classe/matière ; période ouverte ; une période suivante configurée pour vérifier le report ; calcul pas encore lancé.
 
 1. Ouvrir **Notes**, sélectionner classe et période. Attendu : matière du professeur et élèves de cette classe.
-2. Créer une évaluation avec libellé, date, coefficient et barème. Sans EDT configuré, utiliser le choix sans créneau proposé.
-3. Saisir par exemple Aya 16/20, Koffi 12/20, puis enregistrer. Recharger : mêmes notes.
+2. Avant toute saisie effective, vérifier que la section **Calculer et valider par matière** n’apparaît pas. Créer une évaluation vide : la section doit rester masquée.
+3. Saisir par exemple Aya 16/20, Koffi 12/20, puis enregistrer. Attendu : les mêmes notes après rechargement et apparition de la section de calcul. Sans EDT configuré, utiliser le choix sans créneau proposé.
 4. Modifier Aya à 17/20 avant validation ; vérifier la nouvelle valeur après rechargement.
 5. Tenter une note au-delà du barème ou négative. Attendu : erreur et aucune valeur invalide persistée.
+6. Exécuter F25 pour lancer le calcul, revenir dans **Notes** et rouvrir l’évaluation. Attendu : notes consultables, champs et enregistrement désactivés dès le lancement du calcul.
+7. Programmer une nouvelle évaluation de la même matière avec une date comprise dans la période suivante. Attendu : message indiquant qu’elle est rattachée à cette période suivante ; elle ne doit pas apparaître dans la période verrouillée. Refaire sans période suivante configurée sur un jeu de test dédié : création refusée explicitement.
 
-**Bug :** note attribuée à un autre élève, perte silencieuse, date oubliée acceptée malgré validation, professeur modifiant la matière d’un collègue.
+**Bug :** section de calcul visible sans aucune note effectivement saisie, note attribuée à un autre élève, perte silencieuse, date oubliée acceptée, note encore modifiable après lancement du calcul, nouvelle évaluation laissée dans la période verrouillée ou professeur modifiant la matière d’un collègue.
 
 ### F24 — Notes spontanées pendant un cours
 
@@ -325,13 +327,14 @@ Exécuter sur ordinateur puis sur Chrome Android réel (Tecno/Itel si disponible
 
 **Prérequis :** professeur ; notes enregistrées pour chaque élève ; évaluations/coefficient connus ; période ouverte.
 
-1. Dans **Notes**, choisir classe/période puis **Calculer les moyennes** ou **Ouvrir le calcul** si déjà commencé.
-2. Parcourir les étapes de calcul ; ouvrir **Consulter les notes de …** pour Aya. Comparer au calcul attendu : 10 coefficient 1 et 16 coefficient 2 donnent 14/20.
-3. Cliquer **Voir les moyennes par élève**. Vérifier qu’un élève sans note est signalé, sans validation trompeuse d’une classe incomplète.
-4. Après correction des données, **Valider mes moyennes de [matière]**. Attendu : **Moyennes validées**.
-5. Recharger et retourner aux évaluations. Attendu : résultats consultables, modifications verrouillées ; suivi de complétude mis à jour côté direction.
+1. Dans **Notes**, choisir classe/période puis cliquer **Calculer les moyennes**. Attendu : une alerte indique explicitement que les notes déjà saisies ne seront plus modifiables et que les prochaines évaluations seront rattachées à la période suivante nommée, ou signale qu’aucune période suivante n’est configurée.
+2. Cliquer **Annuler**. Attendu : rester dans Notes et pouvoir encore modifier une note. Refaire l’action puis **Verrouiller et calculer**. Attendu : ouverture du calcul et verrouillage immédiat de la saisie pour cette matière.
+3. Parcourir les étapes de calcul ; ouvrir **Consulter les notes de …** pour Aya. Comparer au calcul attendu : 10 coefficient 1 et 16 coefficient 2 donnent 14/20.
+4. Cliquer **Voir les moyennes par élève**. Vérifier qu’un élève sans note est signalé, sans validation trompeuse d’une classe incomplète.
+5. Après correction des données, **Valider mes moyennes de [matière]**. Attendu : **Moyennes validées**.
+6. Recharger et retourner aux évaluations. Attendu : résultats consultables, modifications verrouillées ; suivi de complétude mis à jour côté direction.
 
-**Bug :** mauvaise pondération, élève absent du calcul sans signalement, validation perdue ou modification encore possible après verrouillage.
+**Bug :** absence d’alerte, verrouillage malgré **Annuler**, mauvaise pondération, élève absent du calcul sans signalement, validation perdue ou modification encore possible après le lancement du calcul.
 
 ### F26 — Bulletins, publication et PDF
 
@@ -361,15 +364,17 @@ Exécuter sur ordinateur puis sur Chrome Android réel (Tecno/Itel si disponible
 
 ### F28 — Décision finale de conduite
 
-**Prérequis :** professeur principal affecté à la classe, ou éducateur affecté disposant du droit de décision ; élèves et période existants.
+**Prérequis :** professeur principal affecté à la classe, ou éducateur affecté disposant du droit de décision ; au moins deux professeurs affectés à la classe ; élèves et période existants ; calcul des moyennes lancé pour chaque matière concernée.
 
-1. Sur ordinateur, comme professeur principal, ouvrir **Enseignement → Décision finale de conduite**. Sur le parcours mobile de calcul, la commande **Définir la conduite de …** permet aussi de traiter la conduite avant verrouillage.
-2. Sélectionner **Classe enseignée**, **Période**, puis **Élève**. Consulter les éléments de conduite affichés.
-3. Saisir 18/20 puis **Arrêter la note**. Attendu : **Note définitive : 18/20** ; recharger et sélectionner à nouveau l’élève pour vérifier.
-4. Essayer -1 ou 21 : refus. Si la classe contient plus de 100 élèves, rechercher aussi un élève au-delà des 100 premiers.
-5. Avec un professeur non principal sans affectation autorisée, vérifier le refus de décision. Vérifier la conduite dans le bulletin F26.
+1. Chaque professeur ouvre **Enseignement → Conduite**, choisit la classe et la période, puis saisit sa note pour chaque élève. Attendu : la saisie devient disponible dès le lancement du calcul de sa matière et reste propre à ce professeur.
+2. Sur ordinateur, comme professeur principal, ouvrir **Enseignement → Décision finale de conduite**. Sur le parcours de calcul, la commande **Définir la conduite de …** ouvre la même synthèse par élève.
+3. Sélectionner **Classe enseignée**, **Période**, puis **Élève**. Attendu : tous les professeurs affectés sont listés avec leur matière, leur note ou le badge **À renseigner**, et le compteur indique par exemple **1/2 renseignés**.
+4. Laisser volontairement l’avis d’un professeur manquant. Attendu : note définitive et bouton **Arrêter la note** désactivés ; un appel API direct doit aussi être refusé.
+5. Saisir le dernier avis, recharger la synthèse, saisir 18/20 puis **Arrêter la note**. Attendu : compteur complet et **Note définitive : 18/20** conservée après rechargement.
+6. Essayer -1 ou 21 : refus. Si la classe contient plus de 100 élèves, rechercher aussi un élève au-delà des 100 premiers.
+7. Avec un professeur non principal sans affectation autorisée, vérifier le refus de décision. Vérifier la conduite dans le bulletin F26.
 
-**Bug :** autre classe accessible en écriture, 101e élève introuvable, valeur hors 0–20, décision perdue. Écart à l’inventaire : le professeur principal est autorisé par son affectation, sans permission additionnelle ; l’éducateur doit être affecté et posséder le droit dédié.
+**Bug :** professeur attendu absent de la synthèse, avis manquant présenté comme complet, décision possible avant toutes les saisies, autre classe accessible en écriture, 101e élève introuvable, valeur hors 0–20 ou décision perdue. Le professeur principal est autorisé par son affectation, sans permission additionnelle ; l’éducateur doit être affecté et posséder le droit dédié.
 
 ## Communication et service aux parents
 

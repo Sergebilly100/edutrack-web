@@ -5,15 +5,15 @@ Les sorties ci-dessous sont extraites des commandes exécutées, sans secrets ni
 
 API : npm run test:unit -- --run
 Test Files  49 passed (49)
-Tests  527 passed (527)
-Start at  16:42:23
-Duration  10.93s (transform 2.00s, setup 0ms, collect 13.73s, tests 15.89s, environment 5ms, prepare 2.63s)
+Tests  530 passed (530)
+Start at  21:45:35
+Duration  11.04s (transform 1.86s, setup 0ms, collect 13.06s, tests 16.23s, environment 5ms, prepare 2.32s)
 
 API : npm run test:integration
 Test Files  46 passed (46)
-Tests  382 passed (382)
-Start at  16:32:49
-Duration  78.41s (transform 4.86s, setup 130ms, collect 4.71s, tests 72.33s, environment 0ms, prepare 60ms)
+Tests  383 passed (383)
+Start at  21:44:37
+Duration  44.41s (transform 3.33s, setup 51ms, collect 2.56s, tests 41.43s, environment 0ms, prepare 50ms)
 
 API : contrôle ciblé final financial-alerts + qa.financial-alert-delivery
 Test Files  2 passed (2)
@@ -26,7 +26,7 @@ Web : npm run e2e:qa -- --reporter=list
 
 Web : npm test -- --reporter=json --outputFile=<rapport local>
 Fichiers : 80
-Tests : 380 réussis, 0 échecs, 0 ignorés
+Tests : 384 réussis, 0 échecs, 0 ignorés
 
 API : npm run build — code de sortie 0
 API : npm run lint — code de sortie 0
@@ -36,5 +36,8 @@ Web : npm run lint — code de sortie 0 (--max-warnings 0)
 git diff --check : aucun défaut dans les deux dépôts
 Comparaison inventaire-source / copie QA : identique octet pour octet
 37 fiches F01–F37 uniques : prérequis, étapes numérotées et critères de bug vérifiés
+
+Complément académique : 14/14 tests d’intégration ciblés, dont conduite 13/13 rejoué après le dernier alignement des affectations ; 3/3 scénarios Playwright `critical-real` et suites complètes ci-dessus réussis après ajout du verrouillage des notes, du report vers la période suivante et de la collecte complète des avis de conduite.
+Contrôle d’affichage professeur : la section de calcul est absente sans note effective, y compris lorsqu’une évaluation vide existe ; test ciblé 8/8 puis suite web complète 384/384.
 
 Limites : voir execution.md et auto-revue.md.

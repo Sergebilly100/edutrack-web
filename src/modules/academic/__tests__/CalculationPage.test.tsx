@@ -85,7 +85,8 @@ describe("CalculationPage", () => {
     })
     fetchConductOverview.mockResolvedValue({
       student: { id: "student-1", displayName: "Awa Koné", className: "6ème A" },
-      teacherInputs: [{ id: "input-1", teacherName: "Mme Traoré", note: 17, subjectLabel: "Mathématiques", observation: "Très impliquée", createdAt: "2026-09-10" }],
+      teacherInputs: [{ id: "input-1", teacherId: "teacher-1", teacherName: "Mme Traoré", note: 17, subjectLabel: "Mathématiques", observation: "Très impliquée", createdAt: "2026-09-10", isSubmitted: true }],
+      inputSummary: { expectedCount: 1, submittedCount: 1, isComplete: true },
       finalGrade: null,
     })
     decideConductGrade.mockResolvedValue({ note: 18 })
@@ -99,5 +100,34 @@ describe("CalculationPage", () => {
     fireEvent.change(screen.getByRole("spinbutton", { name: "Note finale / 20" }), { target: { value: "18" } })
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer la note finale" }))
     await waitFor(() => expect(decideConductGrade).toHaveBeenCalledWith({ student_id: "student-1", grading_period_id: "p1", note: 18 }))
+  })
+
+  it("affiche les avis manquants et empêche la décision finale", async () => {
+    fetchContext.mockResolvedValue({
+      classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2026-2027", isHomeroomTeacher: true }],
+      gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2026-09-01", endDate: "2026-12-20", isCompleted: false, isCurrent: true }],
+    })
+    fetchConductOverview.mockResolvedValue({
+      student: { id: "student-1", fullName: "Awa Koné", className: "6ème A" },
+      gradingPeriod: { id: "p1", label: "1er trimestre" },
+      teacherInputs: [
+        { id: "input-1", teacherId: "teacher-1", teacherName: "Mme Traoré", note: 17, subjectLabel: "Mathématiques", observation: null, createdAt: "2026-09-10", isSubmitted: true },
+        { id: null, teacherId: "teacher-2", teacherName: "M. Yao", note: null, subjectLabel: "Français", observation: null, createdAt: null, isSubmitted: false },
+      ],
+      inputSummary: { expectedCount: 2, submittedCount: 1, isComplete: false },
+      spontaneousEvaluations: [],
+      finalGrade: null,
+    })
+    renderWithClient(<CalculationPage />)
+
+    await screen.findByText("Notes de Mathématiques")
+    fireEvent.click(screen.getByRole("button", { name: "Voir les moyennes par élève" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Définir la conduite de Awa Koné" }))
+
+    expect(await screen.findByText("1/2 renseignés")).toBeInTheDocument()
+    expect(screen.getByText("M. Yao")).toBeInTheDocument()
+    expect(screen.getByText("À renseigner")).toBeInTheDocument()
+    expect(screen.getByRole("spinbutton", { name: "Note finale / 20" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Enregistrer la note finale" })).toBeDisabled()
   })
 })

@@ -68,12 +68,12 @@ Lecture des consignes standard et des références `archives/{AGENTS,PRODUCT,PRO
 
 | ID / fonctionnalité | Preuves existantes | Manque / action QA |
 |---|---|---|
-| F23 Évaluations/notes | U `academic-grading.{calculations,service,types}` ; I `academic-grading.routes` ; C `NotesPage` ; B `teacher/academic` | Corriger les attentes devenues obsolètes ; conserver saisie sans créneau et verrouillage après validation. |
+| F23 Évaluations/notes | U `academic-grading.{calculations,service,types}` ; I `academic-grading.routes` ; C `NotesPage` ; B `teacher/academic` | Le lancement du calcul verrouille la matière ; les nouvelles évaluations sont reportées vers la période suivante configurée, sinon refusées. |
 | F24 Notes spontanées | U `academic-grading.spontaneous-window` ; C `CourseCard.rollcall-windows` ; I `academic-grading.routes` | Vérifier les bornes exactes (fenêtre actuelle : cours puis 24 h), signe/justification et absence de recalcul illégal. |
-| F25 Calcul/validation moyennes | U `academic-grading.calculations`, `academic-grading.service` ; I `academic-grading.routes`, `critical-path-e2e.routes` ; C `CalculationPage` ; B `teacher/academic` | Réparer les sélecteurs de détail devenus icônes et tester validation/refus de données incomplètes. |
+| F25 Calcul/validation moyennes | U `academic-grading.calculations`, `academic-grading.service` ; I `academic-grading.routes`, `critical-path-e2e.routes` ; C `NotesPage`, `CalculationPage` ; B `teacher/academic` | Alerte préalable explicite, verrouillage dès le lancement, validation/refus de données incomplètes. |
 | F26 Bulletins/publication/PDF | U `report-cards.service` ; I `report-cards.routes`, `critical-path-e2e.routes` ; C `ReportCardsPage` | Aucun B publication → consultation parent. Ajouter un parcours critique ; prouver que les brouillons ne sont pas visibles au parent. |
 | F27 Décisions de fin d’année | U `class-decisions.service`, `academic.service` ; I `class-decisions.routes`, `admin.school-year.routes` ; C `ClassDecisionsPage`, navigation | Seuil/permissions déjà présents ; adapter le test de réglage de date à l’onglet actuel. |
-| F28 Conduite finale | U `conduct.service` ; I `conduct.routes` ; C `ConductPage`, `CalculationPage` | Pas de B décision finale. Écart inventaire : le service autorise le professeur principal **sans** `conduct.finalize`, ou l’éducateur assigné qui détient ce droit. Ne pas réintroduire l’ancienne restriction par un test de menu. |
+| F28 Conduite finale | U `conduct.service` ; I `conduct.routes` ; C `ConductPage`, `CalculationPage` ; B `critical/workflows` | Tous les professeurs affectés apparaissent, y compris les avis manquants ; décision finale bloquée tant que le compteur n’est pas complet. Le professeur principal reste autorisé sans `conduct.finalize`, ou l’éducateur assigné qui détient ce droit. |
 
 ### Communication et parents
 
@@ -105,14 +105,14 @@ Validation du 23 septembre 2026, Node 24.11.1 / npm 11.6.2, services locaux jeta
 
 | Suite | Baseline | Résultat final |
 |---|---|---|
-| API unitaires | 500 réussis / 48 fichiers | **527 réussis / 49 fichiers**, aucun échec ou test ignoré |
-| API intégration/contrats HTTP | 357 réussis, 9 échecs, 1 ignoré / 367 | **382 réussis / 46 fichiers**, aucun échec ou test ignoré |
-| Web Vitest | 359 réussis, 11 échecs, 10 ignorés / 380 | **380 réussis / 80 fichiers**, aucun échec ou test ignoré |
+| API unitaires | 500 réussis / 48 fichiers | **530 réussis / 49 fichiers**, aucun échec ou test ignoré |
+| API intégration/contrats HTTP | 357 réussis, 9 échecs, 1 ignoré / 367 | **383 réussis / 46 fichiers**, aucun échec ou test ignoré |
+| Web Vitest | 359 réussis, 11 échecs, 10 ignorés / 380 | **384 réussis / 80 fichiers**, aucun échec ou test ignoré |
 | Playwright | 45 réussis, 47 échecs, 12 ignorés / 104 | **112 réussis**, aucun échec ou test ignoré dans `e2e:qa` |
 | Build API / web | Vérification finale | **Réussis** tous les deux |
 | Lint API / web | Vérification finale | **Réussis** tous les deux, zéro avertissement de lint |
 
-Le contrôle financier ciblé a été rejoué après le dernier ajustement de remise : **9/9 tests réussis**. Le build web signale encore la taille du chunk React existant, sans échec. Les nombres avant/après reflètent aussi la sélection effective, le remplacement de squelettes ignorés et les tests obsolètes supprimés ; ils ne représentent pas seulement des ajouts. Les 112 exécutions Playwright comprennent le setup parent obligatoire ; les trois scénarios `critical-real` ont tous réussi avec API et PostgreSQL réels.
+Le contrôle financier ciblé a été rejoué après le dernier ajustement de remise : **9/9 tests réussis**. Les contrôles académiques ciblés comptent **14/14 tests d’intégration** ; le scénario conduite **13/13** a été rejoué après le dernier alignement des affectations. Les suites complètes figurent ci-dessus. Le build web signale encore la taille du chunk React existant, sans échec. Les nombres avant/après reflètent aussi la sélection effective, le remplacement de squelettes ignorés et les tests obsolètes supprimés ; ils ne représentent pas seulement des ajouts. Les 112 exécutions Playwright comprennent le setup parent obligatoire ; les trois scénarios `critical-real` ont tous réussi avec API et PostgreSQL réels.
 
 ### Fermeture des écarts, fonctionnalité par fonctionnalité
 
@@ -142,12 +142,12 @@ Les chemins ci-dessous complètent les preuves initiales. « Conservé » signif
 | F20 | U frontières financières renforcées ; I `financial-cache.routes` et chaîne inscription/paiement existante exécutés. Le worker réel de la fixture navigateur recalcule les soldes avant relance. |
 | F21 | U messages et orchestration des canaux ; I `qa.financial-alert-delivery.routes` : destinataires parents, isolation, lecture, parent inactif, reprises, paiements anticipés/remises/courbe. B **API réelle** cloche → paiements → lecture persistée. |
 | F22 | I précédent vérifie année active UUID → API de solde ; C `ParentPaymentsPage` couvre absence d’année et chargement ; B **API réelle** choisit le bon enfant depuis sa relance. |
-| F23 | C Notes/Calculation actualisés ; B `teacher/academic` remplace les réponses statiques par une saisie/relecture cohérente. I notes conservés ; date exigée dans la chaîne critique corrigée. |
+| F23 | C Notes/Calculation actualisés : la section de calcul reste absente sans note effectivement saisie ; U/I vérifient le verrouillage immédiat et le report d’une nouvelle évaluation vers la période suivante. B `teacher/academic` conserve la saisie/relecture cohérente. |
 | F24 | U fenêtre spontanée et I notes exécutés ; C disponibilité de l’action adapté au début de cours effectivement confirmé. |
-| F25 | C boutons de détail identifiables ; B **API réelle** ouverture du calcul et validation des moyennes avant publication ; U/I pondérations conservés. |
+| F25 | C alerte de verrouillage et période suivante, boutons de détail identifiables ; B **API réelle** ouverture du calcul et validation avant publication ; U/I pondérations et verrou serveur conservés. |
 | F26 | B **API réelle** génération/publication/parent, brouillons absents, moyenne 16,40 ; C `ParentReportCardsPage` reproduit le cache vide récent et valide sa réactualisation. PDF externe manuel. |
 | F27 | U/I décisions et ouverture d’année conservés ; C réglage de date et menu adaptés aux écrans actuels. |
-| F28 | U `qa.workflow-rules` refuse période close/non courante ; C classe paginée au-delà de 100 ; B **API réelle** décision 18/20 conservée et intégrée au bulletin. |
+| F28 | U `qa.workflow-rules` refuse période close/non courante ; I/C listent les professeurs attendus, signalent les avis manquants et bloquent la décision incomplète ; C classe paginée au-delà de 100 ; B **API réelle** saisie professeur puis décision 18/20 intégrée au bulletin. |
 | F29 | B parent actuel répare les attentes de compte et changement de mot de passe ; B critique relit deux enfants ; I isolement multi-tenant/parent conservés. |
 | F30 | I F02 vérifie l’émission de l’événement pour l’élève absent ; U notifications existants vérifient service, queue et adaptation SMS. Pas de réception opérateur prétendue. |
 | F31 | Projet Playwright `subscription-tests` sélectionné : création avec tarification de deux mois, relecture, annulation motivée, renouvellement ; téléphone invalide et remise à zéro du formulaire. I droits/contraintes/isolement conservés. |
@@ -164,7 +164,8 @@ Les chemins ci-dessous complètent les preuves initiales. « Conservé » signif
 - **Finance parent :** la configuration renvoyait le libellé public de l’année ; les routes financières attendent un UUID. Elle renvoie maintenant l’identifiant de l’année active du tenant, avec état explicite si aucune année n’est ouverte. Le test de régression a échoué avant correction puis réussi après.
 - **Bulletin parent :** un cache récent vide pouvait masquer une publication faite dans une autre session ; la liste est maintenant revalidée à l’ouverture/changement d’enfant. Régression reproduite avant correction.
 - **Reprise :** l’import de parents tentait de mettre à jour une colonne `parents.updated_at` inexistante ; l’upsert utilise le téléphone réel sans inventer de migration.
-- **Conduite :** `limit: 200` était rejeté par l’API, plafonnée à 100 ; toutes les pages sont maintenant lues. Les droits professeur principal/éducateur sont documentés selon le service actuel.
+- **Conduite :** `limit: 200` était rejeté par l’API, plafonnée à 100 ; toutes les pages sont maintenant lues. Chaque professeur actif affecté à la classe apparaît dans la consultation, même sans saisie, et la décision finale reste bloquée tant que tous les avis ne sont pas renseignés. Les droits professeur principal/éducateur sont documentés selon le service actuel.
+- **Calcul des moyennes :** le lancement verrouille immédiatement les notes de la matière et de la période. L’interface l’annonce avant confirmation. Toute nouvelle évaluation est reportée par l’API vers la période suivante configurée ; en son absence, la création est refusée explicitement.
 - **Accès et interface :** droits `report_cards.view`, `report_cards.publish`, `conduct.finalize` préservés à la connexion ; action d’inscription de l’état vide réparée ; libellés accessibles ajoutés aux icônes de calcul ; onglets de paramètres lisibles sur mobile.
 - **Hors connexion :** l’erreur Axios était encapsulée et échappait à la mise en attente ; sa cause réseau est désormais reconnue sans rejouer une vraie erreur HTTP.
 - **Banc de test :** connexion de test imposée avant les imports ; port HTTP maintenu pendant la vie du harness pour éviter les réponses d’une application précédente ; nettoyage limité au tenant du test ; tests auparavant ignorés par Git rendus versionnables sans sessions ni secrets.
