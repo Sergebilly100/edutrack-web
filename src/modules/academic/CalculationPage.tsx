@@ -53,6 +53,7 @@ import {
   type EvaluationWithGrades,
 } from "./academic.api";
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator";
+import { InstallPwaCard } from "@/shared/pwa/InstallPwaCard"
 
 const MAX_GRADE = 20;
 
@@ -247,6 +248,11 @@ export default function CalculationPage() {
   return (
     <>
       <OfflineIndicator />
+      <InstallPwaCard
+        audience="user"
+        headline="Installez IvoirEdu pour pointer plus vite"
+        className="!mb-4 !mt-0"
+      />
       <div className="space-y-6 md:px-6 md:py-8">
         <header className="space-y-3">
           <Button variant="ghost" className="min-h-6 px-0 py-0" asChild>

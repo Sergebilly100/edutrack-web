@@ -91,7 +91,7 @@ export default function TeacherNotificationsPanel() {
             role="dialog"
             aria-modal="false"
             aria-label="Mes notifications"
-            className="fixed inset-x-3 bottom-auto top-[7.5rem] z-[1001] max-h-[82vh] overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-xl md:inset-x-auto md:bottom-auto md:right-8 md:top-14 md:w-[calc(100vw-1.5rem)] md:max-w-md bg-[var(--stat-default-bg)] text-[var(--stat-default-fg)]"
+            className="fixed inset-x-3 bottom-auto top-[7.5rem] z-[1001] flex min-h-0 max-h-[82vh] flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-xl md:inset-x-auto md:bottom-auto md:right-8 md:top-14 md:w-[calc(100vw-1.5rem)] md:max-w-md bg-[var(--stat-default-bg)] text-[var(--stat-default-fg)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3 border-b px-3 py-3">
@@ -130,7 +130,7 @@ export default function TeacherNotificationsPanel() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+            <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2 overscroll-contain">
               {isLoading ? (
                 Array.from({ length: 3 }).map((_, index) => (
                   <div key={index} className="h-16 animate-pulse rounded-lg border bg-muted" />
