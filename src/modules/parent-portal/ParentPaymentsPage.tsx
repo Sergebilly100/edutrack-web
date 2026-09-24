@@ -19,6 +19,8 @@ import {
   type Payment,
   type PaymentProvider,
 } from "@/modules/finance/finance.api"
+import { InstallPwaCard } from "@/shared/pwa/InstallPwaCard"
+import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 
 const providerLabels: Record<PaymentProvider, string> = {
   orange_money: "Orange Money",
@@ -63,7 +65,12 @@ export default function ParentPaymentsPage() {
   const payments = paymentsQuery.data?.movements ?? []
 
   return (
-    <div className="animate-fade-in space-y-4 py-4 sm:py-6">
+    <div className="animate-fade-in space-y-4 sm:py-6">
+      <OfflineIndicator />  
+      <InstallPwaCard
+        audience="parent"
+        headline="Installez IvoirEdu pour suivre votre enfant"
+      />
       <div className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div><h1 className="text-xl font-semibold tracking-tight">Frais et paiements</h1><p className="mt-1 text-sm text-muted-foreground">Consultez les versements reconnus par l’établissement et téléchargez vos reçus.</p></div>
         {students.length > 1 ? <Select value={studentId} onValueChange={(nextStudentId) => { setSelectedStudentId(nextStudentId); const next = new URLSearchParams(window.location.search); next.set("student", nextStudentId); window.history.replaceState(null, "", `${window.location.pathname}?${next.toString()}`) }}><SelectTrigger className="min-h-6 w-full sm:w-64" aria-label="Enfant"><SelectValue /></SelectTrigger><SelectContent>{students.map((student) => <SelectItem key={student.id} value={student.id}>{student.last_name} {student.first_name}</SelectItem>)}</SelectContent></Select> : null}

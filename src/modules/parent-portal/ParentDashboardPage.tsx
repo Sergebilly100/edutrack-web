@@ -370,32 +370,34 @@ export default function ParentDashboardPage() {
           ) : null}
 
           {overviewQuery.data?.financial ? (
-            <div
-              className={cn(
-                "rounded-xl border bg-card p-4 shadow-card",
-                overviewQuery.data.financial.status === "late" ? "border-red-200 dark:border-red-900" : "border-border"
-              )}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold">Situation de scolarité</p>
-                {overviewQuery.data.financial.status === "up_to_date" ? (
-                  <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">À jour</Badge>
-                ) : overviewQuery.data.financial.status === "waived" ? (
-                  <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">Toléré</Badge>
-                ) : (
-                  <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
-                    En retard
-                    {/* {overviewQuery.data.financial.daysLate !== null ? ` (${overviewQuery.data.financial.daysLate} j)` : ""} */}
-                  </Badge>
+            <Link to="/parent/payments" >
+              <div
+                className={cn(
+                  "rounded-xl border bg-card p-4 shadow-card",
+                  overviewQuery.data.financial.status === "late" ? "border-red-200 dark:border-red-900" : "border-border"
                 )}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold">Situation de scolarité</p>
+                  {overviewQuery.data.financial.status === "up_to_date" ? (
+                    <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">À jour</Badge>
+                  ) : overviewQuery.data.financial.status === "waived" ? (
+                    <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">Toléré</Badge>
+                  ) : (
+                    <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+                      En retard
+                      {/* {overviewQuery.data.financial.daysLate !== null ? ` (${overviewQuery.data.financial.daysLate} j)` : ""} */}
+                    </Badge>
+                  )}
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <p className="text-lg font-semibold">
+                    {new Intl.NumberFormat("fr-FR").format(Math.round(overviewQuery.data.financial.remainingDue))} FCFA
+                  </p>
+                  <p className="text-xs text-muted-foreground">restant dû sur l'année scolaire</p>
+                </div>
               </div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <p className="text-lg font-semibold">
-                  {new Intl.NumberFormat("fr-FR").format(Math.round(overviewQuery.data.financial.remainingDue))} FCFA
-                </p>
-                <p className="text-xs text-muted-foreground">restant dû sur l'année scolaire</p>
-              </div>
-            </div>
+            </Link>
           ) : null}
         </section>
       ) : null}

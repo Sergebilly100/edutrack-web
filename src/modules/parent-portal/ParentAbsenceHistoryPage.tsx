@@ -10,6 +10,7 @@ import { getParentAbsences, listParentStudents } from "@/modules/parent-portal/p
 import { currentIsoMonth, formatDateFr, monthLabelFr } from "@/modules/parent-portal/parent.utils"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { useParentSchoolYearMonths } from "@/modules/parent-portal/useParentSchoolYearMonths"
+import { InstallPwaCard } from "@/shared/pwa/InstallPwaCard"
 
 const SELECTED_STUDENT_STORAGE_KEY = "parent_selected_student_id"
 
@@ -51,6 +52,10 @@ export default function ParentAbsenceHistoryPage() {
   return (
     <div className="space-y-4 text-base">
       <OfflineIndicator />
+      <InstallPwaCard
+        audience="parent"
+        headline="Installez IvoirEdu pour suivre votre enfant"
+      />
       <div className="space-y-2">
         <h1 className="text-xl font-semibold mb-3">
           Historique des absences - {selectedStudent?.first_name ?? studentLabels.singular}

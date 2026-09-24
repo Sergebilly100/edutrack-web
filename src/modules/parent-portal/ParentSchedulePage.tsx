@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import { getParentSchedule, listParentStudents } from "@/modules/parent-portal/parent.api"
 import { currentIsoWeek, shiftIsoWeek, weekDaysFr } from "@/modules/parent-portal/parent.utils"
 import { todayInBusinessTimezone } from "@/shared/lib/business-date"
+import { InstallPwaCard } from "@/shared/pwa/InstallPwaCard"
 
 const SELECTED_STUDENT_STORAGE_KEY = "parent_selected_student_id"
 
@@ -95,6 +96,10 @@ export default function ParentSchedulePage() {
   return (
     <div className="space-y-4 text-base">
       <OfflineIndicator />
+      <InstallPwaCard
+        audience="parent"
+        headline="Installez IvoirEdu pour suivre votre enfant"
+      />
       <section className="space-y-3">
         <h1 className="text-xl font-semibold">Emploi du temps</h1>
       </section>
