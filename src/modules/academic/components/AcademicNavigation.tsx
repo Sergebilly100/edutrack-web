@@ -37,12 +37,12 @@ export function AcademicNavigation() {
             <TabsTrigger value={ACADEMIC_ROUTES.levels} className="min-h-12">
               Niveaux
             </TabsTrigger>
-            <TabsTrigger value={ACADEMIC_ROUTES.classes} className="min-h-12">
-              Classes
-            </TabsTrigger>
             <TabsTrigger value={ACADEMIC_ROUTES.subjects} className="min-h-12">
               Matières
             </TabsTrigger>
+            <TabsTrigger value={ACADEMIC_ROUTES.classes} className="min-h-12">
+              Classes
+            </TabsTrigger> 
           </>
         ) : null}
       </TabsList>
