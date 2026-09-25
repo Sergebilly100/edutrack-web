@@ -792,21 +792,7 @@ export default function TeachersPage() {
                 </SelectContent>
               </Select>
 
-              <Select
-                value={statusFilter}
-                onValueChange={(value: "all" | "active" | "inactive") => setStatusFilter(value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Statut" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les statuts</SelectItem>
-                  <SelectItem value="active">Actifs</SelectItem>
-                  <SelectItem value="inactive">Bloqués</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select
+               <Select
                 value={subjectFilter || "all"}
                 onValueChange={(value) => setSubjectFilter(value === "all" ? "" : value)}
               >
@@ -822,6 +808,20 @@ export default function TeachersPage() {
                   ))}
                 </SelectContent>
               </Select>
+
+              <Select
+                value={statusFilter}
+                onValueChange={(value: "all" | "active" | "inactive") => setStatusFilter(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Statut" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les statuts</SelectItem>
+                  <SelectItem value="active">Actifs</SelectItem>
+                  <SelectItem value="inactive">Bloqués</SelectItem>
+                </SelectContent>
+              </Select> 
             </div>
           </div>
 
