@@ -150,7 +150,7 @@ export default function PositionFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[92vh] w-[95vw] max-w-5xl flex-col gap-0 p-0">
+      <DialogContent className="flex max-h-[92vh] w-[95vw] max-w-2lg flex-col gap-0 p-0">
         <DialogHeader className="shrink-0 border-b px-6 py-5">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
