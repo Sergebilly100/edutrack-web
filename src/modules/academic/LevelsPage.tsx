@@ -1,3 +1,4 @@
+import { OnboardingReturn } from "@/modules/onboarding/OnboardingReturn"
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ColumnDef } from "@tanstack/react-table"
@@ -50,6 +51,7 @@ export default function LevelsPage() {
   return (
     <PageLayout title="Structure scolaire" subtitle="Organisez les niveaux dans leur ordre d’affichage." actions={canCreate ? <Button type="button" onClick={openCreate}><AddIcon className="mr-2 h-4 w-4" />Ajouter un niveau</Button> : undefined}>
       <AcademicNavigation />
+      <OnboardingReturn />
       {query.isError ? <QueryErrorState onRetry={() => void query.refetch()} isRetrying={query.isFetching} message="Impossible de charger les niveaux." /> : (
         <DataTable
           columns={columns}

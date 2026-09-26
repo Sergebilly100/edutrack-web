@@ -1,3 +1,4 @@
+import { OnboardingReturn } from "@/modules/onboarding/OnboardingReturn"
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ColumnDef } from "@tanstack/react-table"
@@ -138,6 +139,7 @@ export default function SubjectsPage() {
       ) : undefined}
     >
       <AcademicNavigation />
+      <OnboardingReturn />
       {pageError ? (
         <QueryErrorState
           onRetry={() => { void levelsQuery.refetch(); void subjectsQuery.refetch() }}

@@ -16,30 +16,17 @@ export type SchoolInfoResponse = {
   geo_check_enabled?: boolean
 }
 
-export type TeacherCreatePayload = {
-  name: string
-  subjects: string[]
-  type: "vacataire" | "permanent"
-}
-
-export type TeacherItem = {
-  id: string
-  name: string
-  username?: string
-  subject?: string
-}
-
-export type StudentCreatePayload = {
-  first_name: string
-  last_name: string
-  class_name: string
-}
-
-export type ScheduleCreatePayload = {
-  teacher_id: string
-  class_name: string
-  day_of_week: number
-  time_slot_label: string
+export type OnboardingStatus = {
+  schoolId: string
+  schoolInfoComplete: boolean
+  activeYear: boolean
+  levels: boolean
+  subjects: boolean
+  rooms: boolean
+  fees: boolean
+  teachers: boolean
+  missing: string[]
+  canComplete: boolean
 }
 
 export const fetchSchoolInfo = () =>
@@ -48,17 +35,8 @@ export const fetchSchoolInfo = () =>
 export const patchSchoolInfo = (payload: SchoolInfoPayload) =>
   api.patch<SchoolInfoResponse>("/school/info", payload).then((response) => response.data)
 
-export const fetchTeachers = () =>
-  api.get<TeacherItem[]>("/teachers").then((response) => response.data)
-
-export const createTeacher = (payload: TeacherCreatePayload) =>
-  api.post<TeacherItem>("/teachers", payload).then((response) => response.data)
-
-export const createStudent = (payload: StudentCreatePayload) =>
-  api.post<{ id: string }>("/students", payload).then((response) => response.data)
-
-export const createScheduleSlot = (payload: ScheduleCreatePayload) =>
-  api.post<{ id: string }>("/schedule", payload).then((response) => response.data)
+export const fetchOnboardingStatus = () =>
+  api.get<OnboardingStatus>("/school/onboarding-status").then((response) => response.data)
 
 export const completeOnboarding = () =>
-  api.patch("/school/onboarding-complete").then((response) => response.data)
+  api.patch<SchoolInfoResponse>("/school/onboarding-complete").then((response) => response.data)

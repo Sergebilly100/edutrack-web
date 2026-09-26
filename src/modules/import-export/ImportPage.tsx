@@ -1,3 +1,4 @@
+import { OnboardingReturn, useOnboardingReturn } from "@/modules/onboarding/OnboardingReturn"
 import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
@@ -56,6 +57,8 @@ const MONTH_OPTIONS = buildMonthOptions()
 
 export default function ImportPage() {
   const [searchParams] = useSearchParams()
+  const guidedReturn = useOnboardingReturn()
+  const isInitialTeacherImport = Boolean(guidedReturn) && searchParams.get("type") === "teachers"
   const { hasPermission } = usePermissions()
   const studentLabels = useStudentLabels()
   const { isBlocked: isImportBlocked } = useOfflineGuard()
@@ -70,8 +73,8 @@ export default function ImportPage() {
     canImportStudents ? "students" : null,
     canImportTeachers ? "teachers" : null,
     canImportSchedule ? "schedule" : null,
-  ].filter((value): value is ImportType => value !== null)), [canImportStudents, canImportTeachers, canImportSchedule])
-  const canViewHistory = canImportStudents
+  ].filter((value): value is ImportType => value !== null && (!isInitialTeacherImport || value === "teachers"))), [canImportStudents, canImportTeachers, canImportSchedule, isInitialTeacherImport])
+  const canViewHistory = canImportStudents && !isInitialTeacherImport
   const requestedType = searchParams.get("type")
   const [activeImportType, setActiveImportType] = useState<ImportType>(
     requestedType === "teachers" || requestedType === "schedule" || requestedType === "students" ? requestedType : allowedImportTypes[0] ?? "students"
@@ -133,12 +136,15 @@ export default function ImportPage() {
       />
     <div className="space-y-6 px-4 md:px-1">
       <OfflineIndicator />
+      <OnboardingReturn />
       <header className="space-y-1" data-tour="import-header">
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Import de données</h1>
             <p className="text-sm text-muted-foreground">
-              {`Utilisez les modèles Excel puis importez vos ${studentLabels.pluralLower}, professeurs et emploi du temps.`}
+              {isInitialTeacherImport
+                ? "Importez les profils et contrats des professeurs. Les affectations viendront après les inscriptions."
+                : `Utilisez les modèles Excel puis importez vos ${studentLabels.pluralLower}, professeurs et emploi du temps.`}
             </p>
           </div>
           <Button

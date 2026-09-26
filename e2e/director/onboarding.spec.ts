@@ -1,197 +1,157 @@
-import { expect, test } from "@playwright/test"
-
+import { expect, test, type Page } from "@playwright/test"
 import { mockDirectorAuth } from "./helpers"
 
-// Ces tests vérifient que le wizard d'onboarding s'affiche correctement
-// quand l'école n'a pas encore complété la configuration initiale.
-
-// loginAsDirectorUI redirige automatiquement /onboarding → /dashboard.
-// On utilise un helper local qui reste sur /onboarding.
-const loginAndGoToOnboarding = async (page: import("@playwright/test").Page) => {
-  await page.goto("/login")
-  await page.waitForURL(/\/(login|dashboard|onboarding)(\/|\?|$)/, { timeout: 15000 })
-
-  if (page.url().includes("/login")) {
-    await expect(page.getByLabel("Identifiant")).toBeVisible()
-    await page.getByLabel("Identifiant").fill("directeur@sainte-marie.ci")
-    await page.getByLabel("Mot de passe").fill("Test1234!")
-    const schemaInput = page.getByLabel("Schéma tenant")
-    if (await schemaInput.count()) {
-      await schemaInput.fill("school_sainte_marie")
-    }
-    await page.getByRole("button", { name: "Se connecter" }).click()
-  }
-
-  await page.waitForURL(/\/(dashboard|onboarding)(\/|\?|$)/, { timeout: 25000 })
-  // Si la page a redirigé vers /dashboard, forcer /onboarding
-  if (!page.url().includes("/onboarding")) {
-    await page.goto("/onboarding")
-  }
-  await expect(page).toHaveURL(/\/onboarding/)
+type State = {
+  schoolInfoComplete: boolean; activeYear: boolean; levels: boolean; subjects: boolean
+  rooms: boolean; fees: boolean; teachers: boolean
 }
-
-const mockOnboardingApis = async (page: import("@playwright/test").Page) => {
-  // Surcharge school/info pour indiquer que l'onboarding n'est pas terminé
+const ready: State = { schoolInfoComplete: true, activeYear: true, levels: true, subjects: true, rooms: true, fees: true, teachers: false }
+async function mockSchool(page: Page, state: State = { ...ready }, identity = { id: "school-a" }) {
+  await mockDirectorAuth(page)
+  await page.route("**/api/v1/auth/refresh*", async (route) => {
+    const claims = Buffer.from(JSON.stringify({ schemaName: identity.id.replaceAll("-", "_") })).toString("base64url")
+    await route.fulfill({ json: { accessToken: `header.${claims}.signature` } })
+  })
+  await page.route("**/api/v1/auth/me*", async (route) => {
+    await route.fulfill({ json: { user: { id: `director-${identity.id}`, role: "director", name: "Directeur C6", mustChangePassword: false }, tenant: { id: identity.id, status: "active", trialEndsAt: null } } })
+  })
+  await page.route("**/api/v1/permissions/me*", async (route) => {
+    await route.fulfill({ json: { permissions: ["settings.school", "settings.positions", "classes.view", "classes.create", "classes.edit", "school_years.view", "rooms.view", "rooms.create", "tuition.view", "tuition.edit", "import.teachers", "import.students", "import.schedule", "payments.view", "subscription_plans.view"] } })
+  })
+  await page.route("**/api/v1/**", async (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (/\/auth\/|\/permissions\/me|\/school\//.test(path)) return route.fallback()
+    // Existing configuration destinations, no live school data needed.
+    const bodies: Record<string, unknown> = {
+      "/api/v1/levels": { levels: [] }, "/api/v1/subjects": { subjects: [] },
+      "/api/v1/classes": { classes: [] }, "/api/v1/rooms": { rooms: [] },
+      "/api/v1/school-years": { schoolYears: [{ id: "year-a", label: "09/2026 - 06/2027", status: "active" }] },
+      "/api/v1/tuition-plans": { tuitionPlans: [] },
+      "/api/v1/permissions/config": { school: { id: identity.id, name: "École A", address: "Abidjan", teachingType: "secondaire" }, positions: [], users: [] },
+      "/api/v1/subscriptions/feature-settings": { is_enabled: false, monetize_parent_alerts: false },
+      "/api/v1/import/history": { items: [], total: 0, totalPages: 1 },
+    }
+    if (path === "/api/v1/levels" && route.request().method() === "POST") {
+      state.levels = true
+      return route.fulfill({ status: 201, json: { level: { id: "level-c6", ...route.request().postDataJSON() } } })
+    }
+    return route.fulfill({ json: bodies[path] ?? {} })
+  })
   await page.route("**/api/v1/school/info*", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        onboarding_completed: false,
-        name: "",
-        phone: "",
-        city: "",
-        teaching_type: "secondaire",
-      }),
-    })
+    if (route.request().method() === "PATCH") state.schoolInfoComplete = true
+    await route.fulfill({ json: { id: identity.id, name: "École C6", address: "Abidjan", phone: "2250700001111", onboarding_completed: false } })
   })
-
-  // Route utilisée à l'étape 1 pour sauvegarder les infos école
-  await page.route("**/api/v1/school/info*", async (route) => {
-    if (route.request().method() === "PATCH") {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ success: true }),
-      })
-    } else {
-      await route.fallback()
-    }
-  })
-
-  // Route completeOnboarding - PATCH /school/onboarding-complete
-  await page.route("**/api/v1/school/onboarding-complete*", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ success: true }),
-    })
-  })
-
-  // Profs (étape 2)
-  await page.route("**/api/v1/teachers*", async (route) => {
-    if (route.request().method() === "GET") {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ data: [], pagination: { page: 1, limit: 200, total: 0, totalPages: 0 } }),
-      })
-    } else {
-      await route.fallback()
-    }
-  })
-
-  // Élèves (étape 3)
-  await page.route("**/api/v1/students*", async (route) => {
-    if (route.request().method() === "GET") {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ data: [], pagination: { page: 1, limit: 100, total: 0, totalPages: 0 } }),
-      })
-    } else {
-      await route.fallback()
-    }
-  })
-
-  // EDT (étape 4)
-  await page.route("**/api/v1/schedule/weekly*", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ date: "2026-06-06", period: null, schedules: [], teachers: [], classes: [], rooms: [], time_slots: [] }),
-    })
+  await page.route("**/api/v1/school/onboarding-status*", async (route) => {
+    const missing = Object.entries(state).filter(([key, value]) => key !== "teachers" && !value).map(([key]) => key)
+    await route.fulfill({ json: { ...state, schoolId: identity.id, missing, canComplete: missing.length === 0 } })
   })
 }
 
-test.describe("Onboarding wizard - directeur", () => {
-  test.beforeEach(async ({ page }) => {
-    await mockDirectorAuth(page)
-    await mockOnboardingApis(page)
-  })
-
-  test("affiche le wizard avec le titre 'Onboarding directeur'", async ({ page }) => {
-    await loginAndGoToOnboarding(page)
-    // loginAsDirectorUI navigue vers /onboarding quand onboarding_completed = false
-    await expect(page).toHaveURL(/\/onboarding/)
-    await expect(page.getByText("Onboarding directeur")).toBeVisible({ timeout: 10000 })
-  })
-
-  test("l'étape 1 affiche 'Étape 1 - Infos école'", async ({ page }) => {
-    await loginAndGoToOnboarding(page)
-    await expect(page).toHaveURL(/\/onboarding/)
-    await expect(page.getByRole("heading", { name: /étape 1.*infos école/i })).toBeVisible({ timeout: 10000 })
-  })
-
-  test("5 badges d'étapes sont visibles dans le wizard", async ({ page }) => {
-    await loginAndGoToOnboarding(page)
-    await expect(page).toHaveURL(/\/onboarding/)
-    await expect(page.getByText("Onboarding directeur")).toBeVisible({ timeout: 10000 })
-
-    // Les badges s'affichent sous la forme "N. Label" - on vérifie le texte "Étape N/5" dans le sous-titre
-    await expect(page.getByText(/étape 1\/5/i)).toBeVisible({ timeout: 10000 })
-
-    // Vérifier les labels de badges via regex partielle
-    await expect(page.getByText(/infos école/i).first()).toBeVisible()
-    await expect(page.getByText(/profs/i).first()).toBeVisible()
-    await expect(page.getByText(/emploi du temps/i).first()).toBeVisible()
-    await expect(page.getByText(/test live/i).first()).toBeVisible()
-  })
-
-  test("l'étape 1 montre le bouton 'Continuer'", async ({ page }) => {
-    await loginAndGoToOnboarding(page)
-    await expect(page).toHaveURL(/\/onboarding/)
-    await expect(page.getByRole("heading", { name: /étape 1.*infos école/i })).toBeVisible({ timeout: 10000 })
-    await expect(page.getByRole("button", { name: /continuer/i })).toBeVisible()
-  })
+test("sans année active, le directeur ne peut ni ouvrir l’année ni terminer", async ({ page }) => {
+  await mockSchool(page, { ...ready, activeYear: false, fees: false })
+  await page.setViewportSize({ width: 360, height: 640 })
+  await page.goto("/onboarding?step=5&school=school-a")
+  await expect(page.getByText(/Le super administrateur doit d’abord ouvrir l’année scolaire/)).toBeVisible()
+  await expect(page.getByRole("button", { name: "Accéder au tableau de bord" })).toBeDisabled()
+  await expect(page.getByRole("button", { name: /Ouvrir.*année|Créer.*année/ })).toHaveCount(0)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.screenshot({ path: ".tmp/c6-sans-annee-mobile.png", fullPage: true })
 })
 
-test("F35 : parcourt les cinq étapes et conserve la progression après rechargement", async ({ page }) => {
-  await mockDirectorAuth(page)
-  await mockOnboardingApis(page)
+test("parcours directeur : infos, création d’un niveau, retour et finalisation sans professeur", async ({ page }) => {
+  const state = { ...ready, schoolInfoComplete: false, levels: false }
+  await mockSchool(page, state)
   let completed = false
-  let school: Record<string, unknown> = { name: "", phone: "", address: "" }
-  let teacher: Record<string, unknown> | null = null
-  await page.route("**/api/v1/school/info*", async (route) => {
-    if (route.request().method() === "PATCH") school = route.request().postDataJSON()
-    await route.fulfill({ json: { ...school, onboarding_completed: completed, teaching_type: "secondaire" } })
-  })
-  await page.route("**/api/v1/teachers*", async (route) => {
-    if (route.request().method() === "POST") {
-      teacher = { id: "teacher-onboarding-qa", ...route.request().postDataJSON() }
-      await route.fulfill({ status: 201, json: teacher })
-    } else {
-      await route.fulfill({ json: teacher ? [teacher] : [] })
-    }
-  })
   await page.route("**/api/v1/school/onboarding-complete*", async (route) => {
     expect(route.request().method()).toBe("PATCH")
     completed = true
     await route.fulfill({ json: { success: true } })
   })
-  await loginAndGoToOnboarding(page)
-  await page.getByLabel("Nom de l'école").fill("École configuration QA")
-  await page.getByLabel("Téléphone", { exact: true }).fill("2250700001122")
-  await page.getByLabel("Adresse", { exact: true }).fill("Abidjan")
+  await page.goto("/onboarding")
+  await page.getByRole("button", { name: "Enregistrer et continuer" }).click()
+  await page.getByRole("link", { name: "Configurer les niveaux" }).click()
+  await expect(page).toHaveURL(/\/academic\/levels\?returnTo=/)
+  await page.getByRole("button", { name: "Ajouter un niveau" }).first().click()
+  const dialog = page.getByRole("dialog")
+  await dialog.getByLabel("Nom du niveau").fill("6ème")
+  await dialog.getByRole("button", { name: "Enregistrer", exact: true }).click()
+  await expect(dialog).not.toBeVisible()
+  await page.getByRole("link", { name: "Retour à la configuration initiale" }).click()
+  await expect(page.getByRole("heading", { name: "Référentiel scolaire" })).toBeVisible()
+  await expect(page.getByRole("listitem").filter({ hasText: "Au moins un niveau" }).getByText("Prêt")).toBeVisible()
   await page.getByRole("button", { name: "Continuer", exact: true }).click()
-  await expect(page.getByRole("heading", { name: "Étape 2 - Professeurs" })).toBeVisible()
-  expect(school).toEqual({ name: "École configuration QA", phone: "2250700001122", address: "Abidjan" })
-  await expect(page.getByRole("button", { name: "Continuer", exact: true })).toBeDisabled()
-  await page.getByPlaceholder("Nom du prof").fill("Professeur QA")
-  await page.getByPlaceholder("Matière", { exact: true }).fill("Mathématiques")
-  await page.getByRole("button", { name: "Ajouter le professeur" }).click()
-  await expect(page.getByText("1 professeur(s)", { exact: true })).toBeVisible()
-  expect(teacher).toMatchObject({ name: "Professeur QA", subjects: ["Mathématiques"], type: "vacataire" })
-  await page.reload()
-  await expect(page.getByRole("heading", { name: "Étape 2 - Professeurs" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Salles et frais" })).toBeVisible()
   await page.getByRole("button", { name: "Continuer", exact: true }).click()
-  await expect(page.getByRole("heading", { name: /Étape 3/ })).toBeVisible()
-  await page.getByRole("button", { name: "Passer cette étape", exact: true }).click()
-  await expect(page.getByRole("heading", { name: "Étape 4 - Emploi du temps" })).toBeVisible()
-  await page.getByRole("button", { name: "Continuer", exact: true }).click()
-  await expect(page.getByRole("heading", { name: /Configuration terminée/ })).toBeVisible()
+  await expect(page.getByText(/Facultatif : vous pouvez continuer/)).toBeVisible()
+  await expect(page.getByRole("button", { name: /Ajouter le professeur|Ajouter l’élève|Ajouter un créneau/ })).toHaveCount(0)
+  await page.getByRole("button", { name: "Continuer sans import" }).click()
+  await expect(page.getByText(/Désignez le professeur principal/)).toBeVisible()
+  await page.screenshot({ path: ".tmp/c6-finalisation-mobile.png", fullPage: true })
   await page.getByRole("button", { name: "Accéder au tableau de bord" }).click()
-  await expect(page).toHaveURL(/\/dashboard$/)
+  await expect(page).toHaveURL(/\/dashboard/)
   expect(completed).toBe(true)
+  expect(await page.evaluate(() => localStorage.getItem("onboarding_progress:v2:school-a"))).toBeNull()
+})
+
+for (const [step, link, heading] of [
+  [2, "Configurer les matières", "Référentiel scolaire"],
+  [3, "Configurer les salles", "Salles et frais"],
+  [3, "Configurer les frais", "Salles et frais"],
+  [4, "Importer les profils et contrats", "Professeurs"],
+] as const) {
+  test(`aller-retour : ${link}`, async ({ page }) => {
+    await mockSchool(page)
+    await page.goto(`/onboarding?step=${step}&school=school-a`)
+    await page.getByRole("link", { name: link }).click()
+    if (link === "Importer les profils et contrats") {
+      await expect(page.getByRole("tab", { name: /Professeurs/ })).toBeVisible()
+      await expect(page.getByRole("tab", { name: /Emploi du temps|Élèves/ })).toHaveCount(0)
+    }
+    if (link === "Configurer les frais") await expect(page.getByRole("tab", { name: "Finance", exact: true })).toHaveAttribute("data-state", "active")
+    await page.getByRole("link", { name: "Retour à la configuration initiale" }).click()
+    await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible()
+    await expect(page.getByRole("list", { name: "Prérequis de configuration" })).toBeVisible()
+  })
+}
+
+test("deux écoles dans le même navigateur gardent des progressions distinctes", async ({ page }) => {
+  const identity = { id: "school-a" }
+  await mockSchool(page, { ...ready }, identity)
+  await page.addInitScript(() => localStorage.setItem("onboarding_progress", JSON.stringify({ step: 5, schoolInfo: { name: "Ancienne école" } })))
+  await page.goto("/onboarding")
+  await expect(page.getByRole("heading", { name: /Informations de l.école/ })).toBeVisible()
+  await page.getByRole("button", { name: "3. Salles et frais" }).click()
+  identity.id = "school-b"
+  await page.goto("/onboarding")
+  await expect(page.getByRole("heading", { name: /Informations de l.école/ })).toBeVisible()
+  await page.getByRole("button", { name: "2. Référentiel scolaire" }).click()
+  identity.id = "school-a"
+  await page.goto("/onboarding")
+  await expect(page.getByRole("heading", { name: "Salles et frais" })).toBeVisible()
+  identity.id = "school-b"
+  await page.goto("/onboarding")
+  await expect(page.getByRole("heading", { name: "Référentiel scolaire" })).toBeVisible()
   expect(await page.evaluate(() => localStorage.getItem("onboarding_progress"))).toBeNull()
+})
+
+
+test("import professeur réussi : retour à l’étape 4 et relecture des profils", async ({ page }) => {
+  const state = { ...ready }
+  await mockSchool(page, state)
+  await page.route("**/api/v1/import/teachers/dry-run*", async (route) => {
+    await route.fulfill({ json: { valid: 1, errors: [], preview: [{ "Nom*": "Yao", "Prénom*": "Koffi", "Type*": "vacataire" }], toAdd: [{ key: "yao", displayName: "Koffi Yao" }], toUpdate: [], toDelete: [], unchanged: 0, importMode: "merge", conflicts: [] } })
+  })
+  await page.route("**/api/v1/import/teachers/confirm*", async (route) => {
+    state.teachers = true
+    await route.fulfill({ json: { imported: 1, updated: 0, errors: [], preview: [], deactivated: 0, importMode: "merge", parentAccountsCreated: 0, parentAccountsReused: 0, pendingParentAccess: [] } })
+  })
+  await page.goto("/onboarding?step=4&school=school-a")
+  await page.getByRole("link", { name: "Importer les profils et contrats" }).click()
+  await page.locator('input[type="file"]').setInputFiles({ name: "profils.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from("mock workbook") })
+  await page.getByRole("button", { name: "Suivant →" }).click()
+  await page.getByRole("button", { name: "Importer →" }).click()
+  await expect(page.getByText(/1 enregistrements importés/).first()).toBeVisible()
+  await page.getByRole("link", { name: "Retour à la configuration initiale" }).click()
+  await expect(page.getByRole("heading", { name: "Professeurs", exact: true })).toBeVisible()
+  await expect(page.getByText("Profils disponibles", { exact: true })).toBeVisible()
 })

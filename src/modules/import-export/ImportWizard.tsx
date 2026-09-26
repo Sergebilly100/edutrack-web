@@ -70,7 +70,7 @@ const buildTabConfig = (
   teachers: {
     label: "Professeurs",
     icon: UserSquare,
-    description: "Importer les enseignants, matières et type de contrat",
+    description: "Importer les profils et contrats des enseignants",
   },
   schedule: {
     label: "Emploi du temps",

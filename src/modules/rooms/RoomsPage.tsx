@@ -1,3 +1,4 @@
+import { OnboardingReturn } from "@/modules/onboarding/OnboardingReturn"
 import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Info, Plus } from "lucide-react"
@@ -344,6 +345,7 @@ export default function RoomsPage() {
       />
     <div className="space-y-6" data-testid="rooms-page">
       <OfflineIndicator />
+      <OnboardingReturn />
       <header className="space-y-2 md:py-2" data-tour="rooms-header">
         <div className="flex items-start justify-between">
           <div>

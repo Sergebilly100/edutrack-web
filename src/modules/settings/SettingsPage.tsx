@@ -1,3 +1,4 @@
+import { OnboardingReturn } from "@/modules/onboarding/OnboardingReturn"
 import { useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useForm } from "react-hook-form"
@@ -154,6 +155,7 @@ export default function SettingsPage() {
       />
     <div className="animate-fade-in space-y-6">
       <OfflineIndicator />
+      <OnboardingReturn />
       <div className="flex items-start justify-between border-b border-border pb-5">
         <div className="space-y-0.5">
           <h1 className="text-2xl font-medium tracking-tight">Paramètres école</h1>
