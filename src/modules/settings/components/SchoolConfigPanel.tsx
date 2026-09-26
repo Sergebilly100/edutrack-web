@@ -146,7 +146,6 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
 
   const [maxAdminPositions, setMaxAdminPositions] = useState("0")
   const [logoUrlDraft, setLogoUrlDraft] = useState("")
-  const [addressDraft, setAddressDraft] = useState("")
   const [allowTeacherQrSkipDraft, setAllowTeacherQrSkipDraft] = useState(false)
   const [pendingQrSkipState, setPendingQrSkipState] = useState<boolean | null>(null)
 
@@ -157,15 +156,13 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
 
     setMaxAdminPositions(String(schoolConfigQuery.data.limits.maxAdminPositions))
     setLogoUrlDraft(schoolConfigQuery.data.school.logoUrl ?? "")
-    setAddressDraft(schoolConfigQuery.data.school.address ?? "")
     setAllowTeacherQrSkipDraft(Boolean(schoolConfigQuery.data.school.allowTeacherQrSkip))
   }, [schoolConfigQuery.data])
 
   const saveSchoolInfoMutation = useMutation({
-    mutationFn: (payload: { logoUrl?: string | null; address?: string }) =>
+    mutationFn: (payload: { logoUrl?: string | null }) =>
       updateSchoolInfo({
         ...(payload.logoUrl !== undefined ? { logoUrl: payload.logoUrl } : {}),
-        ...(payload.address !== undefined ? { address: payload.address } : {}),
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY })
@@ -622,7 +619,7 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
                     <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                       Adresse
                     </Label>
-                    <div className="flex gap-2"><Input value={addressDraft} onChange={(event) => setAddressDraft(event.target.value)} /><Button type="button" variant="outline" disabled={!addressDraft.trim() || saveSchoolInfoMutation.isPending} onClick={() => saveSchoolInfoMutation.mutate({ address: addressDraft.trim() })}>Enregistrer</Button></div>
+                    <Input value={school?.address ?? "-"} readOnly />
                   </div>
                   <div className="space-y-2 sm:col-span-2">
                     <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
