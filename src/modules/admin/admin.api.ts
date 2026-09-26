@@ -37,6 +37,7 @@ export type CreateSchoolPayload = {
   name: string
   subdomain: string
   city: string
+  address: string
   teaching_type: TeachingType
   plan: TenantPlan
   trial_days?: number
@@ -93,6 +94,7 @@ export type SchoolDetailsResponse = {
     plan: TenantPlan
     status: TenantStatus
     city: string | null
+    address: string | null
     teachingType: TeachingType | null
     maxAdminPositions: number
     maxUsers: number
@@ -137,6 +139,7 @@ export type UpdateSchoolConfigPayload = {
   max_users?: number
   max_sms_per_month?: number
   city?: string
+  address?: string
   teaching_type?: TeachingType
   student_label?: string
   director_title?: string

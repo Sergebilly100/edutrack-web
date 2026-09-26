@@ -35,6 +35,7 @@ export type SchoolConfigData = {
     subdomain: string
     plan: SchoolPlan
     city: string
+    address: string
     teachingType: TeachingType
     maxUsers: number
     currentUsers: number
@@ -162,6 +163,7 @@ const parseConfigEnvelope = (value: unknown): SchoolConfigData => {
       subdomain: asString(schoolRaw.subdomain),
       plan: parseSchoolPlan(schoolRaw.plan),
       city: asString(schoolRaw.city),
+      address: asString(schoolRaw.address),
       teachingType: parseTeachingType(schoolRaw.teachingType ?? schoolRaw.teaching_type),
       maxUsers: asNumber(schoolRaw.maxUsers ?? schoolRaw.max_users, 0),
       currentUsers: asNumber(schoolRaw.currentUsers ?? schoolRaw.current_users, 0),
@@ -196,6 +198,7 @@ const parseSchoolInfo = (value: unknown): SchoolConfigData["school"] => {
     subdomain: asString(payload.subdomain),
     plan: parseSchoolPlan(payload.plan),
     city: asString(payload.city),
+    address: asString(payload.address),
     teachingType: parseTeachingType(payload.teachingType ?? payload.teaching_type),
     maxUsers: asNumber(payload.maxUsers ?? payload.max_users, 0),
     currentUsers: asNumber(payload.currentUsers ?? payload.current_users, 0),
@@ -294,9 +297,10 @@ export const updateRealHoursConfig = async (
 }
 
 export const updateSchoolInfo = async (payload: {
-  name: string
-  city: string
-  teachingType: TeachingType
+  name?: string
+  city?: string
+  address?: string
+  teachingType?: TeachingType
   logoUrl?: string | null
   allowTeacherQrSkip?: boolean
 }): Promise<void> => {
@@ -307,6 +311,7 @@ export const updateSchoolInfo = async (payload: {
     await apiClient.patch("/permissions/config/school", {
       name: payload.name,
       city: payload.city,
+      address: payload.address,
       teachingType: payload.teachingType,
       ...(payload.logoUrl !== undefined ? { logoUrl: payload.logoUrl } : {}),
       ...(payload.allowTeacherQrSkip !== undefined
@@ -314,13 +319,14 @@ export const updateSchoolInfo = async (payload: {
         : {}),
     })
   } catch (error) {
-    if (requiresPermissionsConfigApi) {
+    if (requiresPermissionsConfigApi || !axios.isAxiosError(error) || error.response?.status !== 404) {
       throw error
     }
 
     await apiClient.patch("/school/info", {
       name: payload.name,
       city: payload.city,
+      address: payload.address,
     })
   }
 }

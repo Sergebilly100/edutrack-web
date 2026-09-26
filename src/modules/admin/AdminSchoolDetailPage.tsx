@@ -189,6 +189,7 @@ export default function AdminSchoolDetailPage() {
     plan: "essential" as TenantPlan,
     status: "trial" as TenantStatus,
     city: "",
+    address: "",
     teachingType: "secondaire" as TeachingType,
     studentLabel: "Élève",
     directorTitle: "Directeur",
@@ -279,6 +280,7 @@ export default function AdminSchoolDetailPage() {
       plan: metadata.plan,
       status: metadata.status,
       city: metadata.city ?? "",
+      address: metadata.address ?? "",
       teachingType: metadata.teachingType ?? "secondaire",
       studentLabel: metadata.studentLabel ?? (metadata.teachingType === "superieur" ? "Étudiant(e)" : "Élève"),
       directorTitle: metadata.directorTitle ?? "Directeur",
@@ -321,6 +323,7 @@ export default function AdminSchoolDetailPage() {
         plan: config.plan,
         status: config.status,
         city: config.city,
+        ...(config.address.trim() ? { address: config.address.trim() } : {}),
         teaching_type: config.teachingType,
         student_label: config.studentLabel,
         director_title: config.directorTitle,
@@ -833,6 +836,10 @@ export default function AdminSchoolDetailPage() {
                   <div className="space-y-2">
                     <Label>Ville</Label>
                     <Input value={config.city} onChange={(e) => setConfig((p) => ({ ...p, city: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Adresse</Label>
+                    <Input value={config.address} onChange={(e) => setConfig((p) => ({ ...p, address: e.target.value }))} />
                   </div>
                   <div className="space-y-2">
                     <Label>Année scolaire active</Label>

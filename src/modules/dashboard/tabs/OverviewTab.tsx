@@ -83,7 +83,7 @@ export function OverviewTab({
 
   return (
     <div className="space-y-4 sm:space-y-5">
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(20rem,0.8fr)]">
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(20rem,0.8fr)]">
         <PilotageHero
           stats={statsQuery.data}
           history={historyData}
@@ -93,7 +93,7 @@ export function OverviewTab({
         <WatchList items={watchItems} canViewTeachers={canViewTeachers} />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.38fr)_minmax(22rem,0.82fr)]">
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.38fr)_minmax(22rem,0.82fr)]">
         <AcademicProgress
           levels={pilotage?.academic ?? []}
           isLoading={pilotageQuery.isLoading}
@@ -102,7 +102,7 @@ export function OverviewTab({
         <RiskSummary risks={pilotage?.risks} canViewTeachers={canViewTeachers} />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.12fr)_minmax(21rem,0.88fr)]">
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.12fr)_minmax(21rem,0.88fr)]">
         {canViewAttendance ? <TodaySchedule courses={todayCourses} date={todayDate} /> : null}
         {canViewFinance ? (
           <FinancialSnapshot
@@ -138,7 +138,7 @@ function PilotageHero({
   const teacherExpected = (stats?.teacherAttendance.fullTime.expected ?? 0) + (stats?.teacherAttendance.partTime.expected ?? 0)
 
   return (
-    <Card className="rounded-lg border-0 bg-blue-500 text-blue-50 shadow-sm" data-tour="dashboard-stats">
+    <Card className="min-w-0 rounded-lg border-0 bg-blue-500 text-blue-50 shadow-sm" data-tour="dashboard-stats">
       <CardContent className="p-5 sm:p-6">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -161,7 +161,7 @@ function PilotageHero({
               <p className="mt-2 text-xs text-blue-100">Présence élèves : {formatRate(stats?.studentAttendance.rate ?? 0)}</p>
               <p className="mt-4 text-xs text-blue-100">{teacherPresent}/{teacherExpected} cours pointés</p>
             </div>
-            <div className="h-36">
+            <div className="min-w-0 h-36">
               {trend.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={trend} margin={{ top: 16, right: 6, left: -24, bottom: 0 }}>

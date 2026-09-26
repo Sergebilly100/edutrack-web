@@ -47,6 +47,7 @@ const schoolFormSchema = z.object({
     .min(3, "Le sous-domaine doit contenir au moins 3 caractères")
     .regex(/^[a-z0-9-]+$/, "Utilisez uniquement lettres minuscules, chiffres et tirets"),
   city: z.string().trim().min(2, "La ville est requise"),
+  address: z.string().trim().min(3, "L'adresse est requise"),
   teachingType: z.enum(["primaire", "secondaire", "superieur", "mixte"]),
   directorName: z.string().trim().min(2, "Le nom du directeur est requis"),
   directorPhone: z.string().trim().regex(PHONE_CI_REGEX, "Format attendu : 225XXXXXXXXXX"),
@@ -97,6 +98,7 @@ export default function SchoolFormModal({ open, onOpenChange, onCreated }: Schoo
       schoolName: "",
       subdomain: "",
       city: "",
+      address: "",
       teachingType: "secondaire",
       directorName: "",
       directorPhone: "",
@@ -160,6 +162,7 @@ export default function SchoolFormModal({ open, onOpenChange, onCreated }: Schoo
       name: values.schoolName,
       subdomain: values.subdomain,
       city: values.city,
+      address: values.address,
       teaching_type: values.teachingType as TeachingType,
       plan: values.plan,
       trial_days: values.trialDays,
@@ -294,6 +297,17 @@ export default function SchoolFormModal({ open, onOpenChange, onCreated }: Schoo
                         <FormControl>
                           <Input placeholder="Abidjan" {...field} />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Adresse</FormLabel>
+                        <FormControl><Input placeholder="Cocody, Abidjan" {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}

@@ -38,7 +38,6 @@ const buildBasePermissionColumns = (labels: StudentLabels) => [
       "students.create",
       "students.edit",
       "students.documents",
-      "attendance.view",
       "students.excuse",
     ],
   },
@@ -87,6 +86,15 @@ const buildBasePermissionColumns = (labels: StudentLabels) => [
     label: "Import",
     permissions: ["import.students", "import.teachers", "import.schedule"],
   },
+  { key: "attendance", label: "Présences", permissions: ["attendance.view", "attendance.mark_students"] },
+  { key: "conduct", label: "Conduite", permissions: ["conduct.finalize"] },
+  { key: "report_cards", label: "Bulletins", permissions: ["report_cards.view", "report_cards.publish"] },
+  { key: "tuition", label: "Frais scolaires", permissions: ["tuition.view", "tuition.edit", "tuition.grant_discount"] },
+  { key: "payments", label: "Encaissements", permissions: ["payments.view", "payments.record", "payments.cancel"] },
+  { key: "risk_alerts", label: "Alertes élèves", permissions: ["risk_alerts.edit"] },
+  { key: "financial_alerts", label: "Relances", permissions: ["financial_alerts.edit"] },
+  { key: "subscription_plans", label: "Plans abonnements", permissions: ["subscription_plans.view", "subscription_plans.edit"] },
+  { key: "settings", label: "Paramètres", permissions: ["settings.positions", "settings.school", "settings.sms_templates"] },
 ]
 
 const buildBasePermissionRows = (labels: StudentLabels) => [
@@ -110,15 +118,16 @@ const buildBasePermissionRows = (labels: StudentLabels) => [
   { key: "students", label: `Importer ${labels.pluralLower}` },
   { key: "teachers", label: "Importer profs" },
   { key: "schedule", label: "Importer EDT" },
+  { key: "mark_students", label: "Marquer les présences" },
+  { key: "finalize", label: "Finaliser les notes de conduite" },
+  { key: "publish", label: "Publier" },
+  { key: "grant_discount", label: "Accorder une remise" },
+  { key: "record", label: "Encaisser" },
+  { key: "cancel", label: "Annuler un paiement" },
+  { key: "positions", label: "Gérer les postes" },
+  { key: "school", label: "Gérer les informations école" },
+  { key: "sms_templates", label: "Modèles SMS" },
 ]
-
-const SMS_PERMISSION_COLUMN = {
-  key: "settings",
-  label: "Paramètres",
-  permissions: ["settings.sms_templates"],
-} as const
-
-const SMS_PERMISSION_ROW = { key: "sms_templates", label: "Template SMS école" } as const
 
 const SUBSCRIPTIONS_PERMISSION_COLUMN = {
   key: "subscriptions",
@@ -175,6 +184,11 @@ const CATEGORY_VIEW_PERMISSION: Readonly<Record<string, string>> = {
   classes: "classes.view",
   schedule: "schedule.view",
   subscriptions: "subscriptions.view",
+  attendance: "attendance.view",
+  report_cards: "report_cards.view",
+  tuition: "tuition.view",
+  payments: "payments.view",
+  subscription_plans: "subscription_plans.view",
 }
 
 const ACTION_KEYS_REQUIRING_VIEW = new Set([
@@ -197,6 +211,10 @@ const ACTION_KEYS_REQUIRING_VIEW = new Set([
   "renew",
   "cancel",
   "revenue",
+  "mark_students",
+  "publish",
+  "grant_discount",
+  "record",
 ])
 
 const splitPermission = (permission: string): { category: string; action: string } | null => {
@@ -287,13 +305,10 @@ export default function RoleMatrix({
       if (isSubscriptionsCategoryEnabled) {
         columns.push(SUBSCRIPTIONS_PERMISSION_COLUMN)
       }
-      if (canManageSmsTemplates) {
-        columns.push(SMS_PERMISSION_COLUMN)
-      }
 
       return columns
     },
-    [canManageSmsTemplates, isSubscriptionsCategoryEnabled, studentLabels]
+    [isSubscriptionsCategoryEnabled, studentLabels]
   )
   const permissionRows = useMemo(
     () => {
@@ -302,17 +317,17 @@ export default function RoleMatrix({
       if (isSubscriptionsCategoryEnabled) {
         rows.push(...SUBSCRIPTIONS_PERMISSION_ROWS)
       }
-      if (canManageSmsTemplates) {
-        rows.push(SMS_PERMISSION_ROW)
-      }
 
       return rows
     },
-    [canManageSmsTemplates, isSubscriptionsCategoryEnabled, studentLabels]
+    [isSubscriptionsCategoryEnabled, studentLabels]
   )
   const permissionSet = useMemo(() => new Set(position.permissions), [position.permissions])
+  const isFeatureUnavailable = (permission: string) =>
+    permission === "settings.sms_templates" && !canManageSmsTemplates
 
   const togglePermission = (permission: string, checked: boolean) => {
+    if (checked && isFeatureUnavailable(permission)) return
     const next = new Set(position.permissions)
 
     const segments = splitPermission(permission)
@@ -343,6 +358,7 @@ export default function RoleMatrix({
 
     if (checked) {
       for (const permission of column.permissions) {
+        if (isFeatureUnavailable(permission)) continue
         next.add(permission)
         const requiredView = resolveViewDependency(permission)
         if (requiredView) {
@@ -463,7 +479,7 @@ export default function RoleMatrix({
                   }
 
                   const isChecked = permissionSet.has(permission)
-                  const isDisabled = isViewLocked(permission, position.permissions)
+                  const isDisabled = isViewLocked(permission, position.permissions) || isFeatureUnavailable(permission)
 
                   return (
                     <TableCell key={permission} className="text-center">
@@ -479,6 +495,7 @@ export default function RoleMatrix({
                             disabled={isDisabled}
                             onCheckedChange={(checked) => togglePermission(permission, checked === true)}
                             aria-label={`${column.label} ${row.label}`}
+                            title={isFeatureUnavailable(permission) ? "L’édition des modèles SMS doit être activée par IvoirEdu." : undefined}
                           />
                         </div>
                       </div>

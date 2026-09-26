@@ -288,6 +288,7 @@ export default function SchedulePage() {
   // (ex : voir la grille, ouvrir les détails), plutôt que d'afficher une page d'erreur complète.
   const data = scheduleQuery.data
   const canEditSchedule = hasPermission("schedule.edit")
+  const canImportSchedule = hasPermission("import.schedule")
 
   const blockedTeachers = useMemo(
     () =>
@@ -712,7 +713,7 @@ export default function SchedulePage() {
         <WeekCoverageAlert
           nextWeekHasCoverage={nextWeekCoverageQuery.data ?? true}
           btnText="Procéder à l'importation"
-          onNavigateToSchedule={() => navigate("/import")}
+          onNavigateToSchedule={() => navigate("/import?type=schedule")}
         />
 
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -733,7 +734,11 @@ export default function SchedulePage() {
               <InfoIcon className="mr-1.5 h-4 w-4" />
               Guide
             </Button>
-            {canEditSchedule ? (
+            {canImportSchedule && data && !data.period ? (
+              <Button onClick={() => navigate("/import?type=schedule")} className="w-full sm:w-auto">
+                Importer l&apos;EDT
+              </Button>
+            ) : canEditSchedule ? (
               <Button
                 onClick={() => openCreateModal()}
                 // Pas de période active sur la semaine affichée = impossible de
@@ -879,7 +884,7 @@ export default function SchedulePage() {
       ) : null}
       {!scheduleQuery.isLoading && data && !data.period && viewMode === "list" ? (
         <Alert>
-          <AlertDescription>Aucune période active pour cette semaine. Changez de semaine ou configurez une période avant d'ajouter des créneaux.</AlertDescription>
+          <AlertDescription>Aucune période active. Importez le premier emploi du temps avec ses dates d&apos;application avant d&apos;ajouter ou modifier des créneaux.</AlertDescription>
         </Alert>
       ) : null}
 

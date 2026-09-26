@@ -146,6 +146,7 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
 
   const [maxAdminPositions, setMaxAdminPositions] = useState("0")
   const [logoUrlDraft, setLogoUrlDraft] = useState("")
+  const [addressDraft, setAddressDraft] = useState("")
   const [allowTeacherQrSkipDraft, setAllowTeacherQrSkipDraft] = useState(false)
   const [pendingQrSkipState, setPendingQrSkipState] = useState<boolean | null>(null)
 
@@ -156,25 +157,24 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
 
     setMaxAdminPositions(String(schoolConfigQuery.data.limits.maxAdminPositions))
     setLogoUrlDraft(schoolConfigQuery.data.school.logoUrl ?? "")
+    setAddressDraft(schoolConfigQuery.data.school.address ?? "")
     setAllowTeacherQrSkipDraft(Boolean(schoolConfigQuery.data.school.allowTeacherQrSkip))
   }, [schoolConfigQuery.data])
 
   const saveSchoolInfoMutation = useMutation({
-    mutationFn: (payload: { logoUrl: string | null }) =>
+    mutationFn: (payload: { logoUrl?: string | null; address?: string }) =>
       updateSchoolInfo({
-        name: school?.name ?? "",
-        city: school?.city ?? "",
-        teachingType: school?.teachingType ?? "general",
-        logoUrl: payload.logoUrl,
+        ...(payload.logoUrl !== undefined ? { logoUrl: payload.logoUrl } : {}),
+        ...(payload.address !== undefined ? { address: payload.address } : {}),
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY })
-      toast({ title: "Logo mis à jour" })
+      toast({ title: "Informations école mises à jour" })
     },
     onError: () => {
       toast({
         title: "Erreur",
-        description: "Impossible de mettre à jour le logo.",
+        description: "Impossible de mettre à jour les informations de l’école.",
         variant: "destructive",
       })
     },
@@ -198,9 +198,6 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
   const saveQrSkipPolicyMutation = useMutation({
     mutationFn: (allowTeacherQrSkip: boolean) =>
       updateSchoolInfo({
-        name: school?.name ?? "",
-        city: school?.city ?? "",
-        teachingType: school?.teachingType ?? "general",
         allowTeacherQrSkip,
       }),
     onSuccess: async (_, allowTeacherQrSkip) => {
@@ -620,6 +617,12 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
                       Ville
                     </Label>
                     <Input value={school?.city ?? "-"} readOnly />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Adresse
+                    </Label>
+                    <div className="flex gap-2"><Input value={addressDraft} onChange={(event) => setAddressDraft(event.target.value)} /><Button type="button" variant="outline" disabled={!addressDraft.trim() || saveSchoolInfoMutation.isPending} onClick={() => saveSchoolInfoMutation.mutate({ address: addressDraft.trim() })}>Enregistrer</Button></div>
                   </div>
                   <div className="space-y-2 sm:col-span-2">
                     <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">

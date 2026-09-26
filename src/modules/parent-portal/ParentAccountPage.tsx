@@ -88,13 +88,13 @@ export default function ParentAccountPage() {
             </div>
           </div>
 
-          {subscriptionQuery.data && (
+          {subscriptionQuery.data?.subscription && (
             <div
               className={cn(
                 "rounded-lg border p-3",
-                subscriptionQuery.data.days_remaining <= 7
+                subscriptionQuery.data.subscription.days_remaining <= 7
                   ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30"
-                  : subscriptionQuery.data.days_remaining <= 30
+                  : subscriptionQuery.data.subscription.days_remaining <= 30
                     ? "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30"
                   : "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30"
               )}
@@ -103,15 +103,15 @@ export default function ParentAccountPage() {
                 <div>
                   <p className="text-xs font-medium text-muted-foreground">Abonnement</p>
                   <p className="mt-1 text-sm font-semibold">
-                    {subscriptionStatusLabel[subscriptionQuery.data.status]} jusqu'au {formatShortDate(subscriptionQuery.data.ends_at)}
+                    {subscriptionStatusLabel[subscriptionQuery.data.subscription.status]} jusqu'au {formatShortDate(subscriptionQuery.data.subscription.ends_at)}
                   </p>
                 </div>
                 <CreditCard className="h-4 w-4 shrink-0 text-muted-foreground" />
               </div>
               <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-                <p>{subscriptionQuery.data.days_remaining} jour(s) restant(s) - {formatFcfa(subscriptionQuery.data.monthly_amount_fcfa)} FCFA / mois</p>
+                <p>{subscriptionQuery.data.subscription.days_remaining} jour(s) restant(s) - {formatFcfa(subscriptionQuery.data.subscription.monthly_amount_fcfa)} FCFA / mois</p>
               </div>
-              {subscriptionQuery.data.days_remaining <= 30 ? (
+              {subscriptionQuery.data.subscription.days_remaining <= 30 ? (
                 <div className="mt-3 flex items-start gap-2 rounded-md bg-background/70 p-2 text-xs">
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <p>rendez vous à l'administration de l'école pour renouveler votre abonnement.</p>
@@ -119,6 +119,14 @@ export default function ParentAccountPage() {
               ) : null}
             </div>
           )}
+          {subscriptionQuery.data?.subscription === null && subscriptionQuery.data.offer.available && subscriptionQuery.data.offer.unit_price_fcfa ? (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+              <p className="font-semibold">Alertes d&apos;absence en temps réel</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Sans abonnement, vous ne recevrez pas les alertes d&apos;absence de votre enfant. Pour {formatFcfa(subscriptionQuery.data.offer.unit_price_fcfa)} FCFA par enfant et par mois, elles sont envoyées en temps réel. Rendez-vous à l&apos;administration de l&apos;école.
+              </p>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

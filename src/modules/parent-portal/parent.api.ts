@@ -80,6 +80,15 @@ export type ParentSubscriptionStatus = {
   auto_renew_alert: boolean
 }
 
+export type ParentSubscriptionStatusResponse = {
+  subscription: ParentSubscriptionStatus | null
+  offer: {
+    available: boolean
+    unit_price_fcfa: number | null
+    billing: "per_child_per_month"
+  }
+}
+
 export const parentLogin = async (payload: { phone: string; password: string }) => {
   try {
     const response = await apiClient.post<{
@@ -149,8 +158,8 @@ export const getParentStats = async (studentId: string): Promise<ParentStats> =>
   return response.data
 }
 
-export const getParentSubscriptionStatus = async (): Promise<ParentSubscriptionStatus> => {
-  const response = await apiClient.get<ParentSubscriptionStatus>("/parent/subscription/status")
+export const getParentSubscriptionStatus = async (): Promise<ParentSubscriptionStatusResponse> => {
+  const response = await apiClient.get<ParentSubscriptionStatusResponse>("/parent/subscription/status")
   return response.data
 }
 

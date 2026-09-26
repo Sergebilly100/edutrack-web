@@ -21,7 +21,7 @@ const ACTION_TITLES: Record<string, string> = {
   payment_reminder_needed: "Relances paiements",
   report_cards_blocked: "Bulletins bloqués",
   student_at_risk: "Élèves à risque",
-  teacher_at_risk: "Professeurs à risque",
+  teacher_at_risk: "Professeurs à suivre",
   dossier_incomplete: "Dossier incomplet",
 }
 

@@ -104,7 +104,7 @@ describe("SchedulePeriods", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/aucune période active pour cette semaine/i)
+        screen.getByText(/aucune période active\. importez le premier emploi du temps/i)
       ).toBeInTheDocument()
     })
   })

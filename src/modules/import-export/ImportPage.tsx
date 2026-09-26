@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { ChevronLeft, ChevronRight, Info } from "lucide-react"
 
@@ -54,6 +55,7 @@ const buildMonthOptions = (): Array<{ value: string; label: string }> => {
 const MONTH_OPTIONS = buildMonthOptions()
 
 export default function ImportPage() {
+  const [searchParams] = useSearchParams()
   const { hasPermission } = usePermissions()
   const studentLabels = useStudentLabels()
   const { isBlocked: isImportBlocked } = useOfflineGuard()
@@ -64,13 +66,16 @@ export default function ImportPage() {
   const canImportStudents = isDirector || hasPermission("import.students")
   const canImportTeachers = isDirector || hasPermission("import.teachers")
   const canImportSchedule = isDirector || hasPermission("import.schedule")
-  const allowedImportTypes = ([
+  const allowedImportTypes = useMemo(() => ([
     canImportStudents ? "students" : null,
     canImportTeachers ? "teachers" : null,
     canImportSchedule ? "schedule" : null,
-  ].filter((value): value is ImportType => value !== null))
+  ].filter((value): value is ImportType => value !== null)), [canImportStudents, canImportTeachers, canImportSchedule])
   const canViewHistory = canImportStudents
-  const [activeImportType, setActiveImportType] = useState<ImportType>(allowedImportTypes[0] ?? "students")
+  const requestedType = searchParams.get("type")
+  const [activeImportType, setActiveImportType] = useState<ImportType>(
+    requestedType === "teachers" || requestedType === "schedule" || requestedType === "students" ? requestedType : allowedImportTypes[0] ?? "students"
+  )
 
   // History filter state
   const [historyPage, setHistoryPage] = useState(1)
@@ -95,6 +100,11 @@ export default function ImportPage() {
       setActiveImportType(allowedImportTypes[0])
     }
   }, [activeImportType, allowedImportTypes])
+  useEffect(() => {
+    if (requestedType === "teachers" || requestedType === "schedule" || requestedType === "students") {
+      if (allowedImportTypes.includes(requestedType)) setActiveImportType(requestedType)
+    }
+  }, [allowedImportTypes, requestedType])
 
   // Reset to page 1 when filters change
   const handleMonthChange = (value: string) => {

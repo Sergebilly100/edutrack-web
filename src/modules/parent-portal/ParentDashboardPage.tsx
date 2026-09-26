@@ -38,6 +38,7 @@ import { monthKeyInBusinessTimezone, todayInBusinessTimezone } from "@/shared/li
 
 const SELECTED_STUDENT_STORAGE_KEY = "parent_selected_student_id"
 const SUBSCRIPTION_ALERT_SEEN_KEY = "parent_subscription_alert_seen"
+const formatFcfa = (amount: number) => new Intl.NumberFormat("fr-FR").format(amount)
 
 type TodayStatus = "clear" | "absent" | "upcoming" | "empty" | "unknown"
 
@@ -200,7 +201,8 @@ export default function ParentDashboardPage() {
   }, [today])
 
   // nombre de jours avant expiration de l'abonnement
-  const daysRemaining = subscriptionQuery.data?.days_remaining ?? 999
+  const daysRemaining = subscriptionQuery.data?.subscription?.days_remaining ?? 999
+  const subscriptionOffer = subscriptionQuery.data?.offer
 
   // Afficher une alerte si l'abonnement expire dans moins de 15 jours
   const subscriptionAlert =
@@ -498,6 +500,20 @@ export default function ParentDashboardPage() {
             >
               <CircleX className="h-5 w-5"/>
             </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {subscriptionQuery.data?.subscription === null && subscriptionOffer?.available && subscriptionOffer.unit_price_fcfa ? (
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-3.5 shadow-card sm:p-4">
+          <div className="flex items-start gap-3">
+            <Bell className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">Alertes d&apos;absence en temps réel</p>
+              <p className="mt-1 text-xs leading-snug text-muted-foreground sm:text-sm">
+                Vous n&apos;êtes pas abonné : vous ne recevrez pas les alertes d&apos;absence de votre enfant. Pour {formatFcfa(subscriptionOffer.unit_price_fcfa)} FCFA par enfant et par mois, elles vous seront envoyées en temps réel. Rendez-vous à l&apos;administration de l&apos;école.
+              </p>
+            </div>
           </div>
         </div>
       ) : null}

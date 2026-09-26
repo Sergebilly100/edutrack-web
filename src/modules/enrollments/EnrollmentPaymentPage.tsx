@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowLeft, CheckCircle2, Loader2, ReceiptText } from "lucide-react"
 import { Link, useNavigate, useParams } from "react-router-dom"
+import axios from "axios"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -14,6 +15,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { PageLayout } from "@/shared/components/PageLayout"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { formatFcfa } from "@/shared/utils/formatting"
+import { usePermissions } from "@/shared/hooks/usePermissions"
 import { confirmEnrollmentPayment, getEnrollmentPaymentSummary } from "./enrollments.api"
 import { enrollmentStatusLabel } from "./enrollments.helpers"
 
@@ -24,6 +26,7 @@ export default function EnrollmentPaymentPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { toast } = useToast()
+  const { hasPermission } = usePermissions()
   const [method, setMethod] = useState<PaymentMethod>("cash")
   const [amount, setAmount] = useState("")
   const [providerReference, setProviderReference] = useState("")
@@ -48,6 +51,7 @@ export default function EnrollmentPaymentPage() {
     onError: (error) => toast({ title: "Confirmation impossible", description: error instanceof Error ? error.message : "Le paiement n’a pas été confirmé.", variant: "destructive" }),
   })
   const summary = summaryQuery.data
+  const tuitionPlanMissing = axios.isAxiosError(summaryQuery.error) && (summaryQuery.error.response?.data as { code?: string } | undefined)?.code === "TUITION_PLAN_REQUIRED"
   const enrollment = summary?.enrollment
   const paymentAmount = Number(amount)
   const amountIsValid = Number.isFinite(paymentAmount) && paymentAmount > 0 && Boolean(summary) && paymentAmount <= summary!.amountDue
@@ -62,7 +66,7 @@ export default function EnrollmentPaymentPage() {
       <Card className="mx-auto max-w-2xl">
         <CardHeader><CardTitle className="flex items-center gap-2 text-xl"><ReceiptText className="h-5 w-5 text-primary" />Paiement d’inscription</CardTitle></CardHeader>
         <CardContent className="space-y-5">
-          {summaryQuery.isError ? <QueryErrorState message="Impossible de calculer le montant dû. Vérifiez qu’un plan de frais existe pour ce niveau et cette année scolaire." onRetry={() => void summaryQuery.refetch()} isRetrying={summaryQuery.isFetching} /> : null}
+          {summaryQuery.isError ? <>{tuitionPlanMissing ? <Alert><AlertDescription className="flex flex-wrap items-center gap-3">Les frais de ce niveau ne sont pas encore configurés.{hasPermission("tuition.edit") ? <Button asChild size="sm"><Link to="/settings?tab=finance">Configurer les frais</Link></Button> : <span>Contactez le responsable de l&apos;école pour les configurer.</span>}</AlertDescription></Alert> : null}<QueryErrorState message="Impossible de calculer le montant dû. Vérifiez qu’un plan de frais existe pour ce niveau et cette année scolaire." onRetry={() => void summaryQuery.refetch()} isRetrying={summaryQuery.isFetching} /></> : null}
           {summary ? (
             <>
               <div className="grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-2">

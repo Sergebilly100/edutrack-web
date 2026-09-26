@@ -49,18 +49,7 @@ type PositionFormModalProps = {
   canManageSmsTemplates?: boolean
 }
 
-const SMS_TEMPLATE_PERMISSION = "settings.sms_templates"
-const ATTENDANCE_PERMISSIONS = new Set(["attendance.view", "attendance.mark_students"])
-
-const sanitizePermissions = (permissions: string[], canManageSmsTemplates: boolean): string[] => {
-  const withoutAttendance = permissions.filter((permission) => !ATTENDANCE_PERMISSIONS.has(permission))
-
-  if (canManageSmsTemplates) {
-    return withoutAttendance
-  }
-
-  return withoutAttendance.filter((permission) => permission !== SMS_TEMPLATE_PERMISSION)
-}
+const sanitizePermissions = (permissions: string[]): string[] => permissions
 
 export default function PositionFormModal({
   open,
@@ -77,31 +66,16 @@ export default function PositionFormModal({
     resolver: zodResolver(positionSchema),
     defaultValues: {
       name: initialPosition?.name ?? "",
-      permissions: sanitizePermissions(initialPosition?.permissions ?? [], canManageSmsTemplates),
+      permissions: sanitizePermissions(initialPosition?.permissions ?? []),
     },
   })
 
   useEffect(() => {
     form.reset({
       name: initialPosition?.name ?? "",
-      permissions: sanitizePermissions(initialPosition?.permissions ?? [], canManageSmsTemplates),
+      permissions: sanitizePermissions(initialPosition?.permissions ?? []),
     })
   }, [canManageSmsTemplates, form, initialPosition, open])
-
-  useEffect(() => {
-    if (canManageSmsTemplates) {
-      return
-    }
-
-    const currentPermissions = form.getValues("permissions")
-    const nextPermissions = sanitizePermissions(currentPermissions, false)
-    if (nextPermissions.length !== currentPermissions.length) {
-      form.setValue("permissions", nextPermissions, {
-        shouldDirty: true,
-        shouldValidate: true,
-      })
-    }
-  }, [canManageSmsTemplates, form])
 
   const mutation = useMutation({
     mutationFn: async (values: PositionFormValues) => {
@@ -109,13 +83,13 @@ export default function PositionFormModal({
         return updatePosition({
           id: initialPosition.id,
           name: values.name,
-          permissions: sanitizePermissions(values.permissions, canManageSmsTemplates),
+          permissions: sanitizePermissions(values.permissions),
         })
       }
 
       return createPosition({
         name: values.name,
-        permissions: sanitizePermissions(values.permissions, canManageSmsTemplates),
+        permissions: sanitizePermissions(values.permissions),
       })
     },
     onSuccess: async () => {

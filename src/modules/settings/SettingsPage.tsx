@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -44,6 +45,7 @@ const smsPriceSchema = z.object({
 type SmsPriceFormValues = z.infer<typeof smsPriceSchema>
 
 export default function SettingsPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const user = useAuthStore((state) => state.user)
@@ -235,7 +237,14 @@ export default function SettingsPage() {
         </Alert>
       ) : null}
 
-      <Tabs defaultValue={defaultTab} className="space-y-4">
+      <Tabs value={([
+        canManageGeneralSettings && "general", canManagePositions && "personnel",
+        canViewRequiredDocuments && "scolarite", canManageFinance && "finance",
+        canViewFinancialAlerts && "relances", canManageRiskAlerts && "risques",
+        canAccessSmsTemplate && "communication",
+      ]).includes(searchParams.get("tab") ?? "") ? searchParams.get("tab")! : defaultTab}
+        onValueChange={(tab) => setSearchParams((current) => { const next = new URLSearchParams(current); next.set("tab", tab); return next })}
+        className="space-y-4">
       <TabsList className="grid h-auto w-full grid-cols-2 rounded-xl border border-border sm:grid-cols-4 lg:grid-cols-7">
         {canManageGeneralSettings ? <TabsTrigger value="general" className="min-h-12">Général</TabsTrigger> : null}
         {canManagePositions ? <TabsTrigger value="personnel" className="min-h-12">Personnel</TabsTrigger> : null}
