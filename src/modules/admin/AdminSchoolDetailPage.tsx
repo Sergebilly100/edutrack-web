@@ -160,27 +160,27 @@ export default function AdminSchoolDetailPage() {
   const schoolQuery = useQuery({
     queryKey: ["admin", "school-detail", tenantId],
     queryFn: () => getSchoolDetails(tenantId as string),
-    enabled: Boolean(tenantId),
+    enabled: Boolean(tenantId) && user?.role === "super_admin",
   })
   const schoolUsersQuery = useQuery({
     queryKey: ["admin", "school-users", tenantId],
     queryFn: () => getSchoolUsers(tenantId as string),
-    enabled: Boolean(tenantId),
+    enabled: Boolean(tenantId) && user?.role === "super_admin",
   })
   const paymentsQuery = useQuery({
     queryKey: ["admin", "school-payments", tenantId],
     queryFn: () => getSchoolPayments(tenantId as string),
-    enabled: Boolean(tenantId),
+    enabled: Boolean(tenantId) && user?.role === "super_admin",
   })
   const smsFeatureStatsQuery = useQuery({
     queryKey: ["admin", "school-sms-feature-stats", tenantId],
     queryFn: () => getSchoolSmsFeatureStats(tenantId as string),
-    enabled: Boolean(tenantId),
+    enabled: Boolean(tenantId) && user?.role === "super_admin",
   })
   const schoolYearQuery = useQuery({
     queryKey: ["admin", "school-year-status", tenantId],
     queryFn: () => getSchoolYearStatus(tenantId as string),
-    enabled: Boolean(tenantId),
+    enabled: Boolean(tenantId) && user?.role === "super_admin",
   })
 
   // ── États locaux ─────────────────────────────────────────────────────────
@@ -1479,7 +1479,7 @@ export default function AdminSchoolDetailPage() {
             ══════════════════════════════════════════════════ */}
             {config.midYearOnboarding ? (
               <TabsContent value="import-midyear" className="space-y-5">
-                <MidyearImportPanel tenantId={tenantId as string} />
+                <MidyearImportPanel key={tenantId} tenantId={tenantId as string} schoolName={school.metadata.name} />
               </TabsContent>
             ) : null}
 

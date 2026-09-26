@@ -801,6 +801,7 @@ export type MidyearImportAnalysis = {
   matchedFields: MidyearMappingField[]
   missingTargets: string[]
   profile: MidyearMappingProfile | null
+  distinctValuesByColumn: Record<string, string[]>
 }
 
 const midyearImportUrl = (tenantId: string, importType: MidyearImportType, suffix: string) =>
@@ -829,15 +830,34 @@ export const saveMidyearMappingProfile = async (
   return response.data.profile
 }
 
-export const analyzeMidyearImport = async (tenantId: string, importType: MidyearImportType, file: File): Promise<MidyearImportAnalysis> => {
-  const response = await api.post<MidyearImportAnalysis>(midyearImportUrl(tenantId, importType, "analyze"), midyearFileForm(file))
+export type MidyearRecoveryImpact = {
+  profilesCreated: number; profilesReused: number
+  classesCreated: number; classesReused: number
+  enrollmentsCreated: number; enrollmentsReused: number
+  paymentsCreated: number; paymentsReused: number
+}
+export type MidyearRecoveryPreview = {
+  schoolYearId: string
+  validRows: Array<{ rowNumber: number; values: Record<string, string> }>
+  errors: Array<{ rowNumber: number; reason: string }>
+  totalRows: number
+  impact: MidyearRecoveryImpact
+  classesWithoutTeacherAssignments: number
+  previewToken: string
+}
+export type MidyearRecoveryResult = {
+  createdCount: number; reusedCount: number
+  errors: MidyearRecoveryPreview["errors"]; totalRows: number; impact: MidyearRecoveryImpact
+}
+export const analyzeMidyearImport = async (tenantId: string, importType: MidyearImportType, file: File, yearId: string): Promise<MidyearImportAnalysis> => {
+  const response = await api.post<MidyearImportAnalysis>(midyearImportUrl(tenantId, importType, "analyze"), midyearFileForm(file), { params: { school_year_id: yearId } })
   return response.data
 }
-
-export const confirmMidyearImport = async (tenantId: string, importType: MidyearImportType, file: File) => {
-  const response = await api.post<{ createdCount: number; errors: Array<{ rowNumber: number; reason: string }>; totalRows: number }>(
-    midyearImportUrl(tenantId, importType, "confirm"),
-    midyearFileForm(file)
-  )
+export const previewMidyearImport = async (tenantId: string, importType: MidyearImportType, file: File, yearId: string): Promise<MidyearRecoveryPreview> => {
+  const response = await api.post<MidyearRecoveryPreview>(midyearImportUrl(tenantId, importType, "preview"), midyearFileForm(file), { params: { school_year_id: yearId } })
+  return response.data
+}
+export const confirmMidyearImport = async (tenantId: string, importType: MidyearImportType, file: File, yearId: string, previewToken: string): Promise<MidyearRecoveryResult> => {
+  const response = await api.post<MidyearRecoveryResult>(midyearImportUrl(tenantId, importType, "confirm"), midyearFileForm(file), { params: { school_year_id: yearId, preview_token: previewToken } })
   return response.data
 }
