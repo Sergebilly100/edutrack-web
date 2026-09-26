@@ -97,7 +97,7 @@ for (const [step, link, heading] of [
   [2, "Configurer les matières", "Référentiel scolaire"],
   [3, "Configurer les salles", "Salles et frais"],
   [3, "Configurer les frais", "Salles et frais"],
-  [4, "Importer les profils et contrats", "Professeurs"],
+  [4, "Importer les profils et contrats", "Profils à préparer"],
 ] as const) {
   test(`aller-retour : ${link}`, async ({ page }) => {
     await mockSchool(page)
@@ -152,6 +152,52 @@ test("import professeur réussi : retour à l’étape 4 et relecture des profil
   await page.getByRole("button", { name: "Importer →" }).click()
   await expect(page.getByText(/1 enregistrements importés/).first()).toBeVisible()
   await page.getByRole("link", { name: "Retour à la configuration initiale" }).click()
-  await expect(page.getByRole("heading", { name: "Professeurs", exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Profils à préparer", exact: true })).toBeVisible()
   await expect(page.getByText("Profils disponibles", { exact: true })).toBeVisible()
+})
+
+test("C7 : import historique sans classe à 360px puis retour à l’onboarding", async ({ page }) => {
+  await mockSchool(page)
+  await page.setViewportSize({ width: 360, height: 640 })
+  let savedFields: unknown[] | null = null
+  let confirmed = false
+  const fields = ["matricule", "nom", "prenom", "parent_phone"].map((targetField) => ({
+    targetField, sourceColumnLabel: targetField, isRequired: targetField !== "parent_phone", translations: [],
+  }))
+  await page.route("**/api/v1/import/historical-students/**", async (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (path.endsWith("/profile")) {
+      savedFields = route.request().postDataJSON().fields
+      expect(savedFields).toEqual(fields)
+      return route.fulfill({ json: { profile: { fields: savedFields } } })
+    }
+    if (path.endsWith("/confirm")) {
+      confirmed = true
+      return route.fulfill({ json: { createdCount: 1, reusedCount: 0, totalRows: 2, errors: [{ rowNumber: 3, field: "nom", reason: "Nom requis" }] } })
+    }
+    return route.fulfill({ json: {
+      headers: ["matricule", "nom", "prenom", "parent_phone"], rowCount: 2, validCount: 1,
+      profile: savedFields ? { fields: savedFields } : null, matchedFields: fields, missingTargets: [],
+      sampleRows: [{ rowNumber: 2, values: { matricule: "C7-MOBILE", nom: "Test", prenom: "Historique", parent_phone: "" } }],
+      errors: [{ rowNumber: 3, field: "nom", reason: "Nom requis" }],
+    } })
+  })
+  await page.goto("/onboarding?step=4&school=school-a")
+  await page.getByRole("link", { name: "Importer les profils élèves historiques" }).click()
+  await expect(page.getByRole("heading", { name: "Profils élèves historiques" })).toBeVisible()
+  await expect(page.getByRole("tab")).toHaveCount(0)
+  await expect(page.getByText("Mode de mise à jour")).toHaveCount(0)
+  await page.getByLabel("Fichier Excel des élèves").setInputFiles({ name: "historique.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from("mock workbook") })
+  await page.getByRole("button", { name: "Analyser les colonnes" }).click()
+  await expect(page.getByRole("combobox")).toHaveCount(4)
+  await expect(page.getByRole("combobox", { name: /Classe/ })).toHaveCount(0)
+  await page.getByRole("button", { name: "Enregistrer les correspondances" }).click()
+  await expect(page.getByText("Nom requis")).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.screenshot({ path: ".tmp/c7-historical-mobile.png", fullPage: true })
+  await page.getByRole("button", { name: "Importer les profils valides" }).click()
+  await expect(page.getByText(/1 profil\(s\) créé\(s\), 0 profil\(s\) déjà présent/)).toBeVisible()
+  expect(confirmed).toBe(true)
+  await page.getByRole("link", { name: "Retour à la configuration initiale" }).click()
+  await expect(page.getByRole("heading", { name: "Profils à préparer", exact: true })).toBeVisible()
 })

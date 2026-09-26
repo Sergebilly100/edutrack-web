@@ -278,6 +278,22 @@ export const validationsTourSteps: Step[] = [
   },
 ]
 
+export const historicalStudentsImportTourSteps: Step[] = [
+  {
+    target: "[data-tour='import-header']",
+    title: "Préparer les profils historiques",
+    content: "Importez uniquement l’identité et le téléphone parent des élèves déjà connus. Vous les inscrirez plus tard, lors de l’ouverture des classes. Cet import ne crée ni inscription, paiement, dossier financier ni document.",
+    placement: "bottom",
+    skipBeacon: true,
+  },
+  {
+    target: "[data-tour='historical-students-file']",
+    title: "Analyser et associer les colonnes",
+    content: "Choisissez votre fichier Excel puis analysez ses colonnes. Associez le matricule, le nom et le prénom ; le téléphone parent est facultatif. Enregistrez les correspondances, vérifiez l’aperçu et les erreurs par ligne, puis importez les profils valides. Les profils déjà présents avec la même identité sont conservés.",
+    placement: "top",
+  },
+]
+
 export const importTourSteps: Step[] = [
   {
     target: "[data-tour='import-header']",

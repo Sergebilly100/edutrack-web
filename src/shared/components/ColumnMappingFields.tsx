@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 export type ColumnMappingField<TTarget extends string> = {
   targetField: TTarget
   sourceColumnLabel: string
+  isRequired?: boolean
 }
 
 type ColumnMappingFieldsProps<TTarget extends string> = {
@@ -11,6 +12,7 @@ type ColumnMappingFieldsProps<TTarget extends string> = {
   headers: string[]
   idPrefix: string
   labels: Record<TTarget, string>
+  disabled?: boolean
   onChange: (targetField: TTarget, sourceColumnLabel: string) => void
 }
 
@@ -24,6 +26,7 @@ export function ColumnMappingFields<TTarget extends string>({
   headers,
   idPrefix,
   labels,
+  disabled = false,
   onChange,
 }: ColumnMappingFieldsProps<TTarget>) {
   return (
@@ -31,9 +34,10 @@ export function ColumnMappingFields<TTarget extends string>({
       {fields.map((field) => (
         <div key={field.targetField} className="space-y-2">
           <Label htmlFor={`${idPrefix}-${field.targetField}`}>
-            {labels[field.targetField]} <span className="text-destructive">*</span>
+            {labels[field.targetField]} {field.isRequired !== false ? <span className="text-destructive">*</span> : <span className="text-muted-foreground">(facultatif)</span>}
           </Label>
           <Select
+            disabled={disabled}
             value={field.sourceColumnLabel || "none"}
             onValueChange={(value) => onChange(field.targetField, value === "none" ? "" : value)}
           >

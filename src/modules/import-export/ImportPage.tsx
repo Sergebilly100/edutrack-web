@@ -20,8 +20,9 @@ import { useStudentLabels, type StudentLabels } from "@/shared/hooks/useStudentL
 import { useAuthStore } from "@/shared/store/auth.store"
 import { TourGuide } from "@/shared/components/TourGuide"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
-import { importTourSteps } from "@/shared/lib/tour-steps"
+import { historicalStudentsImportTourSteps, importTourSteps } from "@/shared/lib/tour-steps"
 import ImportWizard from "./ImportWizard"
+import { HistoricalStudentsImport } from "./HistoricalStudentsImport"
 
 const HISTORY_PAGE_SIZE = 10
 
@@ -58,7 +59,7 @@ const MONTH_OPTIONS = buildMonthOptions()
 export default function ImportPage() {
   const [searchParams] = useSearchParams()
   const guidedReturn = useOnboardingReturn()
-  const isInitialTeacherImport = Boolean(guidedReturn) && searchParams.get("type") === "teachers"
+  const isInitialTeacherImport = Boolean(guidedReturn) && searchParams.get("type") !== "students"
   const { hasPermission } = usePermissions()
   const studentLabels = useStudentLabels()
   const { isBlocked: isImportBlocked } = useOfflineGuard()
@@ -73,12 +74,14 @@ export default function ImportPage() {
     canImportStudents ? "students" : null,
     canImportTeachers ? "teachers" : null,
     canImportSchedule ? "schedule" : null,
-  ].filter((value): value is ImportType => value !== null && (!isInitialTeacherImport || value === "teachers"))), [canImportStudents, canImportTeachers, canImportSchedule, isInitialTeacherImport])
-  const canViewHistory = canImportStudents && !isInitialTeacherImport
+  ].filter((value): value is ImportType => value !== null && (!guidedReturn || value === (searchParams.get("type") === "students" ? "students" : "teachers")))), [canImportStudents, canImportTeachers, canImportSchedule, guidedReturn, searchParams])
+  const canViewHistory = canImportStudents && !guidedReturn
   const requestedType = searchParams.get("type")
   const [activeImportType, setActiveImportType] = useState<ImportType>(
     requestedType === "teachers" || requestedType === "schedule" || requestedType === "students" ? requestedType : allowedImportTypes[0] ?? "students"
   )
+
+  const isHistoricalStudentsImport = isDirector && activeImportType === "students"
 
   // History filter state
   const [historyPage, setHistoryPage] = useState(1)
@@ -86,7 +89,7 @@ export default function ImportPage() {
   const [historyType, setHistoryType] = useState<ImportType | undefined>(undefined)
 
   const historyQuery = useQuery({
-    queryKey: ["import-history", { page: historyPage, month: historyMonth, type: historyType }],
+    queryKey: ["import-history", user?.schemaName, user?.tenantId, { page: historyPage, month: historyMonth, type: historyType }],
     queryFn: () =>
       fetchImportHistory({
         limit: HISTORY_PAGE_SIZE,
@@ -128,7 +131,7 @@ export default function ImportPage() {
   return (
     <>
       <TourGuide
-        steps={importTourSteps}
+        steps={isHistoricalStudentsImport ? historicalStudentsImportTourSteps : importTourSteps}
         run={tour.run}
         stepIndex={tour.stepIndex}
         onStepChange={tour.setStepIndex}
@@ -142,7 +145,9 @@ export default function ImportPage() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Import de données</h1>
             <p className="text-sm text-muted-foreground">
-              {isInitialTeacherImport
+              {isHistoricalStudentsImport
+                ? "Importez les profils historiques des élèves. Vous les inscrirez plus tard, lors de l’ouverture des classes."
+                : isInitialTeacherImport
                 ? "Importez les profils et contrats des professeurs. Les affectations viendront après les inscriptions."
                 : `Utilisez les modèles Excel puis importez vos ${studentLabels.pluralLower}, professeurs et emploi du temps.`}
             </p>
@@ -168,7 +173,13 @@ export default function ImportPage() {
               L'import de fichiers nécessite une connexion réseau active. Reconnectez-vous puis recommencez.
             </ContextualHelp>
           ) : (
-            <ImportWizard
+            isHistoricalStudentsImport ? <div className="space-y-4">
+              {!guidedReturn ? <div className="flex flex-wrap gap-2">
+                {canImportTeachers ? <Button variant="outline" className="min-h-12" onClick={() => setActiveImportType("teachers")}>Importer les professeurs</Button> : null}
+                {canImportSchedule ? <Button variant="outline" className="min-h-12" onClick={() => setActiveImportType("schedule")}>Importer l’emploi du temps</Button> : null}
+              </div> : null}
+              <HistoricalStudentsImport key={`${user?.schemaName}:${user?.tenantId}`} />
+            </div> : <ImportWizard
               selectedImportType={activeImportType}
               onImportTypeChange={setActiveImportType}
               allowedImportTypes={allowedImportTypes}

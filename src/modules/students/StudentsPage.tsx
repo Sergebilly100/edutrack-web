@@ -233,7 +233,7 @@ export default function StudentsPage() {
   )
   const inactiveStudentsCount = Math.max(students.length - activeStudentsCount, 0)
   const absenceWatchCount = canViewAttendance ? tableData.filter((student) => student.monthlyAbsences > 3).length : 0
-  const visibleClassesCount = new Set(students.map((student) => student.classId)).size
+  const visibleClassesCount = new Set(students.map((student) => student.classId).filter(Boolean)).size
 
   const isCreateStudentValid =
     newStudent.classId.length > 0 &&
@@ -268,7 +268,7 @@ export default function StudentsPage() {
       {
         accessorKey: "className",
         header: "Classe",
-        cell: ({ row }) => <span className="block max-w-[14rem] truncate text-sm">{row.original.className}</span>,
+        cell: ({ row }) => <span className="block max-w-[14rem] truncate text-sm">{row.original.className ?? "Non inscrit"}</span>,
       },
       {
         id: "parent",
@@ -510,7 +510,7 @@ export default function StudentsPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{student.name}</p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {student.matricule ? `${student.className} · ${student.matricule}` : student.className}
+                      {student.matricule ? `${student.className ?? "Non inscrit"} · ${student.matricule}` : student.className ?? "Non inscrit"}
                     </p>
                   </div>
                   <div className="min-w-0 flex flex-col items-end gap-1">

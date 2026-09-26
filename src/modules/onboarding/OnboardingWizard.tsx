@@ -187,11 +187,13 @@ function SchoolOnboarding({ school, schoolId }: { school: SchoolInfoResponse; sc
         ) : null}
         {step === 4 ? (
           <section className="space-y-4">
-            <h2 className="text-lg font-semibold">Professeurs</h2>
+            <h2 className="text-lg font-semibold">Profils à préparer</h2>
             <p>Importez uniquement les profils et contrats des professeurs. Les affectations individuelles aux matières et classes interviendront après les inscriptions.</p>
             <p className="text-sm text-muted-foreground">Facultatif : vous pouvez continuer si vous ne disposez pas encore des profils.</p>
             <Badge variant="outline">{verified && status.data.teachers ? "Profils disponibles" : "Import facultatif"}</Badge>
             <div>{configAction("/import?type=teachers", 4, "Importer les profils et contrats", "import.teachers")}</div>
+            <p>Préparez aussi les profils historiques des élèves. Ils seront inscrits plus tard, lors de l’ouverture des classes. Cet import ne crée aucune inscription, aucun paiement, dossier financier ou document.</p>
+            <div>{configAction("/import?type=students", 4, "Importer les profils élèves historiques", "import.students")}</div>
           </section>
         ) : null}
         {step === 5 ? (

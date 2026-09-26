@@ -2,8 +2,8 @@ import { apiClient as api } from "@/shared/api/client"
 
 export type StudentItem = {
   id: string
-  classId: string
-  className: string
+  classId: string | null
+  className: string | null
   firstName: string
   lastName: string
   matricule: string | null
@@ -37,7 +37,7 @@ export type StudentsListResponse = {
 }
 
 export type CreateStudentPayload = {
-  classId: string
+  classId?: string
   firstName: string
   lastName: string
   matricule?: string | null
@@ -72,8 +72,8 @@ export type StudentDetail = {
   lastName: string
   matricule: string | null
   birthDate: string | null
-  className: string
-  classId: string
+  className: string | null
+  classId: string | null
   isActive: boolean
   parentPhone: string | null
   parentEmail: string | null

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowLeft, ArrowRight, Loader2, UserPlus } from "lucide-react"
-import { Link, useNavigate, useParams } from "react-router-dom"
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import axios from "axios"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -37,6 +37,8 @@ const getError = (error: unknown) => axios.isAxiosError(error) && typeof error.r
 
 export default function NewEnrollmentPage() {
   const { enrollmentId } = useParams()
+  const [searchParams] = useSearchParams()
+  const profileStudentId = searchParams.get("studentId")
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -54,9 +56,9 @@ export default function NewEnrollmentPage() {
     enabled: Boolean(enrollmentId),
   })
   const historicalStudentQuery = useQuery({
-    queryKey: ["students", "detail", historicalEnrollmentQuery.data?.studentId],
-    queryFn: () => getStudentById(historicalEnrollmentQuery.data!.studentId),
-    enabled: Boolean(enrollmentId && historicalEnrollmentQuery.data?.studentId),
+    queryKey: ["students", "detail", historicalEnrollmentQuery.data?.studentId ?? profileStudentId],
+    queryFn: () => getStudentById(historicalEnrollmentQuery.data?.studentId ?? profileStudentId!),
+    enabled: Boolean(historicalEnrollmentQuery.data?.studentId || profileStudentId),
   })
 
   const yearsQuery = useQuery({ queryKey: ["academic", "school-years", "enrollment"], queryFn: listSchoolYears })
@@ -71,11 +73,14 @@ export default function NewEnrollmentPage() {
   useEffect(() => {
     const historicalEnrollment = historicalEnrollmentQuery.data
     const student = historicalStudentQuery.data
-    if (!enrollmentId || !historicalEnrollment || !student || initializedEnrollmentId.current === enrollmentId) return
-    initializedEnrollmentId.current = enrollmentId
-    setEnrollment(historicalEnrollment)
-    setSchoolYearId(historicalEnrollment.schoolYearId)
-    setClassId(historicalEnrollment.classId)
+    const contextId = enrollmentId ?? profileStudentId
+    if (!contextId || !student || initializedEnrollmentId.current === contextId || (enrollmentId && !historicalEnrollment)) return
+    initializedEnrollmentId.current = contextId
+    if (historicalEnrollment) {
+      setEnrollment(historicalEnrollment)
+      setSchoolYearId(historicalEnrollment.schoolYearId)
+      setClassId(historicalEnrollment.classId)
+    }
     setForm({
       firstName: student.firstName,
       lastName: student.lastName,
@@ -87,12 +92,11 @@ export default function NewEnrollmentPage() {
       parentName2: student.parentName2 ?? "",
       parentPhone2: student.parentPhone2 ?? "",
     })
-  }, [enrollmentId, historicalEnrollmentQuery.data, historicalStudentQuery.data])
+  }, [enrollmentId, profileStudentId, historicalEnrollmentQuery.data, historicalStudentQuery.data])
 
   const creationMutation = useMutation({
     mutationFn: async () => {
       const studentPayload = {
-        classId,
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         birthDate: form.birthDate || null,
@@ -108,7 +112,9 @@ export default function NewEnrollmentPage() {
         const updatedEnrollment = await updateEnrollment(enrollment.id, { classId })
         return { enrollment: updatedEnrollment, missingMandatoryDocuments: [], documentWarning: null, updated: true }
       }
-      const student = await createStudent(studentPayload)
+      const student = profileStudentId
+        ? await updateStudent(profileStudentId, studentPayload)
+        : await createStudent(studentPayload)
       return createEnrollment({ studentId: student.id, classId, schoolYearId, type: "new_registration" })
     },
     onSuccess: async (result) => {
@@ -146,8 +152,8 @@ export default function NewEnrollmentPage() {
     && isValidOptionalPhone(form.parentPhone) && isValidOptionalPhone(form.parentPhone2)
     && parentPairValid && (!form.parentEmail.trim() || /.+@.+\..+/.test(form.parentEmail.trim())),
   )
-  const historicalLoading = Boolean(enrollmentId) && (historicalEnrollmentQuery.isLoading || historicalStudentQuery.isLoading)
-  const historicalError = Boolean(enrollmentId) && (historicalEnrollmentQuery.isError || historicalStudentQuery.isError)
+  const historicalLoading = Boolean(enrollmentId || profileStudentId) && (historicalEnrollmentQuery.isLoading || historicalStudentQuery.isLoading)
+  const historicalError = Boolean(enrollmentId || profileStudentId) && (historicalEnrollmentQuery.isError || historicalStudentQuery.isError)
   const historicalConfirmed = historicalEnrollmentQuery.data?.status === "confirmed"
   const historicalForbidden = Boolean(enrollmentId) && !canEditDraft
 

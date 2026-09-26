@@ -372,6 +372,7 @@ export default function StudentDetailPage() {
       subtitle=""
       actions={
         <div className="flex gap-2">
+          {!student.classId && hasPermission("enrollments.create") && hasPermission("students.edit") ? <Button className="min-h-12" onClick={() => navigate(`/enrollments/new?studentId=${student.id}`)}>Inscrire cet élève</Button> : null}
           <Button
             type="button"
             variant="outline"
@@ -401,7 +402,7 @@ export default function StudentDetailPage() {
             </Avatar>
             <div className="min-w-0">
               <p className="truncate text-lg font-semibold">{student.lastName} {student.firstName}</p>
-              <p className="truncate text-sm text-muted-foreground">{student.className}</p>
+              <p className="truncate text-sm text-muted-foreground">{student.className ?? "Non inscrit"}</p>
               {student.matricule ? (
                 <p className="truncate text-xs text-muted-foreground">Matricule : {student.matricule}</p>
               ) : null}

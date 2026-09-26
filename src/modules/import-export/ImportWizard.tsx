@@ -65,7 +65,7 @@ const buildTabConfig = (
   students: {
     label: labels.plural,
     icon: GraduationCap,
-    description: `Importer les ${labels.pluralLower} avec classe et contacts parent`,
+    description: `Importer les ${labels.pluralLower} avec identité et contacts parent`,
   },
   teachers: {
     label: "Professeurs",

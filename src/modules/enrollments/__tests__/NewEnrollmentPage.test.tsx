@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   getEnrollment: vi.fn(),
+  createEnrollment: vi.fn(),
+  createStudent: vi.fn(),
   updateEnrollment: vi.fn(),
   verifyDocuments: vi.fn(),
   getStudent: vi.fn(),
@@ -17,11 +19,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../enrollments.api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../enrollments.api")>()),
   getEnrollment: mocks.getEnrollment,
+  createEnrollment: mocks.createEnrollment,
   updateEnrollment: mocks.updateEnrollment,
   verifyStudentDocuments: mocks.verifyDocuments,
 }))
 vi.mock("@/modules/students/students.api", () => ({
-  createStudent: vi.fn(),
+  createStudent: mocks.createStudent,
   getStudentById: mocks.getStudent,
   updateStudent: mocks.updateStudent,
 }))
@@ -40,6 +43,7 @@ import NewEnrollmentPage from "../NewEnrollmentPage"
 describe("NewEnrollmentPage historical edit", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, value: vi.fn() })
     mocks.getEnrollment.mockResolvedValue({
       id: "enrollment-1",
       studentId: "student-1",
@@ -96,16 +100,49 @@ describe("NewEnrollmentPage historical edit", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Enregistrer et continuer" }))
 
     await waitFor(() => expect(mocks.updateStudent).toHaveBeenCalledWith("student-1", expect.objectContaining({
-      classId: "class-1",
       firstName: "Aya",
       lastName: "Koné",
       parentName: "M. Koné",
     })))
     expect(mocks.updateEnrollment).toHaveBeenCalledWith("enrollment-1", { classId: "class-1" })
+    expect(mocks.updateStudent.mock.calls[0][1]).not.toHaveProperty("classId")
     expect(await screen.findByText("Liste des documents")).toBeInTheDocument()
     expect(screen.queryByText("Caisse", { selector: "li span" })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: /Terminer le dossier/ }))
     await waitFor(() => expect(mocks.verifyDocuments).toHaveBeenCalledWith("student-1"))
     expect(await screen.findByText("Historique des inscriptions")).toBeInTheDocument()
+  })
+
+  it("inscrit un profil historique existant sans recréer l’élève ni écrire sa classe sur le profil", async () => {
+    mocks.getStudent.mockResolvedValue({
+      id: "student-historical", firstName: "Aya", lastName: "Kone", matricule: "H-001",
+      classId: null, className: null, parentName: null, parentPhone: null,
+    })
+    mocks.updateStudent.mockResolvedValue({ id: "student-historical" })
+    mocks.createEnrollment.mockResolvedValue({
+      enrollment: { id: "enrollment-new", studentId: "student-historical", classId: "class-1", status: "pending_cashier" },
+      missingMandatoryDocuments: [], documentWarning: null,
+    })
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/enrollments/new?studentId=student-historical"]}>
+          <NewEnrollmentPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+    expect(await screen.findByDisplayValue("H-001")).toBeInTheDocument()
+    fireEvent.keyDown(screen.getAllByRole("combobox")[0], { key: "ArrowDown" })
+    fireEvent.click(await screen.findByRole("option", { name: "2026-2027" }))
+    await waitFor(() => expect(screen.getAllByRole("combobox")[1]).not.toBeDisabled())
+    fireEvent.keyDown(screen.getAllByRole("combobox")[1], { key: "ArrowDown" })
+    fireEvent.click(await screen.findByRole("option", { name: /CP1 A/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Créer et continuer" }))
+    await waitFor(() => expect(mocks.createEnrollment).toHaveBeenCalledWith({
+      studentId: "student-historical", classId: "class-1", schoolYearId: "year-1", type: "new_registration",
+    }))
+    expect(mocks.createStudent).not.toHaveBeenCalled()
+    expect(mocks.updateStudent).toHaveBeenCalledWith("student-historical", expect.objectContaining({ firstName: "Aya", matricule: "H-001" }))
+    expect(mocks.updateStudent.mock.calls[0][1]).not.toHaveProperty("classId")
+    expect(await screen.findByText("Liste des documents")).toBeInTheDocument()
   })
 })
