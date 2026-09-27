@@ -58,6 +58,8 @@ La migration a été exécutée uniquement sur les bases temporaires de test. À
 
 ## Question super administrateur soulevée pendant la tâche
 
+> Le regroupement a ensuite été demandé et réalisé : voir [la recette de l’onglet unique](admin-regroupement-imports-ecole.md). La reprise des profils/contrats professeurs reste distincte de cette réorganisation.
+
 Le code actuel affiche deux fois `MidyearImportPanel` : « Données professeurs » expose les affectations et reste disponible en permanence ; « Reprise de données » contient déjà ces affectations, mais dépend de l’activation de la reprise. Cette séparation est technique et crée un doublon de navigation.
 
 Recommandation : un seul onglet « Imports de l’école », avec opérations autorisées selon le contexte et séparation claire profils/contrats versus affectations. **L’import super administrateur actuel traite les affectations professeurs, pas leurs profils/contrats.** Réunir les deux entrées ne suffirait donc pas à fournir une reprise complète des professeurs. Ces opérations et cette nouvelle organisation admin n’ont pas été modifiées dans le correctif historique directeur ; la question et cet écart ont été signalés explicitement.

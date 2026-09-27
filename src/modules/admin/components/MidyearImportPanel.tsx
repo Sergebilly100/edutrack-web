@@ -89,9 +89,9 @@ export function MidyearImportPanel({ tenantId, schoolName, teachersOnly = false 
   const errors = preview?.errors ?? result?.errors
   const excludedRows = new Set(errors?.map((error) => error.rowNumber)).size
 
-  return <section className="space-y-6" aria-label="Reprise de données de l’école">
+  return <section className="space-y-6" aria-label="Imports de l’école">
     <div className="space-y-2">
-      <h2 className="text-2xl font-medium">{teachersOnly ? "Importer les affectations des professeurs" : "Reprise d’une école en cours d’année"}</h2>
+      <h2 className="text-2xl font-medium">{teachersOnly ? "Importer les affectations des professeurs" : "Importer les données de l’école"}</h2>
       <p className="max-w-2xl text-sm text-muted-foreground">Opération réservée au super administrateur. Chaque fichier est contrôlé avant l’écriture. Les lignes en erreur seront exclues.</p>
       <p className="font-medium">École sélectionnée : {schoolName}</p>
     </div>
@@ -99,7 +99,7 @@ export function MidyearImportPanel({ tenantId, schoolName, teachersOnly = false 
       <Label htmlFor="recovery-year">Année scolaire concernée</Label>
       <Select value={yearId} disabled={busy} onValueChange={(value) => { setYearId(value); resetFile() }}><SelectTrigger id="recovery-year" className="min-h-12"><SelectValue placeholder="Sélectionner explicitement l’année active" /></SelectTrigger><SelectContent><SelectItem className="min-h-12" value={yearQuery.data.activeYear.id}>{yearQuery.data.activeYear.label}</SelectItem></SelectContent></Select>
     </div>}
-    <div className="flex flex-wrap gap-2" aria-label="Étapes de reprise">
+    <div className="flex flex-wrap gap-2" aria-label="Types de données à importer">
       {(teachersOnly ? ["teacher_assignments" as const] : IMPORT_ORDER).map((type) => <Button key={type} type="button" variant={selectedType === type ? "default" : "outline"} className="min-h-12 whitespace-normal" disabled={busy} onClick={() => { setSelectedType(type); resetFile() }}>{IMPORT_LABELS[type]}</Button>)}
     </div>
     {selectedType === "teacher_assignments" ? <Alert><AlertDescription>Import de données professeurs réservé au super administrateur, après la création des classes. Format : Matricule | Matière | Classes. Exemple : P-001 | Mathématiques | 4e A, 2nde C. Une ligne par groupe ; toutes les classes d’une ligne doivent être valides. Les dépendances manquantes et les associations déjà présentes sont refusées.</AlertDescription></Alert> : null}

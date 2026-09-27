@@ -123,8 +123,8 @@ test('C10 : import d’affectations accessible depuis la fiche école, avec aper
   await page.getByRole('link', { name: 'Écoles', exact: true }).first().click();
   await page.getByPlaceholder('Rechercher une école').fill('École QA navigateur');
   await page.getByRole('row', { name: /École QA navigateur/ }).first().getByRole('button', { name: 'Voir détail' }).click();
-  await page.getByRole('tab', { name: 'Données professeurs' }).click();
-  await expect(page.getByText('Importer les affectations des professeurs', { exact: true })).toBeVisible();
+  await page.getByRole('tab', { name: 'Imports de l’école' }).click();
+  await page.getByRole('button', { name: /^6 · Professeurs : affectations$/ }).click();
   await page.getByRole('combobox', { name: 'Année scolaire concernée' }).click();
   await page.getByRole('option', { name: /QA \d{4}/ }).click();
   const fileData = await file(['Matricule','Matière','Classes'], [['ABSENT','Mathematiques','Classe QA']]);

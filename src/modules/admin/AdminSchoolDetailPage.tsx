@@ -67,7 +67,7 @@ import {
   updateSchoolConfig,
   updateSchoolSmsFeatureConfig,
 } from "@/modules/admin/admin.api"
-import { OfflineDisabledFieldset, OfflineIndicator, StatCard } from "@/shared/components"
+import { OfflineDisabledFieldset, OfflineIndicator, Spinner, StatCard } from "@/shared/components"
 import { MidyearImportPanel } from "./components/MidyearImportPanel"
 import { useAuthStore } from "@/shared/store/auth.store"
 
@@ -153,7 +153,8 @@ export default function AdminSchoolDetailPage() {
   const createdDirectorCredentials = locationState?.createdDirectorCredentials
   const tabFromQuery = new URLSearchParams(location.search).get("tab")
   const [activeTab, setActiveTab] = useState<string>(
-    tabFromQuery === "sms-revenus" ? "sms-revenus" : "config"
+    tabFromQuery === "sms-revenus" ? "sms-revenus"
+      : ["imports", "teacher-data", "import-midyear"].includes(tabFromQuery ?? "") ? "imports" : "config"
   )
 
   // ── Queries ──────────────────────────────────────────────────────────────
@@ -216,12 +217,12 @@ export default function AdminSchoolDetailPage() {
     onSuccess: async (_response, enabled) => {
       await queryClient.invalidateQueries({ queryKey: ["admin", "school-detail", tenantId] })
       setConfig((current) => ({ ...current, midYearOnboarding: enabled }))
-      if (enabled) setActiveTab("import-midyear")
+      setActiveTab("imports")
       toast({
-        title: enabled ? "Import prise en main activé" : "Import prise en main désactivé",
+        title: enabled ? "Reprise en cours d’année activée" : "Reprise en cours d’année désactivée",
       })
     },
-    onError: () => toast({ title: "Erreur", description: "Impossible de modifier le flag.", variant: "destructive" }),
+    onError: () => toast({ title: "Erreur", description: "Impossible de modifier l’accès à la reprise. Réessayez.", variant: "destructive" }),
   })
 
   const [mrrDraft, setMrrDraft] = useState({ mrr: "", cycle: "monthly" as "monthly" | "annual" })
@@ -802,10 +803,7 @@ export default function AdminSchoolDetailPage() {
               <TabsTrigger value="config">Configuration</TabsTrigger>
               <TabsTrigger value="users">Utilisateurs</TabsTrigger>
               <TabsTrigger value="school-year">Cycle scolaire</TabsTrigger>
-              <TabsTrigger value="teacher-data">Données professeurs</TabsTrigger>
-              {config.midYearOnboarding ? (
-                <TabsTrigger value="import-midyear">Reprise de données</TabsTrigger>
-              ) : null}
+              <TabsTrigger value="imports" className="min-h-12">Imports de l’école</TabsTrigger>
               <TabsTrigger value="abonnement">Facturation</TabsTrigger>
               <TabsTrigger value="sms-revenus">
                 SMS
@@ -886,30 +884,6 @@ export default function AdminSchoolDetailPage() {
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>{STATUS_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                     </Select>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle>Reprise de données</CardTitle>
-                  <CardDescription>
-                    Activez ce flux lorsqu&apos;une école créée en cours d&apos;année doit reprendre ses données existantes.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex items-start gap-3">
-                  <Checkbox
-                    id="midyear-onboarding"
-                    checked={config.midYearOnboarding}
-                    disabled={midYearMutation.isPending}
-                    onCheckedChange={(checked) => midYearMutation.mutate(Boolean(checked))}
-                  />
-                  <div className="space-y-1">
-                    <Label htmlFor="midyear-onboarding">Activer l&apos;import prise en main</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Rend l&apos;onglet d&apos;import disponible pour les niveaux, matières, salles, classes, élèves et situation financière initiale.
-                    </p>
-                    {midYearMutation.isPending ? <p className="text-xs text-muted-foreground">Mise à jour en cours...</p> : null}
                   </div>
                 </CardContent>
               </Card>
@@ -1475,21 +1449,38 @@ export default function AdminSchoolDetailPage() {
               </AlertDialog>
             </TabsContent>
 
-            {/* ══════════════════════════════════════════════════
-                ONGLET - IMPORT PRISE EN MAIN (8a, conditionnel)
-            ══════════════════════════════════════════════════ */}
-            <TabsContent value="teacher-data" className="space-y-5">
-              <MidyearImportPanel key={`teachers-${tenantId}`} tenantId={tenantId as string} schoolName={school.metadata.name} teachersOnly />
+            <TabsContent value="imports" className="space-y-6">
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle>Accès à la reprise</CardTitle>
+                  <CardDescription>
+                    Activez la reprise en cours d’année pour importer les niveaux, matières, salles,
+                    classes, élèves et paiements de cette école. Les affectations professeurs restent disponibles.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex items-center gap-3">
+                  <Checkbox
+                    id="midyear-onboarding"
+                    checked={config.midYearOnboarding}
+                    disabled={midYearMutation.isPending}
+                    onCheckedChange={(checked) => midYearMutation.mutate(checked === true)}
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="midyear-onboarding" className="flex min-h-12 items-center">
+                      Activer la reprise en cours d’année
+                    </Label>
+                    {midYearMutation.isPending ? <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground"><Spinner size="sm" />Mise à jour en cours…</p> : null}
+                  </div>
+                </CardContent>
+              </Card>
+              <MidyearImportPanel
+                key={`${tenantId}-${config.midYearOnboarding ? "recovery" : "assignments"}`}
+                tenantId={tenantId as string}
+                schoolName={school.metadata.name}
+                teachersOnly={!config.midYearOnboarding}
+              />
             </TabsContent>
-            {config.midYearOnboarding ? (
-              <TabsContent value="import-midyear" className="space-y-5">
-                <MidyearImportPanel key={tenantId} tenantId={tenantId as string} schoolName={school.metadata.name} />
-              </TabsContent>
-            ) : null}
 
-            {/* ══════════════════════════════════════════════════
-                ONGLET 3 - ABONNEMENT & FACTURATION
-            ══════════════════════════════════════════════════ */}
             <TabsContent value="abonnement" className="space-y-5">
               {(() => {
                 const stats = school.usageStats
