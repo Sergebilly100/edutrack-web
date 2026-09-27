@@ -15,6 +15,7 @@ export type TeacherListItem = {
   subjects: string[]
   teachingAssignments: Array<{ subjectId: string; subjectName: string; classId: string; className: string }>
   homeroomClasses: Array<{ id: string; name: string }>
+  classesWithoutHomeroomTeacher?: Array<{ id: string; name: string }>
   hourlyRate: number | null
   monthlySalary: number | null
   isActive: boolean
@@ -144,7 +145,7 @@ export type TeacherUpsertPayload = {
   email: string | null
   type: TeacherType
   subjects: string[]
-  teachingAssignments: Array<{ subjectId: string; classId: string }>
+  teachingAssignments?: Array<{ subjectId: string; classId: string }>
   hourlyRate: number | null
   monthlySalary: number | null
 }
@@ -229,6 +230,7 @@ const mapTeacher = (value: unknown): TeacherListItem => {
     subjects: normalizeSubjects(item.subjects ?? item.subject),
     teachingAssignments,
     homeroomClasses,
+    classesWithoutHomeroomTeacher: Array.isArray(item.classes_without_homeroom_teacher) ? item.classes_without_homeroom_teacher.map((value: unknown) => { const row = toRecord(value); return { id: asString(row.id), name: asString(row.name) } }) : [],
     hourlyRate:
       item.hourly_rate === null
         ? null
@@ -320,7 +322,7 @@ export async function createTeacher(payload: TeacherUpsertPayload): Promise<Teac
     email: payload.email,
     type: payload.type,
     subjects: payload.subjects,
-    teaching_assignments: payload.teachingAssignments.map((assignment) => ({ subject_id: assignment.subjectId, class_id: assignment.classId })),
+    ...(payload.teachingAssignments === undefined ? {} : { teaching_assignments: payload.teachingAssignments.map((assignment) => ({ subject_id: assignment.subjectId, class_id: assignment.classId })) }),
     hourly_rate: payload.hourlyRate,
     monthly_salary: payload.monthlySalary,
   })
@@ -354,7 +356,7 @@ export async function updateTeacher(
     email: payload.email,
     type: payload.type,
     subjects: payload.subjects,
-    teaching_assignments: payload.teachingAssignments.map((assignment) => ({ subject_id: assignment.subjectId, class_id: assignment.classId })),
+    ...(payload.teachingAssignments === undefined ? {} : { teaching_assignments: payload.teachingAssignments.map((assignment) => ({ subject_id: assignment.subjectId, class_id: assignment.classId })) }),
     hourly_rate: payload.hourlyRate,
     monthly_salary: payload.monthlySalary,
   })

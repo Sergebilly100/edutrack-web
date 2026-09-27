@@ -22,10 +22,10 @@ import {
   type MidyearRecoveryPreview, type MidyearRecoveryResult,
 } from "@/modules/admin/admin.api"
 
-const IMPORT_ORDER: MidyearImportType[] = ["levels", "subjects", "rooms", "classes", "students", "payments"]
+const IMPORT_ORDER: MidyearImportType[] = ["levels", "subjects", "rooms", "classes", "students", "teacher_assignments", "payments"]
 const IMPORT_LABELS: Record<MidyearImportType, string> = {
   levels: "1 · Niveaux", subjects: "2 · Matières", rooms: "3 · Salles",
-  classes: "4 · Classes", students: "5 · Élèves et inscriptions", payments: "6 · Paiements déjà reçus",
+  classes: "4 · Classes", students: "5 · Élèves et inscriptions", teacher_assignments: "6 · Professeurs : affectations", payments: "7 · Paiements déjà reçus",
 }
 const TARGETS: Record<MidyearImportType, Array<{ key: string; label: string; required: boolean }>> = {
   levels: [{ key: "nom", label: "Nom du niveau", required: true }, { key: "ordre", label: "Ordre", required: false }],
@@ -33,6 +33,7 @@ const TARGETS: Record<MidyearImportType, Array<{ key: string; label: string; req
   rooms: [{ key: "nom", label: "Nom de la salle", required: true }, { key: "capacite", label: "Capacité", required: false }],
   classes: [{ key: "nom", label: "Nom de la classe", required: true }, { key: "niveau", label: "Niveau", required: true }],
   students: [{ key: "matricule", label: "Matricule", required: true }, { key: "nom", label: "Nom", required: true }, { key: "prenom", label: "Prénom", required: true }, { key: "niveau", label: "Niveau", required: true }, { key: "classe", label: "Classe", required: true }, { key: "parent_phone", label: "Téléphone parent", required: false }],
+  teacher_assignments: [{ key: "matricule", label: "Matricule professeur", required: true }, { key: "matiere", label: "Matière", required: true }, { key: "classes", label: "Classes (séparées par des virgules)", required: true }],
   payments: [{ key: "matricule", label: "Matricule", required: true }, { key: "montant", label: "Montant", required: true }, { key: "date", label: "Date effective", required: true }, { key: "reference", label: "Référence", required: true }, { key: "method", label: "Moyen de paiement", required: true }],
 }
 const METHODS: Record<string, string> = { cash: "Espèces", mobile_money: "Mobile Money", bank_transfer: "Virement bancaire" }
@@ -41,11 +42,11 @@ const fieldsFor = (type: MidyearImportType, fields: MidyearMappingField[] | unde
     sourceColumnLabel: "", targetField: target.key, isRequired: target.required, translations: [],
   })
 
-export function MidyearImportPanel({ tenantId, schoolName }: { tenantId: string; schoolName: string }) {
+export function MidyearImportPanel({ tenantId, schoolName, teachersOnly = false }: { tenantId: string; schoolName: string; teachersOnly?: boolean }) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const [yearId, setYearId] = useState("")
-  const [selectedType, setSelectedType] = useState<MidyearImportType>("levels")
+  const [selectedType, setSelectedType] = useState<MidyearImportType>(teachersOnly ? "teacher_assignments" : "levels")
   const [file, setFile] = useState<File | null>(null)
   const [analysis, setAnalysis] = useState<MidyearImportAnalysis | null>(null)
   const [fields, setFields] = useState<MidyearMappingField[]>([])
@@ -86,10 +87,11 @@ export function MidyearImportPanel({ tenantId, schoolName }: { tenantId: string;
   const methodField = fields.find((f) => f.targetField === "method")
   const methodValues = methodField && analysis ? analysis.distinctValuesByColumn[methodField.sourceColumnLabel] ?? [] : []
   const errors = preview?.errors ?? result?.errors
+  const excludedRows = new Set(errors?.map((error) => error.rowNumber)).size
 
   return <section className="space-y-6" aria-label="Reprise de données de l’école">
     <div className="space-y-2">
-      <h2 className="text-2xl font-medium">Reprise d’une école en cours d’année</h2>
+      <h2 className="text-2xl font-medium">{teachersOnly ? "Importer les affectations des professeurs" : "Reprise d’une école en cours d’année"}</h2>
       <p className="max-w-2xl text-sm text-muted-foreground">Opération réservée au super administrateur. Chaque fichier est contrôlé avant l’écriture. Les lignes en erreur seront exclues.</p>
       <p className="font-medium">École sélectionnée : {schoolName}</p>
     </div>
@@ -98,8 +100,9 @@ export function MidyearImportPanel({ tenantId, schoolName }: { tenantId: string;
       <Select value={yearId} disabled={busy} onValueChange={(value) => { setYearId(value); resetFile() }}><SelectTrigger id="recovery-year" className="min-h-12"><SelectValue placeholder="Sélectionner explicitement l’année active" /></SelectTrigger><SelectContent><SelectItem className="min-h-12" value={yearQuery.data.activeYear.id}>{yearQuery.data.activeYear.label}</SelectItem></SelectContent></Select>
     </div>}
     <div className="flex flex-wrap gap-2" aria-label="Étapes de reprise">
-      {IMPORT_ORDER.map((type) => <Button key={type} type="button" variant={selectedType === type ? "default" : "outline"} className="min-h-12 whitespace-normal" disabled={busy} onClick={() => { setSelectedType(type); resetFile() }}>{IMPORT_LABELS[type]}</Button>)}
+      {(teachersOnly ? ["teacher_assignments" as const] : IMPORT_ORDER).map((type) => <Button key={type} type="button" variant={selectedType === type ? "default" : "outline"} className="min-h-12 whitespace-normal" disabled={busy} onClick={() => { setSelectedType(type); resetFile() }}>{IMPORT_LABELS[type]}</Button>)}
     </div>
+    {selectedType === "teacher_assignments" ? <Alert><AlertDescription>Import de données professeurs réservé au super administrateur, après la création des classes. Format : Matricule | Matière | Classes. Exemple : P-001 | Mathématiques | 4e A, 2nde C. Une ligne par groupe ; toutes les classes d’une ligne doivent être valides. Les dépendances manquantes et les associations déjà présentes sont refusées.</AlertDescription></Alert> : null}
     {selectedType === "students" ? <p className="text-sm text-muted-foreground">Les classes manquantes du niveau indiqué seront annoncées dans l’aperçu et créées à la confirmation. Les profils déjà présents seront réutilisés si leur identité correspond.</p> : null}
     {selectedType === "payments" ? <Alert><AlertDescription>Les paiements doivent correspondre à des inscriptions confirmées. Montant, date effective, référence et moyen de paiement sont conservés. Ces données de migration alimentent les dossiers financiers sans apparaître dans le journal de caisse.</AlertDescription></Alert> : null}
     <div className="space-y-2"><Label htmlFor="midyear-file">Fichier Excel ({IMPORT_LABELS[selectedType]})</Label><Input key={`${yearId}-${selectedType}`} id="midyear-file" className="min-h-12" type="file" accept=".xlsx" disabled={!yearId || busy} onChange={(event) => { setFile(event.target.files?.[0] ?? null); setAnalysis(null); setMappingSaved(false); invalidatePreview() }} /></div>
@@ -114,18 +117,20 @@ export function MidyearImportPanel({ tenantId, schoolName }: { tenantId: string;
     </div> : null}
     {preview ? <div className="space-y-4 rounded-lg border p-4">
       <h3 className="font-semibold">Impact avant confirmation</h3><p>{schoolName} · {yearQuery.data?.activeYear?.label} · {preview.validRows.length} ligne(s) valide(s)</p>
-      <dl className="grid gap-3 sm:grid-cols-2">
+      {selectedType === "teacher_assignments" ? <p>{preview.impact.assignmentsCreated ?? 0} association(s) à créer.</p> : null}
+      {selectedType !== "teacher_assignments" ? <dl className="grid gap-3 sm:grid-cols-2">
         <div><dt>Profils</dt><dd>{preview.impact.profilesCreated} à créer, {preview.impact.profilesReused} à réutiliser</dd></div>
         <div><dt>Classes</dt><dd>{preview.impact.classesCreated} à créer, {preview.impact.classesReused} à réutiliser</dd></div>
         <div><dt>Inscriptions actives</dt><dd>{preview.impact.enrollmentsCreated} à créer, {preview.impact.enrollmentsReused} à réutiliser</dd></div>
         <div><dt>Paiements</dt><dd>{preview.impact.paymentsCreated} à créer, {preview.impact.paymentsReused} déjà repris</dd></div>
-      </dl>
+      </dl> : null}
       {preview.classesWithoutTeacherAssignments ? <Alert><AlertDescription>{preview.classesWithoutTeacherAssignments} classe(s) sans affectation professeur. Les profils et affectations professeurs constituent une étape distincte à terminer avant l’import de l’emploi du temps.</AlertDescription></Alert> : null}
       {preview.validRows.length ? <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Ligne</TableHead>{TARGETS[selectedType].map((t) => <TableHead key={t.key}>{t.label}</TableHead>)}</TableRow></TableHeader><TableBody>{preview.validRows.map((row) => <TableRow key={row.rowNumber}><TableCell>{row.rowNumber}</TableCell>{TARGETS[selectedType].map((t) => <TableCell key={t.key}>{row.values[t.key]}</TableCell>)}</TableRow>)}</TableBody></Table></div> : <EmptyState title="Aucune ligne valide" description="Corrigez les erreurs signalées avant de relancer l’aperçu." />}
-      <div className="flex min-h-12 items-center gap-3"><Checkbox id="recovery-impact" disabled={busy || !preview.validRows.length} checked={impactAccepted} onCheckedChange={(checked) => setImpactAccepted(checked === true)} /><Label className="flex min-h-12 items-center" htmlFor="recovery-impact">Je confirme cet impact pour l’école et l’année sélectionnées. Les {preview.errors.length} ligne(s) en erreur seront exclues.</Label></div>
+      <div className="flex min-h-12 items-center gap-3"><Checkbox id="recovery-impact" disabled={busy || !preview.validRows.length} checked={impactAccepted} onCheckedChange={(checked) => setImpactAccepted(checked === true)} /><Label className="flex min-h-12 items-center" htmlFor="recovery-impact">Je confirme cet impact pour l’école et l’année sélectionnées. Les {excludedRows} ligne(s) en erreur seront exclues.</Label></div>
     </div> : null}
     {analysis ? <Button className="min-h-12" disabled={!preview?.validRows.length || !impactAccepted || busy} onClick={() => confirmMutation.mutate()}>{confirmMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}{confirmMutation.isPending ? "Import en cours..." : "Lancer l’import définitif"}</Button> : null}
-    {errors ? <div className="space-y-3"><h3 className="font-semibold">Rapport d’erreurs ({errors.length})</h3>{errors.length ? <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Ligne</TableHead><TableHead>Cause</TableHead></TableRow></TableHeader><TableBody>{errors.map((error) => <TableRow key={error.rowNumber}><TableCell>{error.rowNumber}</TableCell><TableCell className="text-destructive">{error.reason}</TableCell></TableRow>)}</TableBody></Table></div> : <EmptyState title="Aucune erreur" description="Toutes les lignes du fichier sont valides." />}</div> : null}
-    {result ? <Alert><AlertDescription>Reprise terminée : {result.createdCount} ligne(s) créée(s), {result.reusedCount} réutilisée(s), {result.errors.length} exclue(s).</AlertDescription></Alert> : null}
+    {(preview?.classesWithoutHomeroomTeacher ?? result?.classesWithoutHomeroomTeacher)?.length ? <Alert><AlertDescription>Rappel : classes sans professeur principal : {(preview?.classesWithoutHomeroomTeacher ?? result?.classesWithoutHomeroomTeacher)?.map((item) => item.name).join(", ")}. Ce rappel ne bloque pas l’import.</AlertDescription></Alert> : null}
+    {errors ? <div className="space-y-3"><h3 className="font-semibold">Rapport d’erreurs ({errors.length})</h3>{errors.length ? <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Ligne</TableHead><TableHead>Colonne</TableHead><TableHead>Valeur</TableHead><TableHead>Cause</TableHead></TableRow></TableHeader><TableBody>{errors.map((error, index) => <TableRow key={`${error.rowNumber}-${index}`}><TableCell>{error.rowNumber}</TableCell><TableCell>{error.column ?? ""}</TableCell><TableCell>{error.value ?? ""}</TableCell><TableCell className="text-destructive">{error.reason}</TableCell></TableRow>)}</TableBody></Table></div> : <EmptyState title="Aucune erreur" description="Toutes les lignes du fichier sont valides." />}</div> : null}
+    {result ? <Alert><AlertDescription>Reprise terminée : {result.createdCount} ligne(s) créée(s), {result.reusedCount} réutilisée(s), {excludedRows} exclue(s).</AlertDescription></Alert> : null}
   </section>
 }

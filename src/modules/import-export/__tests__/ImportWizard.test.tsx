@@ -859,3 +859,10 @@ describe("import-export.api - confirmImport", () => {
     expect(result.parentAccountsReused).toBe(1)
   })
 })
+
+it("C10 explains profile-only initial import and preserving assignments on reimport", async () => {
+  renderWizard({ selectedImportType: "teachers", allowedImportTypes: ["teachers"] })
+  await waitFor(() => expect(screen.getByText(/Le réimport conserve les affectations existantes/)).toBeVisible())
+  expect(screen.getByText(/Après les inscriptions, définissez les affectations/)).toBeVisible()
+  expect(screen.queryByRole("tab", { name: /affectations/i })).not.toBeInTheDocument()
+})

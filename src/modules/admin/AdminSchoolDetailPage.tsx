@@ -802,6 +802,7 @@ export default function AdminSchoolDetailPage() {
               <TabsTrigger value="config">Configuration</TabsTrigger>
               <TabsTrigger value="users">Utilisateurs</TabsTrigger>
               <TabsTrigger value="school-year">Cycle scolaire</TabsTrigger>
+              <TabsTrigger value="teacher-data">Données professeurs</TabsTrigger>
               {config.midYearOnboarding ? (
                 <TabsTrigger value="import-midyear">Reprise de données</TabsTrigger>
               ) : null}
@@ -1477,6 +1478,9 @@ export default function AdminSchoolDetailPage() {
             {/* ══════════════════════════════════════════════════
                 ONGLET - IMPORT PRISE EN MAIN (8a, conditionnel)
             ══════════════════════════════════════════════════ */}
+            <TabsContent value="teacher-data" className="space-y-5">
+              <MidyearImportPanel key={`teachers-${tenantId}`} tenantId={tenantId as string} schoolName={school.metadata.name} teachersOnly />
+            </TabsContent>
             {config.midYearOnboarding ? (
               <TabsContent value="import-midyear" className="space-y-5">
                 <MidyearImportPanel key={tenantId} tenantId={tenantId as string} schoolName={school.metadata.name} />

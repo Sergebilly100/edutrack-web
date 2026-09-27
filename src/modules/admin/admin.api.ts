@@ -778,7 +778,7 @@ export const setMidYearFlag = async (tenantId: string, enabled: boolean): Promis
   await api.patch<{ success: boolean }>(`/admin/schools/${tenantId}/mid-year-flag`, { enabled })
 }
 
-export type MidyearImportType = "levels" | "subjects" | "rooms" | "classes" | "students" | "payments"
+export type MidyearImportType = "levels" | "subjects" | "rooms" | "classes" | "students" | "teacher_assignments" | "payments"
 
 export type MidyearMappingField = {
   sourceColumnLabel: string
@@ -835,19 +835,22 @@ export type MidyearRecoveryImpact = {
   classesCreated: number; classesReused: number
   enrollmentsCreated: number; enrollmentsReused: number
   paymentsCreated: number; paymentsReused: number
+  assignmentsCreated?: number
 }
 export type MidyearRecoveryPreview = {
   schoolYearId: string
   validRows: Array<{ rowNumber: number; values: Record<string, string> }>
-  errors: Array<{ rowNumber: number; reason: string }>
+  errors: Array<{ rowNumber: number; reason: string; column?: string; value?: string }>
   totalRows: number
   impact: MidyearRecoveryImpact
   classesWithoutTeacherAssignments: number
+  classesWithoutHomeroomTeacher?: Array<{ id: string; name: string }>
   previewToken: string
 }
 export type MidyearRecoveryResult = {
   createdCount: number; reusedCount: number
   errors: MidyearRecoveryPreview["errors"]; totalRows: number; impact: MidyearRecoveryImpact
+  classesWithoutHomeroomTeacher?: Array<{ id: string; name: string }>
 }
 export const analyzeMidyearImport = async (tenantId: string, importType: MidyearImportType, file: File, yearId: string): Promise<MidyearImportAnalysis> => {
   const response = await api.post<MidyearImportAnalysis>(midyearImportUrl(tenantId, importType, "analyze"), midyearFileForm(file), { params: { school_year_id: yearId } })

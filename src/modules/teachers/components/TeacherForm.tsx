@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useRef } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm, useWatch } from "react-hook-form"
+import { useFieldArray, useForm, useWatch } from "react-hook-form"
 import { useQuery } from "@tanstack/react-query"
 import { z } from "zod"
 
@@ -28,8 +28,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ChevronDown, Search, X } from "lucide-react"
+import { ChevronDown, Search, X, Plus, Trash2 } from "lucide-react"
 
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/shared/components/EmptyState"
+import { Spinner } from "@/shared/components/Spinner"
+import { groupTeachingAssignments, resolveAssignmentBlocks } from "../teaching-assignments"
 import { cn } from "@/lib/utils"
 import { listClasses, listSubjects } from "@/modules/academic/academic.api"
 import type { TeacherType, TeacherUpsertPayload } from "@/modules/teachers/teachers.api"
@@ -49,8 +54,10 @@ const teacherFormSchema = z
       { message: "Email invalide" }
     ),
     type: z.enum(["vacataire", "permanent"]),
-    subjectNames: z.array(z.string()).min(1, "Sélectionnez au moins une matière"),
-    classIds: z.array(z.string()).min(1, "Sélectionnez au moins une classe"),
+    assignmentBlocks: z.array(z.object({
+      subjectName: z.string().min(1, "Choisissez une matière"),
+      classIds: z.array(z.string()).min(1, "Sélectionnez au moins une classe"),
+    })),
     hourlyRate: z.string().trim(),
     monthlySalary: z.string().trim(),
   })
@@ -163,7 +170,7 @@ function MultiSelectCombobox({
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               onClick={(event) => event.stopPropagation()}
-              placeholder={`Rechercher une ${title.toLocaleLowerCase("fr").replace(/s$/, "")}`}
+              placeholder="Rechercher une classe"
               className="pl-9"
               aria-label={`Rechercher dans ${title.toLocaleLowerCase("fr")}`}
             />
@@ -186,7 +193,7 @@ function MultiSelectCombobox({
         </DropdownMenuContent>
       </DropdownMenu>
       {selectedOptions.length > 0 ? <div className="flex flex-wrap gap-2" aria-label={`${title} sélectionnées`}>
-        {selectedOptions.map((option) => <Button key={option.value} type="button" variant="secondary" size="sm" className="h-8 gap-1.5 px-2 font-normal" onClick={() => toggle(option.value)} disabled={disabled}>
+        {selectedOptions.map((option) => <Button key={option.value} type="button" variant="secondary" size="sm" className="min-h-12 gap-1.5 px-2 font-normal" onClick={() => toggle(option.value)} disabled={disabled}>
           <span>{option.label}</span><X className="h-3.5 w-3.5" /><span className="sr-only">Retirer</span>
         </Button>)}
       </div> : null}
@@ -202,7 +209,9 @@ export type TeacherFormInitialValues = {
   email: string | null
   type: TeacherType
   subjects: string[]
-  teachingAssignments?: Array<{ subjectId: string; classId: string }>
+  teachingAssignments?: Array<{ subjectId: string; subjectName?: string; classId: string }>
+  isBlocked?: boolean
+  isActive?: boolean
   hourlyRate: number | null
   monthlySalary: number | null
 }
@@ -231,22 +240,28 @@ export default function TeacherForm({
       phone: initialValues?.phone ?? "",
       email: initialValues?.email ?? "",
       type: initialValues?.type ?? "vacataire",
-      subjectNames: initialValues?.subjects ?? [],
-      classIds: [...new Set(initialValues?.teachingAssignments?.map((assignment) => assignment.classId) ?? [])],
+      assignmentBlocks: groupTeachingAssignments(initialValues?.teachingAssignments ?? []),
       hourlyRate: initialValues?.hourlyRate ? String(initialValues.hourlyRate) : "",
       monthlySalary: initialValues?.monthlySalary ? String(initialValues.monthlySalary) : "",
     },
   })
 
   const type = useWatch({ control: form.control, name: "type" })
-  const subjectNames = useWatch({ control: form.control, name: "subjectNames" })
-  const classIds = useWatch({ control: form.control, name: "classIds" })
+  const { fields: blocks, append, remove } = useFieldArray({ control: form.control, name: "assignmentBlocks" })
+  const assignmentBlocks = useWatch({ control: form.control, name: "assignmentBlocks" })
   const subjectsQuery = useQuery({ queryKey: ["academic", "subjects", "teacher-form"], queryFn: () => listSubjects() })
   const classesQuery = useQuery({ queryKey: ["academic", "classes", "teacher-form"], queryFn: () => listClasses() })
-  const selectedSubjects = useMemo(
-    () => (subjectsQuery.data ?? []).filter((subject) => subjectNames.includes(subject.name)),
-    [subjectNames, subjectsQuery.data]
-  )
+  const assignmentsLocked = lockSubjects || initialValues?.isBlocked === true || initialValues?.isActive === false
+  const initialized = useRef(false)
+  useEffect(() => {
+    if (!initialized.current && subjectsQuery.data) {
+      form.setValue("assignmentBlocks", groupTeachingAssignments(initialValues?.teachingAssignments ?? [], subjectsQuery.data))
+      initialized.current = true
+    }
+  }, [form, subjectsQuery.data, initialValues?.teachingAssignments])
+  const activeYearId = classesQuery.data?.activeSchoolYear?.id
+  const activeClasses = (classesQuery.data?.classes ?? []).filter((item) => item.isActive && item.schoolYear.id === activeYearId)
+  const missingHomeroom = activeClasses.filter((item) => !item.homeroomTeacher)
   const subjectOptions = useMemo(
     () => [...new Set((subjectsQuery.data ?? []).map((subject) => subject.name))].sort((a, b) => a.localeCompare(b, "fr")),
     [subjectsQuery.data]
@@ -261,20 +276,12 @@ export default function TeacherForm({
   }, [form, type])
 
   const handleSubmit = async (values: TeacherFormValues) => {
-    const teachingAssignments = selectedSubjects.flatMap((subject) =>
-      (classesQuery.data?.classes ?? [])
-        .filter((schoolClass) => classIds.includes(schoolClass.id) && schoolClass.level.id === subject.levelId)
-        .map((schoolClass) => ({ subjectId: subject.id, classId: schoolClass.id }))
-    )
-
-    if (teachingAssignments.length === 0) {
-      form.setError("classIds", {
-        type: "validate",
-        message: "Sélectionnez au moins une classe du même niveau que les matières choisies",
-      })
+    const resolved = assignmentsLocked ? { pairs: [], errors: [] } : resolveAssignmentBlocks(values.assignmentBlocks, subjectsQuery.data ?? [], classesQuery.data?.classes ?? [], activeYearId)
+    if (resolved.errors.length) {
+      for (const error of resolved.errors) form.setError(`assignmentBlocks.${error.blockIndex}.classIds`, { type: "validate", message: error.message })
       return
     }
-
+    const teachingAssignments = resolved.pairs
     await onSubmit({
       firstName: values.firstName.trim(),
       lastName: values.lastName.trim(),
@@ -282,10 +289,8 @@ export default function TeacherForm({
       phone: values.phone || null,
       email: values.email ? values.email.trim() : null,
       type: values.type,
-      subjects: [...new Set(selectedSubjects
-        .filter((subject) => teachingAssignments.some((assignment) => assignment.subjectId === subject.id))
-        .map((subject) => subject.name))],
-      teachingAssignments,
+      subjects: assignmentsLocked ? initialValues?.subjects ?? [] : [...new Set(values.assignmentBlocks.map((block) => block.subjectName))],
+      ...(assignmentsLocked ? {} : { teachingAssignments }),
       hourlyRate: values.type === "vacataire" ? Number(values.hourlyRate) : null,
       monthlySalary: values.type === "permanent" ? Number(values.monthlySalary) : null,
     })
@@ -410,45 +415,35 @@ export default function TeacherForm({
           )}
         />
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <FormField control={form.control} name="subjectNames" render={() => (
-            <FormItem>
-              <FormLabel>Matières enseignées</FormLabel>
-              <MultiSelectCombobox
-                title="Matières"
-                description="Choisissez les matières enseignées. Une matière n’apparaît qu’une fois, quel que soit son coefficient ou son niveau."
-                selectedValues={subjectNames}
-                options={subjectOptions.map((name) => ({ value: name, label: name }))}
-                disabled={lockSubjects || subjectsQuery.isLoading}
-                onChange={(values) => form.setValue("subjectNames", values, { shouldValidate: true })}
-              />
-              <p className="text-xs text-muted-foreground">Les matières seront automatiquement associées aux classes du même niveau.</p>
-              <FormMessage />
-            </FormItem>
-          )} />
-
-          <FormField control={form.control} name="classIds" render={() => (
-            <FormItem>
-              <FormLabel>Classes enseignées</FormLabel>
-              <MultiSelectCombobox
-                title="Classes"
-                description="Choisissez une ou plusieurs classes. L’effectif confirmé est affiché pour aider à répartir les charges."
-                selectedValues={classIds}
-                options={(classesQuery.data?.classes ?? []).map((schoolClass) => ({
-                  value: schoolClass.id,
-                  label: schoolClass.name,
-                  description: `${schoolClass.level.name} · ${schoolClass.studentCount} élèves`,
-                }))}
-                disabled={classesQuery.isLoading}
-                onChange={(values) => form.setValue("classIds", values, { shouldValidate: true })}
-              />
-              <p className="text-xs text-muted-foreground">Les associations sont créées uniquement pour les niveaux correspondants.</p>
-              <FormMessage />
-            </FormItem>
-          )} />
-        </div>
-
-
+        <section className="space-y-4 border-t pt-4" aria-label="Affectations pédagogiques">
+          <div className="space-y-1">
+            <h3 className="font-medium">Affectations pédagogiques</h3>
+            <p className="text-sm text-muted-foreground">Chaque bloc relie une matière aux classes choisies. Ajoutez les affectations après les inscriptions.</p>
+          </div>
+          {assignmentsLocked ? <Alert><AlertDescription>Les affectations sont verrouillées pour ce professeur. Un professeur bloqué ou inactif ne peut recevoir d’affectation.</AlertDescription></Alert> : null}
+          {subjectsQuery.isLoading || classesQuery.isLoading ? <Skeleton className="h-24 w-full" /> : subjectsQuery.isError || classesQuery.isError ? <Alert variant="destructive"><AlertDescription>Impossible de charger les matières et classes.<Button type="button" variant="outline" className="ml-2 min-h-12" onClick={() => { void subjectsQuery.refetch(); void classesQuery.refetch() }}>Réessayer</Button></AlertDescription></Alert> : <>
+            {!blocks.length ? <EmptyState classNameRendu="py-4" title="Aucune affectation" description="Le profil et le contrat peuvent être enregistrés. Ajoutez un bloc lorsque les classes sont disponibles." /> : null}
+            {blocks.map((block, index) => <fieldset key={block.id} className="space-y-3 border-t pt-4" disabled={assignmentsLocked || isPending}>
+              <legend className="text-sm font-medium">Bloc {index + 1}</legend>
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField control={form.control} name={`assignmentBlocks.${index}.subjectName`} render={({ field }) => <FormItem>
+                  <FormLabel>Matière du bloc {index + 1}</FormLabel>
+                  <Select value={field.value} disabled={assignmentsLocked || isPending} onValueChange={field.onChange}><FormControl><SelectTrigger className="min-h-12"><SelectValue placeholder="Choisir une matière" /></SelectTrigger></FormControl><SelectContent>{subjectOptions.map((name) => <SelectItem key={name} value={name} className="min-h-12">{name}</SelectItem>)}</SelectContent></Select>
+                  <FormMessage />
+                </FormItem>} />
+                <FormField control={form.control} name={`assignmentBlocks.${index}.classIds`} render={({ field }) => <FormItem>
+                  <FormLabel>Classes du bloc {index + 1}</FormLabel>
+                  <MultiSelectCombobox title={`Classes du bloc ${index + 1}`} description="Classes de l’année active. La matière doit être configurée pour leur niveau." selectedValues={field.value} options={activeClasses.map((schoolClass) => ({ value: schoolClass.id, label: schoolClass.name, description: `${schoolClass.level.name} · ${schoolClass.studentCount} élèves` }))} disabled={assignmentsLocked || isPending} onChange={field.onChange} />
+                  <FormMessage />
+                </FormItem>} />
+              </div>
+              <Button type="button" variant="ghost" className="min-h-12" disabled={assignmentsLocked || isPending} onClick={() => remove(index)}><Trash2 className="mr-2 h-4 w-4" />Supprimer le bloc {index + 1}</Button>
+            </fieldset>)}
+            <Button type="button" variant="outline" className="min-h-12" disabled={assignmentsLocked || isPending || !activeClasses.length || !subjectOptions.length} onClick={() => append({ subjectName: "", classIds: [] })}><Plus className="mr-2 h-4 w-4" />Ajouter un bloc</Button>
+            {!activeYearId ? <p className="text-sm text-muted-foreground">Ouvrez une année scolaire active avant de définir les affectations.</p> : null}
+            {missingHomeroom.length > 0 && assignmentBlocks.length > 0 ? <Alert><AlertDescription>Rappel : classes sans professeur principal : {missingHomeroom.map((item) => item.name).join(", ")}. L’enregistrement reste possible. Désignez leur professeur principal dans Académique → Structure scolaire → Classes.</AlertDescription></Alert> : null}
+          </>}
+        </section>
 
         {type === "vacataire" ? (
           <FormField
@@ -494,8 +489,8 @@ export default function TeacherForm({
           />
         )}
 
-        <Button type="submit" className="w-full" disabled={isPending}>
-          {isPending ? "Enregistrement..." : submitLabel}
+        <Button type="submit" className="min-h-12 w-full" disabled={isPending || (!assignmentsLocked && (subjectsQuery.isLoading || classesQuery.isLoading || subjectsQuery.isError || classesQuery.isError))}>
+          {isPending ? <><Spinner size="sm" className="mr-2" />Enregistrement...</> : submitLabel}
         </Button>
       </form>
     </Form>

@@ -492,10 +492,11 @@ export default function TeachersPage() {
 
   const createMutation = useMutation({
     mutationFn: createTeacher,
-    onSuccess: async () => {
+    onSuccess: async (data) => {
       setCreateOpen(false)
       await queryClient.invalidateQueries({ queryKey: ["teachers"] })
-      toast({ title: "Professeur ajouté" })
+      toast({ title: "Professeur ajouté", duration: 3000 })
+      if (data.classesWithoutHomeroomTeacher?.length) toast({ title: "Rappel : professeur principal", description: `Classes sans professeur principal : ${data.classesWithoutHomeroomTeacher.map((item) => item.name).join(", ")}.`, duration: 6000 })
     },
     onError: (error) => {
       toast({
