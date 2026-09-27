@@ -573,7 +573,7 @@ export function ClassDialog({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nom de la classe</FormLabel>
+                  <FormLabel>Libellé de la classe</FormLabel>
                   <FormControl><Input placeholder="6ème A" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>

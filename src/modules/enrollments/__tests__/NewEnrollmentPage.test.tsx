@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   updateEnrollment: vi.fn(),
   verifyDocuments: vi.fn(),
   getStudent: vi.fn(),
+  listProfiles: vi.fn(),
   updateStudent: vi.fn(),
   listYears: vi.fn(),
   listClasses: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock("../enrollments.api", async (importOriginal) => ({
 vi.mock("@/modules/students/students.api", () => ({
   createStudent: mocks.createStudent,
   getStudentById: mocks.getStudent,
+  listStudentProfiles: mocks.listProfiles,
   updateStudent: mocks.updateStudent,
 }))
 vi.mock("@/modules/academic/academic.api", () => ({
@@ -45,6 +47,7 @@ import NewEnrollmentPage from "../NewEnrollmentPage"
 describe("NewEnrollmentPage historical edit", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.listProfiles.mockResolvedValue({ data: [{ id: "student-1", firstName: "Awa", lastName: "Koné", matricule: "MAT-001" }] })
     Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, value: vi.fn() })
     mocks.getEnrollment.mockResolvedValue({
       id: "enrollment-1",
@@ -114,6 +117,22 @@ describe("NewEnrollmentPage historical edit", () => {
     fireEvent.click(screen.getByRole("button", { name: /Terminer le dossier/ }))
     await waitFor(() => expect(mocks.verifyDocuments).toHaveBeenCalledWith("student-1"))
     expect(await screen.findByText("Historique des inscriptions")).toBeInTheDocument()
+  })
+
+  it("retrouve un profil depuis la nouvelle inscription puis préremplit les contacts du parent", async () => {
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/enrollments/new"]}>
+          <Routes><Route path="/enrollments/new" element={<NewEnrollmentPage />} /></Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+    fireEvent.change(screen.getByLabelText("Nom, prénom ou matricule"), { target: { value: "Koné" } })
+    fireEvent.click(await screen.findByRole("link", { name: "Koné Awa MAT-001" }))
+    expect(await screen.findByDisplayValue("M. Koné")).toBeInTheDocument()
+    expect(screen.getByDisplayValue("2250700000000")).toBeInTheDocument()
+    expect(mocks.listProfiles).toHaveBeenCalledWith("Koné")
+    expect(mocks.createStudent).not.toHaveBeenCalled()
   })
 
   it("inscrit un profil historique existant sans recréer l’élève ni écrire sa classe sur le profil", async () => {

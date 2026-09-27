@@ -2,7 +2,6 @@ import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowLeft, CheckCircle2, Loader2, ReceiptText } from "lucide-react"
 import { Link, useNavigate, useParams } from "react-router-dom"
-import axios from "axios"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -16,6 +15,7 @@ import { PageLayout } from "@/shared/components/PageLayout"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { formatFcfa } from "@/shared/utils/formatting"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { getMissingTuition, tuitionSettingsUrl } from "@/modules/finance/tuition-recovery"
 import { confirmEnrollmentPayment, getEnrollmentPaymentSummary } from "./enrollments.api"
 import { enrollmentStatusLabel } from "./enrollments.helpers"
 
@@ -35,6 +35,7 @@ export default function EnrollmentPaymentPage() {
     queryKey: ["enrollments", "payment-summary", enrollmentId],
     queryFn: () => getEnrollmentPaymentSummary(enrollmentId!),
     enabled: Boolean(enrollmentId),
+    retry: (failureCount, error) => !getMissingTuition(error) && failureCount < 3,
   })
   const mutation = useMutation({
     mutationFn: () => confirmEnrollmentPayment(enrollmentId!, {
@@ -45,13 +46,23 @@ export default function EnrollmentPaymentPage() {
     }),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ["enrollments"] })
+      await queryClient.invalidateQueries({ queryKey: ["students"] })
+      await queryClient.invalidateQueries({ queryKey: ["academic", "classes"] })
       toast({ title: "Paiement confirmé", description: result.documentWarning ?? "Le paiement et l’inscription sont confirmés." })
       navigate("/enrollments")
     },
-    onError: (error) => toast({ title: "Confirmation impossible", description: error instanceof Error ? error.message : "Le paiement n’a pas été confirmé.", variant: "destructive" }),
+    onError: (error) => {
+      if (getMissingTuition(error)) {
+        toast({ title: "Frais à configurer", description: "Le plan de frais doit être enregistré avant de reprendre ce paiement.", variant: "destructive" })
+        return
+      }
+      toast({ title: "Confirmation impossible", description: error instanceof Error ? error.message : "Le paiement n’a pas été confirmé.", variant: "destructive" })
+    },
   })
   const summary = summaryQuery.data
-  const tuitionPlanMissing = axios.isAxiosError(summaryQuery.error) && (summaryQuery.error.response?.data as { code?: string } | undefined)?.code === "TUITION_PLAN_REQUIRED"
+  const missingTuition = getMissingTuition(mutation.error) ?? getMissingTuition(summaryQuery.error)
+  const settingsUrl = missingTuition?.context && enrollmentId && hasPermission("tuition.edit")
+    ? tuitionSettingsUrl(missingTuition.context, enrollmentId) : null
   const enrollment = summary?.enrollment
   const paymentAmount = Number(amount)
   const amountIsValid = Number.isFinite(paymentAmount) && paymentAmount > 0 && Boolean(summary) && paymentAmount <= summary!.amountDue
@@ -66,7 +77,13 @@ export default function EnrollmentPaymentPage() {
       <Card className="mx-auto max-w-2xl">
         <CardHeader><CardTitle className="flex items-center gap-2 text-xl"><ReceiptText className="h-5 w-5 text-primary" />Paiement d’inscription</CardTitle></CardHeader>
         <CardContent className="space-y-5">
-          {summaryQuery.isError ? <>{tuitionPlanMissing ? <Alert><AlertDescription className="flex flex-wrap items-center gap-3">Les frais de ce niveau ne sont pas encore configurés.{hasPermission("tuition.edit") ? <Button asChild size="sm"><Link to="/settings?tab=finance">Configurer les frais</Link></Button> : <span>Contactez le responsable de l&apos;école pour les configurer.</span>}</AlertDescription></Alert> : null}<QueryErrorState message="Impossible de calculer le montant dû. Vérifiez qu’un plan de frais existe pour ce niveau et cette année scolaire." onRetry={() => void summaryQuery.refetch()} isRetrying={summaryQuery.isFetching} /></> : null}
+          {summaryQuery.isLoading ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Chargement du paiement…</p> : null}
+          {missingTuition ? <Alert><AlertDescription className="space-y-3">
+            <p>{missingTuition.context ? `Les frais du niveau ${missingTuition.context.levelName} pour l’année ${missingTuition.context.schoolYearLabel} ne sont pas encore configurés.` : "Le plan de frais nécessaire à ce paiement n’est pas encore configuré."}</p>
+            {settingsUrl ? <><p>Enregistrez le plan de frais de ce niveau et de cette année. Vous reviendrez ensuite automatiquement à ce paiement.</p><Button asChild className="min-h-12"><Link to={settingsUrl}>Configurer les frais</Link></Button></>
+              : !hasPermission("tuition.edit") ? <p>Contactez le responsable habilité de l’école pour configurer ces frais, puis reprenez ce paiement.</p>
+              : <p>Le contexte des frais est indisponible. Rechargez le paiement ou contactez le responsable habilité de l’école.</p>}
+          </AlertDescription></Alert> : summaryQuery.isError ? <QueryErrorState message="Impossible de charger le paiement. Réessayez dans quelques instants." onRetry={() => void summaryQuery.refetch()} isRetrying={summaryQuery.isFetching} /> : null}
           {summary ? (
             <>
               <div className="grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-2">
@@ -91,7 +108,7 @@ export default function EnrollmentPaymentPage() {
                   <div className="space-y-2"><Label htmlFor="enrollment-payment-method">Mode de paiement</Label><Select value={method} onValueChange={(value) => setMethod(value as PaymentMethod)}><SelectTrigger id="enrollment-payment-method" className="min-h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="cash">Espèces</SelectItem><SelectItem value="mobile_money">Mobile Money vérifié en caisse</SelectItem><SelectItem value="bank_transfer">Virement bancaire</SelectItem></SelectContent></Select></div>
                   <div className="space-y-2"><Label htmlFor="school-receipt-reference">Référence du reçu de caisse *</Label><Input id="school-receipt-reference" className="min-h-12" value={schoolReceiptReference} onChange={(event) => setSchoolReceiptReference(event.target.value)} placeholder="Ex. RC-2026-0042" autoComplete="off" /><p className="text-sm text-muted-foreground">Recopiez la référence du reçu présenté par le parent.</p></div>
                   <div className="space-y-2"><Label htmlFor="provider-reference">Référence du versement (facultative)</Label><Input id="provider-reference" className="min-h-12" value={providerReference} onChange={(event) => setProviderReference(event.target.value)} placeholder={method === "mobile_money" ? "Référence de transaction Mobile Money" : method === "bank_transfer" ? "Référence du virement bancaire" : "Référence complémentaire, si disponible"} /></div>
-                  <Button className="min-h-12 w-full" disabled={mutation.isPending || !amountIsValid || !receiptReferenceIsValid} onClick={() => mutation.mutate()}>{mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}{mutation.isPending ? "Enregistrement…" : amountIsValid ? `Enregistrer ${formatFcfa(paymentAmount)}` : "Saisir le montant reçu"}</Button>
+                  <Button className="min-h-12 w-full" disabled={Boolean(missingTuition) || mutation.isPending || !amountIsValid || !receiptReferenceIsValid} onClick={() => mutation.mutate()}>{mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}{mutation.isPending ? "Enregistrement…" : amountIsValid ? `Enregistrer ${formatFcfa(paymentAmount)}` : "Saisir le montant reçu"}</Button>
                 </>
               )}
             </>

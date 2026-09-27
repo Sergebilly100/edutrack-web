@@ -165,8 +165,8 @@ export default function StudentsPage() {
       setCreateDialogOpen(false)
       resetCreateStudentForm()
       toast({
-        title: `${studentLabels.singular} ajouté`,
-        description: "La fiche est disponible dans la liste.",
+        title: "Profil créé",
+        description: "Le profil est créé. Il apparaîtra dans la liste après confirmation de son inscription avec le premier versement.",
       })
     },
     onError: (error) => {

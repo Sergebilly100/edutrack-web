@@ -12,11 +12,12 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { listClasses, listLevels, listSchoolYears } from "@/modules/academic/academic.api"
-import { createStudent, getStudentById, updateStudent } from "@/modules/students/students.api"
+import { createStudent, getStudentById, listStudentProfiles, updateStudent } from "@/modules/students/students.api"
 import { PageLayout } from "@/shared/components/PageLayout"
 import { EmptyState } from "@/shared/components/EmptyState"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { useDebounce } from "@/shared/hooks/useDebounce"
 import { useAuthStore } from "@/shared/store/auth.store"
 import { discardEnrollmentClassDraft, readEnrollmentClassDraft, resolveEnrollmentClassReturn, saveEnrollmentClassDraft, type EnrollmentIdentityDraft } from "@/shared/lib/enrollment-class-flow"
 import { isValidOptionalPhone, normalizePhoneInput } from "@/shared/utils/phone"
@@ -57,6 +58,15 @@ function EnrollmentForm() {
   const [form, setForm] = useState<EnrollmentIdentityDraft>(returnDraft?.form ?? EMPTY_FORM)
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
   const initializedEnrollmentId = useRef<string | null>(null)
+  const [profileSearch, setProfileSearch] = useState("")
+  const debouncedProfileSearch = useDebounce(profileSearch.trim(), 300)
+  const canSearchProfiles = hasPermission("enrollments.create") && hasPermission("students.view")
+  const profileSearchEnabled = !enrollmentId && !profileStudentId && debouncedProfileSearch.length >= 2 && canSearchProfiles
+  const profilesQuery = useQuery({
+    queryKey: ["students", "profiles", debouncedProfileSearch],
+    queryFn: () => listStudentProfiles(debouncedProfileSearch),
+    enabled: profileSearchEnabled,
+  })
 
   const historicalEnrollmentQuery = useQuery({
     queryKey: ["enrollments", "detail", enrollmentId],
@@ -227,6 +237,32 @@ function EnrollmentForm() {
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2 text-xl"><UserPlus className="h-5 w-5" />Identité et classe visée</CardTitle></CardHeader>
             <CardContent className="space-y-6">
+              {!enrollmentId && !profileStudentId && canSearchProfiles ? (
+                <section className="space-y-3 border-b pb-6" aria-labelledby="existing-profile-title">
+                  <h2 id="existing-profile-title" className="text-base font-semibold">Retrouver un profil existant</h2>
+                  <p className="text-sm text-muted-foreground">Réutilisez les informations de l’élève et de ses parents. Les profils historiques apparaîtront dans la liste élèves après confirmation de l’inscription avec le premier versement.</p>
+                  <Label htmlFor="profile-search">Nom, prénom ou matricule</Label>
+                  <Input id="profile-search" className="min-h-12" maxLength={100} value={profileSearch} onChange={(event) => setProfileSearch(event.target.value)} placeholder="Saisissez au moins 2 caractères" />
+                  {profileSearchEnabled && profilesQuery.isFetching ? <p role="status" className="text-sm text-muted-foreground">Recherche des profils…</p> : null}
+                  {profileSearchEnabled && profilesQuery.isPaused ? <p role="alert" className="text-sm text-muted-foreground">Reconnectez-vous pour rechercher les profils.</p> : null}
+                  {profileSearchEnabled && profilesQuery.isError ? <QueryErrorState className="[&_button]:min-h-12" message="Impossible de rechercher les profils." onRetry={() => void profilesQuery.refetch()} isRetrying={profilesQuery.isFetching} /> : null}
+                  {profileSearchEnabled && profilesQuery.isSuccess && profilesQuery.data.data.length === 0 ? <EmptyState title="Aucun profil disponible" message="Vérifiez la recherche ou renseignez une nouvelle identité ci-dessous. Les dossiers déjà ouverts sont accessibles depuis les inscriptions." /> : null}
+                  {profileSearchEnabled && profilesQuery.isSuccess && profilesQuery.data.data.length > 0 ? (
+                    <ul className="divide-y">
+                      {profilesQuery.data.data.map((profile) => (
+                        <li key={profile.id}>
+                          <Button asChild variant="ghost" className="min-h-12 w-full justify-between gap-3 whitespace-normal text-left">
+                            <Link to={`/enrollments/new?studentId=${profile.id}`}>
+                              <span>{profile.lastName} {profile.firstName}{profile.matricule ? <>{" "}<span className="ml-2 text-muted-foreground">{profile.matricule}</span></> : null}</span>
+                              <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+                            </Link>
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </section>
+              ) : null}
               <section className="space-y-4" aria-labelledby="student-identity-title">
                 <h2 id="student-identity-title" className="text-base font-semibold">Identité de l’élève</h2>
                 <div className="grid gap-4 sm:grid-cols-2">

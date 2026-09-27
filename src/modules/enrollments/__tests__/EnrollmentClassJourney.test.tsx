@@ -55,7 +55,7 @@ async function leaveEnrollment() {
   return screen.findByRole("dialog")
 }
 async function saveClass() {
-  fireEvent.change(screen.getByLabelText("Nom de la classe"), { target: { value: "CP1 A" } })
+  fireEvent.change(screen.getByLabelText("Libellé de la classe"), { target: { value: "CP1 A" } })
   fireEvent.click(screen.getByRole("button", { name: "Enregistrer", exact: true }))
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
 }
@@ -140,7 +140,7 @@ describe("inscription → création de classe → retour", () => {
   it("garde la création ouverte après erreur et permet un retour sans sélection fantôme", async () => {
     mocks.createClass.mockRejectedValue(new Error("Création refusée"))
     mount(); await leaveEnrollment()
-    fireEvent.change(screen.getByLabelText("Nom de la classe"), { target: { value: "CP1 A" } })
+    fireEvent.change(screen.getByLabelText("Libellé de la classe"), { target: { value: "CP1 A" } })
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer", exact: true }))
     await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Enregistrement impossible", description: "Création refusée" })))
     expect(screen.getByRole("dialog")).toBeInTheDocument()

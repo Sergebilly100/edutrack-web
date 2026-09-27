@@ -229,9 +229,9 @@ export type StudentAbsenceRecordsQuery = {
   subject?: string
 }
 
-export const listStudents = (query: StudentsListQuery = {}) =>
+const fetchStudentList = (path: string, query: StudentsListQuery) =>
   api
-    .get<StudentsListResponse>("/students", {
+    .get<StudentsListResponse>(path, {
       params: {
         page: query.page ?? 1,
         limit: query.limit ?? 100,
@@ -242,6 +242,15 @@ export const listStudents = (query: StudentsListQuery = {}) =>
       },
     })
     .then((response) => response.data)
+
+export const listStudents = (query: StudentsListQuery = {}) => fetchStudentList("/students", query)
+
+export const listFinancialProfiles = (query: StudentsListQuery = {}) => fetchStudentList("/students/financial-profiles", query)
+
+export const listStudentProfiles = (search: string) =>
+  api.get<StudentsListResponse>("/students/profiles", {
+    params: { search, is_active: "true", page: 1, limit: 10 },
+  }).then((response) => response.data)
 
 export const createStudent = (payload: CreateStudentPayload) =>
   api

@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { BookOpen, Clock3, MessageSquare, Phone, UserCheck } from "lucide-react"
 import { useDebounce } from "@/shared/hooks/useDebounce"
+import { QueryErrorState } from "@/shared/components/QueryErrorState"
+import { ApiError } from "@/shared/api/client"
 import { normalizePhoneInput, isValidOptionalPhone } from "@/shared/utils/phone"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -321,6 +323,14 @@ export default function StudentDetailPage() {
         <Skeleton className="h-64 w-full" />
       </div>
     )
+  }
+
+  if (studentQuery.isPaused && !studentQuery.data) {
+    return <div className="p-4 md:p-6"><QueryErrorState className="[&_button]:min-h-12" title="Connexion indisponible" message="Reconnectez-vous pour charger la fiche de l’élève." onRetry={() => void studentQuery.refetch()} /></div>
+  }
+
+  if (studentQuery.isError && !(studentQuery.error instanceof ApiError && studentQuery.error.status === 404)) {
+    return <div className="p-4 md:p-6"><QueryErrorState className="[&_button]:min-h-12" title="Fiche indisponible" message="Impossible de charger la fiche de l’élève. Réessayez dans un instant." onRetry={() => void studentQuery.refetch()} isRetrying={studentQuery.isFetching} /></div>
   }
 
   if (studentQuery.isError || !studentQuery.data) {

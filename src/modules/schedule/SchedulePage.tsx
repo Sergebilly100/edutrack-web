@@ -886,7 +886,7 @@ export default function SchedulePage() {
       ) : null}
       {!scheduleQuery.isLoading && data && !data.period && viewMode === "list" ? (
         <Alert>
-          <AlertDescription>Aucune période active. Importez le premier emploi du temps avec ses dates d&apos;application avant d&apos;ajouter ou modifier des créneaux.</AlertDescription>
+          <AlertDescription>Aucune période active. Importez l'emploi du temps avec ses dates d&apos;application avant d&apos;ajouter ou modifier des créneaux.</AlertDescription>
         </Alert>
       ) : null}
 

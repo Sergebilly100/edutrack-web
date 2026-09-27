@@ -219,6 +219,7 @@ export const NAV_ITEMS: NavItem[] = [
       "settings.sms_templates",
       "enrollments.view",
       "tuition.view",
+      "tuition.edit",
       "payments.view",
       "risk_alerts.edit",
       "subscription_plans.view",

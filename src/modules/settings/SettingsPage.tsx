@@ -1,6 +1,6 @@
 import { OnboardingReturn } from "@/modules/onboarding/OnboardingReturn"
-import { useEffect, useState } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useEffect, useRef, useState } from "react"
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -19,6 +19,9 @@ import { listSchoolYears } from "@/modules/academic/academic.api"
 import { FinancialAlertRules } from "@/modules/finance/components/FinancialAlertRules"
 import { FinanceSettings } from "@/modules/finance/components/FinanceSettings"
 import { TuitionConfiguration } from "@/modules/finance/components/TuitionConfiguration"
+import { planResolvesRecovery, readTuitionRecovery } from "@/modules/finance/tuition-recovery"
+import type { TuitionPlan } from "@/modules/finance/finance.api"
+import { getEnrollmentPaymentSummary } from "@/modules/enrollments/enrollments.api"
 import { RiskAlertRules } from "@/modules/risk/components/RiskAlertRules"
 import SchoolConfigPanel from "@/modules/settings/components/SchoolConfigPanel"
 import SmsTemplatePanel from "@/modules/settings/components/SmsTemplatePanel"
@@ -47,10 +50,16 @@ type SmsPriceFormValues = z.infer<typeof smsPriceSchema>
 
 export default function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const user = useAuthStore((state) => state.user)
   const { hasPermission } = usePermissions()
+  const recovery = readTuitionRecovery(searchParams)
+  const canEditTuition = hasPermission("tuition.edit")
+  const currentLocation = useRef<typeof location | null>(location)
+  useEffect(() => { currentLocation.current = location; return () => { currentLocation.current = null } }, [location])
   const studentLabels = useStudentLabels()
   const canManagePositions = user?.role === "director" || hasPermission("settings.positions")
   const canManageSchoolSettings = user?.role === "director" || hasPermission("settings.school")
@@ -58,14 +67,35 @@ export default function SettingsPage() {
   const canAccessSmsTemplate = user?.role === "director" || hasPermission("settings.sms_templates")
   const canViewRequiredDocuments = user?.role === "director" || hasPermission("enrollments.view")
   const canEditRequiredDocuments = user?.role === "director" || hasPermission("enrollments.edit")
-  const canViewTuition = user?.role === "director" || hasPermission("tuition.view")
+  const canViewTuition = user?.role === "director" || hasPermission("tuition.view") || canEditTuition
   const canViewFinancialAlerts = user?.role === "director" || hasPermission("payments.view")
   const canEditFinancialAlerts = user?.role === "director" || hasPermission("financial_alerts.edit")
   const canManageRiskAlerts = user?.role === "director" || hasPermission("risk_alerts.edit")
   const canViewFinanceSettings = canManageSchoolSettings || user?.role === "director" || hasPermission("subscription_plans.view")
   const canManageFinance = canViewTuition || canViewFinancialAlerts || canViewFinanceSettings
-  const schoolYearsQuery = useQuery({ queryKey: ["academic", "school-years"], queryFn: listSchoolYears })
-  const [financeSchoolYearId, setFinanceSchoolYearId] = useState("")
+  const canReadSchoolYears = hasPermission("school_years.view")
+  const schoolYearsQuery = useQuery({ queryKey: ["academic", "school-years"], queryFn: listSchoolYears, enabled: canReadSchoolYears })
+  const [financeSchoolYearId, setFinanceSchoolYearId] = useState(recovery && canEditTuition ? recovery.schoolYearId : "")
+  const financeSchoolYears = recovery && canEditTuition && !canReadSchoolYears
+    ? [{ id: recovery.schoolYearId, label: recovery.schoolYearLabel }]
+    : schoolYearsQuery.data ?? []
+
+  const resumePayment = async (plan: TuitionPlan) => {
+    const startingLocation = location
+    if (!recovery || !canEditTuition || !hasPermission("enrollments.confirm_payment") || !planResolvesRecovery(plan, recovery)) return
+    try {
+      // The server verifies that the dossier can now use the saved plan.
+      await queryClient.fetchQuery({
+        queryKey: ["enrollments", "payment-summary", recovery.enrollmentId],
+        queryFn: () => getEnrollmentPaymentSummary(recovery.enrollmentId),
+        staleTime: 0,
+        retry: false,
+      })
+      if (currentLocation.current?.key === startingLocation.key) navigate(recovery.returnTo, { replace: true })
+    } catch {
+      toast({ title: "Paiement à vérifier", description: "Le plan est enregistré, mais ce paiement ne peut pas encore être repris. Vérifiez l’année et le niveau du dossier.", variant: "destructive" })
+    }
+  }
   const schoolConfigQuery = useQuery({
     queryKey: ["settings", "school-config", "access-gate"],
     queryFn: fetchSchoolConfig,
@@ -156,6 +186,9 @@ export default function SettingsPage() {
     <div className="animate-fade-in space-y-6">
       <OfflineIndicator />
       <OnboardingReturn />
+      {recovery ? <Alert><AlertDescription>{canEditTuition
+        ? `Paiement en attente : configurez les frais du niveau ${recovery.levelName} pour l’année ${recovery.schoolYearLabel}. Le retour au paiement aura lieu après l’enregistrement de ce plan.`
+        : "Contactez le responsable habilité de l’école pour configurer ces frais, puis reprenez ce paiement."}</AlertDescription></Alert> : null}
       <div className="flex items-start justify-between border-b border-border pb-5">
         <div className="space-y-0.5">
           <h1 className="text-2xl font-medium tracking-tight">Paramètres école</h1>
@@ -245,7 +278,10 @@ export default function SettingsPage() {
         canViewFinancialAlerts && "relances", canManageRiskAlerts && "risques",
         canAccessSmsTemplate && "communication",
       ]).includes(searchParams.get("tab") ?? "") ? searchParams.get("tab")! : defaultTab}
-        onValueChange={(tab) => setSearchParams((current) => { const next = new URLSearchParams(current); next.set("tab", tab); return next })}
+        onValueChange={(tab) => {
+          if (tab !== "finance") currentLocation.current = null
+          setSearchParams((current) => { const next = new URLSearchParams(current); next.set("tab", tab); return next })
+        }}
         className="space-y-4">
       <TabsList className="grid h-auto w-full grid-cols-2 rounded-xl border border-border sm:grid-cols-4 lg:grid-cols-7">
         {canManageGeneralSettings ? <TabsTrigger value="general" className="min-h-12">Général</TabsTrigger> : null}
@@ -282,19 +318,19 @@ export default function SettingsPage() {
 
       {canManageFinance ? (
         <TabsContent value="finance" className="space-y-4">
-          {canViewTuition ? (
+          {canViewTuition && (!recovery || canEditTuition) ? (
             <section className="space-y-4">
               <div className="max-w-sm space-y-2">
                 <Label htmlFor="finance-school-year">Année scolaire</Label>
                 <Select value={financeSchoolYearId} onValueChange={setFinanceSchoolYearId} disabled={schoolYearsQuery.isLoading || schoolYearsQuery.isError}>
                   <SelectTrigger id="finance-school-year" className="min-h-12"><SelectValue placeholder="Choisir une année scolaire" /></SelectTrigger>
                   <SelectContent>
-                    {(schoolYearsQuery.data ?? []).map((schoolYear) => <SelectItem key={schoolYear.id} value={schoolYear.id}>{schoolYear.label}{schoolYear.status === "active" ? " · Active" : ""}</SelectItem>)}
+                    {financeSchoolYears.map((schoolYear) => <SelectItem key={schoolYear.id} value={schoolYear.id}>{schoolYear.label}{"status" in schoolYear && schoolYear.status === "active" ? " · Active" : ""}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               {schoolYearsQuery.isError ? <ContextualHelp title="Années scolaires indisponibles" tone="warning">Impossible de charger l&apos;année nécessaire à la configuration des frais.</ContextualHelp> : null}
-              {financeSchoolYearId ? <TuitionConfiguration schoolYearId={financeSchoolYearId} canEdit={user?.role === "director" || hasPermission("tuition.edit")} canGrantDiscount={user?.role === "director" || hasPermission("tuition.grant_discount")} /> : null}
+              {financeSchoolYearId ? <TuitionConfiguration key={recovery?.enrollmentId ?? "normal"} schoolYearId={financeSchoolYearId} canEdit={canEditTuition} canGrantDiscount={user?.role === "director" || hasPermission("tuition.grant_discount")} recovery={recovery} onPlanSaved={resumePayment} /> : null}
             </section>
           ) : null}
 

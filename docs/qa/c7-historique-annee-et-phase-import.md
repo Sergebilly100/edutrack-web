@@ -2,6 +2,8 @@
 
 Réalisé le 27 septembre 2026 dans `edutrack-api` et `edutrack-web`. Ce complément remplace les règles de la première livraison C7 concernant les champs, le modèle et l’accès à l’import.
 
+Le [correctif de la liste élèves et des fiches](./c7-liste-eleves-confirmes.md) précise désormais que seuls les élèves dont l’inscription est confirmée figurent dans la liste scolaire. Les profils historiques sont retrouvés depuis **Vie scolaire → Inscriptions → Nouvelle inscription**.
+
 ## Décisions confirmées
 
 Le directeur renseigne l’année scolaire de chaque fichier, au format `2024-2025`. Cette année est enregistrée pour chaque élève du lot, avec son ancienne classe, sans inscription. L’ancienne classe est une référence textuelle provenant de la colonne Classe, ou du nom de feuille comme dans l’ancien modèle. Elle reste facultative : aucun rattachement à une classe ouverte n’est imposé.

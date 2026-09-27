@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CalendarClock, CheckCircle2, Loader2, Plus, RotateCcw, Tag, Trash2 } from "lucide-react"
 
@@ -14,23 +14,32 @@ import { useToast } from "@/components/ui/use-toast"
 import { listLevels } from "@/modules/academic/academic.api"
 import type { StudentItem } from "@/modules/students/students.api"
 import { formatFcfa } from "@/shared/utils/formatting"
-import { getStudentTuitionSchedule, grantTuitionOverride, listTuitionPlans, resetStudentTuitionSchedule, saveStudentTuitionSchedule, upsertTuitionPlan, type TuitionScheduleStep } from "../finance.api"
+import { usePermissions } from "@/shared/hooks/usePermissions"
+import { getStudentTuitionSchedule, grantTuitionOverride, listTuitionPlans, resetStudentTuitionSchedule, saveStudentTuitionSchedule, upsertTuitionPlan, type TuitionPlan, type TuitionScheduleStep } from "../finance.api"
+import type { TuitionRecovery } from "../tuition-recovery"
 import { StudentSearch } from "./StudentSearch"
 
 type TuitionConfigurationProps = {
   schoolYearId: string
   canEdit: boolean
   canGrantDiscount: boolean
+  recovery?: TuitionRecovery | null
+  onPlanSaved?: (plan: TuitionPlan) => Promise<void>
 }
 
 const blankStep = (): TuitionScheduleStep => ({ dueDate: "", cumulativeAmountExpected: 0 })
 
-export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount }: TuitionConfigurationProps) {
+export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, recovery, onPlanSaved }: TuitionConfigurationProps) {
   const queryClient = useQueryClient()
   const { toast } = useToast()
-  const levelsQuery = useQuery({ queryKey: ["academic", "levels"], queryFn: listLevels })
-  const plansQuery = useQuery({ queryKey: ["finance", "tuition-plans", schoolYearId], queryFn: () => listTuitionPlans(schoolYearId), enabled: Boolean(schoolYearId) })
-  const [levelId, setLevelId] = useState("")
+  const { hasPermission } = usePermissions()
+  const canReadLevels = !recovery || hasPermission("classes.view")
+  const canReadPlans = !recovery || hasPermission("tuition.view")
+  const levelsQuery = useQuery({ queryKey: ["academic", "levels"], queryFn: listLevels, enabled: canReadLevels })
+  const plansQuery = useQuery({ queryKey: ["finance", "tuition-plans", schoolYearId], queryFn: () => listTuitionPlans(schoolYearId), enabled: Boolean(schoolYearId) && canReadPlans })
+  const [levelId, setLevelId] = useState(recovery?.levelId ?? "")
+  const mounted = useRef(false)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const [totalAmount, setTotalAmount] = useState("")
   const [steps, setSteps] = useState<TuitionScheduleStep[]>([blankStep()])
   const [student, setStudent] = useState<StudentItem | null>(null)
@@ -40,7 +49,7 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount }
   const [scheduleStudent, setScheduleStudent] = useState<StudentItem | null>(null)
   const [studentScheduleSteps, setStudentScheduleSteps] = useState<TuitionScheduleStep[]>([blankStep()])
   const [isResetScheduleDialogOpen, setIsResetScheduleDialogOpen] = useState(false)
-  const levels = levelsQuery.data ?? []
+  const levels = !canReadLevels && recovery ? [{ id: recovery.levelId, name: recovery.levelName }] : levelsQuery.data ?? []
   const selectedPlan = useMemo(() => plansQuery.data?.find((plan) => plan.levelId === levelId), [plansQuery.data, levelId])
   const studentScheduleQuery = useQuery({
     queryKey: ["finance", "student-tuition-schedule", schoolYearId, scheduleStudent?.id],
@@ -55,7 +64,7 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount }
   useEffect(() => {
     setTotalAmount(selectedPlan ? String(selectedPlan.totalAmount) : "")
     setSteps(selectedPlan?.scheduleSteps.length ? selectedPlan.scheduleSteps : [blankStep()])
-  }, [levelId, selectedPlan])
+  }, [schoolYearId, levelId, selectedPlan])
 
   useEffect(() => {
     if (!scheduleStudent) {
@@ -74,9 +83,13 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount }
       currency: "FCFA",
       scheduleSteps: steps.map((step) => ({ dueDate: step.dueDate, cumulativeAmountExpected: Number(step.cumulativeAmountExpected) })),
     }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["finance", "tuition-plans"] })
+    onSuccess: async (plan) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["finance"] }),
+        queryClient.invalidateQueries({ queryKey: ["enrollments", "payment-summary"] }),
+      ])
       toast({ title: "Plan de frais enregistré", description: "Le plan s’applique à toutes les classes de ce niveau pour l’année sélectionnée." })
+      if (mounted.current) await onPlanSaved?.(plan)
     },
     onError: (error) => toast({ title: "Enregistrement impossible", description: error instanceof Error ? error.message : "Vérifiez les montants et les dates.", variant: "destructive" }),
   })
@@ -143,6 +156,8 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount }
   return (
     <section className="space-y-6">
       <div className="max-w-2xl space-y-1"><h2 className="text-xl font-semibold">Configuration des frais</h2><p className="text-sm text-muted-foreground">Définissez le montant annuel et les seuils cumulés attendus. Aucun versement individuel n’est imposé.</p></div>
+      {canReadLevels && levelsQuery.isLoading || canReadPlans && plansQuery.isLoading ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Chargement des frais…</p> : null}
+      {canReadLevels && levelsQuery.isError || canReadPlans && plansQuery.isError ? <Alert variant="destructive"><AlertDescription>Impossible de charger les frais ou les niveaux. Vérifiez vos droits et réessayez.</AlertDescription></Alert> : null}
 
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><CalendarClock className="h-5 w-5 text-primary" />Plan par niveau</CardTitle></CardHeader>
@@ -167,7 +182,7 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount }
           </div>
 
           {!stepsValid && total > 0 ? <Alert variant="destructive"><AlertDescription>Chaque seuil doit avoir une date croissante et un cumul compris entre 0 et {formatFcfa(total)}.</AlertDescription></Alert> : null}
-          {canEdit ? <div className="flex justify-end"><Button type="button" className="min-h-12" disabled={!levelId || total <= 0 || !stepsValid || planMutation.isPending} onClick={() => planMutation.mutate()}>{planMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}Enregistrer le plan</Button></div> : null}
+          {canEdit ? <div className="flex justify-end"><Button type="button" className="min-h-12" disabled={!levelId || total <= 0 || !stepsValid || planMutation.isPending || (canReadLevels && (levelsQuery.isLoading || levelsQuery.isError)) || (canReadPlans && (plansQuery.isLoading || plansQuery.isError))} onClick={() => planMutation.mutate()}>{planMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}{planMutation.isPending ? "Enregistrement…" : "Enregistrer le plan"}</Button></div> : null}
         
           
           {canGrantDiscount ? (

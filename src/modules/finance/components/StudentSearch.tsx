@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
-import { listStudents, type StudentItem } from "@/modules/students/students.api"
+import { listFinancialProfiles, type StudentItem } from "@/modules/students/students.api"
 
 type StudentSearchProps = {
   value: StudentItem | null
@@ -36,7 +36,7 @@ export function StudentSearch({
   const normalizedQuery = query.trim()
   const searchQuery = useQuery({
     queryKey: ["finance", "student-search", normalizedQuery],
-    queryFn: () => listStudents({ search: normalizedQuery, limit: 8, isActive: true }),
+    queryFn: () => listFinancialProfiles({ search: normalizedQuery, limit: 8, isActive: true }),
     enabled: open && normalizedQuery.length >= 2 && !value,
     staleTime: 30_000,
   })

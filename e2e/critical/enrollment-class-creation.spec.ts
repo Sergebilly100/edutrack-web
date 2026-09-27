@@ -40,7 +40,7 @@ for (const device of [{ name: "Android", width: 393, height: 851, mobile: true }
       expect(await page.evaluate(() => JSON.stringify(history.state))).not.toContain("Aya C9")
       expect(await page.evaluate(() => JSON.stringify(history.state))).not.toContain(suffix)
       const className = `Classe C9 ${device.name}`
-      await page.getByLabel("Nom de la classe", { exact: true }).fill(className)
+      await page.getByLabel("Libellé de la classe", { exact: true }).fill(className)
       const createdResponse = page.waitForResponse((result) => result.url().endsWith("/classes") && result.request().method() === "POST")
       await page.getByRole("button", { name: "Enregistrer", exact: true }).click()
       const created = await createdResponse
