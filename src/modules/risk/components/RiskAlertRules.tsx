@@ -27,7 +27,7 @@ type RuleDefinition = {
   thresholdHint?: string
   periodLabel?: string
   periodHint?: string
-  defaults: Pick<RiskAlertRule, "thresholdValue" | "periodDays" | "isActive">
+  defaults: { thresholdValue: number | null; periodDays: number; isActive: boolean }
 }
 
 const RULES: RuleDefinition[] = [
@@ -69,21 +69,34 @@ const RULES: RuleDefinition[] = [
     periodHint: "Fenêtre d'observation.",
     defaults: { thresholdValue: 3, periodDays: 30, isActive: true },
   },
+  {
+    subjectType: "teacher",
+    signalType: "lateness",
+    label: "Retards professeur",
+    description: "Compte les pointages au statut retard sur les 30 derniers jours. Au-delà des minutes de tolérance, le pointage est en retard. La tolérance s’applique aux prochains pointages, même si le signal de risque est désactivé.",
+    thresholdLabel: "Nombre de retards",
+    thresholdHint: "Nombre minimal à renseigner pour activer le signal.",
+    periodLabel: "Sur les derniers jours",
+    periodHint: "Fenêtre fixe de 30 jours.",
+    defaults: { thresholdValue: null, periodDays: 30, isActive: false },
+  },
 ]
 
 type Draft = {
   thresholdValue: string
   periodDays: string
   isActive: boolean
+  lateMinutes: string
 }
 
 const ruleKey = (subjectType: RiskSubjectType, signalType: RiskSignalType) =>
   `${subjectType}:${signalType}`
 
 const draftFrom = (definition: RuleDefinition, existing?: RiskAlertRule): Draft => ({
-  thresholdValue: String(existing?.thresholdValue ?? definition.defaults.thresholdValue),
+  thresholdValue: String(existing?.thresholdValue ?? definition.defaults.thresholdValue ?? ""),
   periodDays: String(existing?.periodDays ?? definition.defaults.periodDays),
   isActive: existing?.isActive ?? definition.defaults.isActive,
+  lateMinutes: String(existing?.lateMinutes ?? 15),
 })
 
 export function RiskAlertRules() {
@@ -170,12 +183,16 @@ export function RiskAlertRules() {
           const threshold = Number(draft.thresholdValue)
           const periodDays = Number(draft.periodDays)
           const thresholdValid =
-            Number.isFinite(threshold) && threshold >= 1 && threshold <= 999
+            Number.isFinite(threshold) && threshold >= 1 && threshold <= 999 &&
+            (definition.signalType !== "lateness" || Number.isInteger(threshold))
           const periodValid =
             Number.isInteger(periodDays) && periodDays >= 1 && periodDays <= 365
           const hasThreshold = Boolean(definition.thresholdLabel)
           const hasPeriod = Boolean(definition.periodLabel)
-          const valid = (!hasThreshold || thresholdValid) && (!hasPeriod || periodValid)
+          const isLateness = definition.signalType === "lateness"
+          const lateMinutes = Number(draft.lateMinutes)
+          const minutesValid = draft.lateMinutes !== "" && Number.isInteger(lateMinutes) && lateMinutes >= 0
+          const valid = (!hasThreshold || thresholdValid) && (!hasPeriod || periodValid) && (!isLateness || minutesValid)
 
           return (
             <section
@@ -208,10 +225,16 @@ export function RiskAlertRules() {
                       updateDraft(definition, { ...draft, thresholdValue: event.target.value })
                     }
                     aria-describedby={`${ruleKey(definition.subjectType, definition.signalType)}-threshold-hint`}
+                    className="min-h-12"
                   />
                   <p id={`${ruleKey(definition.subjectType, definition.signalType)}-threshold-hint`} className="text-xs text-muted-foreground">
                     {definition.thresholdHint}
                   </p>
+                  {isLateness ? <>
+                    <Label htmlFor="teacher-lateness-minutes">Tolérance en minutes</Label>
+                    <Input id="teacher-lateness-minutes" type="number" min={0} step={1} inputMode="numeric" className="min-h-12" value={draft.lateMinutes} onChange={(event) => updateDraft(definition, { ...draft, lateMinutes: event.target.value })} />
+                    <p className="text-xs text-muted-foreground">Un pointage dépassant cette durée est en retard. Les pointages historiques conservent leur statut.</p>
+                  </> : null}
                 </div>
               ) : (
                 <div className="hidden lg:block" aria-hidden="true" />
@@ -229,6 +252,8 @@ export function RiskAlertRules() {
                     max={365}
                     inputMode="numeric"
                     value={draft.periodDays}
+                    readOnly={isLateness}
+                    className="min-h-12"
                     onChange={(event) =>
                       updateDraft(definition, { ...draft, periodDays: event.target.value })
                     }
@@ -261,9 +286,10 @@ export function RiskAlertRules() {
                     saveMutation.mutate({
                       subjectType: definition.subjectType,
                       signalType: definition.signalType,
-                      thresholdValue: hasThreshold ? threshold : definition.defaults.thresholdValue,
+                      thresholdValue: threshold,
                       periodDays: hasPeriod ? periodDays : definition.defaults.periodDays,
                       isActive: draft.isActive,
+                      ...(isLateness ? { lateMinutes } : {}),
                     })
                   }
                 >

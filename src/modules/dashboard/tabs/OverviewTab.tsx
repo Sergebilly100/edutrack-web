@@ -300,11 +300,16 @@ function RiskSummary({ risks, canViewTeachers }: { risks: Awaited<ReturnType<typ
         {canViewTeachers ? (
           <RiskGroup
             title="Professeurs"
-            total={risks?.teacherAbsences ?? 0}
+            total={risks?.teachersAtRisk ?? risks?.teacherAbsences ?? 0}
             rows={[
               {
                 label: "Absences répétées",
                 value: risks?.teacherAbsences ?? 0,
+                href: "/dashboard/risks?tab=teachers",
+              },
+              {
+                label: "Retards répétés",
+                value: risks?.teacherLateness ?? 0,
                 href: "/dashboard/risks?tab=teachers",
               },
             ]}
@@ -316,7 +321,7 @@ function RiskSummary({ risks, canViewTeachers }: { risks: Awaited<ReturnType<typ
 }
 
 function RiskGroup({ title, total, rows }: { title: string; total: number; rows: Array<{ label: string; value: number; href: string }> }) {
-  return <div className="rounded-lg border"><div className="flex items-center justify-between border-b px-3 py-2"><p className="font-medium">{title}</p><Badge variant="outline">{total} à risque</Badge></div>{rows.map((row) => <Link key={row.label} to={row.href} className="flex min-h-10 items-center gap-2 px-3 text-sm hover:bg-muted/50"><Badge variant="outline" className={row.value > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-border bg-muted text-foreground"}>{row.value}</Badge><span className="flex-1">{row.label}</span><ChevronRight className="h-4 w-4 text-muted-foreground" /></Link>)}</div>
+  return <div className="rounded-lg border"><div className="flex items-center justify-between border-b px-3 py-2"><p className="font-medium">{title}</p><Badge variant="outline">{total} à risque</Badge></div>{rows.map((row) => <Link key={row.label} to={row.href} className="flex min-h-12 items-center gap-2 px-3 text-sm hover:bg-muted/50"><Badge variant="outline" className={row.value > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-border bg-muted text-foreground"}>{row.value}</Badge><span className="flex-1">{row.label}</span><ChevronRight className="h-4 w-4 text-muted-foreground" /></Link>)}</div>
 }
 
 function TodaySchedule({ courses, date }: { courses: DashboardCourseItem[]; date: string }) {

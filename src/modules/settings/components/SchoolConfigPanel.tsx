@@ -15,6 +15,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/shared/components/EmptyState"
 import {
   Dialog,
   DialogContent,
@@ -40,6 +42,7 @@ import {
   deleteAdministrativeUser,
   deletePosition,
   fetchSchoolConfig,
+  fetchAdministrationConfig,
   resetAdministrativeUserPassword,
   unassignUserFromPosition,
   uploadSchoolLogo,
@@ -112,8 +115,10 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
   >(null)
 
   const schoolConfigQuery = useQuery({
-    queryKey: SETTINGS_QUERY_KEY,
-    queryFn: fetchSchoolConfig,
+    queryKey: [...SETTINGS_QUERY_KEY, showPersonnel && canManagePositions ? "administration" : "school"],
+    queryFn: showPersonnel && canManagePositions ? fetchAdministrationConfig : fetchSchoolConfig,
+    enabled: canManagePositions || canManageSchoolSettings,
+    retry: false,
   })
 
   const smsFeatureQuery = useQuery({
@@ -583,6 +588,22 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
                 ? "Mixte"
                 : "Général"
 
+  if (!canManagePositions && !canManageSchoolSettings) return (
+    <Alert variant="destructive"><AlertDescription>Votre poste ne permet pas de consulter ces paramètres.</AlertDescription></Alert>
+  )
+  if (schoolConfigQuery.isPending) return (
+    <div role="status" aria-label="Chargement des paramètres école" className="space-y-4">
+      <p className="text-sm text-muted-foreground">Chargement des paramètres école…</p>
+      <Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" />
+    </div>
+  )
+  if (schoolConfigQuery.isError) return (
+    <Alert variant="destructive"><AlertDescription className="space-y-3">
+      <p>{schoolConfigQuery.error instanceof Error ? schoolConfigQuery.error.message : "Impossible de charger les paramètres école."}</p>
+      <Button type="button" variant="outline" className="min-h-12" onClick={() => void schoolConfigQuery.refetch()}>Réessayer</Button>
+    </AlertDescription></Alert>
+  )
+
   return (
     <>
       <div className="space-y-5">
@@ -642,7 +663,7 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
                 </div>
                 <div className="grid grid-cols-1 gap-3 text-xs text-muted-foreground sm:grid-cols-3">
                   <p>Plan actif: <span className="font-medium text-foreground">{planLabel}</span></p>
-                  <p>Utilisateurs administratifs: <span className="font-medium text-foreground">{school ? `${school.adminUsersCount}` : "-"}</span></p>
+                  {showPersonnel && canManagePositions ? <p>Utilisateurs administratifs: <span className="font-medium text-foreground">{school ? `${school.adminUsersCount}` : "-"}</span></p> : null}
                   <p>Gestion: centralisée par IvoirEdu</p>
                 </div>
               </div>
@@ -839,7 +860,7 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
 
         </> : null}
 
-        {showPersonnel ? <>
+        {showPersonnel && canManagePositions ? <>
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[2fr_1fr]">
           <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="settings-positions-panel">
             <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4">
@@ -867,7 +888,7 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
             </div>
             <div>
               {positions.length === 0 ? (
-                <p className="px-5 py-6 text-center text-sm text-muted-foreground">Aucun poste créé.</p>
+                <EmptyState title="Aucun poste créé" description="Créez un poste pour définir les accès du personnel administratif." />
               ) : (
                 positions.map((position, index) => (
                   <div
@@ -1092,9 +1113,7 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
               </div>
               <div className="overflow-hidden rounded-lg border border-border">
                 {assignableUsers.length === 0 ? (
-                  <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-                    Aucun utilisateur administratif pour le moment.
-                  </p>
+                  <EmptyState title="Aucun utilisateur administratif" description="Ajoutez un utilisateur pour lui attribuer un poste." />
                 ) : (
                   assignableUsers.map((schoolUser) => (
                     <div key={schoolUser.id} className="grid grid-cols-1 gap-2 border-b border-border px-4 py-3 text-sm last:border-0 sm:grid-cols-[2fr_2fr_2fr_1fr_auto] sm:items-center sm:gap-2">
@@ -1193,7 +1212,6 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
             open={positionModalOpen}
             onOpenChange={setPositionModalOpen}
             initialPosition={positionToEdit}
-            canManageSmsTemplates={school?.canEditSmsTemplate ?? false}
           />
         ) : null}
         </> : null}

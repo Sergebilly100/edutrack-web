@@ -651,7 +651,7 @@ export default function App() {
           <Route path="/subscriptions" element={<PermissionRoute href="/subscriptions" element={<SubscriptionsPage />} />} />
           <Route path="/subscriptions/revenue" element={<PermissionRoute href="/subscriptions/revenue" element={<SubscriptionRevenuePage />} />} />
           <Route path="/settings" element={<PermissionRoute href="/settings" element={<SettingsPage />} />} />
-          <Route path="/dashboard/risks" element={<PermissionRoute href="/dashboard" requiredAnyPermissions={["students.view", "attendance.view"]} element={<RiskDetailsPage />} />} />
+          <Route path="/dashboard/risks" element={<PermissionRoute href="/dashboard" requiredAnyPermissions={["students.view", "teachers.view", "attendance.view"]} element={<RiskDetailsPage />} />} />
         </Route>
 
         <Route element={<TeacherAcademicShellRoute />}>

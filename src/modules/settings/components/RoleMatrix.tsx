@@ -1,511 +1,130 @@
-import { useMemo } from "react"
-import { useQuery } from "@tanstack/react-query"
-import { ShieldCheck } from "lucide-react"
+import { useId, useMemo } from "react"
+import axios from "axios"
+import { ChevronDown, ShieldCheck } from "lucide-react"
 
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/shared/components/EmptyState"
 import { cn } from "@/lib/utils"
-import { getSchoolSmsFeatureSettings } from "@/modules/settings/settings.api"
-import { useStudentLabels, type StudentLabels } from "@/shared/hooks/useStudentLabel"
-
-const buildBasePermissionColumns = (labels: StudentLabels) => [
-  {
-    key: "teachers",
-    label: "Profs",
-    permissions: [
-      "teachers.view",
-      "teachers.create",
-      "teachers.edit",
-      "teachers.block",
-      "teachers.documents",
-      "teachers.ranking.view",
-      "teachers.attendance.view",
-      "teachers.password.reset",
-    ],
-  },
-  {
-    key: "students",
-    label: labels.plural,
-    permissions: [
-      "students.view",
-      "students.create",
-      "students.edit",
-      "students.documents",
-      "students.excuse",
-    ],
-  },
-  {
-    key: "schedule",
-    label: "EDT",
-    permissions: ["schedule.view", "schedule.edit"],
-  },
-  {
-    key: "salary",
-    label: "Salaires",
-    permissions: ["salary.view", "salary.compute", "salary.mark_paid", "salary.export"],
-  },
-  {
-    key: "validations",
-    label: "Validations horaires",
-    permissions: ["validations.view", "validations.approve", "validations.reject"],
-  },
-  {
-    key: "rooms",
-    label: "Salles & QR",
-    permissions: ["rooms.view", "rooms.create", "rooms.edit", "rooms.delete"],
-  },
-  {
-    key: "school_years",
-    label: "Années scolaires",
-    permissions: ["school_years.view", "school_years.edit"],
-  },
-  {
-    key: "class_decisions",
-    label: "Fin d’année",
-    permissions: ["class_decisions.view", "class_decisions.validate"],
-  },
-  {
-    key: "enrollments",
-    label: "Inscriptions",
-    permissions: ["enrollments.view", "enrollments.create", "enrollments.edit", "enrollments.confirm_payment"],
-  },
-  {
-    key: "classes",
-    label: "Classes & niveaux",
-    permissions: ["classes.view", "classes.create", "classes.edit", "classes.delete"],
-  },
-  {
-    key: "import",
-    label: "Import",
-    permissions: ["import.students", "import.teachers", "import.schedule"],
-  },
-  { key: "attendance", label: "Présences", permissions: ["attendance.view", "attendance.mark_students"] },
-  { key: "conduct", label: "Conduite", permissions: ["conduct.finalize"] },
-  { key: "report_cards", label: "Bulletins", permissions: ["report_cards.view", "report_cards.publish"] },
-  { key: "tuition", label: "Frais scolaires", permissions: ["tuition.view", "tuition.edit", "tuition.grant_discount"] },
-  { key: "payments", label: "Encaissements", permissions: ["payments.view", "payments.record", "payments.cancel"] },
-  { key: "risk_alerts", label: "Alertes élèves", permissions: ["risk_alerts.edit"] },
-  { key: "financial_alerts", label: "Relances", permissions: ["financial_alerts.edit"] },
-  { key: "subscription_plans", label: "Plans abonnements", permissions: ["subscription_plans.view", "subscription_plans.edit"] },
-  { key: "settings", label: "Paramètres", permissions: ["settings.positions", "settings.school", "settings.sms_templates"] },
-]
-
-const buildBasePermissionRows = (labels: StudentLabels) => [
-  { key: "view", label: "Voir" },
-  { key: "create", label: "Créer" },
-  { key: "edit", label: "Modifier" },
-  { key: "delete", label: "Supprimer" },
-  { key: "block", label: "Bloquer" },
-  { key: "documents", label: "Documents" },
-  { key: "ranking.view", label: "Voir classement" },
-  { key: "attendance.view", label: "Analyse + absences" },
-  { key: "password.reset", label: "Réinitialiser mdp" },
-  { key: "excuse", label: "Excuser absence" },
-  { key: "compute", label: "Calculer" },
-  { key: "mark_paid", label: "Marquer payé" },
-  { key: "export", label: "Exporter" },
-  { key: "approve", label: "Valider une présence" },
-  { key: "reject", label: "Refuser une présence" },
-  { key: "validate", label: "Valider une décision" },
-  { key: "confirm_payment", label: "Confirmer à la caisse" },
-  { key: "students", label: `Importer ${labels.pluralLower}` },
-  { key: "teachers", label: "Importer profs" },
-  { key: "schedule", label: "Importer EDT" },
-  { key: "mark_students", label: "Marquer les présences" },
-  { key: "finalize", label: "Finaliser les notes de conduite" },
-  { key: "publish", label: "Publier" },
-  { key: "grant_discount", label: "Accorder une remise" },
-  { key: "record", label: "Encaisser" },
-  { key: "cancel", label: "Annuler un paiement" },
-  { key: "positions", label: "Gérer les postes" },
-  { key: "school", label: "Gérer les informations école" },
-  { key: "sms_templates", label: "Modèles SMS" },
-]
-
-const SUBSCRIPTIONS_PERMISSION_COLUMN = {
-  key: "subscriptions",
-  label: "Abonnements parents",
-  permissions: [
-    "subscriptions.view",
-    "subscriptions.create",
-    "subscriptions.edit",
-    "subscriptions.renew",
-    "subscriptions.cancel",
-    "subscriptions.password.reset",
-    "subscriptions.revenue",
-  ],
-} as const
-
-const SUBSCRIPTIONS_PERMISSION_ROWS = [
-  { key: "subscriptions_renew", label: "Renouveler un abonnement" },
-  { key: "subscriptions_cancel", label: "Annuler un abonnement" },
-  { key: "subscriptions_revenue", label: "Voir les revenus et commissions" },
-] as const
-
-type PermissionColumn = {
-  key: string
-  label: string
-  permissions: readonly string[]
-}
-type PermissionRow = {
-  key: string
-  label: string
-}
-
-type RoleMatrixPosition = {
-  permissions: string[]
-}
+import { changePermissions, isPermissionRequired, usePermissionCatalogue } from "../permission-catalogue"
+import type { CataloguePermission } from "../settings.api"
 
 type RoleMatrixProps = {
-  position: RoleMatrixPosition
+  position: { permissions: string[] }
   onChange: (permissions: string[]) => void
-  canManageSmsTemplates?: boolean
   className?: string
 }
 
-const uniqueSorted = (permissions: string[]) => Array.from(new Set(permissions)).sort()
-
-const CATEGORY_VIEW_PERMISSION: Readonly<Record<string, string>> = {
-  teachers: "teachers.view",
-  students: "students.view",
-  salary: "salary.view",
-  validations: "validations.view",
-  rooms: "rooms.view",
-  school_years: "school_years.view",
-  class_decisions: "class_decisions.view",
-  enrollments: "enrollments.view",
-  classes: "classes.view",
-  schedule: "schedule.view",
-  subscriptions: "subscriptions.view",
-  attendance: "attendance.view",
-  report_cards: "report_cards.view",
-  tuition: "tuition.view",
-  payments: "payments.view",
-  subscription_plans: "subscription_plans.view",
-}
-
-const ACTION_KEYS_REQUIRING_VIEW = new Set([
-  "create",
-  "edit",
-  "delete",
-  "block",
-  "documents",
-  "ranking.view",
-  "attendance.view",
-  "password.reset",
-  "excuse",
-  "compute",
-  "mark_paid",
-  "export",
-  "approve",
-  "reject",
-  "validate",
-  "confirm_payment",
-  "renew",
-  "cancel",
-  "revenue",
-  "mark_students",
-  "publish",
-  "grant_discount",
-  "record",
-])
-
-const splitPermission = (permission: string): { category: string; action: string } | null => {
-  const dotIndex = permission.indexOf(".")
-  if (dotIndex <= 0 || dotIndex >= permission.length - 1) {
-    return null
-  }
-
-  return {
-    category: permission.slice(0, dotIndex),
-    action: permission.slice(dotIndex + 1),
-  }
-}
-
-const resolveViewDependency = (permission: string): string | null => {
-  const segments = splitPermission(permission)
-  if (!segments) {
-    return null
-  }
-
-  if (!ACTION_KEYS_REQUIRING_VIEW.has(segments.action)) {
-    return null
-  }
-
-  return CATEGORY_VIEW_PERMISSION[segments.category] ?? null
-}
-
-const isViewLocked = (
-  permission: string,
-  permissions: readonly string[]
-): boolean => {
-  const segments = splitPermission(permission)
-  if (!segments || segments.action !== "view") {
-    return false
-  }
-
-  return permissions.some((candidatePermission) => {
-    const candidate = splitPermission(candidatePermission)
-    if (!candidate) {
-      return false
+export default function RoleMatrix({ position, onChange, className }: RoleMatrixProps) {
+  const matrixId = useId()
+  const catalogueQuery = usePermissionCatalogue()
+  const catalogue = catalogueQuery.data?.permissions
+  const groups = useMemo(() => {
+    const domains = new Map<string, { label: string; permissions: CataloguePermission[] }>()
+    for (const entry of catalogue ?? []) {
+      const group = domains.get(entry.domain) ?? { label: entry.domainLabel, permissions: [] }
+      group.permissions.push(entry)
+      domains.set(entry.domain, group)
     }
+    return [...domains.entries()]
+  }, [catalogue])
+  const selected = new Set(position.permissions)
 
-    return (
-      candidate.category === segments.category &&
-      ACTION_KEYS_REQUIRING_VIEW.has(candidate.action)
-    )
-  })
-}
-
-const resolvePermissionKey = (
-  column: PermissionColumn,
-  actionKey: string
-) => {
-  if (column.key === "students" && actionKey === "attendance.view") {
-    return column.permissions.includes("attendance.view") ? "attendance.view" : null
-  }
-
-  if (actionKey.startsWith("subscriptions_")) {
-    if (column.key !== "subscriptions") {
-      return null
-    }
-    const subscriptionAction = actionKey.replace("subscriptions_", "")
-    const key = `${column.key}.${subscriptionAction}`
-    return (column.permissions as readonly string[]).includes(key) ? key : null
-  }
-
-  const key = `${column.key}.${actionKey}`
-  return (column.permissions as readonly string[]).includes(key) ? key : null
-}
-
-export default function RoleMatrix({
-  position,
-  onChange,
-  canManageSmsTemplates = false,
-  className,
-}: RoleMatrixProps) {
-  const smsFeatureQuery = useQuery({
-    queryKey: ["settings", "sms-feature", "role-matrix"],
-    queryFn: getSchoolSmsFeatureSettings,
-  })
-  const isSubscriptionsCategoryEnabled = smsFeatureQuery.data?.monetize_parent_alerts === true
-  const studentLabels = useStudentLabels()
-
-  const permissionColumns = useMemo<PermissionColumn[]>(
-    () => {
-      const columns: PermissionColumn[] = [...buildBasePermissionColumns(studentLabels)]
-
-      if (isSubscriptionsCategoryEnabled) {
-        columns.push(SUBSCRIPTIONS_PERMISSION_COLUMN)
-      }
-
-      return columns
-    },
-    [isSubscriptionsCategoryEnabled, studentLabels]
+  if (catalogueQuery.isPending) return (
+    <div role="status" aria-label="Chargement du catalogue des permissions" className="space-y-3 p-4">
+      <span className="text-sm text-muted-foreground">Chargement des permissions…</span>
+      <Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" />
+    </div>
   )
-  const permissionRows = useMemo(
-    () => {
-      const rows: PermissionRow[] = [...buildBasePermissionRows(studentLabels)]
-
-      if (isSubscriptionsCategoryEnabled) {
-        rows.push(...SUBSCRIPTIONS_PERMISSION_ROWS)
-      }
-
-      return rows
-    },
-    [isSubscriptionsCategoryEnabled, studentLabels]
-  )
-  const permissionSet = useMemo(() => new Set(position.permissions), [position.permissions])
-  const isFeatureUnavailable = (permission: string) =>
-    permission === "settings.sms_templates" && !canManageSmsTemplates
-
-  const togglePermission = (permission: string, checked: boolean) => {
-    if (checked && isFeatureUnavailable(permission)) return
-    const next = new Set(position.permissions)
-
-    const segments = splitPermission(permission)
-    const isViewPermission = segments?.action === "view"
-    if (checked) {
-      next.add(permission)
-
-      const requiredView = resolveViewDependency(permission)
-      if (requiredView) {
-        next.add(requiredView)
-      }
-    } else {
-      if (isViewPermission && segments) {
-        const locked = isViewLocked(permission, position.permissions)
-        if (locked) {
-          return
-        }
-      }
-
-      next.delete(permission)
-    }
-
-    onChange(uniqueSorted(Array.from(next)))
+  if (catalogueQuery.isError) {
+    const error = catalogueQuery.error
+    const forbidden = (axios.isAxiosError(error) && error.response?.status === 403) ||
+      (error instanceof Error && "status" in error && error.status === 403)
+    return <Alert variant="destructive"><AlertDescription className="space-y-3">
+      <p>{forbidden ? "Votre poste ne permet pas de consulter ou gérer les permissions." : "Impossible de charger le catalogue des permissions."}</p>
+      <Button type="button" variant="outline" className="min-h-12" onClick={() => void catalogueQuery.refetch()}>Réessayer</Button>
+    </AlertDescription></Alert>
   }
+  if (!catalogue?.length) return <EmptyState title="Aucune permission disponible" description="Le catalogue est vide. Les attributions ne peuvent pas être modifiées." />
 
-  const toggleColumn = (column: PermissionColumn, checked: boolean) => {
-    const next = new Set(position.permissions)
-
-    if (checked) {
-      for (const permission of column.permissions) {
-        if (isFeatureUnavailable(permission)) continue
-        next.add(permission)
-        const requiredView = resolveViewDependency(permission)
-        if (requiredView) {
-          next.add(requiredView)
-        }
-      }
-    } else {
-      // Calculer les permissions à retirer SAUF celles locked par des permissions hors colonne
-      const columnPermSet = new Set<string>(column.permissions as readonly string[])
-      const permissionsOutsideColumn = Array.from(next).filter(p => !columnPermSet.has(p))
-
-      for (const permission of column.permissions) {
-        const segments = splitPermission(permission)
-        if (segments?.action === "view") {
-          // Vérifier si une permission hors de cette colonne requiert ce .view
-          const lockedByOutside = permissionsOutsideColumn.some(p => {
-            const c = splitPermission(p)
-            return c !== null && c.category === segments.category && ACTION_KEYS_REQUIRING_VIEW.has(c.action)
-          })
-          if (!lockedByOutside) {
-            next.delete(permission)
-          }
-        } else {
-          next.delete(permission)
-        }
-      }
-    }
-
-    onChange(uniqueSorted(Array.from(next)))
-  }
-
+  const activeCount = catalogue.filter((entry) => entry.available && selected.has(entry.key)).length
   return (
-    <div className={cn("overflow-hidden rounded-xl border border-border bg-card shadow-sm", className)}>
-      <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="h-4 w-4 text-primary" />
-          <span className="text-sm font-semibold">Matrice de permissions</span>
-        </div>
-        <span className="text-xs text-muted-foreground">
-          {position.permissions.length} permission{position.permissions.length !== 1 ? "s" : ""} activée
-          {position.permissions.length !== 1 ? "s" : ""}
-        </span>
+    <div className={cn("overflow-hidden rounded-lg border border-border bg-card shadow-sm", className)}>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-4 py-3">
+        <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" /><span className="text-sm font-semibold">Matrice de permissions</span></div>
+        <span className="text-xs text-muted-foreground">{activeCount} droit{activeCount !== 1 ? "s" : ""} sélectionné{activeCount !== 1 ? "s" : ""}</span>
+        <p className="w-full text-xs text-muted-foreground">Les modifications s’appliquent après l’enregistrement du poste.</p>
       </div>
-
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-b bg-muted/20 hover:bg-muted/20">
-              <TableHead className="w-[160px] py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Action
-              </TableHead>
-              {permissionColumns.map((column) => {
-                const selected = column.permissions.reduce(
-                  (count, permission) => count + (permissionSet.has(permission) ? 1 : 0),
-                  0,
-                )
-                const total = column.permissions.length
-                const checkedState = selected === 0 ? false : selected === total ? true : "indeterminate"
-                const allChecked = selected === total
-
-                return (
-                  <TableHead key={column.key} className="py-3 text-center align-bottom">
-                    <div className="flex flex-col items-center gap-1.5">
-                      <div
-                        className={cn(
-                          "flex h-7 w-7 items-center justify-center rounded-md border transition-colors",
-                          allChecked ? "border-blue-200 bg-blue-50" : "border-border bg-muted",
-                        )}
-                      >
-                        <Checkbox
-                          checked={checkedState}
-                          onCheckedChange={(checked) => toggleColumn(column, checked === true)}
-                          aria-label={`Tout sélectionner ${column.label}`}
-                        />
-                      </div>
-                      <span className={cn("text-[11px] font-medium", allChecked ? "text-blue-700" : "text-muted-foreground")}>
-                        {column.label}
+      <div>
+          {groups.map(([domain, group]) => {
+            const available = group.permissions.filter((entry) => entry.available)
+            const count = available.filter((entry) => selected.has(entry.key)).length
+            const state = count === 0 ? false : count === available.length ? true : "indeterminate"
+            const unavailableCount = group.permissions.length - available.length
+            const groupCheckboxId = `${matrixId}-group-${domain}`
+            const groupSummaryId = `${groupCheckboxId}-summary`
+            return <Collapsible key={domain} className="border-b last:border-b-0" data-permission-domain={domain}>
+              <div className="flex items-center bg-muted/20 px-2">
+                <h3 className="min-w-0 flex-1">
+                  <CollapsibleTrigger asChild>
+                    <Button type="button" variant="ghost" aria-label={`Permissions : ${group.label}`} aria-describedby={groupSummaryId}
+                      className="group h-auto min-h-12 w-full justify-start gap-2 rounded-none px-2 py-3 text-left">
+                      <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 transition-transform group-data-[state=open]:rotate-180 motion-reduce:transition-none" />
+                      <span className="min-w-0 flex-1 whitespace-normal">
+                        <span className="block text-sm font-semibold">{group.label}</span>
+                        {unavailableCount ? <span className="block text-xs font-normal text-muted-foreground">
+                          {unavailableCount} droit{unavailableCount !== 1 ? "s" : ""} indisponible{unavailableCount !== 1 ? "s" : ""}
+                        </span> : null}
                       </span>
-                      <div className="h-0.5 w-10 overflow-hidden rounded-full bg-border">
-                        <div
-                          className="h-full rounded-full bg-blue-500 transition-all duration-300"
-                          style={{ width: `${(selected / total) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  </TableHead>
-                )
+                      <span id={groupSummaryId} className="shrink-0 text-xs font-normal tabular-nums text-muted-foreground" title="Droits disponibles sélectionnés">
+                        <span className="sr-only">Droits disponibles sélectionnés : </span>
+                        {count}/{available.length}
+                      </span>
+                    </Button>
+                  </CollapsibleTrigger>
+                </h3>
+                <label htmlFor={groupCheckboxId} className="flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center" title={`Tout sélectionner ${group.label}`}>
+                  <Checkbox id={groupCheckboxId} className="h-4 w-4" checked={state} disabled={!available.length}
+                    aria-label={`Tout sélectionner ${group.label}`}
+                    onCheckedChange={(checked) => onChange(changePermissions(position.permissions, group.permissions, checked === true, catalogue))} />
+                </label>
+              </div>
+              <CollapsibleContent className="border-t" role="region" aria-label={`${group.label} : permissions`}>
+              {group.permissions.map((entry) => {
+                const locked = selected.has(entry.key) && isPermissionRequired(entry.key, position.permissions, catalogue)
+                const checkboxId = `${matrixId}-permission-${entry.key}`
+                const descriptionId = `${checkboxId}-description`
+                const hasDescription = Boolean(entry.unavailableReason || entry.activationDependencies.length || locked || (!entry.available && selected.has(entry.key)))
+                return <div key={entry.key} data-permission-key={entry.key} className="border-b px-4 last:border-b-0">
+                    <label htmlFor={checkboxId} className={cn("flex min-h-12 cursor-pointer items-center gap-3 py-2 text-sm font-medium", (!entry.available || locked) && "cursor-not-allowed")}>
+                      <Checkbox id={checkboxId} className="h-4 w-4"
+                        checked={entry.available && selected.has(entry.key)} disabled={!entry.available || locked}
+                        aria-label={entry.label} aria-describedby={hasDescription ? descriptionId : undefined}
+                        onCheckedChange={(checked) => onChange(changePermissions(position.permissions, [entry], checked === true, catalogue))} />
+                      <span>{entry.label}</span>
+                    </label>
+                    {hasDescription ? <div id={descriptionId} className="space-y-1 pb-3 pl-7 text-xs text-muted-foreground">
+                      {entry.unavailableReason ? <p>Indisponible : {entry.unavailableReason}</p> : null}
+                      {entry.activationDependencies.length ? <ul className="space-y-1">
+                        {entry.activationDependencies.map((dependency) => <li key={dependency.feature}>
+                          {dependency.label} : {dependency.enabled ? "oui" : "non"}
+                        </li>)}
+                      </ul> : null}
+                      {locked && entry.available ? <p>Requis par une autre action sélectionnée.</p> : null}
+                      {!entry.available && selected.has(entry.key) ? <div>
+                        <p>Attribution enregistrée, service indisponible. Retirez ce droit pour enregistrer une modification des permissions.</p>
+                        <Button type="button" variant="outline" className="mt-2 min-h-12" aria-label={`Retirer ${entry.label}`}
+                          onClick={() => onChange(position.permissions.filter((key) => key !== entry.key))}>Retirer l’attribution inactive</Button>
+                      </div> : null}
+                    </div> : null}
+                </div>
               })}
-            </TableRow>
-          </TableHeader>
-
-          <TableBody>
-            {permissionRows.map((row, index) => (
-              <TableRow
-                key={row.key}
-                className={cn(
-                  "transition-colors",
-                  index % 2 === 0 ? "bg-background" : "bg-muted/10",
-                  "hover:bg-primary/5",
-                )}
-              >
-                <TableCell className="py-2.5 pl-4">
-                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    {row.label}
-                  </span>
-                </TableCell>
-                {permissionColumns.map((column) => {
-                  const permission = resolvePermissionKey(column, row.key)
-
-                  if (!permission) {
-                    return (
-                      <TableCell key={`${column.key}.${row.key}`} className="text-center">
-                        <div className="flex justify-center">
-                          <div className="h-1.5 w-1.5 rounded-full bg-border" />
-                        </div>
-                      </TableCell>
-                    )
-                  }
-
-                  const isChecked = permissionSet.has(permission)
-                  const isDisabled = isViewLocked(permission, position.permissions) || isFeatureUnavailable(permission)
-
-                  return (
-                    <TableCell key={permission} className="text-center">
-                      <div className="flex justify-center">
-                        <div
-                          className={cn(
-                            "flex h-6 w-6 items-center justify-center rounded-md border transition-colors",
-                            isChecked ? "border-blue-200 bg-blue-50" : "border-border hover:bg-muted",
-                          )}
-                        >
-                          <Checkbox
-                            checked={isChecked}
-                            disabled={isDisabled}
-                            onCheckedChange={(checked) => togglePermission(permission, checked === true)}
-                            aria-label={`${column.label} ${row.label}`}
-                            title={isFeatureUnavailable(permission) ? "L’édition des modèles SMS doit être activée par IvoirEdu." : undefined}
-                          />
-                        </div>
-                      </div>
-                    </TableCell>
-                  )
-                })}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+              </CollapsibleContent>
+            </Collapsible>
+          })}
       </div>
     </div>
   )

@@ -2,7 +2,7 @@ import { apiClient } from "@/shared/api/client"
 
 export type RiskSubjectType = "student" | "teacher"
 
-export type RiskSignalType = "absences" | "grades" | "payments"
+export type RiskSignalType = "absences" | "grades" | "payments" | "lateness"
 
 export type RiskAlertRule = {
   id: string
@@ -11,6 +11,7 @@ export type RiskAlertRule = {
   thresholdValue: number
   periodDays: number
   isActive: boolean
+  lateMinutes?: number | null
 }
 
 export type SaveRiskAlertRuleInput = {
@@ -19,6 +20,7 @@ export type SaveRiskAlertRuleInput = {
   thresholdValue: number
   periodDays: number
   isActive: boolean
+  lateMinutes?: number | null
 }
 
 export const fetchRiskAlertRules = async (): Promise<RiskAlertRule[]> => {
@@ -32,10 +34,12 @@ export const saveRiskAlertRule = async ({
   thresholdValue,
   periodDays,
   isActive,
+  lateMinutes,
 }: SaveRiskAlertRuleInput): Promise<void> => {
   await apiClient.put(`/risk/rules/${subjectType}/${signalType}`, {
     thresholdValue,
     periodDays,
     isActive,
+    ...(lateMinutes !== undefined ? { lateMinutes } : {}),
   })
 }

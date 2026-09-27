@@ -53,13 +53,31 @@ describe("RiskAlertRules", () => {
     saveRuleMock.mockResolvedValue(undefined)
   })
 
-  it("présente les quatre signaux sans faux seuil pour le retard financier", async () => {
+  it("présente les cinq signaux sans faux seuil pour le retard financier", async () => {
     renderRules()
 
     expect(await screen.findByText("Situation financière en retard")).toBeInTheDocument()
-    expect(screen.getAllByRole("button", { name: "Enregistrer" })).toHaveLength(4)
+    expect(screen.getAllByRole("button", { name: "Enregistrer" })).toHaveLength(5)
     expect(screen.queryByLabelText("student:payments-threshold")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("student:payments-period")).not.toBeInTheDocument()
+  })
+
+  it("requiert un nombre de retards explicite et enregistre les minutes sur 30 jours", async () => {
+    renderRules()
+    const count = await screen.findByLabelText("Nombre de retards")
+    const minutes = screen.getByLabelText("Tolérance en minutes")
+    const save = screen.getAllByRole("button", { name: "Enregistrer" })[4]!
+    expect(count).toHaveValue(null)
+    expect(minutes).toHaveValue(15)
+    expect(save).toBeDisabled()
+    fireEvent.change(count, { target: { value: "4" } })
+    fireEvent.change(minutes, { target: { value: "5" } })
+    fireEvent.click(screen.getAllByLabelText("Active")[4]!)
+    fireEvent.click(save)
+    await waitFor(() => expect(saveRuleMock.mock.calls[0]?.[0]).toEqual({
+      subjectType: "teacher", signalType: "lateness", thresholdValue: 4,
+      periodDays: 30, lateMinutes: 5, isActive: true,
+    }))
   })
 
   it("enregistre le seuil d'absence élève modifié", async () => {

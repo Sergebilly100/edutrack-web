@@ -16,6 +16,7 @@ vi.mock("@/shared/api/client", () => {
 
 import {
   getDashboardStats,
+  listTeacherRisks,
   getDashboardActionItems,
   getAttendanceHistory,
   getQRAlerts,
@@ -25,6 +26,15 @@ import {
 } from "@/modules/dashboard/dashboard.api"
 
 describe("dashboard.api", () => {
+  it("conserve les motifs et les nombres de retards enseignants fournis par l’API", async () => {
+    getMock.mockResolvedValueOnce({ data: {
+      teachers: [{ teacher_id: "teacher-1", teacher_name: "Professeur test", absence_count: 3, lateness_count: 4, attendance_rate: 70, absences_signal: true, lateness_signal: true, risk_score: 2, level: "warning" }],
+      pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
+    } })
+    const result = await listTeacherRisks({ page: 1, limit: 10, atRisk: true })
+    expect(result.teachers).toEqual([expect.objectContaining({ absenceCount: 3, latenessCount: 4, absencesSignal: true, latenessSignal: true, riskScore: 2, level: "warning" })])
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
   })

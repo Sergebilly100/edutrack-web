@@ -1,4 +1,4 @@
-import axios from "axios"
+import { z } from "zod"
 
 import { apiClient } from "@/shared/api/client"
 import { asNullableString, asNumber, asString, isRecord } from "@/shared/utils/parsers"
@@ -184,12 +184,6 @@ const parseConfigEnvelope = (value: unknown): SchoolConfigData => {
   }
 }
 
-const parsePositionsEnvelope = (value: unknown): PositionItem[] => {
-  const payload = isRecord(value) ? value : {}
-  const rows = Array.isArray(payload.positions) ? payload.positions : Array.isArray(value) ? value : []
-  return rows.map((entry) => parsePosition(entry))
-}
-
 const parseSchoolInfo = (value: unknown): SchoolConfigData["school"] => {
   const payload = isRecord(value) ? value : {}
 
@@ -230,30 +224,58 @@ export type SchoolSmsFeatureSettings = {
 }
 
 export const fetchSchoolConfig = async (): Promise<SchoolConfigData> => {
-  try {
-    const response = await apiClient.get("/permissions/config")
-    return parseConfigEnvelope(response.data)
-  } catch (error) {
-    // Fallback uniquement si l'utilisateur n'a pas la permission settings.positions (403/404)
-    // Pour toute autre erreur (401, 500, réseau), on laisse remonter
-    if (
-      axios.isAxiosError(error) &&
-      (error.response?.status === 403 || error.response?.status === 404)
-    ) {
-      const schoolInfoResponse = await apiClient.get("/school/info")
-      const positionsResponse = await apiClient
-        .get("/permissions/positions")
-        .catch(() => ({ data: { positions: [] } }))
+  const response = await apiClient.get("/permissions/config/school")
+  return parseConfigEnvelope(response.data)
+}
 
-      return {
-        school: parseSchoolInfo(schoolInfoResponse.data),
-        limits: { maxAdminPositions: 0 },
-        positions: parsePositionsEnvelope(positionsResponse.data),
-        users: [],
-      }
-    }
-    throw error
+// Seuls les consommateurs autorisés à settings.positions utilisent ce contrat.
+// Aucun refus d’autorisation ne déclenche un repli vers un autre endpoint.
+export const fetchAdministrationConfig = async (): Promise<SchoolConfigData> => {
+  const response = await apiClient.get("/permissions/config")
+  return parseConfigEnvelope(response.data)
+}
+
+export const fetchSchoolInfo = async (): Promise<SchoolConfigData> => {
+  const response = await apiClient.get("/school/info")
+  return {
+    school: parseSchoolInfo(response.data), limits: { maxAdminPositions: 0 }, positions: [], users: [],
   }
+}
+
+const permissionCatalogueSchema = z.object({
+  version: z.literal(1),
+  permissions: z.array(z.object({
+    key: z.string().min(1),
+    domain: z.string().min(1),
+    domainLabel: z.string().min(1),
+    label: z.string().min(1),
+    requiredPermissions: z.array(z.string()),
+    activationDependencies: z.array(z.object({
+      feature: z.string().min(1), label: z.string().min(1), enabled: z.boolean(),
+    })),
+    available: z.boolean(),
+    unavailableReason: z.string().min(1).nullable(),
+  })),
+}).superRefine((catalogue, ctx) => {
+  const keys = new Set(catalogue.permissions.map((permission) => permission.key))
+  if (keys.size !== catalogue.permissions.length) {
+    ctx.addIssue({ code: "custom", message: "Le catalogue contient des permissions en double." })
+  }
+  for (const permission of catalogue.permissions) {
+    if (permission.requiredPermissions.some((key) => !keys.has(key)) ||
+        permission.available !== permission.activationDependencies.every((dependency) => dependency.enabled) ||
+        (!permission.available && !permission.unavailableReason)) {
+      ctx.addIssue({ code: "custom", message: "Les dépendances du catalogue sont incohérentes." })
+    }
+  }
+})
+
+export type PermissionCatalogue = z.infer<typeof permissionCatalogueSchema>
+export type CataloguePermission = PermissionCatalogue["permissions"][number]
+
+export const fetchPermissionCatalogue = async (): Promise<PermissionCatalogue> => {
+  const response = await apiClient.get("/permissions/catalogue")
+  return permissionCatalogueSchema.parse(response.data)
 }
 
 export const getSchoolStudentAbsenceSmsTemplate = async (): Promise<SchoolSmsTemplateResponse> => {
@@ -304,31 +326,16 @@ export const updateSchoolInfo = async (payload: {
   logoUrl?: string | null
   allowTeacherQrSkip?: boolean
 }): Promise<void> => {
-  const requiresPermissionsConfigApi =
-    payload.logoUrl !== undefined || payload.allowTeacherQrSkip !== undefined
-
-  try {
-    await apiClient.patch("/permissions/config/school", {
-      name: payload.name,
-      city: payload.city,
-      address: payload.address,
-      teachingType: payload.teachingType,
-      ...(payload.logoUrl !== undefined ? { logoUrl: payload.logoUrl } : {}),
-      ...(payload.allowTeacherQrSkip !== undefined
-        ? { allowTeacherQrSkip: payload.allowTeacherQrSkip }
-        : {}),
-    })
-  } catch (error) {
-    if (requiresPermissionsConfigApi || !axios.isAxiosError(error) || error.response?.status !== 404) {
-      throw error
-    }
-
-    await apiClient.patch("/school/info", {
-      name: payload.name,
-      city: payload.city,
-      address: payload.address,
-    })
-  }
+  await apiClient.patch("/permissions/config/school", {
+    name: payload.name,
+    city: payload.city,
+    address: payload.address,
+    teachingType: payload.teachingType,
+    ...(payload.logoUrl !== undefined ? { logoUrl: payload.logoUrl } : {}),
+    ...(payload.allowTeacherQrSkip !== undefined
+      ? { allowTeacherQrSkip: payload.allowTeacherQrSkip }
+      : {}),
+  })
 }
 
 export const uploadSchoolLogo = async (file: File): Promise<string> => {
@@ -420,11 +427,11 @@ export const createPosition = async (payload: {
 export const updatePosition = async (payload: {
   id: string
   name: string
-  permissions: string[]
+  permissions?: string[]
 }): Promise<PositionItem> => {
   const response = await apiClient.put(`/permissions/positions/${payload.id}`, {
     name: payload.name,
-    permissions: payload.permissions,
+    ...(payload.permissions !== undefined ? { permissions: payload.permissions } : {}),
   })
   const envelope = isRecord(response.data) ? response.data : {}
   return parsePosition(envelope["position"])

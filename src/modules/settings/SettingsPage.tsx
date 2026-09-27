@@ -28,6 +28,7 @@ import SmsTemplatePanel from "@/modules/settings/components/SmsTemplatePanel"
 import { RequiredDocumentsSettings } from "@/modules/settings/components/RequiredDocumentsSettings"
 import {
   fetchSchoolConfig,
+  fetchAdministrationConfig,
   getSchoolSmsFeatureSettings,
   updateSchoolSmsUnitPrice,
 } from "@/modules/settings/settings.api"
@@ -97,9 +98,10 @@ export default function SettingsPage() {
     }
   }
   const schoolConfigQuery = useQuery({
-    queryKey: ["settings", "school-config", "access-gate"],
-    queryFn: fetchSchoolConfig,
+    queryKey: ["settings", "school-config", "access-gate", canManagePositions ? "administration" : "school"],
+    queryFn: canManagePositions ? fetchAdministrationConfig : fetchSchoolConfig,
     enabled: canManagePositions || canManageSchoolSettings,
+    retry: false,
   })
   const smsFeatureQuery = useQuery({
     queryKey: ["settings", "sms-feature"],
@@ -107,9 +109,8 @@ export default function SettingsPage() {
   })
   // L'école ne monétise les alertes parents que si IvoirEdu a activé le service
   // (is_enabled) ET que l'école a opté pour la monétisation (monetize_parent_alerts).
-  // Toute la surface "abonnements SMS parents" (menus Abonnements/Revenus, colonne
-  // Abonnements de la matrice de rôles, et la section "Service SMS Parents" ci-dessous)
-  // est conditionnée à ce booléen : si l'école ne monétise pas, rien ne s'affiche.
+  // Les écrans Abonnements/Revenus et le tarif ci-dessous suivent ce booléen.
+  // La matrice affiche toujours le catalogue complet et explique les indisponibilités.
   const parentSmsMonetized =
     smsFeatureQuery.data?.is_enabled === true &&
     smsFeatureQuery.data?.monetize_parent_alerts === true
@@ -256,7 +257,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {canManagePositions && schoolConfigQuery.isError ? (
+      {(canManagePositions || canManageSchoolSettings) && schoolConfigQuery.isError ? (
         <Alert variant="destructive">
           <AlertDescription>
             Impossible de charger la configuration école. Vérifiez la connexion puis réessayez.

@@ -9,7 +9,7 @@ export const DASHBOARD_ACTION_ROUTES: Record<string, { href: string; label: stri
   payment_reminder_needed: { href: "/finance/dashboard", label: "Ouvrir la finance" },
   report_cards_blocked: { href: "/academic/completion", label: "Voir la complétude" },
   student_at_risk: { href: "/students", label: "Voir les élèves" },
-  teacher_at_risk: { href: "/teachers", label: "Voir les professeurs" },
+  teacher_at_risk: { href: "/dashboard/risks?tab=teachers", label: "Voir les professeurs" },
   dossier_incomplete: { href: "/enrollments", label: "Voir les inscriptions" },
 }
 

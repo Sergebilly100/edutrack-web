@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
-import { fetchSchoolConfig } from "@/modules/settings/settings.api"
+import { fetchSchoolConfig, fetchSchoolInfo } from "@/modules/settings/settings.api"
+import { usePermissions } from "@/shared/hooks/usePermissions"
 import { addMonths, formatMonthLabel, getCurrentMonth } from "@/shared/utils/month"
 
 export type SchoolYearBounds = {
@@ -33,9 +34,11 @@ type UseSchoolYearMonthsResult = {
  * Si aucune config disponible, retourne null (pas de restriction).
  */
 export function useSchoolYearMonths(): UseSchoolYearMonthsResult {
+  const { hasPermission } = usePermissions()
+  const canReadSchoolConfig = hasPermission("settings.school")
   const configQuery = useQuery({
-    queryKey: ["settings", "school-config", "month-picker"],
-    queryFn: fetchSchoolConfig,
+    queryKey: ["settings", "school-config", "month-picker", canReadSchoolConfig ? "school" : "info"],
+    queryFn: canReadSchoolConfig ? fetchSchoolConfig : fetchSchoolInfo,
     staleTime: 5 * 60 * 1000,
   })
 

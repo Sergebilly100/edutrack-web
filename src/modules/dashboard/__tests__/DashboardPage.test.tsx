@@ -253,6 +253,20 @@ describe("DashboardPage", () => {
     expect(screen.queryByRole("tab")).not.toBeInTheDocument()
   })
 
+  it("affiche un total enseignant unique lorsque les deux signaux sont actifs", async () => {
+    getDashboardPilotageMock.mockResolvedValue({
+      population: { activeStudents: 10, activeTeachers: 1, activeClasses: 1 },
+      academic: [],
+      risks: { studentAbsences: 8, studentGrades: 8, studentPayments: 8, teacherAbsences: 1, teacherLateness: 1, teachersAtRisk: 1 },
+    })
+    renderWithQueryClient(<DashboardPage />)
+    expect(await screen.findByRole("link", { name: /Retards répétés/ })).toHaveAttribute("href", "/dashboard/risks?tab=teachers")
+    await waitFor(() => {
+      const teachers = screen.getAllByText("Professeurs", { selector: "p" }).find((label) => label.parentElement?.textContent?.includes("à risque"))
+      expect(teachers?.parentElement).toHaveTextContent("1 à risque")
+    })
+  })
+
   it("actualise toutes les données visibles du dashboard", async () => {
     renderWithQueryClient(<DashboardPage />)
 

@@ -122,7 +122,7 @@ export type DashboardPilotageLevel = {
 export type DashboardPilotage = {
   population: { activeStudents: number; activeTeachers: number; activeClasses: number }
   academic: DashboardPilotageLevel[]
-  risks: { studentAbsences: number; studentGrades: number; studentPayments: number; teacherAbsences: number }
+  risks: { studentAbsences: number; studentGrades: number; studentPayments: number; teacherAbsences: number; teacherLateness: number; teachersAtRisk: number }
 }
 
 export type DashboardSalaryStatus = "pending" | "paid" | "disputed" | "nothing_to_pay" | "Salaire fixe"
@@ -980,7 +980,7 @@ export type StudentRiskItem = {
 }
 
 export type TeacherRiskItem = {
-  teacherId: string; teacherName: string; absenceCount: number; attendanceRate: number; absencesSignal: boolean; riskScore: number; level: RiskLevel
+  teacherId: string; teacherName: string; absenceCount: number; latenessCount: number; attendanceRate: number; absencesSignal: boolean; latenessSignal: boolean; riskScore: number; level: RiskLevel
 }
 
 type RiskListParams = { page: number; limit: number }
@@ -1010,6 +1010,7 @@ const parseTeacherRisk = (value: unknown): TeacherRiskItem => {
   return {
     teacherId: asString(row.teacherId ?? row.teacher_id), teacherName: asString(row.teacherName ?? row.teacher_name),
     absenceCount: asNumber(row.absenceCount ?? row.absence_count, 0), attendanceRate: asNumber(row.attendanceRate ?? row.attendance_rate, 0),
+    latenessCount: asNumber(row.latenessCount ?? row.lateness_count, 0), latenessSignal: asBoolean(row.latenessSignal ?? row.lateness_signal),
     absencesSignal: asBoolean(row.absencesSignal ?? row.absences_signal), riskScore: asNumber(row.riskScore ?? row.risk_score, 0), level: parseRiskLevel(row.level),
   }
 }

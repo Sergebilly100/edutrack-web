@@ -7,6 +7,7 @@ const listStudentRisksMock = vi.fn()
 const listTeacherRisksMock = vi.fn()
 const listLevelsMock = vi.fn()
 const listClassesMock = vi.fn()
+const hasPermissionMock = vi.fn()
 
 vi.mock("@/modules/dashboard/dashboard.api", () => ({
   listStudentRisks: (...args: unknown[]) => listStudentRisksMock(...args),
@@ -19,21 +20,23 @@ vi.mock("@/modules/academic/academic.api", () => ({
 }))
 
 vi.mock("@/shared/hooks/usePermissions", () => ({
-  usePermissions: () => ({ hasPermission: () => true }),
+  usePermissions: () => ({ hasPermission: (permission: string) => hasPermissionMock(permission) }),
 }))
 
 import RiskDetailsPage from "@/modules/dashboard/RiskDetailsPage"
+import { actionItemToNotification, DASHBOARD_ACTION_ROUTES } from "@/modules/dashboard/dashboard-action-notifications"
 
 const pagination = { page: 1, limit: 10, total: 11, totalPages: 2 }
 
-function renderPage() {
+function renderPage(entry = "/dashboard/risks") {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}><MemoryRouter><RiskDetailsPage /></MemoryRouter></QueryClientProvider>)
+  return render(<QueryClientProvider client={queryClient}><MemoryRouter initialEntries={[entry]}><RiskDetailsPage /></MemoryRouter></QueryClientProvider>)
 }
 
 describe("RiskDetailsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    hasPermissionMock.mockReturnValue(true)
     listLevelsMock.mockResolvedValue([{ id: "level-1", name: "6e" }])
     listClassesMock.mockResolvedValue({ classes: [{ id: "class-1", name: "6e A", level: { id: "level-1" } }] })
     listStudentRisksMock.mockResolvedValue({
@@ -41,9 +44,30 @@ describe("RiskDetailsPage", () => {
       pagination,
     })
     listTeacherRisksMock.mockResolvedValue({
-      teachers: [{ teacherId: "teacher-1", teacherName: "M. Yao", absenceCount: 3, attendanceRate: 75, absencesSignal: true, riskScore: 1, level: "attention" }],
+      teachers: [{ teacherId: "teacher-1", teacherName: "M. Yao", absenceCount: 3, latenessCount: 0, attendanceRate: 75, absencesSignal: true, latenessSignal: false, riskScore: 1, level: "attention" }],
       pagination,
     })
+  })
+
+  it("ouvre le suivi professeur sans charger les élèves pour teachers.view seul", async () => {
+    hasPermissionMock.mockImplementation((permission: string) => permission === "teachers.view")
+    renderPage("/dashboard/risks?tab=teachers")
+    expect(await screen.findByRole("link", { name: "M. Yao" })).toBeInTheDocument()
+    expect(listStudentRisksMock).not.toHaveBeenCalled()
+    expect(listLevelsMock).not.toHaveBeenCalled()
+    expect(listClassesMock).not.toHaveBeenCalled()
+    expect(screen.queryByRole("tab", { name: "Élèves" })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    { absencesSignal: false, latenessSignal: true, absenceCount: 0, latenessCount: 4, riskScore: 1, level: "attention", reason: "Retards" },
+    { absencesSignal: true, latenessSignal: true, absenceCount: 3, latenessCount: 4, riskScore: 2, level: "warning", reason: "Absences Retards" },
+  ])("affiche la raison réelle du risque enseignant : $reason", async (risk) => {
+    listTeacherRisksMock.mockResolvedValue({ teachers: [{ teacherId: "teacher-1", teacherName: "M. Yao", ...risk }], pagination })
+    renderPage("/dashboard/risks?tab=teachers")
+    const name = await screen.findByRole("link", { name: "M. Yao" })
+    for (const reason of risk.reason.split(" ")) expect(name.closest("tr")).toHaveTextContent(reason)
+    expect(screen.getAllByRole("link", { name: "M. Yao" })).toHaveLength(1)
   })
 
   it("affiche les filtres et les élèves dans un tableau paginé", async () => {
@@ -66,5 +90,22 @@ describe("RiskDetailsPage", () => {
     expect(screen.getByText("M. Yao")).toBeInTheDocument()
     expect(screen.getByText("3")).toBeInTheDocument()
     expect(screen.getByLabelText("Mois")).toHaveAttribute("type", "month")
+  })
+
+  it("ouvre les risques enseignants depuis l’action sur la même fenêtre glissante", async () => {
+    const notification = actionItemToNotification({
+      id: "action-teacher", type: "teacher_at_risk", referenceId: null,
+      priority: "high", message: "1 professeur(s) à suivre pour leur assiduité", generatedAt: "2026-09-27",
+    })
+    expect(notification.title).toBe("Professeurs à suivre")
+    expect(notification.targetHref).toBe("/dashboard/risks?tab=teachers")
+    expect(DASHBOARD_ACTION_ROUTES.student_at_risk.href).toBe("/students")
+    renderPage(notification.targetHref)
+
+    expect(await screen.findByRole("columnheader", { name: "Absences répétées" })).toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: "Professeurs" })).toHaveAttribute("aria-selected", "true")
+    expect(screen.getByLabelText("Mois")).toHaveValue("")
+    expect(listTeacherRisksMock).toHaveBeenCalledWith({ month: undefined, atRisk: true, page: 1, limit: 10 })
+    expect(screen.getByRole("link", { name: "M. Yao" })).toHaveAttribute("href", expect.stringContaining("/teachers/teacher-1"))
   })
 })
