@@ -64,6 +64,7 @@ import {
 } from "@/shared/components/icons"
 import { ConfirmActionDialog, DataTable, EmptyState, OfflineGuard, PageLayout } from "@/shared/components"
 import { TourGuide } from "@/shared/components/TourGuide"
+import { HomeroomTeacherReminder } from "@/shared/components/HomeroomTeacherReminder"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
@@ -492,11 +493,10 @@ export default function TeachersPage() {
 
   const createMutation = useMutation({
     mutationFn: createTeacher,
-    onSuccess: async (data) => {
+    onSuccess: async () => {
       setCreateOpen(false)
       await queryClient.invalidateQueries({ queryKey: ["teachers"] })
       toast({ title: "Professeur ajouté", duration: 3000 })
-      if (data.classesWithoutHomeroomTeacher?.length) toast({ title: "Rappel : professeur principal", description: `Classes sans professeur principal : ${data.classesWithoutHomeroomTeacher.map((item) => item.name).join(", ")}.`, duration: 6000 })
     },
     onError: (error) => {
       toast({
@@ -715,6 +715,7 @@ export default function TeachersPage() {
         className="space-y-4"
         data-tour="teachers-tabs"
       >
+        <HomeroomTeacherReminder />
         <TabsList
           className={cn(
             "grid h-auto w-full rounded-xl border border-border bg-muted/50 p-1 sm:w-full",
@@ -903,7 +904,7 @@ export default function TeachersPage() {
       {/* ── Modal : créer un professeur ── */}
       {canCreateTeacher ? (
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogContent className="max-w-2xl ">
+          <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Ajouter un professeur</DialogTitle>
               <DialogDescription>

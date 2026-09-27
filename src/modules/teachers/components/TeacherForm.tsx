@@ -32,7 +32,6 @@ import { ChevronDown, Search, X, Plus, Trash2 } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
-import { EmptyState } from "@/shared/components/EmptyState"
 import { Spinner } from "@/shared/components/Spinner"
 import { groupTeachingAssignments, resolveAssignmentBlocks } from "../teaching-assignments"
 import { cn } from "@/lib/utils"
@@ -154,7 +153,7 @@ function MultiSelectCombobox({
       <DropdownMenu modal={false} onOpenChange={(open) => { if (!open) setSearch("") }}>
         <DropdownMenuTrigger asChild>
           <Button type="button" variant="outline" className="min-h-12 w-full justify-between font-normal" disabled={disabled} aria-label={`Modifier les ${title.toLocaleLowerCase("fr")}`}>
-            <span className="truncate">{selectedValues.length > 0 ? `${selectedValues.length} sélection${selectedValues.length > 1 ? "s" : ""}` : `Sélectionner des ${title.toLocaleLowerCase("fr")}`}</span>
+            <span className="truncate">{selectedValues.length > 0 ? `${selectedValues.length} classe${selectedValues.length > 1 ? "s" : ""}` : "Choisir des classes"}</span>
             <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
           </Button>
         </DropdownMenuTrigger>
@@ -261,7 +260,6 @@ export default function TeacherForm({
   }, [form, subjectsQuery.data, initialValues?.teachingAssignments])
   const activeYearId = classesQuery.data?.activeSchoolYear?.id
   const activeClasses = (classesQuery.data?.classes ?? []).filter((item) => item.isActive && item.schoolYear.id === activeYearId)
-  const missingHomeroom = activeClasses.filter((item) => !item.homeroomTeacher)
   const subjectOptions = useMemo(
     () => [...new Set((subjectsQuery.data ?? []).map((subject) => subject.name))].sort((a, b) => a.localeCompare(b, "fr")),
     [subjectsQuery.data]
@@ -391,103 +389,106 @@ export default function TeacherForm({
             )}
           />
         </div>
-        
 
-        <FormField
-          control={form.control}
-          name="type"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Type</FormLabel>
-              <Select value={field.value} onValueChange={field.onChange}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner le type" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="vacataire">Vacataire</SelectItem>
-                  <SelectItem value="permanent">Permanent</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField
+            control={form.control}
+            name="type"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Type de contrat</FormLabel>
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <FormControl>
+                    <SelectTrigger className="min-h-12">
+                      <SelectValue placeholder="Sélectionner le type" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="vacataire" className="min-h-12">Vacataire</SelectItem>
+                    <SelectItem value="permanent" className="min-h-12">Permanent</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {type === "vacataire" ? (
+            <FormField
+              control={form.control}
+              name="hourlyRate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Taux horaire (FCFA)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      step={1}
+                      placeholder="5000"
+                      className="min-h-12"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ) : (
+            <FormField
+              control={form.control}
+              name="monthlySalary"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Salaire fixe (FCFA)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      step={1}
+                      placeholder="350000"
+                      className="min-h-12"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           )}
-        />
+        </div>
 
-        <section className="space-y-4 border-t pt-4" aria-label="Affectations pédagogiques">
-          <div className="space-y-1">
-            <h3 className="font-medium">Affectations pédagogiques</h3>
-            <p className="text-sm text-muted-foreground">Chaque bloc relie une matière aux classes choisies. Ajoutez les affectations après les inscriptions.</p>
+        <section className="space-y-3 border-t pt-4 pb-4" aria-label="Affectations pédagogiques">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <div className="min-w-0 space-y-1">
+              <h2 className="font-medium">Affectations pédagogiques <span className="text-xs font-normal text-muted-foreground">Facultatif</span></h2>
+              <p className="text-xs text-muted-foreground">{blocks.length ? "Une matière par bloc, plusieurs classes possibles." : "À compléter après l'ouverture des classes."}</p>
+            </div>
+            <Button type="button" variant="outline" className="min-h-12 shrink-0" disabled={assignmentsLocked || isPending || subjectsQuery.isLoading || classesQuery.isLoading || subjectsQuery.isError || classesQuery.isError || !activeClasses.length || !subjectOptions.length} onClick={() => append({ subjectName: "", classIds: [] })}><Plus className="mr-2 h-4 w-4" />Ajouter un bloc</Button>
           </div>
           {assignmentsLocked ? <Alert><AlertDescription>Les affectations sont verrouillées pour ce professeur. Un professeur bloqué ou inactif ne peut recevoir d’affectation.</AlertDescription></Alert> : null}
-          {subjectsQuery.isLoading || classesQuery.isLoading ? <Skeleton className="h-24 w-full" /> : subjectsQuery.isError || classesQuery.isError ? <Alert variant="destructive"><AlertDescription>Impossible de charger les matières et classes.<Button type="button" variant="outline" className="ml-2 min-h-12" onClick={() => { void subjectsQuery.refetch(); void classesQuery.refetch() }}>Réessayer</Button></AlertDescription></Alert> : <>
-            {!blocks.length ? <EmptyState classNameRendu="py-4" title="Aucune affectation" description="Le profil et le contrat peuvent être enregistrés. Ajoutez un bloc lorsque les classes sont disponibles." /> : null}
-            {blocks.map((block, index) => <fieldset key={block.id} className="space-y-3 border-t pt-4" disabled={assignmentsLocked || isPending}>
-              <legend className="text-sm font-medium">Bloc {index + 1}</legend>
-              <div className="grid gap-4 md:grid-cols-2">
-                <FormField control={form.control} name={`assignmentBlocks.${index}.subjectName`} render={({ field }) => <FormItem>
-                  <FormLabel>Matière du bloc {index + 1}</FormLabel>
+          {subjectsQuery.isLoading || classesQuery.isLoading ? <Skeleton className="h-12 w-full" /> : subjectsQuery.isError || classesQuery.isError ? <Alert variant="destructive"><AlertDescription>Impossible de charger les matières et classes.<Button type="button" variant="outline" className="ml-2 min-h-12" onClick={() => { void subjectsQuery.refetch(); void classesQuery.refetch() }}>Réessayer</Button></AlertDescription></Alert> : <>
+            {blocks.map((block, index) => <fieldset key={block.id} className="min-w-0" disabled={assignmentsLocked || isPending}>
+              <legend className="sr-only">Bloc {index + 1}</legend>
+              <div className="grid grid-cols-[minmax(0,1fr)_3rem] gap-x-3 gap-y-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_3rem]">
+                <FormField control={form.control} name={`assignmentBlocks.${index}.subjectName`} render={({ field }) => <FormItem className="col-span-2 min-w-0 sm:col-span-1">
+                  <FormLabel>Matière<span className="sr-only"> du bloc {index + 1}</span></FormLabel>
                   <Select value={field.value} disabled={assignmentsLocked || isPending} onValueChange={field.onChange}><FormControl><SelectTrigger className="min-h-12"><SelectValue placeholder="Choisir une matière" /></SelectTrigger></FormControl><SelectContent>{subjectOptions.map((name) => <SelectItem key={name} value={name} className="min-h-12">{name}</SelectItem>)}</SelectContent></Select>
                   <FormMessage />
                 </FormItem>} />
-                <FormField control={form.control} name={`assignmentBlocks.${index}.classIds`} render={({ field }) => <FormItem>
-                  <FormLabel>Classes du bloc {index + 1}</FormLabel>
+                <FormField control={form.control} name={`assignmentBlocks.${index}.classIds`} render={({ field }) => <FormItem className="min-w-0">
+                  <FormLabel>Classes<span className="sr-only"> du bloc {index + 1}</span></FormLabel>
                   <MultiSelectCombobox title={`Classes du bloc ${index + 1}`} description="Classes de l’année active. La matière doit être configurée pour leur niveau." selectedValues={field.value} options={activeClasses.map((schoolClass) => ({ value: schoolClass.id, label: schoolClass.name, description: `${schoolClass.level.name} · ${schoolClass.studentCount} élèves` }))} disabled={assignmentsLocked || isPending} onChange={field.onChange} />
                   <FormMessage />
                 </FormItem>} />
+                <Button type="button" variant="ghost" size="icon" className="mt-[calc(0.875rem+0.5rem)] h-12 w-12 self-start text-muted-foreground hover:text-destructive" disabled={assignmentsLocked || isPending} onClick={() => remove(index)} aria-label={`Supprimer le bloc ${index + 1}`} title={`Supprimer le bloc ${index + 1}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button>
               </div>
-              <Button type="button" variant="ghost" className="min-h-12" disabled={assignmentsLocked || isPending} onClick={() => remove(index)}><Trash2 className="mr-2 h-4 w-4" />Supprimer le bloc {index + 1}</Button>
             </fieldset>)}
-            <Button type="button" variant="outline" className="min-h-12" disabled={assignmentsLocked || isPending || !activeClasses.length || !subjectOptions.length} onClick={() => append({ subjectName: "", classIds: [] })}><Plus className="mr-2 h-4 w-4" />Ajouter un bloc</Button>
             {!activeYearId ? <p className="text-sm text-muted-foreground">Ouvrez une année scolaire active avant de définir les affectations.</p> : null}
-            {missingHomeroom.length > 0 && assignmentBlocks.length > 0 ? <Alert><AlertDescription>Rappel : classes sans professeur principal : {missingHomeroom.map((item) => item.name).join(", ")}. L’enregistrement reste possible. Désignez leur professeur principal dans Académique → Structure scolaire → Classes.</AlertDescription></Alert> : null}
           </>}
         </section>
-
-        {type === "vacataire" ? (
-          <FormField
-            control={form.control}
-            name="hourlyRate"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Taux horaire (FCFA)</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    step={1}
-                    placeholder="5000"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        ) : (
-          <FormField
-            control={form.control}
-            name="monthlySalary"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Salaire fixe (FCFA)</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    step={1}
-                    placeholder="350000"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
 
         <Button type="submit" className="min-h-12 w-full" disabled={isPending || (!assignmentsLocked && (subjectsQuery.isLoading || classesQuery.isLoading || subjectsQuery.isError || classesQuery.isError))}>
           {isPending ? <><Spinner size="sm" className="mr-2" />Enregistrement...</> : submitLabel}

@@ -505,11 +505,10 @@ function InfosPanel({
   const updateMutation = useMutation({
     mutationFn: ({ payload }: { teacherId: string; payload: TeacherUpsertPayload }) =>
       updateTeacher(teacherId, payload),
-    onSuccess: async (data) => {
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["teacher", teacherId] })
       await queryClient.invalidateQueries({ queryKey: ["teachers"] })
       toast({ title: "Informations mises à jour", duration: 3000 })
-      if (data.classesWithoutHomeroomTeacher?.length) toast({ title: "Rappel : professeur principal", description: `Classes sans professeur principal : ${data.classesWithoutHomeroomTeacher.map((item) => item.name).join(", ")}.`, duration: 6000 })
     },
     onError: (error: unknown) => {
       toast({

@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils"
 import { useConfirmImport, useDryRun } from "@/modules/import/import.hooks"
 import { downloadTemplate, type DryRunResponse, type ImportIssue, type ImportMode, type ImportType } from "./import-export.api"
 import { sendPendingParentAccess } from "@/modules/subscriptions/subscriptions.api"
+import { getSchedulePeriodSummary, formatSchedulePeriodDate } from "./schedule-period"
 import { DateInput } from "@/shared/components/DateInput"
 import { DropZone } from "@/shared/components/DropZone"
 import { Spinner } from "@/shared/components/Spinner"
@@ -302,7 +303,10 @@ export default function ImportWizard({
   const [importMode, setImportMode] = useState<ImportMode>("merge")
   const [weekStart, setWeekStart] = useState("")
   const [weekEnd, setWeekEnd] = useState("")
-  const [periodError, setPeriodError] = useState<string | null>(null)
+  const [showRequiredPeriodErrors, setShowRequiredPeriodErrors] = useState(false)
+  const periodSummary = getSchedulePeriodSummary(weekStart, weekEnd)
+  const startPeriodError = weekStart || showRequiredPeriodErrors ? periodSummary.startError : undefined
+  const endPeriodError = weekEnd || showRequiredPeriodErrors ? periodSummary.endError : undefined
   const [conflictAcknowledged, setConflictAcknowledged] = useState(false)
   const [pastScheduleAcknowledged, setPastScheduleAcknowledged] = useState(false)
   const [restoredDryRunReport, setRestoredDryRunReport] = useState<DryRunResponse | null>(null)
@@ -394,7 +398,7 @@ export default function ImportWizard({
 
   const resetAfterUploadChange = () => {
     setTemplateError(null)
-    setPeriodError(null)
+    setShowRequiredPeriodErrors(false)
     setConflictAcknowledged(false)
     setPastScheduleAcknowledged(false)
     setRestoredDryRunReport(null)
@@ -432,7 +436,7 @@ export default function ImportWizard({
     setStep(1)
     setFile(null)
     setTemplateError(null)
-    setPeriodError(null)
+    setShowRequiredPeriodErrors(false)
     setImportMode("merge")
     setWeekStart("")
     setWeekEnd("")
@@ -489,48 +493,10 @@ export default function ImportWizard({
     }
   }
 
-  const isMonday = (value: string) => {
-    if (!value) return false
-    const date = new Date(`${value}T00:00:00.000Z`)
-    return !Number.isNaN(date.getTime()) && date.getUTCDay() === 1
-  }
-
-  const isSunday = (value: string) => {
-    if (!value) return false
-    const date = new Date(`${value}T00:00:00.000Z`)
-    return !Number.isNaN(date.getTime()) && date.getUTCDay() === 0
-  }
-
   const validateSchedulePeriod = () => {
-    if (importType !== "schedule") {
-      return true
-    }
-
-    if (!weekStart || !weekEnd) {
-      setPeriodError("Sélectionnez la période de validité de l'EDT.")
-      return false
-    }
-
-    if (!isMonday(weekStart) || !isSunday(weekEnd) || weekStart > weekEnd) {
-      setPeriodError(`Impossible ! Les emplois du temps doivent couvrir des semaines complètes du lundi au dimanche entre ${weekStart} et ${weekEnd}`)
-      return false
-    }
-
-    const start = new Date(`${weekStart}T00:00:00.000Z`)
-    const end = new Date(`${weekEnd}T00:00:00.000Z`)
-    const diffMs = end.getTime() - start.getTime()
-    // La période couvre des semaines du lundi au dimanche inclus :
-    // on ajoute 1 jour (inclusif sur weekEnd) avant de vérifier le multiple de 7 jours
-    const MS_PER_DAY = 24 * 60 * 60 * 1000;
-    const MS_PER_WEEK = 7 * MS_PER_DAY;
-    const inclusiveMs = diffMs + MS_PER_DAY;
-    if (inclusiveMs % MS_PER_WEEK !== 0) {
-      setPeriodError(`Impossible ! Les emplois du temps doivent couvrir des semaines complètes du lundi au dimanche entre ${weekStart} et ${weekEnd}`)
-      return false
-    }
-
-    setPeriodError(null)
-    return true
+    if (importType !== "schedule") return true
+    setShowRequiredPeriodErrors(true)
+    return periodSummary.weeks !== null
   }
 
   const getCurrentSchedulePeriod = () =>
@@ -554,7 +520,7 @@ export default function ImportWizard({
     setFile(null)
     setWeekStart("")
     setWeekEnd("")
-    setPeriodError(null)
+    setShowRequiredPeriodErrors(false)
     setConflictAcknowledged(false)
     setPastScheduleAcknowledged(false)
     resetAfterUploadChange()
@@ -659,7 +625,7 @@ export default function ImportWizard({
   }
 
   const runConfirmImport = () => {
-    if (!file) return
+    if (!file || !validateSchedulePeriod()) return
 
     setStep(3)
     confirmMutation.mutate(
@@ -701,7 +667,7 @@ export default function ImportWizard({
   }
 
   const handleConfirmImport = () => {
-    if (!file) return
+    if (!file || !validateSchedulePeriod()) return
     if (importType === "schedule" && hasConflicts && !conflictAcknowledged) return
     if (importType === "schedule" && pastScheduleWarnings.length > 0 && !pastScheduleAcknowledged) {
       setShowPastScheduleModal(true)
@@ -753,7 +719,7 @@ export default function ImportWizard({
     onImportTypeChange?.(fallbackType)
     setFile(null)
     setTemplateError(null)
-    setPeriodError(null)
+    setShowRequiredPeriodErrors(false)
     setImportMode("merge")
     setWeekStart("")
     setWeekEnd("")
@@ -939,53 +905,55 @@ export default function ImportWizard({
                 <p className="text-sm font-medium">Période de validité de l&apos;emploi du temps</p>
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="week-start">Semaine (début - lundi)</Label>
+                    <Label htmlFor="week-start">Du lundi</Label>
                     <DateInput
-                      aria-label="Semaine (début - lundi)"
+                      id="week-start"
+                      aria-label="Du lundi"
+                      aria-invalid={Boolean(startPeriodError)}
+                      aria-describedby={startPeriodError ? "week-start-error" : "schedule-period-hint"}
+                      className="min-h-[48px]"
                       value={weekStart}
                       onChange={(newStart) => {
                         setWeekStart(newStart)
-                        const nextPeriod =
-                          newStart && weekEnd && weekEnd > newStart
-                            ? { weekStart: newStart, weekEnd }
-                            : null
-                        if (weekEnd && weekEnd <= newStart) {
-                          setWeekEnd("")
-                        }
-                        setPeriodError(null)
+                        const nextPeriod = newStart && weekEnd ? { weekStart: newStart, weekEnd } : null
                         void persistDraftOptions({ schedulePeriod: nextPeriod })
                       }}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="week-end" className={!weekStart ? "text-muted-foreground" : undefined}>
-                      Semaine (fin - Dimanche)
+                      Au dimanche
                     </Label>
                     <DateInput
-                      aria-label="Semaine (fin - Dimanche)"
+                      id="week-end"
+                      aria-label="Au dimanche"
+                      aria-invalid={Boolean(endPeriodError)}
+                      aria-describedby={endPeriodError ? "week-end-error" : "schedule-period-hint"}
+                      className="min-h-[48px]"
                       value={weekEnd}
                       min={weekStart || undefined}
                       disabled={!weekStart}
                       onChange={(value) => {
                         setWeekEnd(value)
-                        setPeriodError(null)
                         void persistDraftOptions({
                           schedulePeriod: weekStart && value ? { weekStart, weekEnd: value } : null,
                         })
                       }}
                     />
                     {!weekStart ? (
-                      <p className="text-xs text-muted-foreground">Sélectionnez d&apos;abord la semaine de début.</p>
+                      <p className="text-xs text-muted-foreground">Sélectionnez d&apos;abord le lundi de début.</p>
                     ) : null}
                   </div>
                 </div>
-                {weekStart && weekEnd ? (
-                  <p className="text-xs text-muted-foreground">
-                    Cet EDT sera appliqué du {weekStart} au {weekEnd}.
-                  </p>
+                <p id="schedule-period-hint" className="text-sm text-muted-foreground">
+                  Choisissez des semaines complètes, du lundi au dimanche inclus.
+                  Un changement en milieu de semaine prend effet au lundi suivant.
+                </p>
+                {startPeriodError ? (
+                  <p id="week-start-error" role="alert" className="break-words text-sm text-destructive">{startPeriodError}</p>
                 ) : null}
-                {periodError ? (
-                  <p className="break-words text-sm text-destructive">{periodError}</p>
+                {endPeriodError ? (
+                  <p id="week-end-error" role="alert" className="break-words text-sm text-destructive">{endPeriodError}</p>
                 ) : null}
               </div>
             ) : null}
@@ -1033,6 +1001,14 @@ export default function ImportWizard({
               <ImportLoadingOverlay importType={importType} phase="analysis" />
             ) : null}
 
+            {importType === "schedule" && periodSummary.weeks === null ? (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  {periodSummary.startError ?? periodSummary.endError} Revenez aux dates pour corriger la période.
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
             {validationError ? (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
@@ -1042,6 +1018,16 @@ export default function ImportWizard({
 
             {dryRunReport && !dryRunMutation.isPending ? (
               <>
+                {importType === "schedule" && periodSummary.weeks !== null ? (
+                  <div className="space-y-1 rounded-lg border p-4" aria-label="Période d’application de l’EDT">
+                    <p className="text-sm font-medium">
+                      Du lundi {formatSchedulePeriodDate(weekStart)} au dimanche {formatSchedulePeriodDate(weekEnd)}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {periodSummary.weeks} semaine{periodSummary.weeks > 1 ? "s" : ""} complète{periodSummary.weeks > 1 ? "s" : ""}, {dryRunReport.valid} créneau{dryRunReport.valid > 1 ? "x" : ""} hebdomadaire{dryRunReport.valid > 1 ? "s" : ""} à importer.
+                    </p>
+                  </div>
+                ) : null}
                 <div className="flex flex-wrap items-center gap-3 rounded-md border p-4 text-sm">
                   <p className="font-medium text-green-700">{dryRunReport.valid} lignes valides</p>
                   <p className="font-medium text-destructive">{blockingRowsCount} erreurs</p>
@@ -1234,6 +1220,7 @@ export default function ImportWizard({
                   confirmMutation.isPending ||
                   !dryRunReport ||
                   blockingIssues.length > 0 ||
+                  (importType === "schedule" && periodSummary.weeks === null) ||
                   (importType === "schedule" && hasConflicts && !conflictAcknowledged)
                 }
                 className={cn(touchFeedbackClass, "min-h-[48px]")}

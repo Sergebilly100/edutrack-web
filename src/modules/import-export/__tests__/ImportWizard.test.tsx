@@ -221,8 +221,8 @@ describe("ImportWizard - step 1 (upload)", () => {
 
   it("shows schedule period fields only for schedule type", () => {
     renderWizard({ selectedImportType: "schedule" })
-    expect(screen.getByLabelText(/Semaine \(début - lundi\)/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/Semaine \(fin - Dimanche\)/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Du lundi/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Au dimanche/i)).toBeInTheDocument()
     expect(screen.queryByText("Mode de mise à jour")).not.toBeInTheDocument()
   })
 
@@ -332,8 +332,8 @@ describe("ImportWizard - step 2 (validation)", () => {
     renderWizard({ selectedImportType: "schedule" })
 
     // Set schedule period dates
-    const startInput = screen.getByLabelText(/Semaine \(début - lundi\)/i) as HTMLInputElement
-    const endInput = screen.getByLabelText(/Semaine \(fin - Dimanche\)/i) as HTMLInputElement
+    const startInput = screen.getByLabelText(/Du lundi/i) as HTMLInputElement
+    const endInput = screen.getByLabelText(/Au dimanche/i) as HTMLInputElement
     fireEvent.change(startInput, { target: { value: "2026-06-01" } })
     fireEvent.change(endInput, { target: { value: "2026-06-07" } })
 
@@ -369,8 +369,8 @@ describe("ImportWizard - step 2 (validation)", () => {
     )
     renderWizard({ selectedImportType: "schedule" })
 
-    const startInput = screen.getByLabelText(/Semaine \(début - lundi\)/i) as HTMLInputElement
-    const endInput = screen.getByLabelText(/Semaine \(fin - Dimanche\)/i) as HTMLInputElement
+    const startInput = screen.getByLabelText(/Du lundi/i) as HTMLInputElement
+    const endInput = screen.getByLabelText(/Au dimanche/i) as HTMLInputElement
     fireEvent.change(startInput, { target: { value: "2026-06-01" } })
     fireEvent.change(endInput, { target: { value: "2026-06-07" } })
 
@@ -866,4 +866,75 @@ it("C10 explains profile-only initial import and preserving assignments on reimp
   await waitFor(() => expect(screen.getByText(/Le réimport conserve les affectations existantes/)).toBeVisible())
   expect(screen.getByText(/Après les inscriptions, définissez les affectations/)).toBeVisible()
   expect(screen.queryByRole("tab", { name: /affectations/i })).not.toBeInTheDocument()
+})
+
+describe("C11 weekly period validation and preview", () => {
+  it("leaves both dates empty and exposes no period name", () => {
+    renderWizard({ selectedImportType: "schedule" })
+    expect(screen.getByLabelText("Du lundi")).toHaveValue("")
+    expect(screen.getByLabelText("Au dimanche")).toHaveValue("")
+    expect(screen.queryByLabelText(/nom.*période/i)).not.toBeInTheDocument()
+  })
+
+  it("immediately links precise errors to the date inputs and clears them on correction", () => {
+    renderWizard({ selectedImportType: "schedule" })
+    const start = screen.getByLabelText("Du lundi")
+    const end = screen.getByLabelText("Au dimanche")
+    fireEvent.change(start, { target: { value: "2026-06-02" } })
+    expect(start).toHaveAttribute("aria-invalid", "true")
+    expect(start).toHaveAccessibleDescription("La période doit commencer un lundi.")
+    fireEvent.change(start, { target: { value: "2026-06-01" } })
+    fireEvent.change(end, { target: { value: "2026-06-06" } })
+    expect(end).toHaveAttribute("aria-invalid", "true")
+    expect(end).toHaveAccessibleDescription("La période doit se terminer un dimanche.")
+    fireEvent.change(end, { target: { value: "2026-06-07" } })
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+    fireEvent.change(start, { target: { value: "2026-06-08" } })
+    expect(end).toHaveValue("2026-06-07")
+    expect(end).toHaveAccessibleDescription("La date de fin doit être postérieure ou égale à la date de début.")
+  })
+
+  it("refuses invalid dates before requesting a preview", async () => {
+    const analyze = vi.fn(() => HttpResponse.json(DRY_RUN_OK))
+    server.use(http.post("*/import/schedule/dry-run", analyze))
+    renderWizard({ selectedImportType: "schedule" })
+    fireEvent.change(screen.getByLabelText("Du lundi"), { target: { value: "2026-06-02" } })
+    fireEvent.change(screen.getByLabelText("Au dimanche"), { target: { value: "2026-06-07" } })
+    fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [makeXlsxFile()] } })
+    fireEvent.click(screen.getByRole("button", { name: /Suivant/ }))
+    expect(analyze).not.toHaveBeenCalled()
+    expect(screen.getByLabelText("Du lundi")).toHaveAccessibleDescription("La période doit commencer un lundi.")
+  })
+
+  it("blocks confirmation of a restored preview with partial period dates", async () => {
+    const { saveDraft } = await import("@/shared/lib/import-draft-db")
+    const file = makeXlsxFile()
+    const confirm = vi.fn(() => HttpResponse.json(CONFIRM_OK))
+    server.use(http.post("*/import/schedule/confirm", confirm))
+    await saveDraft({
+      id: "c11-invalid-preview", importType: "schedule", step: 2,
+      fileName: file.name, fileData: await file.arrayBuffer(), fileSize: file.size, fileMime: file.type,
+      dryRunReport: null, dryRunResponse: DRY_RUN_OK, mode: "merge", selectedColumns: null,
+      schedulePeriod: { weekStart: "2026-06-02", weekEnd: "2026-06-07" },
+      createdAt: Date.UTC(2026, 5, 1), updatedAt: Date.UTC(2026, 5, 1),
+    })
+    renderWizard({ selectedImportType: "schedule" })
+    fireEvent.click(await screen.findByRole("button", { name: /Reprendre/i }))
+    expect(await screen.findByText(/Revenez aux dates pour corriger la période/)).toBeInTheDocument()
+    const button = screen.getByRole("button", { name: "Importer →" })
+    expect(button).toBeDisabled()
+    fireEvent.click(button)
+    expect(confirm).not.toHaveBeenCalled()
+  })
+
+  it("shows the chosen dates, weeks and validated weekly slots before confirmation", async () => {
+    server.use(http.post("*/import/schedule/dry-run", () => HttpResponse.json(DRY_RUN_OK)))
+    renderWizard({ selectedImportType: "schedule" })
+    fireEvent.change(screen.getByLabelText("Du lundi"), { target: { value: "2026-06-01" } })
+    fireEvent.change(screen.getByLabelText("Au dimanche"), { target: { value: "2026-06-14" } })
+    fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [makeXlsxFile()] } })
+    fireEvent.click(screen.getByRole("button", { name: /Suivant/ }))
+    expect(await screen.findByText("Du lundi 1 juin 2026 au dimanche 14 juin 2026")).toBeInTheDocument()
+    expect(screen.getByText("2 semaines complètes, 3 créneaux hebdomadaires à importer.")).toBeInTheDocument()
+  })
 })

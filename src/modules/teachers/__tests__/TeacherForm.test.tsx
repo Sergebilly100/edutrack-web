@@ -123,7 +123,7 @@ describe("C10 formulaire par blocs", () => {
     await screen.findByRole("combobox", { name: "Matière du bloc 2" })
     expect(screen.getByRole("combobox", { name: "Matière du bloc 1" })).toHaveTextContent("Maths")
     expect(screen.getByRole("combobox", { name: "Matière du bloc 2" })).toHaveTextContent("Chimie")
-    expect(screen.getByText(/Rappel : classes sans professeur principal/)).toBeVisible()
+    expect(screen.queryByText(/Rappel : classes sans professeur principal/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }))
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ teachingAssignments: teacherValues.teachingAssignments })))
   })

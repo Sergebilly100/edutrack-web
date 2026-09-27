@@ -27,6 +27,7 @@ import StudentAbsencePanel from "@/modules/students/components/StudentAbsencePan
 import { createStudent, getAttendanceHistory, listStudents, type StudentItem } from "@/modules/students/students.api"
 import { DataTable, EmptyState, OfflineGuard, PageLayout } from "@/shared/components"
 import { TourGuide } from "@/shared/components/TourGuide"
+import { HomeroomTeacherReminder } from "@/shared/components/HomeroomTeacherReminder"
 import { AddIcon, AppIcon, ChevronRightIcon, FilterIcon, InfoIcon, StudentsIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
@@ -365,6 +366,7 @@ export default function StudentsPage() {
         className="space-y-4"
         data-tour="students-tabs"
       >
+        <HomeroomTeacherReminder />
         <TabsList className={cn("grid h-auto w-full rounded-xl border border-border bg-muted/50 p-1 sm:w-full", canViewStudents && canViewAttendance ? "grid-cols-2 md:w-[420px]" : "grid-cols-1 md:w-[220px]")}>
           {canViewStudents ? (
             <TabsTrigger value="liste" className="min-h-12 rounded-lg text-sm font-medium" data-tour="students-tab-liste">Liste</TabsTrigger>

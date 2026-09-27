@@ -710,11 +710,6 @@ export default function SchedulePage() {
     <div className="space-y-6 px-4 md:px-1">
       <OfflineIndicator offlineCapable />
       <header className="space-y-4">
-        <WeekCoverageAlert
-          nextWeekHasCoverage={nextWeekCoverageQuery.data ?? true}
-          btnText="Procéder à l'importation"
-          onNavigateToSchedule={() => navigate("/import?type=schedule")}
-        />
 
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-1">
@@ -755,7 +750,14 @@ export default function SchedulePage() {
               <Badge variant="outline">Lecture seule</Badge>
             )}
           </div>
+
+
         </div>
+        <WeekCoverageAlert
+          nextWeekHasCoverage={nextWeekCoverageQuery.data ?? true}
+          btnText="Procéder à l'importation"
+          onNavigateToSchedule={() => navigate("/import?type=schedule")}
+        />
 
         {/* ── Barre de contrôles ─────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-2 shadow-sm" data-tour="schedule-periods">

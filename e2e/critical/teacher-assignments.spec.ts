@@ -5,6 +5,7 @@ import { navigateMenu, returningUser } from '../ui-helpers';
 const apiRequire = createRequire(new URL('../../../edutrack-api/package.json', import.meta.url));
 const ExcelJS: typeof import('../../../edutrack-api/node_modules/exceljs') = apiRequire('exceljs');
 const api = () => process.env.E2E_API_URL!;
+const { Pool }: typeof import('../../../edutrack-api/node_modules/@types/pg') = apiRequire('pg');
 async function file(headers: string[], rows: Array<Array<string | number>>) {
   const book = new ExcelJS.Workbook(); const sheet = book.addWorksheet('Données');
   sheet.addRow(headers); rows.forEach((row) => sheet.addRow(row));
@@ -29,13 +30,42 @@ async function selectClasses(page: Page, index: number, names: string[]) {
 for (const device of [{ name: 'Android', width: 393, height: 851, mobile: true }, { name: 'bureau', width: 1280, height: 900, mobile: false }]) {
   test.describe(device.name, () => {
     test.use({ viewport: { width: device.width, height: device.height }, isMobile: device.mobile, hasTouch: device.mobile });
+    test('Rappel professeur principal dans les listes et lien vers Classes', async ({ page }) => {
+      await login(page);
+      await navigateMenu(page, 'Vie scolaire', 'Professeurs');
+      await expect(page.getByRole('link', { name: 'Ouvrir l’onglet Classes' })).toHaveAttribute('href', '/academic/classes');
+      await page.getByRole('button', { name: 'Ajouter un prof', exact: true }).click();
+      const dialog = page.getByRole('dialog');
+      await dialog.getByRole('button', { name: 'Ajouter un bloc' }).click();
+      await expect(dialog.getByText(/Rappel : classes sans professeur principal/)).toHaveCount(0);
+      await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+      await page.getByRole('link', { name: 'Ouvrir l’onglet Classes' }).click();
+      await expect(page).toHaveURL(/\/academic\/classes$/);
+      await expect(page.getByRole('tab', { name: 'Classes', exact: true })).toHaveAttribute('aria-selected', 'true');
+      await navigateMenu(page, 'Vie scolaire', 'Élèves');
+      await page.getByRole('link', { name: 'Ouvrir l’onglet Classes' }).click();
+      await expect(page).toHaveURL(/\/academic\/classes$/);
+      await expect(page.getByRole('tab', { name: 'Classes', exact: true })).toHaveAttribute('aria-selected', 'true');
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    });
     test('C10 : inscription et classe → blocs individuels → premier EDT réel', async ({ page }) => {
       test.setTimeout(90000);
       const token = await login(page); const headers = { authorization: `Bearer ${token}` };
       const suffix = `C10-${device.name}-${Date.now()}`;
       const initial = await file(['Matricule','Nom*','Prénom*','Type*','Email','Taux horaire FCFA'], [[suffix, suffix, 'Aya', 'vacataire', `${suffix}@example.ci`, 5000]]);
-      const imported = await page.request.post(`${api()}/import/teachers/confirm`, { headers, multipart: { file: initial } });
-      expect(imported.status()).toBe(200);
+      // The shared browser school is configured; initial profile import needs its initial phase.
+      const schema = (JSON.parse(Buffer.from(token.split('.')[1]!, 'base64url').toString('utf8')) as { schemaName: string }).schemaName;
+      if (!process.env.DATABASE_URL_TEST || !schema?.startsWith('school_test_')) throw new Error('C10 requires the disposable QA school');
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL_TEST });
+      const savedInitialPhase = await pool.query<{ onboarding_completed: boolean }>('SELECT onboarding_completed FROM public.tenants WHERE schema_name=$1', [schema]);
+      try {
+        await pool.query('UPDATE public.tenants SET onboarding_completed=false WHERE schema_name=$1', [schema]);
+        const imported = await page.request.post(`${api()}/import/teachers/confirm`, { headers, multipart: { file: initial } });
+        expect(imported.status(), await imported.text()).toBe(200);
+      } finally {
+        await pool.query('UPDATE public.tenants SET onboarding_completed=$1 WHERE schema_name=$2', [savedInitialPhase.rows[0]!.onboarding_completed, schema]);
+        await pool.end();
+      }
       const directory = await (await page.request.get(`${api()}/teachers`, { headers, params: { search: suffix, limit: 100 } })).json();
       const teacher = directory.data[0]; expect(teacher.teaching_assignments).toEqual([]);
 
@@ -68,6 +98,7 @@ for (const device of [{ name: 'Android', width: 393, height: 851, mobile: true }
       expect(chemistry.ok()).toBeTruthy();
       const chemistryName = (await chemistry.json()).subject.name as string;
       await navigateMenu(page, 'Vie scolaire', 'Professeurs');
+      await expect(page.getByRole('link', { name: 'Ouvrir l’onglet Classes' })).toHaveAttribute('href', '/academic/classes');
       await page.goto(`/teachers/${teacher.id}`);
       await page.getByRole('tab', { name: 'Infos', exact: true }).click();
       await page.getByRole('button', { name: 'Ajouter un bloc' }).click();
@@ -78,7 +109,7 @@ for (const device of [{ name: 'Android', width: 393, height: 851, mobile: true }
       await page.getByRole('combobox', { name: 'Matière du bloc 2' }).click();
       await page.getByRole('option', { name: chemistryName, exact: true }).click();
       await selectClasses(page, 2, ['Classe QA']);
-      await expect(page.getByText(/Rappel : classes sans professeur principal/)).toBeVisible();
+      await expect(page.getByText(/Rappel : classes sans professeur principal/)).toHaveCount(0);
       const saved = page.waitForResponse((r) => r.url().endsWith(`/teachers/${teacher.id}`) && r.request().method() === 'PUT');
       await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
       const result = await saved; expect(result.status()).toBe(200);
@@ -90,13 +121,13 @@ for (const device of [{ name: 'Android', width: 393, height: 851, mobile: true }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
       await navigateMenu(page, 'Administration', 'Import de données');
-      await page.getByRole('button', { name: 'Importer l’emploi du temps', exact: true }).click();
+      await expect(page.getByLabel('Du lundi', { exact: true })).toBeVisible();
       const edt = await file(['Nom professeur*','Classe*','Matière*','Jour*','Créneau*','Salle'], [[`Aya ${suffix}`, className, 'Mathematiques', 'Lundi', '08:00 - 09:00', 'Salle A1']]);
       await page.locator('input[type="file"]').setInputFiles(edt);
       const start = new Date(); start.setUTCDate(start.getUTCDate() + ((8-start.getUTCDay())%7 || 7) + (device.mobile ? 7 : 14));
       const end = new Date(start); end.setUTCDate(start.getUTCDate()+6);
-      await page.getByLabel('Semaine (début - lundi)').fill(start.toISOString().slice(0,10));
-      await page.getByLabel('Semaine (fin - Dimanche)').fill(end.toISOString().slice(0,10));
+      await page.getByLabel('Du lundi').fill(start.toISOString().slice(0,10));
+      await page.getByLabel('Au dimanche').fill(end.toISOString().slice(0,10));
       await page.getByRole('button', { name: 'Suivant →' }).click();
       await expect(page.getByRole('button', { name: 'Importer →' })).toBeEnabled();
       const written = page.waitForResponse((r) => r.url().endsWith('/import/schedule/confirm') && r.request().method() === 'POST');
@@ -104,6 +135,10 @@ for (const device of [{ name: 'Android', width: 393, height: 851, mobile: true }
       const importedEdt = await written; expect(importedEdt.status()).toBe(200); expect((await importedEdt.json()).imported).toBe(1);
       const after = await (await page.request.get(`${api()}/teachers/${teacher.id}`, { headers })).json();
       expect(after.teaching_assignments).toHaveLength(3);
+      await navigateMenu(page, 'Vie scolaire', 'Élèves');
+      await page.getByRole('link', { name: 'Ouvrir l’onglet Classes' }).click();
+      await expect(page).toHaveURL(/\/academic\/classes$/);
+      await expect(page.getByRole('tab', { name: 'Classes', exact: true })).toHaveAttribute('aria-selected', 'true');
       await page.screenshot({ path: test.info().outputPath(`c10-${device.name}.png`), fullPage: true });
     });
   });
