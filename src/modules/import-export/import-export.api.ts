@@ -5,6 +5,7 @@ import { triggerBlobDownload } from "@/shared/api/pdfExport.api"
 // ─── Import history ───────────────────────────────────────────────────────────
 
 export type ImportHistoryItem = {
+  historicalSchoolYearLabel: string | null
   id: string
   importedAt: string
   type: "students" | "teachers" | "schedule"
@@ -17,6 +18,7 @@ export type ImportHistoryItem = {
 }
 
 const ImportHistoryItemSchema = z.object({
+  historical_school_year_label: z.string().nullable().optional(),
   id: z.string(),
   imported_at: z.string(),
   type: z.enum(["students", "teachers", "schedule"]),
@@ -65,6 +67,7 @@ export const fetchImportHistory = async (filter: ImportHistoryFilter = {}): Prom
       importedCount: item.imported_count,
       updatedCount: item.updated_count,
       schedulePeriod: item.schedule_period ?? null,
+      historicalSchoolYearLabel: item.historical_school_year_label ?? null,
       importedBy: item.imported_by ?? null,
       importedByName: item.imported_by_name ?? null,
       importedByRole: item.imported_by_role ?? null,
@@ -76,6 +79,8 @@ export const fetchImportHistory = async (filter: ImportHistoryFilter = {}): Prom
 }
 
 export type ImportType = "students" | "teachers" | "schedule"
+
+export const fetchImportContext = () => api.get<{ initialConfiguration: boolean; canImportProfiles: boolean }>("/import/context").then((response) => response.data)
 
 export type ImportIssue = {
   row: number

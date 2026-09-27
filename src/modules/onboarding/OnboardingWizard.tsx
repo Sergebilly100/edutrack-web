@@ -192,7 +192,7 @@ function SchoolOnboarding({ school, schoolId }: { school: SchoolInfoResponse; sc
             <p className="text-sm text-muted-foreground">Facultatif : vous pouvez continuer si vous ne disposez pas encore des profils.</p>
             <Badge variant="outline">{verified && status.data.teachers ? "Profils disponibles" : "Import facultatif"}</Badge>
             <div>{configAction("/import?type=teachers", 4, "Importer les profils et contrats", "import.teachers")}</div>
-            <p>Préparez aussi les profils historiques des élèves. Ils seront inscrits plus tard, lors de l’ouverture des classes. Cet import ne crée aucune inscription, aucun paiement, dossier financier ou document.</p>
+            <p>Préparez aussi les élèves et leurs contacts parents, avec leur année et leur ancienne classe. Plusieurs lots élèves et professeurs sont autorisés avant la finalisation. Les élèves seront inscrits plus tard, lors de l’ouverture des classes. Cet import ne crée aucune inscription, aucun paiement, dossier financier ou document.</p>
             <div>{configAction("/import?type=students", 4, "Importer les profils élèves historiques", "import.students")}</div>
           </section>
         ) : null}

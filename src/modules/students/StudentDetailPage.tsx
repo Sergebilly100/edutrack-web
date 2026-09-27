@@ -392,6 +392,11 @@ export default function StudentDetailPage() {
       }
     >
       <OfflineDisabledFieldset showNotice={false}>
+      {student.historicalSources?.length ? <div className="mb-4 space-y-2 rounded-lg border p-4">
+        <h2 className="text-sm font-semibold">Historique importé</h2>
+        <ul className="space-y-1 text-sm text-muted-foreground">{student.historicalSources.map((source) => <li key={source.schoolYearLabel}>{source.schoolYearLabel} · Ancienne classe : {source.oldClassName ?? "non renseignée"}</li>)}</ul>
+        <p className="text-xs text-muted-foreground">Ces références historiques ne constituent pas des inscriptions.</p>
+      </div> : null}
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="student-detail-profile">
         <div className="flex flex-col gap-4 bg-muted/30 px-4 py-4 md:flex-row md:items-center md:justify-between">
           <div className="flex min-w-0 items-center gap-3">

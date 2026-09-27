@@ -282,14 +282,14 @@ export const historicalStudentsImportTourSteps: Step[] = [
   {
     target: "[data-tour='import-header']",
     title: "Préparer les profils historiques",
-    content: "Importez uniquement l’identité et le téléphone parent des élèves déjà connus. Vous les inscrirez plus tard, lors de l’ouverture des classes. Cet import ne crée ni inscription, paiement, dossier financier ni document.",
+    content: "Importez les élèves déjà connus et leurs contacts parents. Leur année et leur ancienne classe restent des références historiques. Vous les inscrirez plus tard, lors de l’ouverture des classes. Cet import ne crée ni inscription, paiement, dossier financier ni document.",
     placement: "bottom",
     skipBeacon: true,
   },
   {
     target: "[data-tour='historical-students-file']",
     title: "Analyser et associer les colonnes",
-    content: "Choisissez votre fichier Excel puis analysez ses colonnes. Associez le matricule, le nom et le prénom ; le téléphone parent est facultatif. Enregistrez les correspondances, vérifiez l’aperçu et les erreurs par ligne, puis importez les profils valides. Les profils déjà présents avec la même identité sont conservés.",
+    content: "Renseignez l’année historique puis glissez votre fichier Excel dans cette zone, ou utilisez Parcourir. Le modèle élèves habituel conserve les contacts des deux parents. Seuls le nom et le prénom sont requis ; le matricule aide à retrouver les profils. Enregistrez les correspondances, vérifiez l’aperçu et les erreurs par ligne, puis importez les profils valides. Les profils déjà présents avec la même identité sont conservés.",
     placement: "top",
   },
 ]
@@ -298,14 +298,14 @@ export const importTourSteps: Step[] = [
   {
     target: "[data-tour='import-header']",
     title: "Import de données - zone critique",
-    content: "Cette page permet d'importer en masse trois types de données : les élèves, les professeurs et l'emploi du temps (EDT). Un import mal configuré peut écraser des données existantes - lisez attentivement chaque étape avant de confirmer.",
+    content: "Pendant la configuration initiale, le lien professeurs permet de préparer leurs profils. Sur la page ordinaire, importez l’emploi du temps et consultez l’historique. Les imports élèves et professeurs sont fermés après la finalisation ; une reprise passe par le super administrateur.",
     placement: "bottom",
     skipBeacon: true,
   },
   {
     target: "[data-tour='import-wizard-tab']",
     title: "Étape 1 - Choisir le type",
-    content: "Commencez par sélectionner ce que vous voulez importer (élèves, professeurs ou EDT).",
+    content: "Le type disponible dépend du contexte : profils professeurs pendant l’initialisation, emploi du temps sur la page ordinaire.",
     placement: "top",
   },
   {

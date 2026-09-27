@@ -29,6 +29,7 @@ async function mockSchool(page: Page, state: State = { ...ready }, identity = { 
       "/api/v1/tuition-plans": { tuitionPlans: [] },
       "/api/v1/permissions/config": { school: { id: identity.id, name: "École A", address: "Abidjan", teachingType: "secondaire" }, positions: [], users: [] },
       "/api/v1/subscriptions/feature-settings": { is_enabled: false, monetize_parent_alerts: false },
+      "/api/v1/import/context": { initialConfiguration: true, canImportProfiles: true },
       "/api/v1/import/history": { items: [], total: 0, totalPages: 1 },
     }
     if (path === "/api/v1/levels" && route.request().method() === "POST") {
@@ -156,13 +157,13 @@ test("import professeur réussi : retour à l’étape 4 et relecture des profil
   await expect(page.getByText("Profils disponibles", { exact: true })).toBeVisible()
 })
 
-test("C7 : import historique sans classe à 360px puis retour à l’onboarding", async ({ page }) => {
+test("C7 : historique avec année, ancienne classe et parents à 360px, puis autre lot", async ({ page }) => {
   await mockSchool(page)
   await page.setViewportSize({ width: 360, height: 640 })
   let savedFields: unknown[] | null = null
   let confirmed = false
-  const fields = ["matricule", "nom", "prenom", "parent_phone"].map((targetField) => ({
-    targetField, sourceColumnLabel: targetField, isRequired: targetField !== "parent_phone", translations: [],
+  const fields = ["matricule", "nom", "prenom", "historical_class", "birth_date", "parent_name", "parent_phone", "parent_email", "parent_name_2", "parent_phone_2"].map((targetField) => ({
+    targetField, sourceColumnLabel: targetField, isRequired: targetField === "nom" || targetField === "prenom", translations: [],
   }))
   await page.route("**/api/v1/import/historical-students/**", async (route) => {
     const path = new URL(route.request().url()).pathname
@@ -173,12 +174,13 @@ test("C7 : import historique sans classe à 360px puis retour à l’onboarding"
     }
     if (path.endsWith("/confirm")) {
       confirmed = true
-      return route.fulfill({ json: { createdCount: 1, reusedCount: 0, totalRows: 2, errors: [{ rowNumber: 3, field: "nom", reason: "Nom requis" }] } })
+      expect(route.request().postData()).toContain("2024-2025")
+      return route.fulfill({ json: { schoolYearLabel: "2024-2025", createdCount: 1, reusedCount: 0, totalRows: 2, errors: [{ rowNumber: 3, field: "nom", reason: "Nom requis" }] } })
     }
     return route.fulfill({ json: {
-      headers: ["matricule", "nom", "prenom", "parent_phone"], rowCount: 2, validCount: 1,
+      schoolYearLabel: "2024-2025", mappingSaved: Boolean(savedFields), headers: fields.map((field) => field.sourceColumnLabel), rowCount: 2, validCount: 1,
       profile: savedFields ? { fields: savedFields } : null, matchedFields: fields, missingTargets: [],
-      sampleRows: [{ rowNumber: 2, values: { matricule: "C7-MOBILE", nom: "Test", prenom: "Historique", parent_phone: "" } }],
+      sampleRows: [{ rowNumber: 2, values: { matricule: "C7-MOBILE", nom: "Test", prenom: "Historique", historical_class: "4e A", parent_name: "Parent mobile A", parent_phone: "2250700000000", parent_email: "parent@example.ci", parent_name_2: "Parent mobile B", parent_phone_2: "2250100000000" } }],
       errors: [{ rowNumber: 3, field: "nom", reason: "Nom requis" }],
     } })
   })
@@ -187,17 +189,41 @@ test("C7 : import historique sans classe à 360px puis retour à l’onboarding"
   await expect(page.getByRole("heading", { name: "Profils élèves historiques" })).toBeVisible()
   await expect(page.getByRole("tab")).toHaveCount(0)
   await expect(page.getByText("Mode de mise à jour")).toHaveCount(0)
-  await page.getByLabel("Fichier Excel des élèves").setInputFiles({ name: "historique.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from("mock workbook") })
+  await page.getByLabel("Année scolaire de l’historique *").fill("2024-2025")
+  const transfer = await page.evaluateHandle(() => {
+    const data = new DataTransfer()
+    data.items.add(new File(['mock workbook'], 'historique.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }))
+    return data
+  })
+  await page.getByRole("region", { name: "Fichier Excel des élèves" }).dispatchEvent("drop", { dataTransfer: transfer })
+  await transfer.dispose()
+  await expect(page.getByText("historique.xlsx", { exact: true })).toBeVisible()
+  await page.screenshot({ path: ".tmp/c7-historical-file-mobile.png", fullPage: true })
   await page.getByRole("button", { name: "Analyser les colonnes" }).click()
-  await expect(page.getByRole("combobox")).toHaveCount(4)
-  await expect(page.getByRole("combobox", { name: /Classe/ })).toHaveCount(0)
+  await page.getByRole("button", { name: "Vérifier les correspondances" }).click()
+  await expect(page.getByRole("combobox")).toHaveCount(10)
+  await expect(page.getByRole("combobox", { name: /Ancienne classe/ })).toHaveCount(1)
   await page.getByRole("button", { name: "Enregistrer les correspondances" }).click()
-  await expect(page.getByText("Nom requis")).toBeVisible()
+  await expect(page.getByRole("cell", { name: "Nom requis", exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   await page.screenshot({ path: ".tmp/c7-historical-mobile.png", fullPage: true })
   await page.getByRole("button", { name: "Importer les profils valides" }).click()
   await expect(page.getByText(/1 profil\(s\) créé\(s\), 0 profil\(s\) déjà présent/)).toBeVisible()
   expect(confirmed).toBe(true)
+  await page.getByRole("button", { name: "Importer un autre lot" }).click()
+  await expect(page.getByLabel("Année scolaire de l’historique *")).toHaveValue("2024-2025")
+  await expect(page.getByRole("button", { name: "Analyser les colonnes" })).toBeDisabled()
   await page.getByRole("link", { name: "Retour à la configuration initiale" }).click()
   await expect(page.getByRole("heading", { name: "Profils à préparer", exact: true })).toBeVisible()
+})
+
+
+test("C7 : les imports de profils restent fermés sur la page normale après finalisation", async ({ page }) => {
+  await mockSchool(page)
+  await page.route("**/api/v1/import/context*", (route) => route.fulfill({ json: { initialConfiguration: false, canImportProfiles: false } }))
+  await page.goto("/import?type=students")
+  await expect(page.getByRole("tab", { name: /Emploi du temps/ })).toBeVisible()
+  await expect(page.getByRole("tab", { name: /Élèves|Professeurs/ })).toHaveCount(0)
+  await expect(page.getByRole("heading", { name: "Profils élèves historiques" })).toHaveCount(0)
+  await expect(page.getByText(/Les imports élèves et professeurs sont réservés/)).toBeVisible()
 })

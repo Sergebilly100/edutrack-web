@@ -1,4 +1,4 @@
-import { useRef, useState, type DragEvent } from "react"
+import { useId, useRef, useState, type DragEvent } from "react"
 import { CheckCircle2, UploadCloud } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -10,6 +10,8 @@ type DropZoneProps = {
   accept?: string
   maxSizeMb?: number
   isLoading?: boolean
+  inputLabel?: string
+  onFileRejected?: () => void
 }
 
 export function DropZone({
@@ -17,25 +19,31 @@ export function DropZone({
   accept = ".xlsx",
   maxSizeMb = 5,
   isLoading = false,
+  inputLabel = "Fichier Excel",
+  onFileRejected,
 }: DropZoneProps) {
+  const inputId = useId()
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null)
 
   const validateAndSelect = (file: File) => {
+    if (isLoading) return
     const maxBytes = maxSizeMb * 1024 * 1024
     const hasValidExtension = file.name.toLowerCase().endsWith(".xlsx")
 
     if (!hasValidExtension) {
       setSelectedFileName(null)
       setError("Format invalide: seuls les fichiers .xlsx sont acceptés.")
+      onFileRejected?.()
       return
     }
 
     if (file.size > maxBytes) {
       setSelectedFileName(null)
       setError(`Fichier trop volumineux: taille maximale autorisée ${maxSizeMb}Mo.`)
+      onFileRejected?.()
       return
     }
 
@@ -46,6 +54,7 @@ export function DropZone({
 
   const handleDragOver = (e: DragEvent) => {
     e.preventDefault()
+    if (isLoading) return
     setIsDragOver(true)
   }
 
@@ -65,18 +74,21 @@ export function DropZone({
       : selectedFileName
         ? "border-2 border-dashed border-green-500 bg-green-50"
         : isDragOver
-          ? "border-2 border-dashed border-primary bg-primary/5 scale-[1.01]"
+          ? "border-2 border-dashed border-primary bg-primary/5"
           : "border-2 border-dashed border-border bg-muted/30"
 
   return (
     <div
       className={cn(
-        "flex min-h-[220px] w-full flex-col items-center justify-center rounded-xl p-6 text-center transition-all duration-150",
+        "flex min-h-[220px] w-full flex-col items-center justify-center rounded-lg p-6 text-center transition-colors duration-150",
         stateClasses
       )}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      role="region"
+      aria-label={inputLabel}
+      aria-busy={isLoading}
     >
       {isLoading ? (
         <div className="flex flex-col items-center gap-3">
@@ -91,6 +103,8 @@ export function DropZone({
 
           <input
             ref={inputRef}
+            id={inputId}
+            aria-label={inputLabel}
             type="file"
             accept={accept}
             className="hidden"
@@ -116,7 +130,7 @@ export function DropZone({
             </div>
           ) : null}
 
-          {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
+          {error ? <p role="alert" className="mt-3 text-sm text-destructive">{error}</p> : null}
         </>
       )}
     </div>

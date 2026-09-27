@@ -1,4 +1,5 @@
-import { OnboardingReturn, useOnboardingReturn } from "@/modules/onboarding/OnboardingReturn"
+import { OnboardingReturn, useOnboardingContext } from "@/modules/onboarding/OnboardingReturn"
+import { Link } from "react-router-dom"
 import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
@@ -10,7 +11,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { fetchImportHistory, type ImportType } from "@/modules/import-export/import-export.api"
+import { fetchImportContext, fetchImportHistory, type ImportType } from "@/modules/import-export/import-export.api"
+import { EmptyState } from "@/shared/components/EmptyState"
+import { Spinner } from "@/shared/components/Spinner"
+import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { ContextualHelp } from "@/shared/components/ContextualHelp"
 import { useOfflineGuard } from "@/shared/hooks/useOfflineGuard"
@@ -58,8 +62,8 @@ const MONTH_OPTIONS = buildMonthOptions()
 
 export default function ImportPage() {
   const [searchParams] = useSearchParams()
-  const guidedReturn = useOnboardingReturn()
-  const isInitialTeacherImport = Boolean(guidedReturn) && searchParams.get("type") !== "students"
+  const onboardingContext = useOnboardingContext()
+  const guidedReturn = onboardingContext.target
   const { hasPermission } = usePermissions()
   const studentLabels = useStudentLabels()
   const { isBlocked: isImportBlocked } = useOfflineGuard()
@@ -70,18 +74,26 @@ export default function ImportPage() {
   const canImportStudents = isDirector || hasPermission("import.students")
   const canImportTeachers = isDirector || hasPermission("import.teachers")
   const canImportSchedule = isDirector || hasPermission("import.schedule")
+  const accessQuery = useQuery({
+    queryKey: ["import-context", user?.schemaName, user?.tenantId], queryFn: fetchImportContext,
+    enabled: canImportStudents || canImportTeachers || canImportSchedule, staleTime: 0,
+  })
+  const initialProfileContext = Boolean(guidedReturn) && accessQuery.data?.canImportProfiles === true
+  const isInitialTeacherImport = initialProfileContext && searchParams.get("type") !== "students"
   const allowedImportTypes = useMemo(() => ([
-    canImportStudents ? "students" : null,
-    canImportTeachers ? "teachers" : null,
-    canImportSchedule ? "schedule" : null,
-  ].filter((value): value is ImportType => value !== null && (!guidedReturn || value === (searchParams.get("type") === "students" ? "students" : "teachers")))), [canImportStudents, canImportTeachers, canImportSchedule, guidedReturn, searchParams])
-  const canViewHistory = canImportStudents && !guidedReturn
+    initialProfileContext && searchParams.get("type") === "students" && canImportStudents ? "students" : null,
+    initialProfileContext && searchParams.get("type") !== "students" && canImportTeachers ? "teachers" : null,
+    !initialProfileContext && canImportSchedule ? "schedule" : null,
+  ].filter((value): value is ImportType => value !== null)), [canImportStudents, canImportTeachers, canImportSchedule, initialProfileContext, searchParams])
+  const canViewHistory = (canImportStudents || canImportTeachers || canImportSchedule) && accessQuery.isSuccess && !initialProfileContext && !onboardingContext.checking
   const requestedType = searchParams.get("type")
   const [activeImportType, setActiveImportType] = useState<ImportType>(
     requestedType === "teachers" || requestedType === "schedule" || requestedType === "students" ? requestedType : allowedImportTypes[0] ?? "students"
   )
 
-  const isHistoricalStudentsImport = isDirector && activeImportType === "students"
+  const selectedImportType = allowedImportTypes.includes(activeImportType) ? activeImportType : allowedImportTypes[0]
+  const isHistoricalStudentsImport = initialProfileContext && selectedImportType === "students"
+  const checkingAccess = accessQuery.isLoading || onboardingContext.checking
 
   // History filter state
   const [historyPage, setHistoryPage] = useState(1)
@@ -146,17 +158,17 @@ export default function ImportPage() {
             <h1 className="text-2xl font-semibold tracking-tight">Import de données</h1>
             <p className="text-sm text-muted-foreground">
               {isHistoricalStudentsImport
-                ? "Importez les profils historiques des élèves. Vous les inscrirez plus tard, lors de l’ouverture des classes."
+                ? "Profils élèves et contacts parents pour les réinscriptions."
                 : isInitialTeacherImport
                 ? "Importez les profils et contrats des professeurs. Les affectations viendront après les inscriptions."
-                : `Utilisez les modèles Excel puis importez vos ${studentLabels.pluralLower}, professeurs et emploi du temps.`}
+                : "Importez l’emploi du temps et consultez les opérations déjà effectuées."}
             </p>
           </div>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="text-muted-foreground"
+            className="min-h-12 text-muted-foreground"
             onClick={() => tour.restart()}
             aria-label="Revoir le guide"
           >
@@ -167,6 +179,12 @@ export default function ImportPage() {
       </header>
 
       <div>
+        {checkingAccess ? <div role="status" className="flex min-h-64 items-center justify-center gap-3 rounded-lg bg-muted text-sm text-muted-foreground"><Spinner size="sm" />Vérification du contexte d’import…</div>
+          : accessQuery.isError || onboardingContext.error ? <QueryErrorState message="Impossible de vérifier le contexte d’import." onRetry={() => { void accessQuery.refetch(); void onboardingContext.retry() }} />
+          : <>
+        {!initialProfileContext ? <ContextualHelp title={accessQuery.data?.canImportProfiles ? "Imports de profils pendant l’initialisation" : "Imports de profils terminés"}>
+          {accessQuery.data?.canImportProfiles && user?.tenantId ? <div className="space-y-3"><p>Les élèves et les professeurs peuvent être importés en plusieurs lots avant la finalisation de la configuration initiale.</p><Button asChild variant="outline" className="min-h-12"><Link to={`/onboarding?step=4&school=${encodeURIComponent(user.tenantId)}`}>Préparer les profils à l’étape 4</Link></Button></div> : <p>Les imports élèves et professeurs sont réservés à la configuration initiale. Ajoutez ensuite les élèves depuis les inscriptions et les professeurs depuis leur liste. Pour une reprise de données, contactez le super administrateur.</p>}
+        </ContextualHelp> : null}
         {allowedImportTypes.length > 0 ? (
           isImportBlocked ? (
             <ContextualHelp title="Import indisponible hors ligne" tone="warning">
@@ -174,22 +192,19 @@ export default function ImportPage() {
             </ContextualHelp>
           ) : (
             isHistoricalStudentsImport ? <div className="space-y-4">
-              {!guidedReturn ? <div className="flex flex-wrap gap-2">
-                {canImportTeachers ? <Button variant="outline" className="min-h-12" onClick={() => setActiveImportType("teachers")}>Importer les professeurs</Button> : null}
-                {canImportSchedule ? <Button variant="outline" className="min-h-12" onClick={() => setActiveImportType("schedule")}>Importer l’emploi du temps</Button> : null}
-              </div> : null}
               <HistoricalStudentsImport key={`${user?.schemaName}:${user?.tenantId}`} />
             </div> : <ImportWizard
-              selectedImportType={activeImportType}
+              selectedImportType={selectedImportType}
               onImportTypeChange={setActiveImportType}
               allowedImportTypes={allowedImportTypes}
             />
           )
         ) : (
           <ContextualHelp title="Import indisponible pour votre poste" tone="warning">
-            {`Aucun droit d'import n'est actif sur votre profil. Demandez au directeur d'ajouter au moins un droit: ${studentLabels.pluralLower}, professeurs ou emploi du temps.`}
+            Aucun import n’est disponible pour votre poste dans ce contexte.
           </ContextualHelp>
         )}
+        </>}
       </div>
 
       {canViewHistory ? (
@@ -207,7 +222,7 @@ export default function ImportPage() {
               {/* Filters */}
               <div className="flex flex-wrap items-center gap-2">
                 <Select value={historyMonth ?? "all"} onValueChange={handleMonthChange}>
-                  <SelectTrigger className="h-8 w-[160px] text-xs">
+                  <SelectTrigger className="min-h-12 w-[160px] text-xs">
                     <SelectValue placeholder="Tous les mois" />
                   </SelectTrigger>
                   <SelectContent>
@@ -221,7 +236,7 @@ export default function ImportPage() {
                 </Select>
 
                 <Select value={historyType ?? "all"} onValueChange={handleTypeChange}>
-                  <SelectTrigger className="h-8 w-[150px] text-xs">
+                  <SelectTrigger className="min-h-12 w-[150px] text-xs">
                     <SelectValue placeholder="Tous les types" />
                   </SelectTrigger>
                   <SelectContent>
@@ -247,16 +262,12 @@ export default function ImportPage() {
             ) : null}
 
             {!historyQuery.isLoading && !historyQuery.isError && historyItems.length === 0 ? (
-              <ContextualHelp title="Aucun import trouvé">
-                {historyMonth ?? historyType
-                  ? "Aucun import ne correspond aux filtres sélectionnés."
-                  : "Les imports validés apparaîtront ici. Lancez d’abord un import depuis le formulaire ci-dessus."}
-              </ContextualHelp>
+              <EmptyState title="Aucun import trouvé" description={historyMonth ?? historyType ? "Aucun import ne correspond aux filtres sélectionnés." : "Les imports validés apparaîtront ici."} />
             ) : null}
 
             {!historyQuery.isLoading && !historyQuery.isError && historyItems.length > 0 ? (
               <>
-                <div className="overflow-x-auto rounded-md border">
+                <div className="overflow-x-auto rounded-lg border">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -282,6 +293,7 @@ export default function ImportPage() {
                                 (Période de validité  : {item.schedulePeriod})
                               </p>
                             )}
+                            {item.historicalSchoolYearLabel ? <p className="text-xs text-muted-foreground">Historique {item.historicalSchoolYearLabel}</p> : null}
                           </TableCell>
                           <TableCell className="text-right">{item.importedCount}</TableCell>
                           <TableCell className="text-right">
@@ -308,7 +320,7 @@ export default function ImportPage() {
                       <Button
                         variant="outline"
                         size="icon"
-                        className="h-7 w-7"
+                        className="h-12 w-12"
                         disabled={historyPage <= 1 || historyQuery.isFetching}
                         onClick={() => setHistoryPage((p) => p - 1)}
                         aria-label="Page précédente"
@@ -318,7 +330,7 @@ export default function ImportPage() {
                       <Button
                         variant="outline"
                         size="icon"
-                        className="h-7 w-7"
+                        className="h-12 w-12"
                         disabled={historyPage >= totalPages || historyQuery.isFetching}
                         onClick={() => setHistoryPage((p) => p + 1)}
                         aria-label="Page suivante"

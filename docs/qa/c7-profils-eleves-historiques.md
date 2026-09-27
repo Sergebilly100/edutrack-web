@@ -2,6 +2,8 @@
 
 Correctif réalisé le 26 septembre 2026 dans `edutrack-api` et `edutrack-web`.
 
+> Ce document décrit la première livraison C7. Les décisions suivantes sur l’année historique, les anciennes classes, le modèle complet et la fermeture des imports remplacent les paragraphes correspondants : voir [le complément du 27 septembre](c7-historique-annee-et-phase-import.md).
+
 ## Comportement livré et accès
 
 Le directeur importe des profils historiques : matricule, nom et prénom requis ; téléphone parent facultatif, au format existant `225` suivi de dix chiffres. Ces quatre champs sont ceux du mapping élèves déjà disponible. Aucun nouveau champ de contact n’a été inventé. Les colonnes supplémentaires sont ignorées, y compris classe, année et données de paiement ; elles ne figurent jamais dans l’aperçu des profils.

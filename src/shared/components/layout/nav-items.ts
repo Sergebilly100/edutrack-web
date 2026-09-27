@@ -195,7 +195,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: ImportIcon,
     group: "Administration",
     roles: ["director", "staff"],
-    requiredAnyPermissions: ["import.students", "import.teachers", "import.schedule"],
+    requiredPermissions: ["import.schedule"],
     mobileVisible: false,
   },
   {

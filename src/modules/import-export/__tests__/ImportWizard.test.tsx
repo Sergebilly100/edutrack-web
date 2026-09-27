@@ -746,6 +746,7 @@ describe("import-export.api - fetchImportHistory", () => {
     expect(result.items).toHaveLength(1)
     expect(result.items[0]).toEqual({
       id: "h1",
+      historicalSchoolYearLabel: null,
       importedAt: "2026-05-01T10:00:00Z",
       type: "students",
       importedCount: 15,

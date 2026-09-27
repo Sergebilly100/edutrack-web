@@ -5,7 +5,7 @@ import { fetchSchoolInfo } from "./onboarding.api"
 import { onboardingReturn } from "./onboarding.progress"
 import { useAuthStore } from "@/shared/store/auth.store"
 
-export function useOnboardingReturn() {
+export function useOnboardingContext() {
   const { search } = useLocation()
   const user = useAuthStore((state) => state.user)
   const permissions = useAuthStore((state) => state.permissions)
@@ -14,9 +14,18 @@ export function useOnboardingReturn() {
   const school = useQuery({
     queryKey: ["school-info", user?.schemaName, user?.tenantId], queryFn: fetchSchoolInfo,
     enabled: requested && canConfigure, staleTime: 0, refetchOnMount: "always",
+    // Returning from the native file picker must not reset the import form.
+    refetchOnWindowFocus: false,
   })
-  return canConfigure && school.isSuccess && !school.isFetching ? onboardingReturn(search, school.data.id) : null
+  return {
+    target: canConfigure && school.isSuccess && !school.isFetching ? onboardingReturn(search, school.data.id) : null,
+    checking: requested && canConfigure && (school.isPending || school.isFetching),
+    error: requested && canConfigure && school.isError,
+    retry: school.refetch,
+  }
 }
+
+export function useOnboardingReturn() { return useOnboardingContext().target }
 
 export function OnboardingReturn() {
   const target = useOnboardingReturn()

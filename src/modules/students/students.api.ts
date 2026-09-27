@@ -67,6 +67,7 @@ export type UpdateStudentPayload = {
 }
 
 export type StudentDetail = {
+  historicalSources?: Array<{ schoolYearLabel: string; oldClassName: string | null }>
   id: string
   firstName: string
   lastName: string
