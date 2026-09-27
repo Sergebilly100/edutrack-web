@@ -11,6 +11,12 @@ import { createSpontaneousGrade, createSubjectsBulk, fetchTeacherAcademicContext
 describe("academic.api", () => {
   beforeEach(() => vi.clearAllMocks())
 
+  it("demande une revalidation serveur qui contourne le cache offline des classes", async () => {
+    getMock.mockResolvedValueOnce({ data: { classes: [] } })
+    await listClasses("year-1", { requireServer: true })
+    expect(getMock).toHaveBeenCalledWith("/classes", { params: { schoolYearId: "year-1", enrollmentValidation: "1" } })
+  })
+
   it("transmet le filtre d’année scolaire et normalise les classes", async () => {
     getMock.mockResolvedValueOnce({
       data: {

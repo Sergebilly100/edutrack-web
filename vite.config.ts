@@ -129,6 +129,12 @@ export default defineConfig(({ mode }) => {
             },
           },
           {
+            // Contextual enrollment checks must reach the server.
+            urlPattern: ({ url }) => /\/api\/(v1\/)?classes/.test(url.pathname)
+              && url.searchParams.get("enrollmentValidation") === "1",
+            handler: "NetworkOnly",
+          },
+          {
             urlPattern: /\/api\/(v1\/)?classes/,
             handler: "NetworkFirst",
             options: {

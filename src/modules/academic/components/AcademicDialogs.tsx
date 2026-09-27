@@ -519,17 +519,21 @@ const NO_TEACHER = "none"
 export function ClassDialog({
   open,
   isPending,
+  canSubmit = true,
   schoolClass,
   levels,
   teachers,
   teachersLoading,
+  initialLevelId,
   onOpenChange,
   onSubmit,
 }: CommonDialogProps & {
   schoolClass: SchoolClass | null
+  canSubmit?: boolean
   levels: Level[]
   teachers: TeacherListItem[]
   teachersLoading: boolean
+  initialLevelId?: string
   onSubmit: (payload: ClassPayload) => Promise<void> | void
 }) {
   const form = useForm<ClassFormValues>({
@@ -541,10 +545,10 @@ export function ClassDialog({
     if (!open) return
     form.reset({
       name: schoolClass?.name ?? "",
-      levelId: schoolClass?.level.id ?? levels[0]?.id ?? "",
+      levelId: schoolClass?.level.id ?? initialLevelId ?? levels[0]?.id ?? "",
       homeroomTeacherId: schoolClass?.homeroomTeacher?.id ?? NO_TEACHER,
     })
-  }, [form, levels, open, schoolClass])
+  }, [form, initialLevelId, levels, open, schoolClass])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -582,7 +586,7 @@ export function ClassDialog({
                 <FormItem>
                   <FormLabel>Niveau</FormLabel>
                   <Select value={field.value} onValueChange={field.onChange}>
-                    <FormControl><SelectTrigger><SelectValue placeholder="Sélectionner un niveau" /></SelectTrigger></FormControl>
+                    <FormControl><SelectTrigger className="min-h-12"><SelectValue placeholder="Sélectionner un niveau" /></SelectTrigger></FormControl>
                     <SelectContent>
                       {levels.map((level) => <SelectItem key={level.id} value={level.id}>{level.name}</SelectItem>)}
                     </SelectContent>
@@ -599,7 +603,7 @@ export function ClassDialog({
                   <FormLabel>Professeur principal</FormLabel>
                   <Select value={field.value} onValueChange={field.onChange} disabled={teachersLoading}>
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger className="min-h-12">
                         <SelectValue placeholder={teachersLoading ? "Chargement…" : "Aucun professeur"} />
                       </SelectTrigger>
                     </FormControl>
@@ -617,10 +621,10 @@ export function ClassDialog({
               )}
             />
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
+              <Button type="button" className="min-h-12" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
                 Annuler
               </Button>
-              <Button type="submit" disabled={isPending || levels.length === 0}>
+              <Button type="submit" className="min-h-12" disabled={isPending || !canSubmit || levels.length === 0}>
                 {isPending ? <Spinner size="sm" className="mr-2" /> : null}
                 {isPending ? "Enregistrement…" : "Enregistrer"}
               </Button>

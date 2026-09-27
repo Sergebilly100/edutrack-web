@@ -47,6 +47,7 @@ export type LevelPayload = {
 export type ClassPayload = {
   name: string
   levelId: string
+  expectedSchoolYearId?: string
   homeroomTeacherId: string | null
 }
 
@@ -190,9 +191,12 @@ export async function updateLevel(id: string, payload: LevelPayload): Promise<Le
   return parseLevel(asRecord(response.data).level)
 }
 
-export async function listClasses(schoolYearId?: string): Promise<ClassesResponse> {
+export async function listClasses(schoolYearId?: string, options?: { requireServer: boolean }): Promise<ClassesResponse> {
   const response = await api.get("/classes", {
-    params: schoolYearId ? { schoolYearId } : undefined,
+    params: schoolYearId || options?.requireServer ? {
+      ...(schoolYearId ? { schoolYearId } : {}),
+      ...(options?.requireServer ? { enrollmentValidation: "1" } : {}),
+    } : undefined,
   })
   const payload = asRecord(response.data)
   const rows = Array.isArray(payload.classes) ? payload.classes : []

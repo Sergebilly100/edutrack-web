@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   updateStudent: vi.fn(),
   listYears: vi.fn(),
   listClasses: vi.fn(),
+  listLevels: vi.fn(),
   toast: vi.fn(),
 }))
 
@@ -31,6 +32,7 @@ vi.mock("@/modules/students/students.api", () => ({
 vi.mock("@/modules/academic/academic.api", () => ({
   listSchoolYears: mocks.listYears,
   listClasses: mocks.listClasses,
+  listLevels: mocks.listLevels,
 }))
 vi.mock("@/shared/hooks/usePermissions", () => ({
   usePermissions: () => ({ hasPermission: () => true }),
@@ -75,6 +77,7 @@ describe("NewEnrollmentPage historical edit", () => {
       parentPhone2: null,
     })
     mocks.listYears.mockResolvedValue([{ id: "year-1", label: "2026-2027" }])
+    mocks.listLevels.mockResolvedValue([{ id: "level-1", name: "CP1" }])
     mocks.listClasses.mockResolvedValue({ classes: [{ id: "class-1", name: "CP1 A", isActive: true, level: { id: "level-1", name: "CP1" } }] })
     mocks.updateStudent.mockResolvedValue({ id: "student-1" })
     mocks.updateEnrollment.mockResolvedValue({
@@ -133,8 +136,8 @@ describe("NewEnrollmentPage historical edit", () => {
     expect(await screen.findByDisplayValue("H-001")).toBeInTheDocument()
     fireEvent.keyDown(screen.getAllByRole("combobox")[0], { key: "ArrowDown" })
     fireEvent.click(await screen.findByRole("option", { name: "2026-2027" }))
-    await waitFor(() => expect(screen.getAllByRole("combobox")[1]).not.toBeDisabled())
-    fireEvent.keyDown(screen.getAllByRole("combobox")[1], { key: "ArrowDown" })
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Classe visée *" })).not.toBeDisabled())
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "Classe visée *" }), { key: "ArrowDown" })
     fireEvent.click(await screen.findByRole("option", { name: /CP1 A/ }))
     fireEvent.click(screen.getByRole("button", { name: "Créer et continuer" }))
     await waitFor(() => expect(mocks.createEnrollment).toHaveBeenCalledWith({

@@ -276,7 +276,7 @@ export async function getEnrollment(id: string): Promise<Enrollment> {
   return response.data.enrollment
 }
 
-export async function updateEnrollment(id: string, payload: { classId: string }): Promise<Enrollment> {
+export async function updateEnrollment(id: string, payload: { classId: string; levelId?: string; expectedActiveSchoolYearId?: string }): Promise<Enrollment> {
   const response = await apiClient.patch<{ enrollment: Enrollment }>(`/enrollments/${id}`, payload)
   return response.data.enrollment
 }
@@ -286,6 +286,8 @@ export async function createEnrollment(payload: {
   classId: string
   schoolYearId: string
   type: EnrollmentType
+  levelId?: string
+  expectedActiveSchoolYearId?: string
   hasPreviousYearUnpaid?: boolean
 }): Promise<CreateEnrollmentResult> {
   const response = await apiClient.post<CreateEnrollmentResult>("/enrollments", payload)

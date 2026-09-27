@@ -31,7 +31,7 @@ test("F10/F16 : nouvelle inscription, caisse et relecture du paiement confirmé"
   await page.getByLabel("Matricule", { exact: true }).fill("QA-INSCRIPTION")
   await page.getByRole("combobox").nth(0).click()
   await page.getByRole("option", { name: /QA \d{4}/ }).click()
-  await page.getByRole("combobox").nth(1).click()
+  await page.getByRole("combobox", { name: "Classe visée *", exact: true }).click()
   await page.getByRole("option", { name: /Classe inscription QA/ }).click()
   await page.getByRole("button", { name: "Créer et continuer" }).click()
   await expect(page.getByText("Documents requis", { exact: true })).toBeVisible()
