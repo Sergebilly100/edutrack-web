@@ -150,6 +150,7 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
   })
 
   const [maxAdminPositions, setMaxAdminPositions] = useState("0")
+  const [addressDraft, setAddressDraft] = useState("")
   const [logoUrlDraft, setLogoUrlDraft] = useState("")
   const [allowTeacherQrSkipDraft, setAllowTeacherQrSkipDraft] = useState(false)
   const [pendingQrSkipState, setPendingQrSkipState] = useState<boolean | null>(null)
@@ -160,13 +161,15 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
     }
 
     setMaxAdminPositions(String(schoolConfigQuery.data.limits.maxAdminPositions))
+    setAddressDraft(schoolConfigQuery.data.school.address ?? "")
     setLogoUrlDraft(schoolConfigQuery.data.school.logoUrl ?? "")
     setAllowTeacherQrSkipDraft(Boolean(schoolConfigQuery.data.school.allowTeacherQrSkip))
   }, [schoolConfigQuery.data])
 
   const saveSchoolInfoMutation = useMutation({
-    mutationFn: (payload: { logoUrl?: string | null }) =>
+    mutationFn: (payload: { address?: string; logoUrl?: string | null }) =>
       updateSchoolInfo({
+        ...(payload.address !== undefined ? { address: payload.address } : {}),
         ...(payload.logoUrl !== undefined ? { logoUrl: payload.logoUrl } : {}),
       }),
     onSuccess: async () => {
@@ -637,10 +640,16 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
                     <Input value={school?.city ?? "-"} readOnly />
                   </div>
                   <div className="space-y-2 sm:col-span-2">
-                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    <Label htmlFor="school-address" className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                       Adresse
                     </Label>
-                    <Input value={school?.address ?? "-"} readOnly />
+                    <Input id="school-address" value={addressDraft} maxLength={255} disabled={!canManageSchoolSettings || saveSchoolInfoMutation.isPending}
+                      onChange={(event) => setAddressDraft(event.target.value)} />
+                    {canManageSchoolSettings ? <Button type="button" className="min-h-12" variant="outline"
+                      disabled={saveSchoolInfoMutation.isPending || !school || addressDraft.trim().length < 3 || addressDraft.trim() === (school.address ?? "")}
+                      onClick={() => saveSchoolInfoMutation.mutate({ address: addressDraft.trim() })}>
+                      {saveSchoolInfoMutation.isPending ? "Enregistrement..." : "Enregistrer l’adresse"}
+                    </Button> : null}
                   </div>
                   <div className="space-y-2 sm:col-span-2">
                     <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">

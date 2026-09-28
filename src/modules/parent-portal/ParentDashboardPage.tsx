@@ -22,6 +22,7 @@ import { Link } from "react-router-dom"
 import { EmptyState, OfflineIndicator } from "@/shared/components"
 import { InstallPwaCard } from "@/shared/pwa/InstallPwaCard"
 import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import {
@@ -477,7 +478,19 @@ export default function ParentDashboardPage() {
         </div>
       )}
 
-      {subscriptionAlert && showSubscriptionAlert ? (
+      {subscriptionQuery.isPending ? (
+        <div role="status" aria-label="Chargement de l'abonnement…">
+          <Skeleton className="h-20 w-full rounded-lg" />
+          <span className="sr-only">Chargement de l'abonnement…</span>
+        </div>
+      ) : null}
+      {subscriptionQuery.isError ? (
+        <Alert variant="destructive">
+          <AlertDescription>Impossible de charger l'abonnement.</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {!subscriptionQuery.isError && subscriptionAlert && showSubscriptionAlert ? (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-amber-950 shadow-card dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100 sm:p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200 sm:h-11 sm:w-11">
@@ -504,7 +517,7 @@ export default function ParentDashboardPage() {
         </div>
       ) : null}
 
-      {subscriptionQuery.data?.subscription === null && subscriptionOffer?.available && subscriptionOffer.unit_price_fcfa ? (
+      {!subscriptionQuery.isError && subscriptionQuery.data?.subscription === null && subscriptionOffer?.available && subscriptionOffer.unit_price_fcfa ? (
         <div className="rounded-xl border border-primary/30 bg-primary/5 p-3.5 shadow-card sm:p-4">
           <div className="flex items-start gap-3">
             <Bell className="mt-0.5 h-5 w-5 shrink-0 text-primary" />

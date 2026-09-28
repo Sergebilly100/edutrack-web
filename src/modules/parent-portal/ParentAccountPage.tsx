@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
 import { OfflineGuard, OfflineIndicator } from "@/shared/components"
 import { cn } from "@/lib/utils"
@@ -88,7 +89,18 @@ export default function ParentAccountPage() {
             </div>
           </div>
 
-          {subscriptionQuery.data?.subscription && (
+          {subscriptionQuery.isPending ? (
+            <div role="status" aria-label="Chargement de l'abonnement…">
+              <Skeleton className="h-20 w-full rounded-lg" />
+              <span className="sr-only">Chargement de l'abonnement…</span>
+            </div>
+          ) : null}
+          {subscriptionQuery.isError ? (
+            <Alert variant="destructive">
+              <AlertDescription>Impossible de charger l'abonnement.</AlertDescription>
+            </Alert>
+          ) : null}
+          {!subscriptionQuery.isError && subscriptionQuery.data?.subscription && (
             <div
               className={cn(
                 "rounded-lg border p-3",
@@ -119,7 +131,7 @@ export default function ParentAccountPage() {
               ) : null}
             </div>
           )}
-          {subscriptionQuery.data?.subscription === null && subscriptionQuery.data.offer.available && subscriptionQuery.data.offer.unit_price_fcfa ? (
+          {!subscriptionQuery.isError && subscriptionQuery.data?.subscription === null && subscriptionQuery.data.offer.available && subscriptionQuery.data.offer.unit_price_fcfa ? (
             <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
               <p className="font-semibold">Alertes d&apos;absence en temps réel</p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
