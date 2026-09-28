@@ -80,7 +80,7 @@ for (const device of [{ name: 'Android', width: 393, height: 851, mobile: true }
       await page.getByRole('option', { name: 'Niveau QA', exact: true }).click();
       await page.getByRole('button', { name: 'Créer une classe', exact: true }).click();
       const className = `Classe ${suffix}`;
-      await page.getByLabel('Nom de la classe', { exact: true }).fill(className);
+      await page.getByLabel('Libellé de la classe', { exact: true }).fill(className);
       await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
       await expect(page.getByRole('dialog')).toHaveCount(0);
       await page.getByRole('button', { name: 'Retour à l’inscription', exact: true }).click();
@@ -92,9 +92,14 @@ for (const device of [{ name: 'Android', width: 393, height: 851, mobile: true }
       await page.getByRole('button', { name: /Enregistrer 25/ }).click();
       await expect(page).toHaveURL(/\/enrollments$/);
 
-      const catalog = await (await page.request.get(`${api()}/classes`, { headers })).json();
-      const schoolClass = catalog.classes.find((item: { name: string }) => item.name === className);
-      const chemistry = await page.request.post(`${api()}/subjects`, { headers, data: { levelId: schoolClass.level.id, name: `Chimie ${device.name}`, coefficient: 1 } });
+      // A second level keeps this test's new subject out of Classe QA's report-card prerequisites.
+      const isolatedLevel = await page.request.post(`${api()}/levels`, { headers, data: { name: `Niveau ${suffix}`, orderIndex: 100, isExamClass: false } });
+      expect(isolatedLevel.status(), await isolatedLevel.text()).toBe(201);
+      const isolatedLevelId = (await isolatedLevel.json()).level.id as string;
+      const isolatedClassName = `Classe matière ${suffix}`;
+      const isolatedClass = await page.request.post(`${api()}/classes`, { headers, data: { name: isolatedClassName, levelId: isolatedLevelId } });
+      expect(isolatedClass.status(), await isolatedClass.text()).toBe(201);
+      const chemistry = await page.request.post(`${api()}/subjects`, { headers, data: { levelId: isolatedLevelId, name: `Chimie ${device.name}`, coefficient: 1 } });
       expect(chemistry.ok()).toBeTruthy();
       const chemistryName = (await chemistry.json()).subject.name as string;
       await navigateMenu(page, 'Vie scolaire', 'Professeurs');
@@ -108,7 +113,7 @@ for (const device of [{ name: 'Android', width: 393, height: 851, mobile: true }
       await page.getByRole('button', { name: 'Ajouter un bloc' }).click();
       await page.getByRole('combobox', { name: 'Matière du bloc 2' }).click();
       await page.getByRole('option', { name: chemistryName, exact: true }).click();
-      await selectClasses(page, 2, ['Classe QA']);
+      await selectClasses(page, 2, [isolatedClassName]);
       await expect(page.getByText(/Rappel : classes sans professeur principal/)).toHaveCount(0);
       const saved = page.waitForResponse((r) => r.url().endsWith(`/teachers/${teacher.id}`) && r.request().method() === 'PUT');
       await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();

@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps } from "recharts"
 import { BookOpenCheck, ChevronRight, CircleAlert, GraduationCap, UsersRound } from "lucide-react"
 import { Link } from "react-router-dom"
 
@@ -42,6 +42,22 @@ type OverviewTabProps = {
 }
 
 const QUERY_STALE_TIME = 5 * 60_000
+
+function AttendanceHistoryTooltip({ active, payload }: TooltipContentProps) {
+  const point = payload?.[0]?.payload as DashboardHistoryPoint | undefined
+  if (!active || !point) return null
+  const date = new Date(point.date).toLocaleDateString("fr-FR", {
+    weekday: "long", day: "2-digit", month: "long",
+  })
+  return (
+    <div className="w-48 max-w-[calc(100vw-3rem)] rounded-lg border border-border bg-popover p-2 text-xs text-popover-foreground shadow-md">
+      <p className="mb-2 break-words font-medium leading-snug">{date} · {Math.round(point.attendanceRate)}% de présence</p>
+      <div className="flex justify-between gap-2"><span>Présents</span><span>{point.presentCount}</span></div>
+      <div className="flex justify-between gap-2"><span>Absents</span><span>{point.absentCount}</span></div>
+      <div className="flex justify-between gap-2"><span>Retards</span><span>{point.lateCount}</span></div>
+    </div>
+  )
+}
 
 export function OverviewTab({
   canViewAttendance,
@@ -168,14 +184,7 @@ function PilotageHero({
                     <CartesianGrid vertical={false} stroke="hsl(213 94% 68% / 0.35)" strokeDasharray="3 3" />
                     <XAxis dataKey="label" tick={{ fill: "hsl(214 100% 93%)", fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis allowDecimals={false} tick={{ fill: "hsl(214 100% 93%)", fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      cursor={{ fill: "hsl(213 94% 68% / 0.18)" }}
-                      formatter={(value, name) => [Math.round(Number(value)), name]}
-                      labelFormatter={(_, payload) => {
-                        const point = payload?.[0]?.payload as DashboardHistoryPoint | undefined
-                        return point ? `${new Date(point.date).toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long" })} · ${Math.round(point.attendanceRate)}% de présence` : ""
-                      }}
-                    />
+                    <Tooltip cursor={{ fill: "hsl(213 94% 68% / 0.18)" }} content={AttendanceHistoryTooltip} />
                     <Bar dataKey="presentCount" name="Présents" stackId="attendance" fill="var(--stat-success-fg)" radius={[0, 0, 0, 0]} />
                     <Bar dataKey="absentCount" name="Absents" stackId="attendance" fill="var(--stat-danger-fg)" radius={[0, 0, 0, 0]} />
                     <Bar dataKey="lateCount" name="Retards" stackId="attendance" fill="var(--stat-warning-fg)" radius={[3, 3, 0, 0]} />

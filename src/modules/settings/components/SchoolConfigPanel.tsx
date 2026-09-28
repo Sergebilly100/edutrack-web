@@ -118,6 +118,7 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
     queryKey: [...SETTINGS_QUERY_KEY, showPersonnel && canManagePositions ? "administration" : "school"],
     queryFn: showPersonnel && canManagePositions ? fetchAdministrationConfig : fetchSchoolConfig,
     enabled: canManagePositions || canManageSchoolSettings,
+    refetchOnMount: "always",
     retry: false,
   })
 

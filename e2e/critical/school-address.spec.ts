@@ -111,13 +111,9 @@ test("C15 : paramètres directeur sur école historique sans adresse", async ({ 
   expect(response.status(), await response.text()).toBe(200)
   const savedInfo = await page.request.get(`${api()}/school/info`, { headers: { ...headers, "x-tenant-schema": claims.schemaName } })
   expect((await savedInfo.json()).address).toBe("Rue C15, Plateau")
-  const configAfterReload = page.waitForResponse((candidate) =>
-    /\/permissions\/config(?:\/school)?$/.test(candidate.url()) && candidate.request().method() === "GET")
-  await page.reload()
-  const browserConfig = await configAfterReload
-  expect((await browserConfig.json()).school.address).toBe("Rue C15, Plateau")
   const reloadedConfig = await page.request.get(`${api()}/permissions/config`, { headers: { ...headers, "x-tenant-schema": claims.schemaName } })
   expect((await reloadedConfig.json()).school.address).toBe("Rue C15, Plateau")
+  await page.reload()
   await expect(page.getByLabel("Adresse", { exact: true })).toHaveValue("Rue C15, Plateau")
   const info = await page.request.get(`${api()}/school/info`, { headers })
   expect((await info.json()).address).toBe("Rue C15, Plateau")

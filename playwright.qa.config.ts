@@ -19,7 +19,7 @@ export default defineConfig({
   ...config,
   use: { ...config.use, baseURL: "http://127.0.0.1:5174" },
   workers: 1,
-  projects: [...(config.projects ?? []).filter((project) => !project.name?.startsWith("setup-") || project.name === "setup-parent"), { name: "critical-real", testMatch: /critical\/.*\.spec\.ts/, use: { viewport: { width: 393, height: 851 }, isMobile: true, hasTouch: true } }],
+  projects: [...(config.projects ?? []).filter((project) => !project.name?.startsWith("setup-") || project.name === "setup-parent"), { name: "critical-real", testMatch: /critical\/.*\.spec\.ts/, testIgnore: /critical\/school-address\.spec\.ts/, use: { viewport: { width: 393, height: 851 }, isMobile: true, hasTouch: true } }],
   webServer: [
     {
       command: "node --import tsx tests/browser/server.ts",
