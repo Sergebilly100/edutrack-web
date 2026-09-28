@@ -3,10 +3,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const { deleteMock, getMock, postMock, putMock } = vi.hoisted(() => ({ deleteMock: vi.fn(), getMock: vi.fn(), postMock: vi.fn(), putMock: vi.fn() }))
 vi.mock("@/shared/api/client", () => ({ apiClient: { delete: deleteMock, get: getMock, post: postMock, put: putMock } }))
 
-import { fetchFinancialAlertLogs, fetchFinancialSummary, getCashJournal, getParentPaymentOptions, getPaymentHistory, getStudentAccountStatement, getStudentTuitionSchedule, listPayments, listTuitionPlans, recalculateFinancialCache, resetStudentTuitionSchedule, saveProviderSetting, saveStudentTuitionSchedule } from "../finance.api"
+import { fetchFinancialAlertLogs, fetchFinancialSummary, fetchRecoveryStudents, fetchRecoverySummary, fetchRecoveryYears, getCashJournal, getParentPaymentOptions, getPaymentHistory, getStudentAccountStatement, getStudentTuitionSchedule, listPayments, listTuitionPlans, recalculateFinancialCache, resetStudentTuitionSchedule, saveProviderSetting, saveStudentTuitionSchedule } from "../finance.api"
 
 describe("finance.api", () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it("transmet les filtres et la pagination du recouvrement", async () => {
+    getMock.mockResolvedValueOnce({ data: { years: [{ id: "year", label: "2026-2027", status: "active" }] } })
+    await expect(fetchRecoveryYears()).resolves.toEqual([{ id: "year", label: "2026-2027", status: "active" }])
+    expect(getMock).toHaveBeenCalledWith("/finance/recovery/years")
+    getMock.mockResolvedValueOnce({ data: { schoolYearId: "year", school: {}, selection: {}, levels: [], classes: [] } })
+    await fetchRecoverySummary("year", "level", "class")
+    expect(getMock).toHaveBeenCalledWith("/finance/recovery", { params: { school_year_id: "year", level_id: "level", class_id: "class" } })
+    getMock.mockResolvedValueOnce({ data: { students: [], pagination: { page: 2, limit: 20, total: 21, totalPages: 2 } } })
+    await fetchRecoveryStudents("year", "class", "level", 2)
+    expect(getMock).toHaveBeenCalledWith("/finance/recovery/class-students", { params: { school_year_id: "year", class_id: "class", level_id: "level", page: 2, limit: 20 } })
+  })
 
   it("normalise l’historique et transmet l’année scolaire", async () => {
     getMock.mockResolvedValueOnce({ data: { payments: [{

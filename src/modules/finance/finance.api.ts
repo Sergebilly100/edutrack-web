@@ -563,12 +563,62 @@ export async function requestParentPaymentReceipt(studentId: string, paymentId: 
 export type SchoolFinancialSummary = {
   total_expected_to_date: string;
   total_paid: string;
+  total_waived: string;
+  remaining_to_collect: string;
   recovery_rate: string;
   students_up_to_date_count: number;
   students_late_count: number;
   previous_period_total_paid: string;
   last_computed_at: string;
 } | null;
+
+export type RecoveryMetrics = {
+  studentCount: number; expected: number; paid: number; waived: number;
+  remaining: number; recoveryRate: number; studentsToFollow: number;
+}
+
+export type RecoveryClass = RecoveryMetrics & {
+  classId: string; className: string; levelId: string; levelName: string;
+}
+
+export type RecoveryLevel = RecoveryMetrics & { levelId: string; levelName: string }
+
+export type RecoverySummary = {
+  schoolYearId: string; school: RecoveryMetrics; selection: RecoveryMetrics;
+  levels: RecoveryLevel[]; classes: RecoveryClass[];
+}
+
+export type RecoveryStudent = {
+  studentId: string; name: string; matricule: string | null;
+  status: FinancialCacheStatus | null; expected: number; paid: number;
+  waived: number; remaining: number; daysLate: number | null;
+}
+
+export type RecoveryStudents = {
+  students: RecoveryStudent[];
+  pagination: CashJournalPagination;
+}
+
+export type RecoveryYear = { id: string; label: string; status: "draft" | "active" | "closed" }
+
+export async function fetchRecoveryYears(): Promise<RecoveryYear[]> {
+  const response = await apiClient.get<{ years: RecoveryYear[] }>("/finance/recovery/years")
+  return response.data.years
+}
+
+export async function fetchRecoverySummary(schoolYearId: string, levelId?: string, classId?: string): Promise<RecoverySummary> {
+  const response = await apiClient.get<RecoverySummary>("/finance/recovery", {
+    params: { school_year_id: schoolYearId, level_id: levelId, class_id: classId },
+  })
+  return response.data
+}
+
+export async function fetchRecoveryStudents(schoolYearId: string, classId: string, levelId?: string, page = 1): Promise<RecoveryStudents> {
+  const response = await apiClient.get<RecoveryStudents>("/finance/recovery/class-students", {
+    params: { school_year_id: schoolYearId, class_id: classId, level_id: levelId, page, limit: 20 },
+  })
+  return response.data
+}
 
 export type ClassFinancialSummaryRow = {
   class_id: string;
@@ -577,6 +627,8 @@ export type ClassFinancialSummaryRow = {
   level_name: string;
   total_expected_to_date: string;
   total_paid: string;
+  total_waived: string;
+  remaining_to_collect: string;
   students_up_to_date_count: number;
   students_late_count: number;
   last_computed_at: string;
@@ -587,6 +639,8 @@ export type LevelFinancialSummaryRow = {
   level_name: string;
   total_expected_to_date: string;
   total_paid: string;
+  total_waived: string;
+  remaining_to_collect: string;
   students_up_to_date_count: number;
   students_late_count: number;
   last_computed_at: string;
@@ -648,6 +702,7 @@ export type ClassStudentStatusRow = {
   matricule: string | null;
   total_expected_to_date: string;
   total_paid: string;
+  waived_amount: string;
   total_due_year: string;
   status: "up_to_date" | "late" | "waived";
   days_late: number | null;

@@ -1,5 +1,6 @@
 export const FINANCE_PATHS = {
   dashboard: "/finance/dashboard",
+  recovery: "/finance/recovery",
   entry: "/finance/encaissements",
   history: "/finance/history",
   historyDetail: (studentId: string) => `/finance/history/${studentId}`,

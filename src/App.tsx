@@ -66,6 +66,7 @@ const NewEnrollmentPage = lazy(() => import("@/modules/enrollments/NewEnrollment
 const EnrollmentDocumentsPage = lazy(() => import("@/modules/enrollments/EnrollmentDocumentsPage"))
 const EnrollmentPaymentPage = lazy(() => import("@/modules/enrollments/EnrollmentPaymentPage"))
 const FinancePage = lazy(() => import("@/modules/finance/FinancePage"))
+const RecoveryPage = lazy(() => import("@/modules/finance/RecoveryPage"))
 const ValidationsPage = lazy(() => import("@/modules/validations/ValidationsPage"))
 const LoginPage = lazy(() => import("./modules/auth/LoginPage"))
 const AdminLoginPage = lazy(() => import("./modules/auth/AdminLoginPage"))
@@ -630,6 +631,7 @@ export default function App() {
           <Route path="/enrollments/:enrollmentId/payment" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.confirm_payment"]} element={<EnrollmentPaymentPage />} />} />
           <Route path="/finance" element={<FinanceLegacyRoute />} />
           <Route path={FINANCE_PATHS.dashboard} element={<PermissionRoute href={FINANCE_PATHS.dashboard} requiredAnyPermissions={["payments.view"]} element={<FinancePage view="dashboard" />} />} />
+          <Route path={FINANCE_PATHS.recovery} element={<PermissionRoute href={FINANCE_PATHS.recovery} requiredAnyPermissions={["payments.view"]} element={<RecoveryPage />} />} />
           <Route path={FINANCE_PATHS.entry} element={<PermissionRoute href={FINANCE_PATHS.entry} requiredAnyPermissions={["payments.record"]} element={<FinancePage view="entry" />} />} />
           <Route path={FINANCE_PATHS.history} element={<PermissionRoute href={FINANCE_PATHS.history} requiredAnyPermissions={["payments.view"]} element={<FinancePage view="history" />} />} />
           <Route path="/finance/history/:studentId" element={<PermissionRoute href={FINANCE_PATHS.history} requiredAnyPermissions={["payments.view"]} element={<FinanceHistoryDetailRoute />} />} />

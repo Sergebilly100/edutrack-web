@@ -20,12 +20,14 @@ test("C14 : la matrice réelle expose le catalogue API et persiste les dépendan
   await page.goto("/settings?tab=personnel")
   const catalogueResponse = await page.request.get(`${process.env.E2E_API_URL}/permissions/catalogue`, { headers })
   expect(catalogueResponse.status()).toBe(200)
-  const catalogue = await catalogueResponse.json() as { permissions: Array<{ key: string }> }
+  const catalogue = await catalogueResponse.json() as { permissions: Array<{ key: string; domainLabel: string }> }
 
   await page.getByRole("button", { name: "Nouveau poste" }).click()
   const dialog = page.getByRole("dialog")
   const groups = dialog.getByRole("button", { name: /^Permissions : / })
-  for (const group of await groups.all()) await group.click()
+  const domains = [...new Set(catalogue.permissions.map((permission) => permission.domainLabel))]
+  await expect(groups).toHaveCount(domains.length)
+  for (const domain of domains) await dialog.getByRole("button", { name: `Permissions : ${domain}` }).click()
   const keys = await dialog.locator("[data-permission-key]").evaluateAll((rows) =>
     rows.map((row) => row.getAttribute("data-permission-key")))
   expect(keys).toEqual(catalogue.permissions.map((permission) => permission.key))

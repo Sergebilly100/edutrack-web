@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, Loader2, RefreshCw, WalletCards } from "lucide-react"
 import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { Link } from "react-router-dom"
+import { FINANCE_PATHS } from "../finance.routes"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -44,7 +45,7 @@ export function FinancialDashboard({ schoolYearId }: { schoolYearId: string }) {
 
   const expectedToDate = Number(school?.total_expected_to_date ?? 0)
   const totalPaid = Number(school?.total_paid ?? 0)
-  const remainingToCollect = Math.max(0, expectedToDate - totalPaid)
+  const remainingToCollect = Number(school?.remaining_to_collect ?? 0)
   const levels = summaryQuery.data?.levels ?? []
 
   return <div className="space-y-6">
@@ -60,7 +61,7 @@ export function FinancialDashboard({ schoolYearId }: { schoolYearId: string }) {
             </div>
             <div className="grid grid-cols-2 gap-4 text-sm sm:min-w-80">
               <div className="border-l border-blue-400 pl-4"><p className="text-xs text-blue-100">Attendu</p><p className="mt-1 font-semibold tabular-nums">{fcfa(expectedToDate)}</p></div>
-              <div className="border-l border-blue-400 pl-4"><p className="text-xs text-blue-100">Reste à recouvrer</p><p className="mt-1 font-semibold tabular-nums">{fcfa(remainingToCollect)}</p></div>
+              <div className="border-l border-blue-400 pl-4"><p className="text-xs text-blue-100">Reste à recouvrer</p><p className="mt-1 font-semibold tabular-nums">{fcfa(remainingToCollect)}</p><p className="text-xs text-blue-100">Après {fcfa(school?.total_waived ?? 0)} tolérés</p></div>
             </div>
           </div>
         </CardContent>
@@ -71,7 +72,7 @@ export function FinancialDashboard({ schoolYearId }: { schoolYearId: string }) {
 
     <FinancialVisuals collections={summaryQuery.data?.collections ?? []} paymentMethods={summaryQuery.data?.paymentMethods ?? []} />
 
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)]"><LevelRecovery levels={levels} classes={summaryQuery.data?.classes ?? []} /><RecentPayments rows={summaryQuery.data?.recentPayments ?? []} /></section>
+    <section className="space-y-3"><div className="flex justify-end"><Button asChild variant="link" className="min-h-12"><Link to={FINANCE_PATHS.recovery}>Voir le recouvrement détaillé</Link></Button></div><div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)]"><LevelRecovery levels={levels} classes={summaryQuery.data?.classes ?? []} /><RecentPayments rows={summaryQuery.data?.recentPayments ?? []} /></div></section>
 
   </div>
 }
@@ -96,8 +97,8 @@ function RecentPayments({ rows }: { rows: FinancialRecentPayment[] }) { return <
 function LevelRecovery({ levels, classes }: { levels: LevelFinancialSummaryRow[]; classes: ClassFinancialSummaryRow[] }) {
   const [openLevelId, setOpenLevelId] = useState<string | null>(null)
   const rankedLevels = useMemo(() => [...levels].sort((a, b) => {
-    const missingA = Math.max(0, Number(a.total_expected_to_date) - Number(a.total_paid))
-    const missingB = Math.max(0, Number(b.total_expected_to_date) - Number(b.total_paid))
+    const missingA = Number(a.remaining_to_collect)
+    const missingB = Number(b.remaining_to_collect)
     return b.students_late_count - a.students_late_count || missingB - missingA
   }), [levels])
 
@@ -115,7 +116,7 @@ function LevelRecovery({ levels, classes }: { levels: LevelFinancialSummaryRow[]
       {rankedLevels.map((level) => {
         const isOpen = openLevelId === level.level_id
         const rate = recoveryRate(level.total_expected_to_date, level.total_paid)
-        const missing = Math.max(0, Number(level.total_expected_to_date) - Number(level.total_paid))
+        const missing = Number(level.remaining_to_collect)
         const levelClasses = classes.filter((item) => item.level_id === level.level_id)
         return <div key={level.level_id} className="rounded-lg border border-border">
           <Button type="button" variant="ghost" className="h-auto min-h-16 w-full justify-start rounded-lg p-4 text-left hover:bg-muted/50" aria-expanded={isOpen} onClick={() => setOpenLevelId((current) => current === level.level_id ? null : level.level_id)}>
@@ -144,7 +145,7 @@ function ClassStudentsDrillDown({ classId }: { classId: string }) {
   if (studentsQuery.isError) return <div className="border-t p-3"><QueryErrorState message="Impossible de charger les élèves de cette classe." onRetry={() => void studentsQuery.refetch()} isRetrying={studentsQuery.isFetching} /></div>
   if ((studentsQuery.data?.length ?? 0) === 0) return <div className="border-t px-3 py-4 text-sm text-muted-foreground">Aucun élève avec un statut financier calculé.</div>
   return <div className="overflow-x-auto border-t"><Table><TableHeader><TableRow><TableHead>Élève</TableHead><TableHead>Statut</TableHead><TableHead className="text-right">Reste dû</TableHead></TableRow></TableHeader><TableBody>{(studentsQuery.data ?? []).map((student: ClassStudentStatusRow) => {
-    const remaining = Math.max(0, Number(student.total_due_year) - Number(student.total_paid))
+    const remaining = Math.max(0, Number(student.total_due_year) - Number(student.total_paid) - Number(student.waived_amount))
     return <TableRow key={student.student_id}><TableCell><span className="block font-medium">{student.full_name}</span><span className="text-xs text-muted-foreground">{student.matricule ?? "Sans matricule"}</span></TableCell><TableCell><Badge variant="outline" className={student.status === "up_to_date" ? "border-green-200 bg-green-50 text-green-700" : student.status === "waived" ? "border-slate-200 bg-slate-50 text-slate-700" : "border-amber-200 bg-amber-50 text-amber-800"}>{student.status === "up_to_date" ? "À jour" : student.status === "waived" ? "Toléré" : `Retard${student.days_late !== null ? ` · ${student.days_late} j` : ""}`}</Badge></TableCell><TableCell className="text-right font-medium tabular-nums">{fcfa(remaining)}</TableCell></TableRow>
   })}</TableBody></Table></div>
 }

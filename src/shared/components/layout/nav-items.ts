@@ -144,6 +144,15 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: true,
   },
   {
+    label: "Recouvrement détaillé",
+    href: FINANCE_PATHS.recovery,
+    icon: HandCoins,
+    group: "Finance",
+    roles: ["director", "staff"],
+    requiredPermissions: ["payments.view"],
+    mobileVisible: false,
+  },
+  {
     label: "Journal de caisse",
     href: FINANCE_PATHS.journal,
     icon: WalletCards,

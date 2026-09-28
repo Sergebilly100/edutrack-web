@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest"
 import { FINANCE_PATHS, getFinancePathFromLegacyTab } from "@/modules/finance/finance.routes"
 
 describe("routes Finance", () => {
+  it("expose une page dédiée de recouvrement", () => {
+    expect(FINANCE_PATHS.recovery).toBe("/finance/recovery")
+  })
   it("redirige les anciens onglets vers les écrans dédiés", () => {
     expect(getFinancePathFromLegacyTab("dashboard")).toBe(FINANCE_PATHS.dashboard)
     expect(getFinancePathFromLegacyTab("entry")).toBe(FINANCE_PATHS.entry)

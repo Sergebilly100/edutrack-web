@@ -76,11 +76,14 @@ describe("navigation finance d'un staff restreint", () => {
     const viewStaff = getNavItemsByRole("staff", ["payments.view"])
     expect(viewStaff.map((item) => item.href)).toEqual(expect.arrayContaining([
       "/finance/dashboard",
+      "/finance/recovery",
       "/finance/history",
       "/finance/journal",
       "/settings",
     ]))
     expect(viewStaff.map((item) => item.href)).not.toContain("/finance/encaissements")
+    expect(getNavItemsByRole("staff", ["payments.record"]).map((item) => item.href)).not.toContain("/finance/recovery")
+    expect(viewStaff.find((item) => item.href === "/finance/recovery")).toMatchObject({ group: "Finance", mobileVisible: false })
   })
 })
 

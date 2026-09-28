@@ -37,7 +37,7 @@ export function HomeroomTeacherReminder() {
 
   const names = missing.slice(0, 3).map((schoolClass) => schoolClass.name).join(", ")
   return (
-    <Alert>
+    <Alert variant="warning" >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <AlertTitle>Rappel : classes sans professeur principal</AlertTitle>
@@ -45,7 +45,7 @@ export function HomeroomTeacherReminder() {
             {missing.length === 1 ? "1 classe de l’année active est concernée" : `${missing.length} classes de l’année active sont concernées`} : {names}{missing.length > 3 ? ` et ${missing.length - 3} ${missing.length === 4 ? "autre" : "autres"}` : ""}.
           </AlertDescription>
         </div>
-        <Button asChild variant="outline" className="min-h-12 shrink-0">
+        <Button asChild variant="outline" className="min-h-6 shrink-0"> 
           <Link to="/academic/classes">Ouvrir l’onglet Classes</Link>
         </Button>
       </div>
