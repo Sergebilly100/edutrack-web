@@ -66,6 +66,7 @@ export default function StudentAbsencePanel() {
     setFormValues,
     filters,
     classesQuery,
+    levelsQuery,
     subjectsOptions,
     statsQuery,
     handleApply,
@@ -96,6 +97,7 @@ export default function StudentAbsencePanel() {
     setStatsPage(1)
   }, [
     filters.classId,
+    filters.levelId,
     filters.from,
     filters.minAbsences,
     filters.smsStatus,
@@ -125,8 +127,11 @@ export default function StudentAbsencePanel() {
     <div className="space-y-4">
       <Card>
         <CardContent className="p-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="min-w-[180px] space-y-2">
+          {classesQuery.isError || levelsQuery.isError ? (
+            <Alert variant="destructive" className="mb-3"><AlertDescription>Impossible de charger les niveaux et classes.</AlertDescription></Alert>
+          ) : null}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="min-w-0 space-y-2">
               <p className="text-sm font-medium">Du</p>
               <DateInput
                 className="min-h-12"
@@ -136,7 +141,7 @@ export default function StudentAbsencePanel() {
                 }
               />
             </div>
-            <div className="min-w-[180px] space-y-2">
+            <div className="min-w-0 space-y-2">
               <p className="text-sm font-medium">Au</p>
               <DateInput
                 className="min-h-12"
@@ -146,7 +151,26 @@ export default function StudentAbsencePanel() {
                 }
               />
             </div>
-            <div className="min-w-[220px] space-y-2">
+            <div className="min-w-0 space-y-2">
+              <p className="text-sm font-medium">Niveau</p>
+              <Select value={formValues.level_id} onValueChange={(value) =>
+                setFormValues((current) => ({
+                  ...current,
+                  level_id: value,
+                  subject: "",
+                  class_id: current.class_id !== "all" && !(classesQuery.data?.classes ?? []).some(
+                    (item) => item.id === current.class_id && (value === "all" || item.level.id === value)
+                  ) ? "all" : current.class_id,
+                }))
+              }>
+                <SelectTrigger className="min-h-12" aria-label="Niveau des absences"><SelectValue placeholder="Tous les niveaux" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les niveaux</SelectItem>
+                  {(levelsQuery.data ?? []).map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0 space-y-2">
               <p className="text-sm font-medium">Classe</p>
               <Select
                 value={formValues.class_id}
@@ -154,12 +178,12 @@ export default function StudentAbsencePanel() {
                   setFormValues((current) => ({ ...current, class_id: value }))
                 }
               >
-                <SelectTrigger className="min-h-12">
+                <SelectTrigger className="min-h-12" aria-label="Classe des absences">
                   <SelectValue placeholder="Toutes les classes" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Toutes les classes</SelectItem>
-                  {(classesQuery.data ?? []).map((item) => (
+                  {(classesQuery.data?.classes ?? []).filter((item) => formValues.level_id === "all" || item.level.id === formValues.level_id).map((item) => (
                     <SelectItem key={item.id} value={item.id}>
                       {item.name}
                     </SelectItem>
@@ -167,7 +191,7 @@ export default function StudentAbsencePanel() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="min-w-[220px] space-y-2">
+            <div className="min-w-0 space-y-2">
               <p className="text-sm font-medium">Matière</p>
               <Select
                 value={formValues.subject || "all"}
@@ -175,7 +199,7 @@ export default function StudentAbsencePanel() {
                   setFormValues((current) => ({ ...current, subject: value === "all" ? "" : value }))
                 }
               >
-                <SelectTrigger className="min-h-12">
+                <SelectTrigger className="min-h-12" aria-label="Matière des absences">
                   <SelectValue placeholder="Toutes les matières" />
                 </SelectTrigger>
                 <SelectContent>
@@ -188,7 +212,7 @@ export default function StudentAbsencePanel() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="min-w-[220px] space-y-2">
+            <div className="min-w-0 space-y-2">
               <p className="text-sm font-medium">État SMS</p>
               <Select
                 value={formValues.sms_status}
@@ -207,7 +231,7 @@ export default function StudentAbsencePanel() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="min-w-[180px] space-y-2">
+            <div className="min-w-0 space-y-2">
               <p className="text-sm font-medium">Absences minimum</p>
               <Input
                 type="number"
@@ -484,6 +508,8 @@ export default function StudentAbsencePanel() {
         from={filters.from}
         to={filters.to}
         subject={detailSubject}
+        classId={filters.classId}
+        levelId={filters.levelId}
       />
     </div>
   )

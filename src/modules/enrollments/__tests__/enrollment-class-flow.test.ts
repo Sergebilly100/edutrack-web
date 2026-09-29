@@ -52,8 +52,8 @@ describe("brouillon du détour classe", () => {
     expect(() => saveEnrollmentClassDraft({ returnTo: url, schoolYearId: yearId, levelId, classId: "", form })).toThrow()
   })
 
-  it("accepte les routes existantes de profil et de modification", () => {
-    expect(isEnrollmentReturnUrl(`/enrollments/new?studentId=${classId}`)).toBe(true)
+  it("refuse la réutilisation de profil et accepte la modification d’un dossier", () => {
+    expect(isEnrollmentReturnUrl(`/enrollments/new?studentId=${classId}`)).toBe(false)
     expect(isEnrollmentReturnUrl(`/enrollments/${classId}/edit`)).toBe(true)
   })
 })

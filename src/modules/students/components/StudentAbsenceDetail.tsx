@@ -42,6 +42,8 @@ type StudentAbsenceDetailProps = {
   from: string
   to: string
   subject?: string
+  classId?: string
+  levelId?: string
 }
 
 const smsConfig: Record<
@@ -102,6 +104,8 @@ export default function StudentAbsenceDetail({
   from,
   to,
   subject,
+  classId,
+  levelId,
 }: StudentAbsenceDetailProps) {
   const queryClient = useQueryClient()
   const { hasPermission } = usePermissions()
@@ -111,12 +115,12 @@ export default function StudentAbsenceDetail({
   const [excuseDialogId, setExcuseDialogId] = useState<string | null>(null)
   const [excuseReason, setExcuseReason] = useState("")
 
-  const absenceQueryKey = ["students", "absence", "detail", student?.studentId, from, to, subject]
+  const absenceQueryKey = ["students", "absence", "detail", student?.studentId, from, to, subject, classId, levelId]
 
   const detailQuery = useQuery({
     queryKey: absenceQueryKey,
     queryFn: () =>
-      getStudentAbsenceRecords(student!.studentId, { from, to, subject }),
+      getStudentAbsenceRecords(student!.studentId, { from, to, subject, classId, levelId }),
     enabled: open && Boolean(student),
   })
 

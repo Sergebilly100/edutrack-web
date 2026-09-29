@@ -57,6 +57,7 @@ const LevelsPage = lazy(() => import("@/modules/academic/LevelsPage"))
 const ClassesPage = lazy(() => import("@/modules/academic/ClassesPage"))
 const SubjectsPage = lazy(() => import("@/modules/academic/SubjectsPage"))
 const NotesPage = lazy(() => import("@/modules/academic/NotesPage"))
+const EvaluationReviewPage = lazy(() => import("@/modules/academic/EvaluationReviewPage"))
 const CalculationPage = lazy(() => import("@/modules/academic/CalculationPage"))
 const ConductPage = lazy(() => import("@/modules/academic/ConductPage"))
 const ReportCardsPage = lazy(() => import("@/modules/academic/ReportCardsPage"))
@@ -623,6 +624,7 @@ export default function App() {
           <Route path="/academic/subjects" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<SubjectsPage />} />} />
           <Route path="/academic/completion" element={<PermissionRoute href="/academic/report-cards" requiredAnyPermissions={["report_cards.view"]} element={<Navigate replace to="/academic/report-cards" />} />} />
           <Route path="/academic/report-cards" element={<PermissionRoute href="/academic/report-cards" requiredAnyPermissions={["report_cards.view", "report_cards.publish"]} element={<ReportCardsPage />} />} />
+          <Route path="/academic/evaluations" element={<PermissionRoute href="/academic/evaluations" requiredAnyPermissions={["evaluations.view"]} element={<EvaluationReviewPage />} />} />
           <Route path="/end-of-year" element={<PermissionRoute href="/end-of-year" requiredAnyPermissions={["class_decisions.view"]} element={<EndOfYearAccessRoute />} />} />
           <Route path="/enrollments" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.view"]} element={<EnrollmentsPage />} />} />
           <Route path="/enrollments/new" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.create"]} element={<NewEnrollmentPage />} />} />

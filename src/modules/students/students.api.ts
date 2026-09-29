@@ -22,6 +22,7 @@ export type StudentsListQuery = {
   page?: number
   limit?: number
   classId?: string
+  levelId?: string
   isActive?: boolean
   search?: string
 }
@@ -218,6 +219,7 @@ export type StudentAbsenceStatsQuery = {
   from: string
   to: string
   classId?: string
+  levelId?: string
   subject?: string
   smsStatus?: "sent" | "not_sent" | "failed"
   minAbsences?: number
@@ -227,6 +229,8 @@ export type StudentAbsenceRecordsQuery = {
   from: string
   to: string
   subject?: string
+  classId?: string
+  levelId?: string
 }
 
 const fetchStudentList = (path: string, query: StudentsListQuery) =>
@@ -236,6 +240,7 @@ const fetchStudentList = (path: string, query: StudentsListQuery) =>
         page: query.page ?? 1,
         limit: query.limit ?? 100,
         class_id: query.classId,
+        level_id: query.levelId,
         is_active:
           typeof query.isActive === "boolean" ? String(query.isActive) : undefined,
         search: query.search,
@@ -246,11 +251,6 @@ const fetchStudentList = (path: string, query: StudentsListQuery) =>
 export const listStudents = (query: StudentsListQuery = {}) => fetchStudentList("/students", query)
 
 export const listFinancialProfiles = (query: StudentsListQuery = {}) => fetchStudentList("/students/financial-profiles", query)
-
-export const listStudentProfiles = (search: string) =>
-  api.get<StudentsListResponse>("/students/profiles", {
-    params: { search, is_active: "true", page: 1, limit: 10 },
-  }).then((response) => response.data)
 
 export const createStudent = (payload: CreateStudentPayload) =>
   api
@@ -336,6 +336,7 @@ export const getStudentAbsenceStats = (query: StudentAbsenceStatsQuery) =>
         from: query.from,
         to: query.to,
         class_id: query.classId,
+        level_id: query.levelId,
         subject: query.subject,
         sms_status: query.smsStatus,
         min_absences: query.minAbsences ?? 1,
@@ -356,6 +357,7 @@ export const exportStudentAbsences = async (
       from: query.from,
       to: query.to,
       class_id: query.classId,
+      level_id: query.levelId,
       subject: query.subject,
       sms_status: query.smsStatus,
       min_absences: query.minAbsences ?? 1,
@@ -376,6 +378,8 @@ export const getStudentAbsenceRecords = (
         from: query.from,
         to: query.to,
         subject: query.subject,
+        class_id: query.classId,
+        level_id: query.levelId,
       },
     })
     .then((response) => response.data as StudentAbsenceRecord[])

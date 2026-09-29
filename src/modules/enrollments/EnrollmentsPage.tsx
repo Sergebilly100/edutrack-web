@@ -10,7 +10,7 @@ import {
   RefreshCw,
   Search,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import axios from "axios";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -211,6 +211,8 @@ function StudentAcademicSummaryDialog({
 }
 
 export default function EnrollmentsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedTab = searchParams.get("tab") === "re-enrollment" ? "re-enrollment" : "dossiers";
   const { hasPermission } = usePermissions();
   const canEditDraft =
     hasPermission("enrollments.edit") && hasPermission("students.edit");
@@ -297,6 +299,7 @@ export default function EnrollmentsPage() {
       }),
   });
   const candidates = candidatesQuery.data?.candidates ?? [];
+  const candidatesForbidden = axios.isAxiosError(candidatesQuery.error) && candidatesQuery.error.response?.status === 403;
   const activeYears = (yearsQuery.data ?? []).filter(
     (year) => year.status === "active",
   );
@@ -368,6 +371,9 @@ export default function EnrollmentsPage() {
     setRecentClassId("");
     setCandidatePage(1);
   };
+  if (!hasPermission("enrollments.view")) {
+    return <PageLayout title="Inscriptions"><Alert variant="destructive"><AlertDescription>Vous n’avez pas accès aux inscriptions et aux candidats à la réinscription.</AlertDescription></Alert></PageLayout>;
+  }
   return (
     <PageLayout
       title="Inscriptions"
@@ -383,7 +389,7 @@ export default function EnrollmentsPage() {
         ) : undefined
       }
     >
-      <Tabs defaultValue="dossiers" className="space-y-5">
+      <Tabs value={selectedTab} onValueChange={(value) => setSearchParams(value === "re-enrollment" ? { tab: value } : {})} className="space-y-5">
         <TabsList className="grid h-auto w-full grid-cols-2 sm:w-[420px]">
           <TabsTrigger className="min-h-12" value="dossiers">
             Dossiers
@@ -610,6 +616,10 @@ export default function EnrollmentsPage() {
           ) : null}
         </TabsContent>
         <TabsContent value="re-enrollment" className="space-y-5">
+          {yearsQuery.isError ? <QueryErrorState message="Impossible de charger les années scolaires." onRetry={() => void yearsQuery.refetch()} isRetrying={yearsQuery.isFetching} /> : null}
+          {levelsQuery.isError ? <QueryErrorState message="Impossible de charger les niveaux scolaires." onRetry={() => void levelsQuery.refetch()} isRetrying={levelsQuery.isFetching} /> : null}
+          {classesQuery.isError ? <QueryErrorState message="Impossible de charger les classes de l’année cible." onRetry={() => void classesQuery.refetch()} isRetrying={classesQuery.isFetching} /> : null}
+          {recentClassesQuery.isError ? <QueryErrorState message="Impossible de charger les classes récentes." onRetry={() => void recentClassesQuery.refetch()} isRetrying={recentClassesQuery.isFetching} /> : null}
           <div className="rounded-lg border bg-card p-4">
             <div className="max-w-sm space-y-2">
               <Label htmlFor="re-enrollment-year">
@@ -735,7 +745,8 @@ export default function EnrollmentsPage() {
               placeholder="Filtrer par nom ou matricule"
             />
           </div> */}
-          {candidatesQuery.isError ? (
+          {candidatesForbidden ? <Alert variant="destructive"><AlertDescription>Vous n’avez pas accès aux candidats à la réinscription.</AlertDescription></Alert> : null}
+          {candidatesQuery.isError && !candidatesForbidden ? (
             <QueryErrorState
               message="Impossible de charger les élèves."
               onRetry={() => void candidatesQuery.refetch()}
@@ -882,7 +893,7 @@ export default function EnrollmentsPage() {
                     {!existing &&
                     candidate.finalDecision &&
                     candidate.finalDecision !== "expelled" ? (
-                      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                      <div className="grid gap-3 rounded-lg border bg-muted/40 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end" aria-label={`Réinscription de ${candidate.studentFirstName} ${candidate.studentLastName}`}>
                         <div className="space-y-2">
                           <Label>
                             Classe proposée pour {selectedYear.label}
@@ -936,7 +947,7 @@ export default function EnrollmentsPage() {
                           ) : (
                             <RefreshCw className="mr-2 h-4 w-4" />
                           )}
-                          Réinscrire
+                          Créer la réinscription
                         </Button>
                       </div>
                     ) : null}

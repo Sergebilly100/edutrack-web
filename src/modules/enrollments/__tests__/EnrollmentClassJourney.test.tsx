@@ -48,7 +48,7 @@ async function choose(name: string, option: string) {
 async function leaveEnrollment() {
   fireEvent.change(screen.getByLabelText("Prénom *"), { target: { value: "Aya" } })
   fireEvent.change(screen.getByLabelText("Nom *", { exact: true }), { target: { value: "Koné" } })
-  await choose("Année scolaire *", "2026-2027")
+  await screen.findByText("2026-2027")
   await choose("Niveau visé", "CP1")
   await waitFor(() => expect(screen.getByRole("button", { name: "Créer une classe" })).toBeEnabled())
   fireEvent.click(screen.getByRole("button", { name: "Créer une classe" }))
@@ -77,6 +77,14 @@ beforeEach(() => {
 })
 
 describe("inscription → création de classe → retour", () => {
+  it("ignore studentId dans l’URL aussi pendant le détour de création de classe", async () => {
+    mount("/enrollments/new?studentId=ancien-profil")
+    await leaveEnrollment()
+    expect(mocks.location.mock.lastCall![0].state.returnTo).toBe("/enrollments/new")
+    fireEvent.click(screen.getByRole("button", { name: "Annuler", exact: true }))
+    fireEvent.click(screen.getByRole("button", { name: "Retour à l’inscription" }))
+    expect(await screen.findByDisplayValue("Aya")).toBeInTheDocument()
+  })
   it("préserve l’identité, préremplit le niveau et sélectionne la classe après relecture serveur", async () => {
     mount()
     const dialog = await leaveEnrollment()
@@ -170,7 +178,9 @@ describe("inscription → création de classe → retour", () => {
   it("explique la permission manquante sans afficher l’action", async () => {
     mocks.permission.mockImplementation((key: string) => key !== "classes.create")
     mount()
-    expect(await screen.findByText(/demandez au directeur/)).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Niveau visé" })).toBeEnabled())
+    await choose("Niveau visé", "CP1")
+    expect(await screen.findByText(/demandez au directeur/i)).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Créer une classe" })).not.toBeInTheDocument()
   })
 

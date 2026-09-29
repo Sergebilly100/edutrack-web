@@ -116,6 +116,15 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: false,
   },
   {
+    label: "Évaluations et notes",
+    href: "/academic/evaluations",
+    icon: NotebookPen,
+    group: "Académique",
+    roles: ["director", "staff"],
+    requiredPermissions: ["evaluations.view"],
+    mobileVisible: false,
+  },
+  {
     label: "Fin d’année",
     href: "/end-of-year",
     icon: GraduationCap,

@@ -382,7 +382,7 @@ export default function StudentDetailPage() {
       subtitle=""
       actions={
         <div className="flex gap-2">
-          {!student.classId && hasPermission("enrollments.create") && hasPermission("students.edit") ? <Button className="min-h-12" onClick={() => navigate(`/enrollments/new?studentId=${student.id}`)}>Inscrire cet élève</Button> : null}
+          {hasPermission("enrollments.view") ? <Button className="min-h-12" onClick={() => navigate("/enrollments?tab=re-enrollment")}>Voir les réinscriptions</Button> : null}
           <Button
             type="button"
             variant="outline"

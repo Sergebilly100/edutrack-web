@@ -23,6 +23,7 @@ import {
   generateReportCards,
   listClasses,
   listGradingPeriods,
+  listLevels,
   publishBulkReportCards,
   publishReportCard,
   requestReportCardPdf,
@@ -32,13 +33,29 @@ import { PageLayout } from "@/shared/components/PageLayout"
 export default function ReportCardsPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
-  const [classId, setClassId] = useState("")
+  const [levelId, setLevelId] = useState("")
+  const [selectedClassId, setSelectedClassId] = useState("")
   const [gradingPeriodId, setGradingPeriodId] = useState("")
 
+  const levelsQuery = useQuery({
+    queryKey: ["academic", "levels"],
+    queryFn: listLevels,
+  })
   const classesQuery = useQuery({
     queryKey: ["academic", "classes-for-report-cards"],
     queryFn: () => listClasses(),
   })
+  const levels = [...(levelsQuery.data ?? [])].sort(
+    (left, right) => left.orderIndex - right.orderIndex || left.name.localeCompare(right.name, "fr")
+  )
+  const classes = classesQuery.data?.classes ?? []
+  const filteredClasses = levelId ? classes.filter((klass) => klass.level.id === levelId) : classes
+  const classId = filteredClasses.some((klass) => klass.id === selectedClassId) ? selectedClassId : ""
+
+  useEffect(() => {
+    if (selectedClassId && classesQuery.data && !classId) setSelectedClassId("")
+  }, [selectedClassId, classesQuery.data, classId])
+
   const periodsQuery = useQuery({
     queryKey: ["academic", "grading-periods"],
     queryFn: listGradingPeriods,
@@ -148,15 +165,43 @@ export default function ReportCardsPage() {
       subtitle="Génération figée par période, publication manuelle classe par classe."
     >
 
-      <div className="grid gap-4 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2">
+      <div className="grid gap-4 rounded-lg border bg-muted/20 p-4 lg:grid-cols-3">
+        <div className="space-y-2">
+          <Label htmlFor="report-cards-level">Niveau</Label>
+          <Select
+            value={levelId || "all"}
+            onValueChange={(value) => {
+              const nextLevelId = value === "all" ? "" : value
+              if (selectedClassId && nextLevelId && !classes.some((klass) => klass.id === selectedClassId && klass.level.id === nextLevelId)) {
+                setSelectedClassId("")
+              }
+              setLevelId(nextLevelId)
+            }}
+          >
+            <SelectTrigger id="report-cards-level" className="min-h-12"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les niveaux</SelectItem>
+              {levelsQuery.isPending ? <SelectItem value="loading-levels" disabled>Chargement des niveaux…</SelectItem> : null}
+              {levelsQuery.isError ? <SelectItem value="levels-error" disabled>Niveaux indisponibles</SelectItem> : null}
+              {levels.map((level) => (
+                <SelectItem key={level.id} value={level.id}>{level.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="space-y-2">
           <Label htmlFor="report-cards-class">Classe</Label>
-          <Select value={classId || "none"} onValueChange={(value) => setClassId(value === "none" ? "" : value)}>
+          <Select value={classId} onValueChange={setSelectedClassId}>
             <SelectTrigger id="report-cards-class" className="min-h-12"><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
             <SelectContent>
-              {(classesQuery.data?.classes ?? []).map((klass) => (
+              {classesQuery.isPending ? <SelectItem value="loading-classes" disabled>Chargement des classes…</SelectItem> : null}
+              {classesQuery.isError ? <SelectItem value="classes-error" disabled>Classes indisponibles</SelectItem> : null}
+              {filteredClasses.map((klass) => (
                 <SelectItem key={klass.id} value={klass.id}>{klass.name}</SelectItem>
               ))}
+              {classesQuery.isSuccess && filteredClasses.length === 0 ? (
+                <SelectItem value="no-class" disabled>Aucune classe pour ce niveau</SelectItem>
+              ) : null}
             </SelectContent>
           </Select>
         </div>

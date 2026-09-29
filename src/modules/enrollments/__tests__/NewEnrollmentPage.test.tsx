@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   updateEnrollment: vi.fn(),
   verifyDocuments: vi.fn(),
   getStudent: vi.fn(),
-  listProfiles: vi.fn(),
   updateStudent: vi.fn(),
   listYears: vi.fn(),
   listClasses: vi.fn(),
@@ -28,7 +27,6 @@ vi.mock("../enrollments.api", async (importOriginal) => ({
 vi.mock("@/modules/students/students.api", () => ({
   createStudent: mocks.createStudent,
   getStudentById: mocks.getStudent,
-  listStudentProfiles: mocks.listProfiles,
   updateStudent: mocks.updateStudent,
 }))
 vi.mock("@/modules/academic/academic.api", () => ({
@@ -47,7 +45,6 @@ import NewEnrollmentPage from "../NewEnrollmentPage"
 describe("NewEnrollmentPage historical edit", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.listProfiles.mockResolvedValue({ data: [{ id: "student-1", firstName: "Awa", lastName: "Koné", matricule: "MAT-001" }] })
     Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, value: vi.fn() })
     mocks.getEnrollment.mockResolvedValue({
       id: "enrollment-1",
@@ -79,9 +76,9 @@ describe("NewEnrollmentPage historical edit", () => {
       parentName2: null,
       parentPhone2: null,
     })
-    mocks.listYears.mockResolvedValue([{ id: "year-1", label: "2026-2027" }])
+    mocks.listYears.mockResolvedValue([{ id: "year-1", label: "2026-2027", status: "active" }])
     mocks.listLevels.mockResolvedValue([{ id: "level-1", name: "CP1" }])
-    mocks.listClasses.mockResolvedValue({ classes: [{ id: "class-1", name: "CP1 A", isActive: true, level: { id: "level-1", name: "CP1" } }] })
+    mocks.listClasses.mockResolvedValue({ activeSchoolYear: { id: "year-1" }, classes: [{ id: "class-1", name: "CP1 A", isActive: true, level: { id: "level-1", name: "CP1" } }] })
     mocks.updateStudent.mockResolvedValue({ id: "student-1" })
     mocks.updateEnrollment.mockResolvedValue({
       id: "enrollment-1", studentId: "student-1", classId: "class-1", status: "pending_cashier",
@@ -102,6 +99,7 @@ describe("NewEnrollmentPage historical edit", () => {
 
     const firstName = await screen.findByDisplayValue("Awa")
     expect(screen.getByDisplayValue("M. Koné")).toBeInTheDocument()
+    expect(screen.getByLabelText("E-mail du parent")).toHaveValue("parent@example.com")
     fireEvent.change(firstName, { target: { value: "Aya" } })
     fireEvent.click(await screen.findByRole("button", { name: "Enregistrer et continuer" }))
 
@@ -119,7 +117,7 @@ describe("NewEnrollmentPage historical edit", () => {
     expect(await screen.findByText("Historique des inscriptions")).toBeInTheDocument()
   })
 
-  it("retrouve un profil depuis la nouvelle inscription puis préremplit les contacts du parent", async () => {
+  it("n’affiche aucun profil existant et sélectionne l’année active", async () => {
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter initialEntries={["/enrollments/new"]}>
@@ -127,22 +125,21 @@ describe("NewEnrollmentPage historical edit", () => {
         </MemoryRouter>
       </QueryClientProvider>,
     )
-    fireEvent.change(screen.getByLabelText("Nom, prénom ou matricule"), { target: { value: "Koné" } })
-    fireEvent.click(await screen.findByRole("link", { name: "Koné Awa MAT-001" }))
-    expect(await screen.findByDisplayValue("M. Koné")).toBeInTheDocument()
-    expect(screen.getByDisplayValue("2250700000000")).toBeInTheDocument()
-    expect(mocks.listProfiles).toHaveBeenCalledWith("Koné")
-    expect(mocks.createStudent).not.toHaveBeenCalled()
+    expect(await screen.findByText("Année scolaire active")).toBeInTheDocument()
+    expect(await screen.findByText("2026-2027")).toBeInTheDocument()
+    expect(screen.queryByText("Année scolaire", { selector: "p" })).not.toBeInTheDocument()
+    expect(screen.getByText("Renseignez le prénom et le nom de l’élève.")).toBeInTheDocument()
+    expect(screen.getByLabelText("E-mail du parent")).toBeInTheDocument()
+    expect(screen.getByLabelText("Nom du second parent")).toBeInTheDocument()
+    expect(screen.getByLabelText("Second téléphone")).toBeInTheDocument()
+    expect(screen.queryByLabelText("Nom, prénom ou matricule")).not.toBeInTheDocument()
+    expect(screen.queryByRole("combobox", { name: "Année scolaire *" })).not.toBeInTheDocument()
   })
 
-  it("inscrit un profil historique existant sans recréer l’élève ni écrire sa classe sur le profil", async () => {
-    mocks.getStudent.mockResolvedValue({
-      id: "student-historical", firstName: "Aya", lastName: "Kone", matricule: "H-001",
-      classId: null, className: null, parentName: null, parentPhone: null,
-    })
-    mocks.updateStudent.mockResolvedValue({ id: "student-historical" })
+  it("ignore studentId dans l’URL et crée un nouveau profil avant l’inscription", async () => {
+    mocks.createStudent.mockResolvedValue({ id: "student-new" })
     mocks.createEnrollment.mockResolvedValue({
-      enrollment: { id: "enrollment-new", studentId: "student-historical", classId: "class-1", status: "pending_cashier" },
+      enrollment: { id: "enrollment-new", studentId: "student-new", classId: "class-1", status: "pending_cashier" },
       missingMandatoryDocuments: [], documentWarning: null,
     })
     render(
@@ -152,19 +149,24 @@ describe("NewEnrollmentPage historical edit", () => {
         </MemoryRouter>
       </QueryClientProvider>,
     )
-    expect(await screen.findByDisplayValue("H-001")).toBeInTheDocument()
-    fireEvent.keyDown(screen.getAllByRole("combobox")[0], { key: "ArrowDown" })
-    fireEvent.click(await screen.findByRole("option", { name: "2026-2027" }))
+    expect(await screen.findByText("Année scolaire active")).toBeInTheDocument()
+    expect(screen.queryByDisplayValue("H-001")).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("Prénom *"), { target: { value: "Aya" } })
+    fireEvent.change(screen.getByLabelText("Nom *"), { target: { value: "Kone" } })
     await waitFor(() => expect(screen.getByRole("combobox", { name: "Classe visée *" })).not.toBeDisabled())
     fireEvent.keyDown(screen.getByRole("combobox", { name: "Classe visée *" }), { key: "ArrowDown" })
     fireEvent.click(await screen.findByRole("option", { name: /CP1 A/ }))
+    fireEvent.change(screen.getByLabelText("Nom du parent"), { target: { value: "M. Kone" } })
+    expect(screen.getByText("Complétez le nom et le téléphone du parent, ou laissez les deux champs vides.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Créer et continuer" })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText("Téléphone"), { target: { value: "2250700000000" } })
     fireEvent.click(screen.getByRole("button", { name: "Créer et continuer" }))
     await waitFor(() => expect(mocks.createEnrollment).toHaveBeenCalledWith({
-      studentId: "student-historical", classId: "class-1", schoolYearId: "year-1", type: "new_registration",
+      studentId: "student-new", classId: "class-1", schoolYearId: "year-1", type: "new_registration", levelId: "level-1", expectedActiveSchoolYearId: "year-1",
     }))
-    expect(mocks.createStudent).not.toHaveBeenCalled()
-    expect(mocks.updateStudent).toHaveBeenCalledWith("student-historical", expect.objectContaining({ firstName: "Aya", matricule: "H-001" }))
-    expect(mocks.updateStudent.mock.calls[0][1]).not.toHaveProperty("classId")
+    expect(mocks.createStudent).toHaveBeenCalledWith(expect.objectContaining({ firstName: "Aya", lastName: "Kone", matricule: null }))
+    expect(mocks.getStudent).not.toHaveBeenCalled()
+    expect(mocks.updateStudent).not.toHaveBeenCalled()
     expect(await screen.findByText("Liste des documents")).toBeInTheDocument()
   })
 })

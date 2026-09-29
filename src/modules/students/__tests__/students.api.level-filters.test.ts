@@ -1,0 +1,46 @@
+import { beforeEach, describe, expect, it, vi } from "vitest"
+
+const { getMock } = vi.hoisted(() => ({ getMock: vi.fn() }))
+
+vi.mock("@/shared/api/client", () => ({ apiClient: { get: getMock } }))
+
+import {
+  exportStudentAbsences,
+  getStudentAbsenceRecords,
+  getStudentAbsenceStats,
+  listStudents,
+} from "@/modules/students/students.api"
+
+const levelId = "66f048d8-d053-48e2-b4a8-7fce3ebc3ed8"
+const classId = "66f048d8-d053-48e2-b4a8-7fce3ebc3ed9"
+
+describe("students.api : filtres de niveau", () => {
+  beforeEach(() => getMock.mockReset().mockResolvedValue({ data: [] }))
+
+  it("transmet niveau et classe à la liste", async () => {
+    await listStudents({ levelId, classId })
+    expect(getMock).toHaveBeenCalledWith("/students", expect.objectContaining({
+      params: expect.objectContaining({ level_id: levelId, class_id: classId }),
+    }))
+  })
+
+  it("utilise les mêmes filtres pour statistiques, détail et PDF", async () => {
+    const filters = {
+      from: "2026-04-01", to: "2026-04-30", levelId, classId,
+      subject: "Math", smsStatus: "failed" as const, minAbsences: 2,
+    }
+    await getStudentAbsenceStats(filters)
+    expect(getMock).toHaveBeenCalledWith("/students/absence-stats", expect.objectContaining({
+      params: expect.objectContaining({ level_id: levelId, class_id: classId, subject: "Math", sms_status: "failed", min_absences: 2 }),
+    }))
+    await getStudentAbsenceRecords("student-1", filters)
+    expect(getMock).toHaveBeenCalledWith("/students/student-1/absences", expect.objectContaining({
+      params: expect.objectContaining({ level_id: levelId, class_id: classId, subject: "Math" }),
+    }))
+    getMock.mockResolvedValueOnce({ data: { jobId: "job-1" } })
+    expect(await exportStudentAbsences(filters)).toEqual({ jobId: "job-1" })
+    expect(getMock).toHaveBeenCalledWith("/students/absence-stats/export", expect.objectContaining({
+      params: expect.objectContaining({ level_id: levelId, class_id: classId, subject: "Math", sms_status: "failed", min_absences: 2 }),
+    }))
+  })
+})

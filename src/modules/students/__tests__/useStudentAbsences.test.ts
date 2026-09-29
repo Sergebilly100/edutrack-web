@@ -1,4 +1,4 @@
-import { renderHook, act } from "@testing-library/react"
+import { renderHook, act, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { createElement } from "react"
@@ -6,8 +6,15 @@ import { describe, expect, it, vi } from "vitest"
 
 import { useStudentAbsences } from "@/modules/students/hooks/useStudentAbsences"
 
-vi.mock("@/modules/schedule/schedule.api", () => ({
-  fetchWeeklySchedule: vi.fn(async () => ({ catalog: { classes: [] } })),
+vi.mock("@/modules/academic/academic.api", () => ({
+  listClasses: vi.fn(async () => ({ classes: [
+    { id: "cls-1", name: "3ème A", level: { id: "level-1", name: "3ème" } },
+    { id: "cls-2", name: "4ème A", level: { id: "level-2", name: "4ème" } },
+  ] })),
+  listLevels: vi.fn(async () => [{ id: "level-1", name: "3ème" }, { id: "level-2", name: "4ème" }]),
+  listSubjects: vi.fn(async (levelId: string) => levelId === "level-1"
+    ? [{ id: "subject-1", name: "Math", levelId: "level-1" }]
+    : [{ id: "subject-2", name: "SVT", levelId: "level-2" }]),
 }))
 
 vi.mock("@/modules/teachers/teachers.api", () => ({
@@ -98,5 +105,44 @@ describe("useStudentAbsences", () => {
     })
 
     expect(result.current.filters.smsStatus).toBeUndefined()
+  })
+
+  it("lit le niveau de l'URL et l'envoie avec la classe à l'analyse", () => {
+    const { result } = renderHook(() => useStudentAbsences(), {
+      wrapper: makeWrapper("tab=absences&run=1&level_id=level-1&class_id=cls-1"),
+    })
+    expect(result.current.filters.levelId).toBe("level-1")
+    expect(result.current.filters.classId).toBe("cls-1")
+  })
+
+  it("réinitialise le niveau sans toucher au filtre de liste", () => {
+    const { result } = renderHook(() => useStudentAbsences(), {
+      wrapper: makeWrapper("tab=absences&run=1&level_id=level-1&list_level=level-2"),
+    })
+    act(() => result.current.handleReset())
+    expect(result.current.filters.levelId).toBeUndefined()
+    expect(result.current.formValues.level_id).toBe("all")
+  })
+
+  it("efface une classe d'un autre niveau avant l'application", async () => {
+    const { result } = renderHook(() => useStudentAbsences(), {
+      wrapper: makeWrapper("tab=absences&level_id=level-1&class_id=cls-1"),
+    })
+    await waitFor(() => expect(result.current.classesQuery.isSuccess).toBe(true))
+    act(() => result.current.setFormValues((current) => ({ ...current, level_id: "level-2" })))
+    await waitFor(() => expect(result.current.formValues.class_id).toBe("all"))
+    act(() => result.current.handleApply())
+    expect(result.current.filters.levelId).toBe("level-2")
+    expect(result.current.filters.classId).toBeUndefined()
+  })
+
+  it("adapte les matières au niveau et retire la matière précédente", async () => {
+    const { result } = renderHook(() => useStudentAbsences(), {
+      wrapper: makeWrapper("tab=absences&level_id=level-1&subject=Math"),
+    })
+    await waitFor(() => expect(result.current.subjectsOptions).toEqual(["Math"]))
+    act(() => result.current.setFormValues((current) => ({ ...current, level_id: "level-2", subject: "" })))
+    await waitFor(() => expect(result.current.subjectsOptions).toEqual(["SVT"]))
+    expect(result.current.formValues.subject).toBe("")
   })
 })

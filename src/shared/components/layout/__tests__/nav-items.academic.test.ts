@@ -3,6 +3,12 @@ import { describe, expect, it } from "vitest"
 import { filterNavItemsByFeatures, getNavItemsByRole, isNavItemActive } from "@/shared/components/layout/nav-items"
 
 describe("navigation de la structure scolaire", () => {
+  it("réserve le suivi des évaluations à la direction et au staff autorisé", () => {
+    expect(getNavItemsByRole("director").map((item) => item.href)).toContain("/academic/evaluations")
+    expect(getNavItemsByRole("staff", ["evaluations.view"]).map((item) => item.href)).toContain("/academic/evaluations")
+    expect(getNavItemsByRole("staff", ["report_cards.view"]).map((item) => item.href)).not.toContain("/academic/evaluations")
+    expect(getNavItemsByRole("teacher").map((item) => item.href)).not.toContain("/academic/evaluations")
+  })
   it("est visible pour un staff autorisé aux classes", () => {
     const items = getNavItemsByRole("staff", ["classes.view"])
     expect(items).toEqual(expect.arrayContaining([expect.objectContaining({ href: "/academic" })]))

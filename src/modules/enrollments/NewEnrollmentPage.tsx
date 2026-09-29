@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowLeft, ArrowRight, Loader2, UserPlus } from "lucide-react"
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
+import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react"
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import axios from "axios"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -12,12 +12,10 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { listClasses, listLevels, listSchoolYears } from "@/modules/academic/academic.api"
-import { createStudent, getStudentById, listStudentProfiles, updateStudent } from "@/modules/students/students.api"
+import { createStudent, getStudentById, updateStudent } from "@/modules/students/students.api"
 import { PageLayout } from "@/shared/components/PageLayout"
-import { EmptyState } from "@/shared/components/EmptyState"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { usePermissions } from "@/shared/hooks/usePermissions"
-import { useDebounce } from "@/shared/hooks/useDebounce"
 import { useAuthStore } from "@/shared/store/auth.store"
 import { discardEnrollmentClassDraft, readEnrollmentClassDraft, resolveEnrollmentClassReturn, saveEnrollmentClassDraft, type EnrollmentIdentityDraft } from "@/shared/lib/enrollment-class-flow"
 import { isValidOptionalPhone, normalizePhoneInput } from "@/shared/utils/phone"
@@ -41,12 +39,10 @@ export default function NewEnrollmentPage() {
 function EnrollmentForm() {
   const location = useLocation()
   const user = useAuthStore((state) => state.user)
-  const [returnDraft] = useState(() => readEnrollmentClassDraft(location.state, location.pathname + location.search))
+  const [returnDraft] = useState(() => readEnrollmentClassDraft(location.state, location.pathname))
   const [returnRestored, setReturnRestored] = useState(false)
   const [returnMessage, setReturnMessage] = useState<string | null>(() => location.state && !returnDraft ? "Le brouillon temporaire a expiré ou a été effacé après une actualisation. Rouvrez le dossier depuis les inscriptions." : null)
   const { enrollmentId } = useParams()
-  const [searchParams] = useSearchParams()
-  const profileStudentId = searchParams.get("studentId")
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -58,28 +54,22 @@ function EnrollmentForm() {
   const [form, setForm] = useState<EnrollmentIdentityDraft>(returnDraft?.form ?? EMPTY_FORM)
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
   const initializedEnrollmentId = useRef<string | null>(null)
-  const [profileSearch, setProfileSearch] = useState("")
-  const debouncedProfileSearch = useDebounce(profileSearch.trim(), 300)
-  const canSearchProfiles = hasPermission("enrollments.create") && hasPermission("students.view")
-  const profileSearchEnabled = !enrollmentId && !profileStudentId && debouncedProfileSearch.length >= 2 && canSearchProfiles
-  const profilesQuery = useQuery({
-    queryKey: ["students", "profiles", debouncedProfileSearch],
-    queryFn: () => listStudentProfiles(debouncedProfileSearch),
-    enabled: profileSearchEnabled,
-  })
-
   const historicalEnrollmentQuery = useQuery({
     queryKey: ["enrollments", "detail", enrollmentId],
     queryFn: () => getEnrollment(enrollmentId!),
     enabled: Boolean(enrollmentId),
   })
   const historicalStudentQuery = useQuery({
-    queryKey: ["students", "detail", historicalEnrollmentQuery.data?.studentId ?? profileStudentId],
-    queryFn: () => getStudentById(historicalEnrollmentQuery.data?.studentId ?? profileStudentId!),
-    enabled: Boolean(historicalEnrollmentQuery.data?.studentId || profileStudentId),
+    queryKey: ["students", "detail", historicalEnrollmentQuery.data?.studentId],
+    queryFn: () => getStudentById(historicalEnrollmentQuery.data!.studentId),
+    enabled: Boolean(historicalEnrollmentQuery.data?.studentId),
   })
 
   const yearsQuery = useQuery({ queryKey: ["academic", "school-years", "enrollment"], queryFn: listSchoolYears, refetchOnMount: "always" })
+  const activeYear = yearsQuery.data?.find((year) => year.status === "active")
+  useEffect(() => {
+    if (!enrollmentId && !returnDraft && yearsQuery.data) setSchoolYearId(activeYear?.id ?? "")
+  }, [activeYear?.id, enrollmentId, returnDraft, yearsQuery.data])
   const levelsQuery = useQuery({ queryKey: ["academic", "levels", "enrollment"], queryFn: listLevels, refetchOnMount: "always" })
   const classesQuery = useQuery({
     queryKey: ["academic", "classes", "enrollment", schoolYearId],
@@ -100,9 +90,8 @@ function EnrollmentForm() {
   useEffect(() => {
     const historicalEnrollment = historicalEnrollmentQuery.data
     const student = historicalStudentQuery.data
-    const contextId = enrollmentId ?? profileStudentId
-    if (!contextId || !student || initializedEnrollmentId.current === contextId || (enrollmentId && !historicalEnrollment)) return
-    initializedEnrollmentId.current = contextId
+    if (!enrollmentId || !student || initializedEnrollmentId.current === enrollmentId || !historicalEnrollment) return
+    initializedEnrollmentId.current = enrollmentId
     if (historicalEnrollment) {
       setEnrollment(historicalEnrollment)
       setSchoolYearId(historicalEnrollment.schoolYearId)
@@ -119,7 +108,7 @@ function EnrollmentForm() {
       parentName2: student.parentName2 ?? "",
       parentPhone2: student.parentPhone2 ?? "",
     })
-  }, [enrollmentId, profileStudentId, historicalEnrollmentQuery.data, historicalStudentQuery.data, returnDraft])
+  }, [enrollmentId, historicalEnrollmentQuery.data, historicalStudentQuery.data, returnDraft])
 
   useEffect(() => {
     if (!levelId && selectedClass) setLevelId(selectedClass.level.id)
@@ -128,7 +117,7 @@ function EnrollmentForm() {
   useEffect(() => {
     if (!returnDraft || returnRestored || referencesLoading || referencesError
       || !yearsQuery.data || !levelsQuery.data || !classesQuery.data
-      || ((enrollmentId || profileStudentId) && !historicalStudentQuery.data)
+      || (enrollmentId && !historicalStudentQuery.data)
       || (enrollmentId && !historicalEnrollmentQuery.data)) return
     const result = resolveEnrollmentClassReturn(returnDraft, yearsQuery.data, levelsQuery.data, classesQuery.data)
     setReturnRestored(true)
@@ -136,13 +125,13 @@ function EnrollmentForm() {
     setLevelId(levelsQuery.data.some((level) => level.id === returnDraft.context.levelId) ? returnDraft.context.levelId : "")
     setReturnMessage(result.message)
     discardEnrollmentClassDraft(returnDraft.context.draftId)
-  }, [returnDraft, returnRestored, referencesLoading, referencesError, yearsQuery.data, levelsQuery.data, classesQuery.data, enrollmentId, profileStudentId, historicalStudentQuery.data, historicalEnrollmentQuery.data])
+  }, [returnDraft, returnRestored, referencesLoading, referencesError, yearsQuery.data, levelsQuery.data, classesQuery.data, enrollmentId, historicalStudentQuery.data, historicalEnrollmentQuery.data])
 
   const openClassCreation = () => {
     try {
       const context = saveEnrollmentClassDraft({
         form, classId, schoolYearId, levelId,
-        returnTo: enrollment ? `/enrollments/${enrollment.id}/edit` : location.pathname + location.search,
+        returnTo: enrollment ? `/enrollments/${enrollment.id}/edit` : location.pathname,
       })
       navigate("/academic/classes", { state: context })
     } catch (error) {
@@ -152,10 +141,10 @@ function EnrollmentForm() {
 
   const creationMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedClass || referencesLoading || referencesError || returnPending || (returnDraft && !selectedYearActive)) {
+      if (!selectedClass || referencesLoading || referencesError || returnPending || (!enrollment && !selectedYearActive) || (returnDraft && !selectedYearActive)) {
         throw new Error("Vérifiez l’année, le niveau et la classe avant de continuer.")
       }
-      const contextValidation = returnDraft ? { levelId, expectedActiveSchoolYearId: schoolYearId } : {}
+      const contextValidation = !enrollment || returnDraft ? { levelId, expectedActiveSchoolYearId: schoolYearId } : {}
       const studentPayload = {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
@@ -172,9 +161,7 @@ function EnrollmentForm() {
         const updatedEnrollment = await updateEnrollment(enrollment.id, { classId, ...contextValidation })
         return { enrollment: updatedEnrollment, missingMandatoryDocuments: [], documentWarning: null, updated: true }
       }
-      const student = profileStudentId
-        ? await updateStudent(profileStudentId, studentPayload)
-        : await createStudent(studentPayload)
+      const student = await createStudent(studentPayload)
       return createEnrollment({ studentId: student.id, classId, schoolYearId, type: "new_registration", ...contextValidation })
     },
     onSuccess: async (result) => {
@@ -207,13 +194,26 @@ function EnrollmentForm() {
 
   const parentPairValid = (form.parentName.trim().length === 0 && form.parentPhone.trim().length === 0)
     || (form.parentName.trim().length >= 2 && form.parentPhone.trim().length > 0)
+  const parentPhoneValid = isValidOptionalPhone(form.parentPhone)
+  const secondPhoneValid = isValidOptionalPhone(form.parentPhone2)
+  const parentEmailValid = !form.parentEmail.trim() || /.+@.+\..+/.test(form.parentEmail.trim())
   const formValid = Boolean(
     schoolYearId && classId && form.firstName.trim() && form.lastName.trim()
-    && isValidOptionalPhone(form.parentPhone) && isValidOptionalPhone(form.parentPhone2)
-    && parentPairValid && (!form.parentEmail.trim() || /.+@.+\..+/.test(form.parentEmail.trim())),
+    && parentPhoneValid && secondPhoneValid && parentPairValid && parentEmailValid,
   )
-  const historicalLoading = Boolean(enrollmentId || profileStudentId) && (historicalEnrollmentQuery.isLoading || historicalStudentQuery.isLoading)
-  const historicalError = Boolean(enrollmentId || profileStudentId) && (historicalEnrollmentQuery.isError || historicalStudentQuery.isError)
+  const yearLabel = yearsQuery.data?.find((year) => year.id === schoolYearId)?.label
+    ?? (enrollmentId && historicalEnrollmentQuery.data?.schoolYearId === schoolYearId ? historicalEnrollmentQuery.data.schoolYearLabel : null)
+  const blockedReason = referencesLoading || returnPending ? "Vérification de l’année et des classes en cours…"
+    : referencesError ? "Les classes sont indisponibles. Réessayez après le chargement."
+    : !schoolYearId || ((!enrollment || returnDraft) && !selectedYearActive) ? "Aucune année scolaire active n’est disponible pour cette inscription."
+    : !form.firstName.trim() || !form.lastName.trim() ? "Renseignez le prénom et le nom de l’élève."
+    : !classId || !selectedClass ? "Choisissez une classe pour continuer."
+    : !parentPairValid ? "Renseignez ensemble le nom et le téléphone du parent, ou laissez les deux champs vides."
+    : !parentPhoneValid || !secondPhoneValid ? "Vérifiez le format du numéro de téléphone."
+    : !parentEmailValid ? "Vérifiez l’adresse e-mail du parent."
+    : null
+  const historicalLoading = Boolean(enrollmentId) && (historicalEnrollmentQuery.isLoading || historicalStudentQuery.isLoading)
+  const historicalError = Boolean(enrollmentId) && (historicalEnrollmentQuery.isError || historicalStudentQuery.isError)
   const historicalConfirmed = historicalEnrollmentQuery.data?.status === "confirmed"
   const historicalForbidden = Boolean(enrollmentId) && !canEditDraft
 
@@ -230,73 +230,61 @@ function EnrollmentForm() {
         {historicalConfirmed ? <Alert><AlertDescription>Cette inscription est finalisée. Ses informations ne peuvent plus être modifiées depuis ce parcours.</AlertDescription></Alert> : null}
         {returnMessage ? <Alert><AlertDescription>{returnMessage}</AlertDescription></Alert> : null}
         {referencesError ? <QueryErrorState message="Impossible de vérifier l’année, les niveaux et les classes. Réessayez avant de poursuivre." onRetry={() => { void yearsQuery.refetch(); void levelsQuery.refetch(); if (schoolYearId) void classesQuery.refetch() }} isRetrying={referencesLoading} /> : null}
+        {!yearsQuery.isLoading && !referencesError && !enrollmentId && !activeYear ? <Alert variant="destructive"><AlertDescription>Aucune année scolaire active. Ouvrez une année scolaire avant de créer une inscription.</AlertDescription></Alert> : null}
         {returnPending && !referencesError ? <p role="status" className="text-sm text-muted-foreground">{referencesPaused ? "Connexion nécessaire pour vérifier l’année, le niveau et la classe. Le dossier reste en attente." : "Vérification du dossier et de la classe auprès du serveur…"}</p> : null}
-        {!historicalLoading && !historicalError && !historicalConfirmed && !historicalForbidden ? <EnrollmentProgress currentStep={step} /> : null}
+        {!historicalLoading && !historicalError && !historicalConfirmed && !historicalForbidden ? (
+          <div className="space-y-4">
+            {yearLabel ? <p className="text-sm text-muted-foreground">{enrollmentId ? "Année du dossier" : "Année scolaire active"} <span className="ml-1 font-semibold text-foreground">{yearLabel}</span></p> : null}
+            <EnrollmentProgress currentStep={step} />
+          </div>
+        ) : null}
 
         {!historicalLoading && !historicalError && !historicalConfirmed && !historicalForbidden && step === 1 ? (
-          <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2 text-xl"><UserPlus className="h-5 w-5" />Identité et classe visée</CardTitle></CardHeader>
-            <CardContent className="space-y-6">
-              {!enrollmentId && !profileStudentId && canSearchProfiles ? (
-                <section className="space-y-3 border-b pb-6" aria-labelledby="existing-profile-title">
-                  <h2 id="existing-profile-title" className="text-base font-semibold">Retrouver un profil existant</h2>
-                  <p className="text-sm text-muted-foreground">Réutilisez les informations de l’élève et de ses parents. Les profils historiques apparaîtront dans la liste élèves après confirmation de l’inscription avec le premier versement.</p>
-                  <Label htmlFor="profile-search">Nom, prénom ou matricule</Label>
-                  <Input id="profile-search" className="min-h-12" maxLength={100} value={profileSearch} onChange={(event) => setProfileSearch(event.target.value)} placeholder="Saisissez au moins 2 caractères" />
-                  {profileSearchEnabled && profilesQuery.isFetching ? <p role="status" className="text-sm text-muted-foreground">Recherche des profils…</p> : null}
-                  {profileSearchEnabled && profilesQuery.isPaused ? <p role="alert" className="text-sm text-muted-foreground">Reconnectez-vous pour rechercher les profils.</p> : null}
-                  {profileSearchEnabled && profilesQuery.isError ? <QueryErrorState className="[&_button]:min-h-12" message="Impossible de rechercher les profils." onRetry={() => void profilesQuery.refetch()} isRetrying={profilesQuery.isFetching} /> : null}
-                  {profileSearchEnabled && profilesQuery.isSuccess && profilesQuery.data.data.length === 0 ? <EmptyState title="Aucun profil disponible" message="Vérifiez la recherche ou renseignez une nouvelle identité ci-dessous. Les dossiers déjà ouverts sont accessibles depuis les inscriptions." /> : null}
-                  {profileSearchEnabled && profilesQuery.isSuccess && profilesQuery.data.data.length > 0 ? (
-                    <ul className="divide-y">
-                      {profilesQuery.data.data.map((profile) => (
-                        <li key={profile.id}>
-                          <Button asChild variant="ghost" className="min-h-12 w-full justify-between gap-3 whitespace-normal text-left">
-                            <Link to={`/enrollments/new?studentId=${profile.id}`}>
-                              <span>{profile.lastName} {profile.firstName}{profile.matricule ? <>{" "}<span className="ml-2 text-muted-foreground">{profile.matricule}</span></> : null}</span>
-                              <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
-                            </Link>
-                          </Button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </section>
-              ) : null}
+          <Card className="rounded-lg shadow-sm">
+            <CardContent className="space-y-8 p-4 sm:p-6 [&_input]:min-h-12">
               <section className="space-y-4" aria-labelledby="student-identity-title">
                 <h2 id="student-identity-title" className="text-base font-semibold">Identité de l’élève</h2>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2"><Label htmlFor="first-name">Prénom *</Label><Input id="first-name" value={form.firstName} onChange={(event) => setForm((current) => ({ ...current, firstName: event.target.value }))} /></div>
                   <div className="space-y-2"><Label htmlFor="last-name">Nom *</Label><Input id="last-name" value={form.lastName} onChange={(event) => setForm((current) => ({ ...current, lastName: event.target.value }))} /></div>
                   <div className="space-y-2"><Label htmlFor="birth-date">Date de naissance</Label><Input id="birth-date" type="date" value={form.birthDate} onChange={(event) => setForm((current) => ({ ...current, birthDate: event.target.value }))} /></div>
-                  <div className="space-y-2"><Label htmlFor="matricule">Matricule</Label><Input id="matricule" value={form.matricule} onChange={(event) => setForm((current) => ({ ...current, matricule: event.target.value }))} /></div>
+                  <div className="space-y-2"><Label htmlFor="matricule">Matricule (facultatif)</Label><Input id="matricule" aria-describedby="matricule-help" value={form.matricule} onChange={(event) => setForm((current) => ({ ...current, matricule: event.target.value }))} /><p id="matricule-help" className="text-xs text-muted-foreground">Chaque matricule renseigné doit être unique parmi les élèves.</p></div>
                 </div>
               </section>
 
-              <section className="space-y-4" aria-labelledby="target-class-title">
-                <h2 id="target-class-title" className="text-base font-semibold">Classe et année scolaire</h2>
+              <section className="space-y-4 border-t pt-6" aria-labelledby="target-class-title">
+                <h2 id="target-class-title" className="text-base font-semibold">Affectation</h2>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2"><Label htmlFor="enrollment-year">Année scolaire *</Label><Select value={schoolYearId} onValueChange={(value) => { setSchoolYearId(value); setClassId(""); setReturnMessage(null) }} disabled={Boolean(enrollment) || returnPending}><SelectTrigger id="enrollment-year" className="min-h-12"><SelectValue placeholder={yearsQuery.isLoading ? "Chargement…" : "Choisir une année"} /></SelectTrigger><SelectContent>{(yearsQuery.data ?? []).map((year) => <SelectItem key={year.id} value={year.id}>{year.label}</SelectItem>)}</SelectContent></Select>{enrollment ? <p className="text-xs text-muted-foreground">L’année scolaire ne peut plus être changée après la création du dossier.</p> : null}</div>
                   <div className="space-y-2"><Label htmlFor="enrollment-level">Niveau visé</Label><Select value={levelId} onValueChange={(value) => { setLevelId(value); setClassId(""); setReturnMessage(null) }} disabled={levelsQuery.isLoading || returnPending}><SelectTrigger id="enrollment-level" className="min-h-12"><SelectValue placeholder={levelsQuery.isLoading ? "Chargement…" : "Choisir un niveau"} /></SelectTrigger><SelectContent>{(levelsQuery.data ?? []).map((level) => <SelectItem key={level.id} value={level.id}>{level.name}</SelectItem>)}</SelectContent></Select></div>
-                  <div className="space-y-2"><Label htmlFor="enrollment-class">Classe visée *</Label><Select value={classId} onValueChange={(value) => { setClassId(value); const selected = availableClasses.find((item) => item.id === value); if (selected) setLevelId(selected.level.id); setReturnMessage(null) }} disabled={!schoolYearId || classesQuery.isLoading || returnPending}><SelectTrigger id="enrollment-class" className="min-h-12"><SelectValue placeholder={!schoolYearId ? "Choisissez d’abord l’année" : "Choisir une classe"} /></SelectTrigger><SelectContent>{availableClasses.map((item) => <SelectItem key={item.id} value={item.id}>{item.name} · {item.level.name} · {item.studentCount} élèves</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-2"><Label htmlFor="enrollment-class">Classe visée *</Label><Select value={classId} onValueChange={(value) => { setClassId(value); const selected = availableClasses.find((item) => item.id === value); if (selected) setLevelId(selected.level.id); setReturnMessage(null) }} disabled={!schoolYearId || classesQuery.isLoading || returnPending}><SelectTrigger id="enrollment-class" className="min-h-12"><SelectValue placeholder="Choisir une classe" /></SelectTrigger><SelectContent>{availableClasses.map((item) => <SelectItem key={item.id} value={item.id}>{item.name} · {item.level.name} · {item.studentCount} élèves</SelectItem>)}</SelectContent></Select></div>
                 </div>
-                {schoolYearId && !referencesLoading && !referencesError && availableClasses.length === 0 ? <EmptyState title="Aucune classe adaptée" message="Aucune classe active n’est configurée pour l’année et le niveau choisis." /> : null}
-                {canCreateClass ? <div className="space-y-2"><Button type="button" variant="outline" className="min-h-12" disabled={!selectedYearActive || !levelId || referencesLoading || referencesError || returnPending || creationMutation.isPending} onClick={openClassCreation}>Créer une classe</Button><p className="text-xs text-muted-foreground">Choisissez l’année active et un niveau pour créer une classe. Votre brouillon sera conservé pendant ce parcours.</p></div> : <p className="text-sm text-muted-foreground">Si la classe souhaitée manque, demandez au directeur ou à un responsable autorisé à créer des classes de l’ajouter.</p>}
+                {schoolYearId && !referencesLoading && !referencesError && availableClasses.length === 0 ? (
+                  <div className="flex flex-col gap-3 rounded-lg border bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm text-foreground">{levelId ? "Aucune classe pour ce niveau." : "Aucune classe pour l’année active."} {!canCreateClass ? "Demandez au directeur d’en créer une." : !levelId ? "Choisissez un niveau pour en créer une." : null}</p>
+                    {canCreateClass && levelId && selectedYearActive ? <Button type="button" variant="outline" className="min-h-12 shrink-0" disabled={returnPending || creationMutation.isPending} onClick={openClassCreation}>Créer une classe</Button> : null}
+                  </div>
+                ) : null}
+                {canCreateClass && levelId && selectedYearActive && availableClasses.length > 0 ? <Button type="button" variant="outline" className="min-h-12" disabled={referencesLoading || referencesError || returnPending || creationMutation.isPending} onClick={openClassCreation}>Créer une classe</Button> : null}
                 {selectedClass ? <p className="text-sm text-muted-foreground">Effectif actuel confirmé : <span className="font-medium text-foreground">{selectedClass.studentCount} élèves</span>. Les dossiers en attente de paiement ne sont pas comptés.</p> : null}
               </section>
 
-              <section className="space-y-4" aria-labelledby="parent-title">
-                <h2 id="parent-title" className="text-base font-semibold">Contact parent</h2>
+              <section className="space-y-4 border-t pt-6" aria-labelledby="parent-title">
+                <div><h2 id="parent-title" className="text-base font-semibold">Contact parent</h2><p className="mt-1 text-sm text-muted-foreground">Facultatif. Le nom et le téléphone se renseignent ensemble.</p></div>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2"><Label htmlFor="parent-name">Nom du parent</Label><Input id="parent-name" value={form.parentName} onChange={(event) => setForm((current) => ({ ...current, parentName: event.target.value }))} /></div>
-                  <div className="space-y-2"><Label htmlFor="parent-phone">Téléphone</Label><Input id="parent-phone" inputMode="tel" placeholder="2250700000000" value={form.parentPhone} onChange={(event) => setForm((current) => ({ ...current, parentPhone: normalizePhoneInput(event.target.value) }))} /></div>
-                  <div className="space-y-2"><Label htmlFor="parent-email">E-mail</Label><Input id="parent-email" type="email" value={form.parentEmail} onChange={(event) => setForm((current) => ({ ...current, parentEmail: event.target.value }))} /></div>
-                  <div className="space-y-2"><Label htmlFor="parent-phone-2">Second téléphone</Label><Input id="parent-phone-2" inputMode="tel" value={form.parentPhone2} onChange={(event) => setForm((current) => ({ ...current, parentPhone2: normalizePhoneInput(event.target.value) }))} /></div>
+                  <div className="space-y-2"><Label htmlFor="parent-name">Nom du parent</Label><Input id="parent-name" aria-invalid={!parentPairValid} aria-describedby={!parentPairValid ? "parent-pair-error" : undefined} value={form.parentName} onChange={(event) => setForm((current) => ({ ...current, parentName: event.target.value }))} /></div>
+                  <div className="space-y-2"><Label htmlFor="parent-phone">Téléphone</Label><Input id="parent-phone" inputMode="tel" placeholder="2250700000000" aria-invalid={!parentPairValid || !parentPhoneValid} aria-describedby={!parentPairValid || !parentPhoneValid ? "parent-pair-error" : undefined} value={form.parentPhone} onChange={(event) => setForm((current) => ({ ...current, parentPhone: normalizePhoneInput(event.target.value) }))} /></div>
+                </div>
+                {(!parentPairValid || !parentPhoneValid) && (form.parentName.trim() || form.parentPhone.trim()) ? <p id="parent-pair-error" className="text-sm text-destructive">{!parentPairValid ? "Complétez le nom et le téléphone du parent, ou laissez les deux champs vides." : "Vérifiez le numéro de téléphone du parent."}</p> : null}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2 sm:col-span-2"><Label htmlFor="parent-email">E-mail du parent</Label><Input id="parent-email" type="email" aria-invalid={!parentEmailValid} aria-describedby={!parentEmailValid ? "parent-email-error" : undefined} value={form.parentEmail} onChange={(event) => setForm((current) => ({ ...current, parentEmail: event.target.value }))} />{!parentEmailValid ? <p id="parent-email-error" className="text-sm text-destructive">Vérifiez l’adresse e-mail.</p> : null}</div>
+                  <div className="space-y-2"><Label htmlFor="parent-name-2">Nom du second parent</Label><Input id="parent-name-2" value={form.parentName2} onChange={(event) => setForm((current) => ({ ...current, parentName2: event.target.value }))} /></div>
+                  <div className="space-y-2"><Label htmlFor="parent-phone-2">Second téléphone</Label><Input id="parent-phone-2" inputMode="tel" aria-invalid={!secondPhoneValid} aria-describedby={!secondPhoneValid ? "parent-phone-2-error" : undefined} value={form.parentPhone2} onChange={(event) => setForm((current) => ({ ...current, parentPhone2: normalizePhoneInput(event.target.value) }))} />{!secondPhoneValid ? <p id="parent-phone-2-error" className="text-sm text-destructive">Vérifiez le second numéro de téléphone.</p> : null}</div>
                 </div>
               </section>
 
-              <div className="sticky bottom-0 flex justify-end border-t bg-card/95 pt-4 backdrop-blur">
-                <Button className="min-h-12 w-full sm:w-auto" disabled={!formValid || creationMutation.isPending || !selectedClass || referencesLoading || referencesError || returnPending || Boolean(returnDraft && !selectedYearActive)} onClick={() => creationMutation.mutate()}>
+              <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-col gap-2 border-t bg-card px-4 py-4 sm:-mx-6 sm:-mb-6 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <p aria-live="polite" className="text-sm text-muted-foreground">{blockedReason ?? "Les informations sont prêtes pour la suite du dossier."}</p>
+                <Button className="min-h-12 w-full sm:w-auto" disabled={!formValid || creationMutation.isPending || !selectedClass || referencesLoading || referencesError || returnPending || Boolean((!enrollment || returnDraft) && !selectedYearActive)} onClick={() => creationMutation.mutate()}>
                   {creationMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4" />}
                   {creationMutation.isPending ? enrollment ? "Mise à jour…" : "Création du dossier…" : enrollment ? "Enregistrer et continuer" : "Créer et continuer"}
                 </Button>

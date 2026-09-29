@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useSearchParams } from "react-router-dom"
 
-import { fetchWeeklySchedule } from "@/modules/schedule/schedule.api"
+import { listClasses, listLevels, listSubjects } from "@/modules/academic/academic.api"
 import { fetchTeacherOptions } from "@/modules/teachers/teachers.api"
 import {
   getStudentAbsenceStats,
@@ -26,6 +26,7 @@ export type StudentAbsenceFormValues = {
   from: string
   to: string
   class_id: string
+  level_id: string
   subject: string
   sms_status: StudentAbsenceSmsFilter
   min_absences: number
@@ -50,6 +51,7 @@ const toFormFromSearch = (searchParams: URLSearchParams): StudentAbsenceFormValu
     from: searchParams.get("from") || range.from,
     to: searchParams.get("to") || range.to,
     class_id: searchParams.get("class_id") || "all",
+    level_id: searchParams.get("level_id") || "all",
     subject: searchParams.get("subject") || "",
     sms_status: isSmsFilter(rawSms) ? rawSms : "all",
     min_absences: parseMinAbsences(searchParams.get("min_absences")),
@@ -65,14 +67,11 @@ export const useStudentAbsences = () => {
 
   const classesQuery = useQuery({
     queryKey: ["students", "absence", "classes"],
-    queryFn: async () => {
-      const schedule = await fetchWeeklySchedule()
-      const unique = new Map<string, string>()
-      for (const item of schedule.catalog.classes) {
-        unique.set(item.id, item.name)
-      }
-      return Array.from(unique.entries()).map(([id, name]) => ({ id, name }))
-    },
+    queryFn: () => listClasses(),
+  })
+  const levelsQuery = useQuery({
+    queryKey: ["students", "absence", "levels"],
+    queryFn: listLevels,
   })
 
   const queryEnabled = searchParams.get("run") === "1"
@@ -83,8 +82,17 @@ export const useStudentAbsences = () => {
     enabled: hasPermission("teachers.view"),
     staleTime: 1000 * 60 * 5,
   })
+  const academicSubjectsQuery = useQuery({
+    queryKey: ["students", "absence", "subjects", formValues.level_id],
+    queryFn: () => listSubjects(formValues.level_id),
+    enabled: formValues.level_id !== "all",
+  })
 
   const subjectsOptions = useMemo(() => {
+    if (formValues.level_id !== "all") {
+      return Array.from(new Set((academicSubjectsQuery.data ?? []).map((subject) => subject.name)))
+        .sort((a, b) => a.localeCompare(b, "fr"))
+    }
     const set = new Set<string>()
     for (const teacher of teachersQuery.data ?? []) {
       for (const subject of teacher.subjects) {
@@ -95,7 +103,7 @@ export const useStudentAbsences = () => {
       }
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b, "fr"))
-  }, [teachersQuery.data])
+  }, [academicSubjectsQuery.data, formValues.level_id, teachersQuery.data])
 
   const filters = useMemo<StudentAbsenceStatsQuery>(() => {
     const parsed = toFormFromSearch(searchParams)
@@ -103,6 +111,7 @@ export const useStudentAbsences = () => {
       from: parsed.from,
       to: parsed.to,
       classId: parsed.class_id === "all" ? undefined : parsed.class_id,
+      levelId: parsed.level_id === "all" ? undefined : parsed.level_id,
       subject: parsed.subject.trim() || undefined,
       smsStatus: parsed.sms_status === "all" ? undefined : parsed.sms_status,
       minAbsences: parsed.min_absences,
@@ -112,6 +121,46 @@ export const useStudentAbsences = () => {
   useEffect(() => {
     setFormValues(toFormFromSearch(searchParams))
   }, [searchParams])
+
+  useEffect(() => {
+    const classes = classesQuery.data?.classes
+    if (!classes) return
+    const selected = classes.find((item) => item.id === formValues.class_id)
+    if (formValues.class_id !== "all" && formValues.level_id !== "all" && (!selected || selected.level.id !== formValues.level_id)) {
+      setFormValues((current) => ({ ...current, class_id: "all" }))
+    }
+  }, [classesQuery.data, formValues.class_id, formValues.level_id])
+
+  useEffect(() => {
+    if (formValues.level_id === "all" || !academicSubjectsQuery.isSuccess || !formValues.subject) return
+    if (!subjectsOptions.includes(formValues.subject)) {
+      setFormValues((current) => ({ ...current, subject: "" }))
+    }
+  }, [academicSubjectsQuery.isSuccess, formValues.level_id, formValues.subject, subjectsOptions])
+
+  useEffect(() => {
+    const classes = classesQuery.data?.classes
+    const classId = searchParams.get("class_id")
+    const levelId = searchParams.get("level_id")
+    if (!classes || !classId || !levelId) return
+    const selected = classes.find((item) => item.id === classId)
+    if (!selected || selected.level.id !== levelId) {
+      const next = new URLSearchParams(searchParams)
+      next.delete("class_id")
+      setSearchParams(next, { replace: true })
+    }
+  }, [classesQuery.data, searchParams, setSearchParams])
+
+  useEffect(() => {
+    const levelId = searchParams.get("level_id")
+    const subject = searchParams.get("subject")
+    if (!levelId || !subject || !academicSubjectsQuery.isSuccess || formValues.level_id !== levelId) return
+    if (!subjectsOptions.includes(subject)) {
+      const next = new URLSearchParams(searchParams)
+      next.delete("subject")
+      setSearchParams(next, { replace: true })
+    }
+  }, [academicSubjectsQuery.isSuccess, formValues.level_id, searchParams, setSearchParams, subjectsOptions])
 
   const statsQuery = useQuery<StudentAbsenceStat[]>({
     queryKey: ["students", "absence", "stats", filters],
@@ -129,6 +178,9 @@ export const useStudentAbsences = () => {
 
     if (formValues.class_id === "all") next.delete("class_id")
     else next.set("class_id", formValues.class_id)
+
+    if (formValues.level_id === "all") next.delete("level_id")
+    else next.set("level_id", formValues.level_id)
 
     if (formValues.subject.trim().length === 0) next.delete("subject")
     else next.set("subject", formValues.subject.trim())
@@ -148,6 +200,7 @@ export const useStudentAbsences = () => {
     next.set("to", nextRange.to)
     next.set("min_absences", "1")
     next.delete("class_id")
+    next.delete("level_id")
     next.delete("subject")
     next.delete("sms_status")
     setSearchParams(next, { replace: true })
@@ -159,6 +212,7 @@ export const useStudentAbsences = () => {
     setFormValues,
     filters,
     classesQuery,
+    levelsQuery,
     subjectsOptions,
     statsQuery,
     handleApply,

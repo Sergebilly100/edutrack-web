@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import type { Column, ColumnDef } from "@tanstack/react-table"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate, useSearchParams } from "react-router-dom"
@@ -22,7 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
-import { fetchWeeklySchedule } from "@/modules/schedule/schedule.api"
+import { listClasses, listLevels } from "@/modules/academic/academic.api"
 import StudentAbsencePanel from "@/modules/students/components/StudentAbsencePanel"
 import { createStudent, getAttendanceHistory, listStudents, type StudentItem } from "@/modules/students/students.api"
 import { DataTable, EmptyState, OfflineGuard, PageLayout } from "@/shared/components"
@@ -82,6 +82,7 @@ export default function StudentsPage() {
   const canViewAttendance = hasPermission("attendance.view")
   const activeTab = canViewAttendance && (!canViewStudents || searchParams.get("tab") === "absences") ? "absences" : "liste"
   const classFilter = searchParams.get("list_class") ?? "all"
+  const levelFilter = searchParams.get("list_level") ?? "all"
   const rawStatus = searchParams.get("list_status")
   const statusFilter: "all" | "active" | "inactive" =
     rawStatus === "active" || rawStatus === "inactive" ? rawStatus : "all"
@@ -130,28 +131,44 @@ export default function StudentsPage() {
     setSearchParams(next, { replace: true })
   }
 
+  const resetListFilters = () => {
+    const next = new URLSearchParams(searchParams)
+    for (const key of ["list_level", "list_class", "list_status", "list_search"]) next.delete(key)
+    setSearchParams(next, { replace: true })
+  }
+
   const monthRange = useMemo(() => toMonthRange(), [])
 
   const classesQuery = useQuery({
     queryKey: ["students", "classes"],
-    queryFn: async () => {
-      const schedule = await fetchWeeklySchedule()
-      const unique = new Map<string, string>()
-      for (const item of schedule.catalog.classes) {
-        unique.set(item.id, item.name)
-      }
-      return Array.from(unique.entries()).map(([id, name]) => ({ id, name }))
-    },
+    queryFn: () => listClasses(),
     enabled: canViewStudents || canCreateStudent,
   })
+  const levelsQuery = useQuery({
+    queryKey: ["students", "levels"],
+    queryFn: listLevels,
+    enabled: canViewStudents,
+  })
+
+  useEffect(() => {
+    const classes = classesQuery.data?.classes
+    if (!classes || classFilter === "all" || levelFilter === "all") return
+    const selected = classes.find((item) => item.id === classFilter)
+    if (!selected || selected.level.id !== levelFilter) {
+      const next = new URLSearchParams(searchParams)
+      next.delete("list_class")
+      setSearchParams(next, { replace: true })
+    }
+  }, [classesQuery.data, classFilter, levelFilter, searchParams, setSearchParams])
 
   const studentsQuery = useQuery({
-    queryKey: ["students", "list", classFilter, statusFilter, searchTerm],
+    queryKey: ["students", "list", levelFilter, classFilter, statusFilter, searchTerm],
     queryFn: () =>
       listStudents({
         page: 1,
         limit: 100,
         classId: classFilter === "all" ? undefined : classFilter,
+        levelId: levelFilter === "all" ? undefined : levelFilter,
         isActive: statusFilter === "all" ? undefined : statusFilter === "active",
         search: searchTerm.trim() || undefined,
       }),
@@ -414,24 +431,41 @@ export default function StudentsPage() {
               <div className="bg-background px-4 py-3">
                 <p className="text-[11px] font-medium uppercase text-muted-foreground">Filtre actif</p>
                 <p className="mt-1 truncate text-sm font-medium">
-                  {classFilter === "all" && statusFilter === "all" && !searchTerm ? `Tous les ${studentLabels.pluralLower}` : "Vue affinée"}
+                  {levelFilter === "all" && classFilter === "all" && statusFilter === "all" && !searchTerm ? `Tous les ${studentLabels.pluralLower}` : "Vue affinée"}
                 </p>
               </div>
             </div>
           </div>
 
           <div className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-sm" data-tour="students-filters">
-            <div className="grid gap-3 md:grid-cols-3">
+            {classesQuery.isError || levelsQuery.isError ? (
+              <Alert variant="destructive"><AlertDescription>Impossible de charger les niveaux et classes.</AlertDescription></Alert>
+            ) : null}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Select value={levelFilter} onValueChange={(value) => {
+                const next = new URLSearchParams(searchParams)
+                if (value === "all") next.delete("list_level")
+                else next.set("list_level", value)
+                const selected = classesQuery.data?.classes.find((item) => item.id === classFilter)
+                if (classFilter !== "all" && value !== "all" && (!selected || selected.level.id !== value)) next.delete("list_class")
+                setSearchParams(next, { replace: true })
+              }}>
+                <SelectTrigger className="min-h-12" aria-label="Niveau de la liste"><SelectValue placeholder="Niveau" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les niveaux</SelectItem>
+                  {(levelsQuery.data ?? []).map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
               <Select
                 value={classFilter}
                 onValueChange={(value) => setListParam("list_class", value, "all")}
               >
-                <SelectTrigger>
+                <SelectTrigger className="min-h-12" aria-label="Classe de la liste">
                   <SelectValue placeholder="Classe" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Toutes les classes</SelectItem>
-                  {(classesQuery.data ?? []).map((classItem) => (
+                  {(classesQuery.data?.classes ?? []).filter((item) => levelFilter === "all" || item.level.id === levelFilter).map((classItem) => (
                     <SelectItem key={classItem.id} value={classItem.id}>
                       {classItem.name}
                     </SelectItem>
@@ -445,7 +479,7 @@ export default function StudentsPage() {
                   setListParam("list_status", value, "all")
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="min-h-12" aria-label="Statut de la liste">
                   <SelectValue placeholder="Statut" />
                 </SelectTrigger>
                 <SelectContent>
@@ -458,7 +492,7 @@ export default function StudentsPage() {
               <div className="relative">
                 <FilterIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  className="pl-9"
+                  className="min-h-12 pl-9"
                   value={searchTerm}
                   onChange={(event) =>
                     setListParam("list_search", event.target.value.trim(), "")
@@ -467,6 +501,9 @@ export default function StudentsPage() {
                 />
               </div>
             </div>
+            <Button type="button" variant="outline" className="min-h-12 w-full sm:w-auto" onClick={resetListFilters}>
+              Réinitialiser les filtres
+            </Button>
           </div>
 
           {studentsQuery.isError ? (
@@ -564,7 +601,7 @@ export default function StudentsPage() {
                   <SelectValue placeholder="Choisir une classe" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(classesQuery.data ?? []).map((classItem) => (
+                  {(classesQuery.data?.classes ?? []).map((classItem) => (
                     <SelectItem key={classItem.id} value={classItem.id}>
                       {classItem.name}
                     </SelectItem>

@@ -65,6 +65,7 @@ export type PermissionKey =
   | "class_decisions.validate"
   | "conduct.finalize"
   | "report_cards.view"
+  | "evaluations.view"
   | "report_cards.publish"
   | "enrollments.view"
   | "enrollments.create"

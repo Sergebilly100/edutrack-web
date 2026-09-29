@@ -63,6 +63,31 @@ async function setupStudentsPage(page: import("@playwright/test").Page, students
       return route.fulfill({ status: 200, contentType: "application/json",
         body: JSON.stringify({ onboarding_completed: true }) })
     }
+    if (path.endsWith("/levels")) {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ levels: [
+        { id: "level-e2e-1", name: "3ème", orderIndex: 1 },
+        { id: "level-e2e-2", name: "4ème", orderIndex: 2 },
+      ] }) })
+    }
+    if (path.endsWith("/classes")) {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+        classes: [
+          { id: "class-e2e-1", name: "3ème A", level: { id: "level-e2e-1", name: "3ème", orderIndex: 1 }, schoolYear: { id: "year-e2e", label: "2026" } },
+          { id: "class-e2e-2", name: "4ème A", level: { id: "level-e2e-2", name: "4ème", orderIndex: 2 }, schoolYear: { id: "year-e2e", label: "2026" } },
+        ],
+      }) })
+    }
+    if (path.endsWith("/subjects")) {
+      const levelId = url.searchParams.get("levelId")
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ subjects:
+        levelId === "level-e2e-1"
+          ? [{ id: "subject-e2e-1", name: "Math", levelId }]
+          : [{ id: "subject-e2e-2", name: "SVT", levelId }],
+      }) })
+    }
+    if (path.endsWith("/students/absence-stats")) {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) })
+    }
     if (path.endsWith("/validations/pending/count")) {
       return route.fulfill({ status: 200, contentType: "application/json",
         body: JSON.stringify({ total: 0, gps_suspicious: 0, short_hours: 0, missing_end_scan: 0 }) })
@@ -130,6 +155,60 @@ async function setupStudentsPage(page: import("@playwright/test").Page, students
 }
 
 test.describe("Gestion élèves - directeur", () => {
+  for (const width of [320, 360, 393]) {
+    test(`filtres niveau et classe sans débordement à ${width}px`, async ({ page }) => {
+      await setupStudentsPage(page, [])
+      await page.setViewportSize({ width, height: 800 })
+      for (const name of ["Niveau de la liste", "Classe de la liste", "Statut de la liste"]) {
+        const height = await page.getByRole("combobox", { name }).evaluate((element) => element.getBoundingClientRect().height)
+        expect(height).toBeGreaterThanOrEqual(48)
+      }
+      await page.getByRole("combobox", { name: "Niveau de la liste" }).click()
+      await page.getByRole("option", { name: "3ème", exact: true }).click()
+      await expect(page).toHaveURL(/list_level=level-e2e-1/)
+      await page.getByRole("combobox", { name: "Classe de la liste" }).click()
+      await expect(page.getByRole("option", { name: "3ème A" })).toBeVisible()
+      await expect(page.getByRole("option", { name: "4ème A" })).toHaveCount(0)
+      await page.getByRole("option", { name: "3ème A" }).click()
+      await page.getByRole("combobox", { name: "Niveau de la liste" }).click()
+      await page.getByRole("option", { name: "4ème", exact: true }).click()
+      await expect(page).not.toHaveURL(/list_class=/)
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+
+      await page.getByRole("tab", { name: "Absences" }).click()
+      for (const name of ["Niveau des absences", "Classe des absences", "Matière des absences"]) {
+        const height = await page.getByRole("combobox", { name }).evaluate((element) => element.getBoundingClientRect().height)
+        expect(height).toBeGreaterThanOrEqual(48)
+      }
+      await page.getByRole("combobox", { name: "Niveau des absences" }).click()
+      await page.getByRole("option", { name: "3ème", exact: true }).click()
+      await page.getByRole("combobox", { name: "Classe des absences" }).click()
+      await expect(page.getByRole("option", { name: "4ème A" })).toHaveCount(0)
+      await page.getByRole("option", { name: "3ème A" }).click()
+      await page.getByRole("combobox", { name: "Matière des absences" }).click()
+      await expect(page.getByRole("option", { name: "Math" })).toBeVisible()
+      await expect(page.getByRole("option", { name: "SVT" })).toHaveCount(0)
+      await page.getByRole("option", { name: "Math" }).click()
+      await page.getByRole("combobox", { name: "Niveau des absences" }).click()
+      await page.getByRole("option", { name: "4ème", exact: true }).click()
+      await page.getByRole("combobox", { name: "Matière des absences" }).click()
+      await expect(page.getByRole("option", { name: "SVT" })).toBeVisible()
+      await expect(page.getByRole("option", { name: "Math" })).toHaveCount(0)
+      await page.keyboard.press("Escape")
+      await page.getByRole("button", { name: "Analyser" }).click()
+      await expect(page).toHaveURL(/level_id=level-e2e-2/)
+      await expect(page).not.toHaveURL(/class_id=/)
+      await expect(page).not.toHaveURL(/subject=/)
+      await page.getByRole("button", { name: "Réinitialiser" }).click()
+      await expect(page).not.toHaveURL(/level_id=/)
+      await expect(page).toHaveURL(/list_level=level-e2e-2/)
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+      await page.getByRole("tab", { name: "Liste" }).click()
+      await page.getByRole("button", { name: "Réinitialiser les filtres" }).click()
+      await expect(page).not.toHaveURL(/list_level=/)
+      await expect(page).not.toHaveURL(/list_class=/)
+    })
+  }
   test("la page élèves s'affiche avec le titre", async ({ page }) => {
     await setupStudentsPage(page, [])
     await expect(page.getByRole("heading", { name: /élèves/i }).first()).toBeVisible({ timeout: 10000 })

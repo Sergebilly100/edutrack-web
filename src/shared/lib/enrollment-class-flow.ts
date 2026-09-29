@@ -43,8 +43,7 @@ export function isEnrollmentReturnUrl(value: string): boolean {
   const id = z.string().uuid()
   const edit = /^\/enrollments\/([^/?#]+)\/edit$/.exec(value)
   if (edit) return id.safeParse(edit[1]).success
-  const profile = /^\/enrollments\/new\?studentId=([^&#]+)$/.exec(value)
-  return Boolean(profile && id.safeParse(profile[1]).success)
+  return false
 }
 
 export function saveEnrollmentClassDraft(input: Omit<EnrollmentClassDraft, "context"> & {

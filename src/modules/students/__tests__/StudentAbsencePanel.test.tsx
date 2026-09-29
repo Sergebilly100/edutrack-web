@@ -12,6 +12,7 @@ vi.mock("@/modules/students/hooks/useStudentAbsences", () => ({
       from: "2026-05-01",
       to: "2026-05-31",
       class_id: "all",
+      level_id: "all",
       subject: "",
       sms_status: "all",
       min_absences: 1,
@@ -23,6 +24,7 @@ vi.mock("@/modules/students/hooks/useStudentAbsences", () => ({
       minAbsences: 1,
     },
     classesQuery: { data: [] },
+    levelsQuery: { data: [] },
     subjectsOptions: [],
     statsQuery: {
       isLoading: false,
