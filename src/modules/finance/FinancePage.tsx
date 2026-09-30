@@ -110,7 +110,7 @@ export default function FinancePage({ view, studentId, initialSchoolYearId }: { 
           <TabsTrigger value="enregistrement" className="min-h-12">Enregistrement</TabsTrigger>
           <TabsTrigger value="import" className="min-h-12">Importer les paiements</TabsTrigger>
         </TabsList>
-        <TabsContent value="enregistrement"><QuickPaymentEntry schoolYearId={schoolYearId} schoolYearLabel={selectedYear.label} /></TabsContent>
+        <TabsContent value="enregistrement"><QuickPaymentEntry key={schoolYearId} schoolYearId={schoolYearId} schoolYearLabel={selectedYear.label} /></TabsContent>
         <TabsContent value="import"><PaymentImportPanel /></TabsContent>
       </Tabs>
       ) : null}

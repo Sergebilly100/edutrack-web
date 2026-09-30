@@ -112,6 +112,7 @@ export function OverviewTab({
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.38fr)_minmax(22rem,0.82fr)]">
         <AcademicProgress
           levels={pilotage?.academic ?? []}
+          confirmedStudents={pilotage?.population.activeStudents}
           isLoading={pilotageQuery.isLoading}
           isError={pilotageQuery.isError}
         />
@@ -202,7 +203,7 @@ function PilotageHero({
         </div>
 
         <div className="mt-5 grid grid-cols-3 divide-x divide-blue-500 border-t border-blue-500 pt-4">
-          <PopulationStat icon={GraduationCap} label="Élèves inscrits" value={population?.activeStudents ?? 0} />
+          <PopulationStat icon={GraduationCap} label="Élèves confirmés" value={population?.activeStudents ?? 0} />
           <PopulationStat icon={UsersRound} label="Professeurs" value={population?.activeTeachers ?? 0} />
           <PopulationStat icon={BookOpenCheck} label="Classes" value={population?.activeClasses ?? 0} />
         </div>
@@ -237,7 +238,7 @@ function WatchList({ items, canViewTeachers }: { items: Array<DashboardPriorityA
   )
 }
 
-function AcademicProgress({ levels, isLoading, isError }: { levels: Awaited<ReturnType<typeof getDashboardPilotage>>["academic"]; isLoading: boolean; isError: boolean }) {
+function AcademicProgress({ levels, confirmedStudents, isLoading, isError }: { levels: Awaited<ReturnType<typeof getDashboardPilotage>>["academic"]; confirmedStudents?: number; isLoading: boolean; isError: boolean }) {
   if (isError) return <QueryErrorState message="Impossible de charger la performance académique." />
   return (
     <Card className="rounded-lg shadow-sm">
@@ -246,6 +247,7 @@ function AcademicProgress({ levels, isLoading, isError }: { levels: Awaited<Retu
         <Button asChild type="button" variant="ghost" size="sm" className="min-h-10 text-blue-700"><Link to="/academic/completion">Détails</Link></Button>
       </CardHeader>
       <CardContent className="overflow-x-auto">
+        {!isLoading && confirmedStudents === 0 ? <EmptyState title="Aucun élève confirmé" message="Les dossiers en attente ne font pas partie de l’effectif scolaire de cette année." classNameRendu="py-5" /> : null}
         {isLoading ? <Skeleton className="h-56 w-full" /> : levels.length > 0 ? (
           <table className="w-full min-w-[42rem] text-sm">
             <thead className="border-b text-left text-xs text-muted-foreground"><tr><th className="pb-3 font-medium">Niveau</th><th className="pb-3 font-medium">Moyenne générale</th><th className="pb-3 text-right font-medium">Élèves notés</th><th className="pb-3 text-right font-medium">Notes saisies</th><th className="pb-3 text-right font-medium">Notes ≥ 10/20</th></tr></thead>
@@ -255,7 +257,7 @@ function AcademicProgress({ levels, isLoading, isError }: { levels: Awaited<Retu
               return <tr key={level.levelId} className="border-b last:border-0"><td className="py-3 font-medium">{level.levelName}<span className="ml-2 text-xs font-normal text-muted-foreground">{level.classCount} classe{level.classCount > 1 ? "s" : ""} · {level.completedSubjects}/{level.expectedSubjects} matières clôturées</span></td><td className={`py-3 font-semibold ${hasAverage ? averageTone : "text-muted-foreground"}`}>{hasAverage ? `${level.averageScore?.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}/20` : "En attente"}</td><td className="py-3 text-right font-medium">{level.studentsWithAverage}</td><td className="py-3 text-right font-medium">{level.gradeCount}</td><td className="py-3 text-right font-medium text-green-700">{level.gradesAtLeastTen}</td></tr>
             })}</tbody>
           </table>
-        ) : <EmptyState icon={BookOpenCheck} title="Aucun niveau à suivre" message="La performance apparaîtra dès que les moyennes de période seront calculées." />}
+        ) : confirmedStudents !== 0 ? <EmptyState icon={BookOpenCheck} title="Aucun niveau à suivre" message="La performance apparaîtra dès que les moyennes de période seront calculées." /> : null}
       </CardContent>
     </Card>
   )

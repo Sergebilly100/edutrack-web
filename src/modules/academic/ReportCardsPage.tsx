@@ -239,13 +239,16 @@ export default function ReportCardsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {!preparationLoading && readinessForClass?.headcount === 0 ? (
+                <EmptyState title="Aucun élève confirmé" description="La préparation des bulletins commencera après la confirmation d’une inscription dans cette classe et cette année." classNameRendu="py-4" />
+              ) : null}
               {preparationLoading ? (
                 <div className="space-y-3">
                   <Skeleton className="h-5 w-48" />
                   <Skeleton className="h-24 w-full" />
                 </div>
               ) : completionSubjects.length === 0 ? (
-                <EmptyState
+                readinessForClass?.headcount === 0 ? null : <EmptyState
                   title="Aucune matière pour ce niveau"
                   description="Ajoutez les matières enseignées avant de préparer les bulletins."
                 />

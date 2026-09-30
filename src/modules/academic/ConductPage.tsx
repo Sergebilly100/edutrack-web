@@ -231,7 +231,7 @@ function TeacherConductSection() {
               />
             ))}
             {(scopeQuery.data?.students.length ?? 0) === 0 ? (
-              <EmptyState title="Aucun élève actif" description="La classe ne contient aucun élève disponible pour la saisie." />
+              <EmptyState title="Aucun élève confirmé" description="Aucune inscription confirmée dans cette classe pour l’année scolaire de la saisie." />
             ) : null}
           </div>
         ) : null}

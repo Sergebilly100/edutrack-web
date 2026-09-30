@@ -12,7 +12,7 @@ import { useToast } from "@/components/ui/use-toast"
 import type { StudentItem } from "@/modules/students/students.api"
 import { formatFcfa } from "@/shared/utils/formatting"
 import { generateId } from "@/shared/utils/generateId"
-import { recordPayment, type PaymentMethod } from "../finance.api"
+import { getFinancialStatus, recordPayment, type PaymentMethod } from "../finance.api"
 import { StudentSearch } from "./StudentSearch"
 
 type EntryRow = {
@@ -22,6 +22,8 @@ type EntryRow = {
   reference: string
   status: "draft" | "saving" | "saved" | "error"
   error?: string
+  debtRemainingDue?: number
+  debtLoading?: boolean
 }
 
 const newRow = (): EntryRow => ({ id: generateId(), student: null, amount: "", reference: "", status: "draft" })
@@ -55,6 +57,27 @@ export function QuickPaymentEntry({ schoolYearId, schoolYearLabel }: QuickPaymen
     setRows((current) => current.map((row) => row.id === id ? { ...row, ...patch } : row))
   }
 
+  const selectStudent = async (rowId: string, student: StudentItem | null) => {
+    updateRow(rowId, { student, amount: "", status: "draft", error: undefined, debtRemainingDue: undefined, debtLoading: Boolean(student?.blockedReEnrollment) })
+    if (!student?.blockedReEnrollment) return
+    if (!student.paymentSchoolYearId) {
+      updateRow(rowId, { debtLoading: false, error: "L’année de la dette est indisponible." })
+      return
+    }
+    try {
+      const debt = await getFinancialStatus(student.id, student.paymentSchoolYearId)
+      setRows((current) => current.map((row) => row.id === rowId && row.student?.id === student.id
+        ? { ...row, debtLoading: false, debtRemainingDue: debt.remainingDue,
+          amount: row.amount || (debt.remainingDue > 0 ? String(debt.remainingDue) : ""),
+          error: debt.remainingDue > 0 ? undefined : "Cette dette est déjà soldée. Actualisez la recherche." }
+        : row))
+    } catch (error) {
+      setRows((current) => current.map((row) => row.id === rowId && row.student?.id === student.id
+        ? { ...row, debtLoading: false, error: error instanceof Error ? error.message : "Impossible de lire le solde de cette dette." }
+        : row))
+    }
+  }
+
   const focusRow = (id: string) => requestAnimationFrame(() => inputRefs.current.get(id)?.focus())
 
   const addRowAfter = (id?: string) => {
@@ -74,22 +97,36 @@ export function QuickPaymentEntry({ schoolYearId, schoolYearLabel }: QuickPaymen
       updateRow(row.id, { status: "error", error: "Sélectionnez un élève et saisissez un montant positif." })
       return
     }
+    if (row.student.blockedReEnrollment) {
+      if (row.debtLoading || row.debtRemainingDue === undefined || !row.student.paymentSchoolYearId) {
+        updateRow(row.id, { status: "error", error: "Attendez la vérification du solde de l’année précédente." })
+        return
+      }
+      if (row.debtRemainingDue <= 0 || amount > row.debtRemainingDue) {
+        updateRow(row.id, { status: "error", error: `Le montant doit être au plus égal au solde de ${formatFcfa(row.debtRemainingDue)}.` })
+        return
+      }
+    }
 
     pendingRowIds.current.add(row.id)
     updateRow(row.id, { status: "saving", error: undefined })
     try {
-      await recordPayment({
+      const result = await recordPayment({
         studentId: row.student.id,
-        schoolYearId,
+        schoolYearId: row.student.paymentSchoolYearId ?? schoolYearId,
         amount,
         method,
         ...(row.reference.trim() ? { schoolReceiptReference: row.reference.trim() } : {}),
       })
-      updateRow(row.id, { status: "saved" })
-      await queryClient.invalidateQueries({ queryKey: ["finance", "payments"] })
+      updateRow(row.id, { status: "saved", debtRemainingDue: row.student.blockedReEnrollment ? result.financialStatus.remainingDue : undefined })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["finance", "payments"] }),
+        queryClient.invalidateQueries({ queryKey: ["finance", "student-search"] }),
+        queryClient.invalidateQueries({ queryKey: ["enrollments"] }),
+      ])
       toast({
-        title: "Paiement enregistré",
-        description: `${row.student.lastName} ${row.student.firstName} · ${formatFcfa(amount)}`,
+        title: row.student.blockedReEnrollment && result.financialStatus.remainingDue === 0 ? "Dette soldée, réinscription débloquée" : "Paiement enregistré",
+        description: `${row.student.lastName} ${row.student.firstName} · ${formatFcfa(amount)}${row.student.blockedReEnrollment ? ` · dette ${row.student.paymentSchoolYearLabel ?? "antérieure"}` : ""}`,
       })
       const index = rows.findIndex((item) => item.id === row.id)
       const next = rows[index + 1]
@@ -126,7 +163,7 @@ export function QuickPaymentEntry({ schoolYearId, schoolYearLabel }: QuickPaymen
             <div className="max-w-2xl space-y-1">
               <h2 className="text-lg font-semibold">Saisie rapide</h2>
               <p className="text-xs text-muted-foreground">
-                Recherchez l’élève, saisissez le montant, puis appuyez sur Entrée. Chaque ligne est enregistrée séparément et reste traçable.
+                Recherchez un inscrit confirmé ou une réinscription bloquée par un impayé. Pour un dossier bloqué, le règlement est affecté à l’année de la dette.
               </p>
             </div>
             <div className="grid gap-2 sm:grid-cols-[minmax(15rem,1fr)_auto] lg:min-w-[29rem]">
@@ -152,7 +189,7 @@ export function QuickPaymentEntry({ schoolYearId, schoolYearLabel }: QuickPaymen
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border bg-muted/30 px-4 py-3 text-sm">
         <span><strong>{savedRows.length}</strong> paiement{savedRows.length > 1 ? "s" : ""} enregistré{savedRows.length > 1 ? "s" : ""}</span>
         <span className="font-semibold tabular-nums text-primary">{formatFcfa(savedTotal)}</span>
-        <span className="text-muted-foreground">Année {schoolYearLabel}</span>
+        <span className="text-muted-foreground">Dossiers {schoolYearLabel} · dettes antérieures affectées à leur année</span>
         <span className="ml-auto hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex"><CornerDownLeft className="h-3.5 w-3.5" /> Entrée valide la ligne</span>
       </div>
 
@@ -173,6 +210,8 @@ export function QuickPaymentEntry({ schoolYearId, schoolYearLabel }: QuickPaymen
                 <TableCell className="text-center">{rowStatus(row)}</TableCell>
                 <TableCell className="overflow-visible">
                   <StudentSearch
+                    schoolYearId={schoolYearId}
+                    includeBlockedReEnrollments
                     compact
                     value={row.student}
                     disabled={row.status === "saving" || row.status === "saved"}
@@ -180,8 +219,9 @@ export function QuickPaymentEntry({ schoolYearId, schoolYearLabel }: QuickPaymen
                       if (element) inputRefs.current.set(row.id, element)
                       else inputRefs.current.delete(row.id)
                     }}
-                    onChange={(student) => updateRow(row.id, { student, status: "draft", error: undefined })}
+                    onChange={(student) => { void selectStudent(row.id, student) }}
                   />
+                  {row.student?.blockedReEnrollment ? <p className="mt-1 text-xs text-amber-700">Dette {row.student.paymentSchoolYearLabel ?? "antérieure"} · {row.debtLoading ? "Vérification du solde…" : row.debtRemainingDue === undefined ? "Solde indisponible" : `Reste à régler : ${formatFcfa(row.debtRemainingDue)}`}</p> : null}
                   {row.error ? <p className="mt-1 text-xs text-red-600">{row.error}</p> : null}
                 </TableCell>
                 <TableCell>
@@ -224,7 +264,8 @@ export function QuickPaymentEntry({ schoolYearId, schoolYearLabel }: QuickPaymen
         {rows.map((row, index) => (
           <div key={row.id} className="space-y-3 rounded-lg border bg-card p-4 shadow-sm">
             <div className="flex items-center justify-between"><span className="text-sm font-medium">Paiement {index + 1}</span>{rowStatus(row)}</div>
-            <StudentSearch value={row.student} disabled={row.status === "saving" || row.status === "saved"} onChange={(student) => updateRow(row.id, { student, status: "draft", error: undefined })} />
+            <StudentSearch schoolYearId={schoolYearId} includeBlockedReEnrollments value={row.student} disabled={row.status === "saving" || row.status === "saved"} onChange={(student) => { void selectStudent(row.id, student) }} />
+            {row.student?.blockedReEnrollment ? <p className="text-xs text-amber-700">Dette {row.student.paymentSchoolYearLabel ?? "antérieure"} · {row.debtLoading ? "Vérification du solde…" : row.debtRemainingDue === undefined ? "Solde indisponible" : `Reste à régler : ${formatFcfa(row.debtRemainingDue)}`}</p> : null}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label htmlFor={`amount-${row.id}`}>Montant</Label><Input id={`amount-${row.id}`} inputMode="numeric" value={row.amount} disabled={row.status === "saving" || row.status === "saved"} onChange={(event) => updateRow(row.id, { amount: event.target.value.replace(/\D/g, ""), status: "draft", error: undefined })} /></div>
               <div className="space-y-1.5"><Label htmlFor={`reference-${row.id}`}>Référence</Label><Input id={`reference-${row.id}`} value={row.reference} disabled={row.status === "saving" || row.status === "saved"} onChange={(event) => updateRow(row.id, { reference: event.target.value, status: "draft" })} /></div>

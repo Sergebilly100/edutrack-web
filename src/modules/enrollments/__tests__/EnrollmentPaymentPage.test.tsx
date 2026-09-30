@@ -94,7 +94,13 @@ describe("EnrollmentPaymentPage", () => {
       method: "cash",
       schoolReceiptReference: "RC-2026-0042",
     }))
-    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["students"] }))
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["academic", "classes"] })
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["students"], refetchType: "none" }))
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["academic"], refetchType: "none" })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["dashboard"], refetchType: "none" })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["report-cards-readiness"], refetchType: "none" })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["class-completion"], refetchType: "none" })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["conduct-overview"], refetchType: "none" })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["class-decisions"], refetchType: "none" })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["attendance"], refetchType: "none" })
   })
 })

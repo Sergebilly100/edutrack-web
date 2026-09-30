@@ -2,13 +2,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { recordMock, toastMock } = vi.hoisted(() => ({ recordMock: vi.fn(), toastMock: vi.fn() }))
-vi.mock("../finance.api", async (importOriginal) => ({ ...(await importOriginal<typeof import("../finance.api")>()), recordPayment: recordMock }))
+const { recordMock, statusMock, toastMock } = vi.hoisted(() => ({ recordMock: vi.fn(), statusMock: vi.fn(), toastMock: vi.fn() }))
+vi.mock("../finance.api", async (importOriginal) => ({ ...(await importOriginal<typeof import("../finance.api")>()), recordPayment: recordMock, getFinancialStatus: statusMock }))
 vi.mock("@/components/ui/use-toast", () => ({ useToast: () => ({ toast: toastMock }) }))
 vi.mock("../components/StudentSearch", () => ({
-  StudentSearch: ({ onChange }: { onChange: (student: unknown) => void }) => (
+  StudentSearch: ({ onChange }: { onChange: (student: unknown) => void }) => <>
     <button type="button" onClick={() => onChange({ id: "student-1", firstName: "Awa", lastName: "Koné", className: "6ème A", matricule: "MAT-1" })}>Choisir Awa Koné</button>
-  ),
+    <button type="button" onClick={() => onChange({ id: "student-blocked", firstName: "Aya", lastName: "Yao", className: "5ème A", matricule: "MAT-2", blockedReEnrollment: true, paymentSchoolYearId: "year-previous", paymentSchoolYearLabel: "2025-2026" })}>Choisir Aya Yao</button>
+  </>,
 }))
 
 import { QuickPaymentEntry } from "../components/QuickPaymentEntry"
@@ -17,6 +18,7 @@ describe("QuickPaymentEntry", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     recordMock.mockResolvedValue({ payment: { id: "payment-1" }, financialStatus: { remainingDue: 0 } })
+    statusMock.mockResolvedValue({ remainingDue: 50000 })
   })
 
   it("enregistre une ligne à Entrée puis prépare la suivante", async () => {
@@ -36,5 +38,17 @@ describe("QuickPaymentEntry", () => {
       element?.tagName === "SPAN" && element.textContent === "1 paiement enregistré",
     )).toBeInTheDocument())
     expect(screen.getAllByRole("button", { name: "Choisir Awa Koné" }).length).toBeGreaterThan(1)
+  })
+
+  it("affecte le règlement d’une réinscription bloquée à l’année de la dette", async () => {
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><QuickPaymentEntry schoolYearId="year-current" schoolYearLabel="2026-2027" /></QueryClientProvider>)
+    fireEvent.click(screen.getAllByRole("button", { name: "Choisir Aya Yao" })[0]!)
+    await waitFor(() => expect(statusMock).toHaveBeenCalledWith("student-blocked", "year-previous"))
+    await waitFor(() => expect(screen.getByLabelText("Montant ligne 1")).toHaveValue("50000"))
+    fireEvent.click(screen.getByRole("button", { name: "Valider" }))
+    await waitFor(() => expect(recordMock).toHaveBeenCalledWith(expect.objectContaining({
+      studentId: "student-blocked", schoolYearId: "year-previous", amount: 50000,
+    })))
+    await waitFor(() => expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ title: "Dette soldée, réinscription débloquée" })))
   })
 })

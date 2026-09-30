@@ -22,7 +22,7 @@ const STUDENT = {
   createdAt: "2026-01-01T00:00:00Z",
 }
 
-async function setupStudentsPage(page: import("@playwright/test").Page, students: unknown[] = [STUDENT]) {
+async function setupStudentsPage(page: import("@playwright/test").Page, students: typeof STUDENT[] = [STUDENT]) {
   await returningUser(page)
   await page.setViewportSize({ width: 1280, height: 900 })
 
@@ -94,10 +94,12 @@ async function setupStudentsPage(page: import("@playwright/test").Page, students
     }
     // Liste élèves - chemin exact /students (avec ou sans query params)
     if (/\/students$/.test(path) && method === "GET") {
+      const requestedPage = Number(url.searchParams.get("page") ?? "1")
+      const limit = Number(url.searchParams.get("limit") ?? "20")
       return route.fulfill({ status: 200, contentType: "application/json",
         body: JSON.stringify({
-          data: students,
-          pagination: { page: 1, limit: 100, total: students.length, totalPages: students.length > 0 ? 1 : 0 },
+          data: students.slice((requestedPage - 1) * limit, requestedPage * limit),
+          pagination: { page: requestedPage, limit, total: students.length, totalPages: Math.ceil(students.length / limit) },
         }) })
     }
     // Détail élève
@@ -220,6 +222,23 @@ test.describe("Gestion élèves - directeur", () => {
     // .last() car le premier match peut être dans un élément caché (mobile card)
     await expect(page.getByText("Koné Amara").last()).toBeVisible({ timeout: 10000 })
     await expect(page.getByText("3ème A").last()).toBeVisible()
+  })
+
+  test("le total confirmé et la page suivante viennent de l'API", async ({ page }) => {
+    const students = Array.from({ length: 21 }, (_, index) => ({
+      ...STUDENT,
+      id: `student-e2e-${index + 1}`,
+      firstName: `Élève ${index + 1}`,
+    }))
+    await setupStudentsPage(page, students)
+    await page.setViewportSize({ width: 320, height: 800 })
+    await expect(page.getByText("21 confirmés")).toBeVisible()
+    await expect(page.getByText("Affichant 1–20 sur 21 resultats")).toBeVisible()
+    await page.getByRole("button", { name: "Page suivante" }).click()
+    await expect(page).toHaveURL(/list_page=2/)
+    await expect(page.getByText("Affichant 21–21 sur 21 resultats")).toBeVisible()
+    await expect(page.getByText("Koné Élève 21").first()).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   })
 
   test("l'état vide s'affiche quand aucun élève n'est trouvé", async ({ page }) => {

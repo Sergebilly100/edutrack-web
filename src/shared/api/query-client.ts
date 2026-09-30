@@ -99,10 +99,13 @@ export async function restoreQueryCache(): Promise<void> {
   }
 }
 
-async function persistQueryCache(): Promise<void> {
-  if (!isBrowser) return
+let pendingCacheWrite: Promise<void> = Promise.resolve()
 
-  const queries = queryClient
+/** Write the current cache immediately after a mutation changes school population. */
+export function persistQueryCacheNow(client: QueryClient = queryClient): Promise<void> {
+  if (!isBrowser) return Promise.resolve()
+
+  const queries = client
     .getQueryCache()
     .findAll()
     .filter((query) => query.state.status === "success")
@@ -114,11 +117,16 @@ async function persistQueryCache(): Promise<void> {
       updatedAt: query.state.dataUpdatedAt,
     }))
 
-  try {
-    await set(QUERY_CACHE_STORAGE_KEY, { version: 1, savedAt: Date.now(), queries })
-  } catch {
-    // Quota dépassé : on garde le cache mémoire et on évite de casser l'app.
-  }
+  // Serialize writes so a pending debounce cannot restore a pre-confirmation
+  // snapshot after the explicit post-confirmation write.
+  pendingCacheWrite = pendingCacheWrite.then(async () => {
+    try {
+      await set(QUERY_CACHE_STORAGE_KEY, { version: 1, savedAt: Date.now(), queries })
+    } catch {
+      // Quota dépassé : on garde le cache mémoire et on évite de casser l'app.
+    }
+  })
+  return pendingCacheWrite
 }
 
 function installQueryCachePersistence(): void {
@@ -131,7 +139,7 @@ function installQueryCachePersistence(): void {
     }
     saveTimer = window.setTimeout(() => {
       saveTimer = null
-      void persistQueryCache()
+      void persistQueryCacheNow()
     }, QUERY_CACHE_SAVE_DEBOUNCE_MS)
   })
 }

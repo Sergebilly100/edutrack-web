@@ -16,11 +16,16 @@ export type StudentItem = {
   note?: string | null
   isActive: boolean
   createdAt: string
+  paymentSchoolYearId?: string
+  paymentSchoolYearLabel?: string
+  blockedReEnrollment?: boolean
 }
 
 export type StudentsListQuery = {
   page?: number
   limit?: number
+  schoolYearId?: string
+  includeBlockedReEnrollments?: boolean
   classId?: string
   levelId?: string
   isActive?: boolean
@@ -241,6 +246,8 @@ const fetchStudentList = (path: string, query: StudentsListQuery) =>
         limit: query.limit ?? 100,
         class_id: query.classId,
         level_id: query.levelId,
+        school_year_id: query.schoolYearId,
+        include_blocked_reenrollments: query.includeBlockedReEnrollments ? "true" : undefined,
         is_active:
           typeof query.isActive === "boolean" ? String(query.isActive) : undefined,
         search: query.search,
@@ -251,6 +258,8 @@ const fetchStudentList = (path: string, query: StudentsListQuery) =>
 export const listStudents = (query: StudentsListQuery = {}) => fetchStudentList("/students", query)
 
 export const listFinancialProfiles = (query: StudentsListQuery = {}) => fetchStudentList("/students/financial-profiles", query)
+
+export const listCashierCandidates = (query: StudentsListQuery) => fetchStudentList("/students/cashier-candidates", query)
 
 export const createStudent = (payload: CreateStudentPayload) =>
   api

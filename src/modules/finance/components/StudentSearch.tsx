@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
-import { listFinancialProfiles, type StudentItem } from "@/modules/students/students.api"
+import { listCashierCandidates, listFinancialProfiles, type StudentItem } from "@/modules/students/students.api"
 
 type StudentSearchProps = {
+  schoolYearId: string
+  includeBlockedReEnrollments?: boolean
   value: StudentItem | null
   onChange: (student: StudentItem | null) => void
   inputRef?: React.Ref<HTMLInputElement>
@@ -21,6 +23,8 @@ const studentLabel = (student: StudentItem): string =>
   `${student.lastName} ${student.firstName}${student.matricule ? ` · ${student.matricule}` : ""}`
 
 export function StudentSearch({
+  schoolYearId,
+  includeBlockedReEnrollments = false,
   value,
   onChange,
   inputRef,
@@ -33,11 +37,13 @@ export function StudentSearch({
   const [query, setQuery] = useState(value ? studentLabel(value) : "")
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
-  const normalizedQuery = query.trim()
+  const normalizedQuery = query.trim().replace(/\s+/g, " ")
   const searchQuery = useQuery({
-    queryKey: ["finance", "student-search", normalizedQuery],
-    queryFn: () => listFinancialProfiles({ search: normalizedQuery, limit: 8, isActive: true }),
-    enabled: open && normalizedQuery.length >= 2 && !value,
+    queryKey: ["finance", "student-search", schoolYearId, includeBlockedReEnrollments, normalizedQuery],
+    queryFn: () => includeBlockedReEnrollments
+      ? listCashierCandidates({ schoolYearId, search: normalizedQuery, limit: 8, isActive: true })
+      : listFinancialProfiles({ schoolYearId, search: normalizedQuery, limit: 8, isActive: true }),
+    enabled: Boolean(schoolYearId) && open && normalizedQuery.length >= 2 && !value,
     staleTime: 30_000,
   })
   const students = searchQuery.data?.data ?? []
@@ -121,7 +127,7 @@ export function StudentSearch({
         >
           {searchQuery.isFetching ? <p className="px-3 py-2 text-sm text-muted-foreground">Recherche…</p> : null}
           {!searchQuery.isFetching && normalizedQuery.length >= 2 && students.length === 0 ? (
-            <p className="px-3 py-2 text-sm text-muted-foreground">Aucun élève trouvé.</p>
+            <p className="px-3 py-2 text-sm text-muted-foreground">{includeBlockedReEnrollments ? "Aucun inscrit confirmé ni dossier bloqué pour impayé trouvé." : "Aucun inscrit confirmé trouvé pour cette année."}</p>
           ) : null}
           {students.map((student, index) => (
             <Button
@@ -142,6 +148,7 @@ export function StudentSearch({
               <span className="min-w-0">
                 <span className="block truncate font-medium">{student.lastName} {student.firstName}</span>
                 <span className="block truncate text-xs text-muted-foreground">{student.className}{student.matricule ? ` · ${student.matricule}` : ""}</span>
+                {student.blockedReEnrollment ? <span className="block text-xs font-medium text-amber-700">Réinscription bloquée · dette {student.paymentSchoolYearLabel}</span> : null}
               </span>
             </Button>
           ))}

@@ -43,6 +43,8 @@ type StudentTableRow = StudentItem & {
   monthlyAbsences: number
 }
 
+const STUDENTS_PAGE_SIZE = 20
+
 const toMonthRange = () => {
   const now = new Date()
   const start = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -87,6 +89,8 @@ export default function StudentsPage() {
   const statusFilter: "all" | "active" | "inactive" =
     rawStatus === "active" || rawStatus === "inactive" ? rawStatus : "all"
   const searchTerm = searchParams.get("list_search") ?? ""
+  const requestedPage = Number(searchParams.get("list_page") ?? "1")
+  const listPage = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
   const returnTo = `${window.location.pathname}${window.location.search}`
   const canCreateStudent = hasPermission("students.create")
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -125,6 +129,7 @@ export default function StudentsPage() {
     } else {
       next.set(key, value)
     }
+    if (key !== "list_page") next.delete("list_page")
     if (!next.has("tab")) {
       next.set("tab", "liste")
     }
@@ -133,7 +138,7 @@ export default function StudentsPage() {
 
   const resetListFilters = () => {
     const next = new URLSearchParams(searchParams)
-    for (const key of ["list_level", "list_class", "list_status", "list_search"]) next.delete(key)
+    for (const key of ["list_level", "list_class", "list_status", "list_search", "list_page"]) next.delete(key)
     setSearchParams(next, { replace: true })
   }
 
@@ -157,16 +162,17 @@ export default function StudentsPage() {
     if (!selected || selected.level.id !== levelFilter) {
       const next = new URLSearchParams(searchParams)
       next.delete("list_class")
+      next.delete("list_page")
       setSearchParams(next, { replace: true })
     }
   }, [classesQuery.data, classFilter, levelFilter, searchParams, setSearchParams])
 
   const studentsQuery = useQuery({
-    queryKey: ["students", "list", levelFilter, classFilter, statusFilter, searchTerm],
+    queryKey: ["students", "list", levelFilter, classFilter, statusFilter, searchTerm, listPage],
     queryFn: () =>
       listStudents({
-        page: 1,
-        limit: 100,
+        page: listPage,
+        limit: STUDENTS_PAGE_SIZE,
         classId: classFilter === "all" ? undefined : classFilter,
         levelId: levelFilter === "all" ? undefined : levelFilter,
         isActive: statusFilter === "all" ? undefined : statusFilter === "active",
@@ -174,6 +180,15 @@ export default function StudentsPage() {
       }),
     enabled: canViewStudents,
   })
+
+  useEffect(() => {
+    const totalPages = studentsQuery.data?.pagination.totalPages
+    if (totalPages === undefined || listPage <= Math.max(1, totalPages)) return
+    const next = new URLSearchParams(searchParams)
+    if (totalPages <= 1) next.delete("list_page")
+    else next.set("list_page", String(totalPages))
+    setSearchParams(next, { replace: true })
+  }, [studentsQuery.data?.pagination.totalPages, listPage, searchParams, setSearchParams])
 
   const createStudentMutation = useMutation({
     mutationFn: createStudent,
@@ -286,7 +301,7 @@ export default function StudentsPage() {
       {
         accessorKey: "className",
         header: "Classe",
-        cell: ({ row }) => <span className="block max-w-[14rem] truncate text-sm">{row.original.className ?? "Non inscrit"}</span>,
+        cell: ({ row }) => <span className="block max-w-[14rem] truncate text-sm">{row.original.className ?? "Classe indisponible"}</span>,
       },
       {
         id: "parent",
@@ -405,10 +420,13 @@ export default function StudentsPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <Badge variant="secondary" className="rounded-md px-2.5 py-1">
-                  {studentsQuery.isLoading ? "..." : `${activeStudentsCount} actifs`}
+                  {studentsQuery.isLoading ? "..." : `${studentsQuery.data?.pagination.total ?? 0} confirmés`}
+                </Badge>
+                <Badge variant="secondary" className="rounded-md px-2.5 py-1">
+                  {studentsQuery.isLoading ? "..." : `${activeStudentsCount} actifs affichés`}
                 </Badge>
                 <Badge variant={inactiveStudentsCount > 0 ? "outline" : "secondary"} className="rounded-md px-2.5 py-1">
-                  {studentsQuery.isLoading ? "..." : `${inactiveStudentsCount} inactifs`}
+                  {studentsQuery.isLoading ? "..." : `${inactiveStudentsCount} inactifs affichés`}
                 </Badge>
                 {canViewAttendance ? (
                   <Badge variant={absenceWatchCount > 0 ? "destructive" : "secondary"} className="rounded-md px-2.5 py-1">
@@ -419,7 +437,7 @@ export default function StudentsPage() {
             </div>
             <div className="grid gap-px bg-border sm:grid-cols-3">
               <div className="bg-background px-4 py-3">
-                <p className="text-[11px] font-medium uppercase text-muted-foreground">Classes filtrées</p>
+                <p className="text-[11px] font-medium uppercase text-muted-foreground">Classes affichées</p>
                 <p className="mt-1 text-lg font-semibold tabular-nums">{studentsQuery.isLoading ? "-" : visibleClassesCount}</p>
               </div>
               <div className="bg-background px-4 py-3">
@@ -448,6 +466,7 @@ export default function StudentsPage() {
                 else next.set("list_level", value)
                 const selected = classesQuery.data?.classes.find((item) => item.id === classFilter)
                 if (classFilter !== "all" && value !== "all" && (!selected || selected.level.id !== value)) next.delete("list_class")
+                next.delete("list_page")
                 setSearchParams(next, { replace: true })
               }}>
                 <SelectTrigger className="min-h-12" aria-label="Niveau de la liste"><SelectValue placeholder="Niveau" /></SelectTrigger>
@@ -518,7 +537,13 @@ export default function StudentsPage() {
               data={tableData}
               isLoading={studentsQuery.isLoading}
               searchPlaceholder={`Rechercher un ${studentLabels.singularLower}`}
-              pageSize={20}
+              pageSize={STUDENTS_PAGE_SIZE}
+              serverPagination={{
+                pageIndex: listPage - 1,
+                pageCount: studentsQuery.data?.pagination.totalPages ?? 0,
+                total: studentsQuery.data?.pagination.total ?? 0,
+                onPageChange: (pageIndex) => setListParam("list_page", String(pageIndex + 1), "1"),
+              }}
               onRowClick={(student) =>
                 navigate(`/students/${student.id}?returnTo=${encodeURIComponent(returnTo)}`)
               }
@@ -526,7 +551,9 @@ export default function StudentsPage() {
                 <EmptyState
                   icon={<AppIcon icon={StudentsIcon} size="md" className="text-muted-foreground" />}
                   title={`Aucun ${studentLabels.singularLower}`}
-                  message={`Aucun ${studentLabels.singularLower} trouvé avec les filtres actuels.`}
+                  message={levelFilter === "all" && classFilter === "all" && statusFilter === "all" && !searchTerm
+                    ? "Aucune inscription confirmée pour l’année active. Les dossiers en attente restent dans Inscriptions."
+                    : `Aucun ${studentLabels.singularLower} trouvé avec les filtres actuels.`}
                   action={
                     hasPermission("enrollments.create")
                       ? { label: `Inscrire un ${studentLabels.singularLower}`, onClick: () => navigate("/enrollments/new"), icon: AddIcon }
@@ -549,7 +576,7 @@ export default function StudentsPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{student.name}</p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {student.matricule ? `${student.className ?? "Non inscrit"} · ${student.matricule}` : student.className ?? "Non inscrit"}
+                      {student.matricule ? `${student.className ?? "Classe indisponible"} · ${student.matricule}` : student.className ?? "Classe indisponible"}
                     </p>
                   </div>
                   <div className="min-w-0 flex flex-col items-end gap-1">

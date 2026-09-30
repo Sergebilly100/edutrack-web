@@ -30,7 +30,12 @@ async function startEnrollment(page: Page, suffix: string) {
   await expect(page.getByRole("combobox", { name: "Niveau", exact: true })).toContainText("Niveau QA")
 }
 
-for (const device of [{ name: "Android", width: 393, height: 851, mobile: true }, { name: "bureau", width: 1280, height: 900, mobile: false }]) {
+for (const device of [
+  { name: "Android320", width: 320, height: 760, mobile: true },
+  { name: "Android360", width: 360, height: 800, mobile: true },
+  { name: "Android393", width: 393, height: 851, mobile: true },
+  { name: "bureau", width: 1280, height: 900, mobile: false },
+]) {
   test.describe(device.name, () => {
     test.use({ viewport: { width: device.width, height: device.height }, isMobile: device.mobile, hasTouch: device.mobile })
     test("C9 : création explicite, retour au même dossier et confirmation", async ({ page }) => {
@@ -71,10 +76,15 @@ for (const device of [{ name: "Android", width: 393, height: 851, mobile: true }
       expect(response.status()).toBe(200)
       expect((await response.json()).enrollment).toMatchObject({ status: "confirmed", classId: schoolClass.id })
       await expect(page).toHaveURL(/\/enrollments$/)
-      await page.reload()
       await expect(page.getByRole("row", { name: new RegExp(suffix) })).toContainText("Confirmée")
       await navigateMenu(page, "Académique", "Structure scolaire")
       await page.getByRole("tab", { name: "Classes", exact: true }).click()
+      if (device.mobile) {
+        await expect(page.getByRole("listitem").filter({ hasText: className })).toContainText("1 élève confirmé")
+      } else {
+        await expect(page.getByRole("row", { name: new RegExp(className) }).getByRole("cell", { name: "1", exact: true })).toBeVisible()
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
       await expect(page.getByRole("button", { name: "Retour à l’inscription", exact: true })).toHaveCount(0)
     })
   })

@@ -156,7 +156,7 @@ function ClassesContent() {
     { accessorKey: "name", header: "Classe", cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
     { id: "level", header: "Niveau", cell: ({ row }) => row.original.level.name },
     { id: "teacher", header: "Professeur principal", cell: ({ row }) => row.original.homeroomTeacher?.name ?? <span className="text-muted-foreground">Non attribué</span> },
-    { accessorKey: "studentCount", header: "Élèves" },
+    { accessorKey: "studentCount", header: "Élèves confirmés" },
     {
       id: "actions",
       header: "Actions",
@@ -221,7 +221,7 @@ function ClassesContent() {
           emptyState={<EmptyState icon={ClassIcon} title="Aucune classe" message={activeSchoolYear ? "Aucune classe n’est enregistrée pour cette année scolaire." : "Activez une année scolaire avant d’ajouter des classes."} action={canCreate && activeSchoolYear ? { label: "Ajouter une classe", onClick: openCreate, icon: AddIcon } : undefined} />}
           mobileCard={(schoolClass) => (
             <div className="space-y-3 rounded-lg border bg-card p-4">
-              <div><p className="font-medium">{schoolClass.name}</p><p className="text-sm text-muted-foreground">{schoolClass.level.name} · {schoolClass.studentCount} élève(s)</p></div>
+              <div><p className="font-medium">{schoolClass.name}</p><p className="text-sm text-muted-foreground">{schoolClass.level.name} · {schoolClass.studentCount} {schoolClass.studentCount > 1 ? "élèves confirmés" : "élève confirmé"}</p></div>
               <p className="text-sm">Professeur principal : <span className="text-muted-foreground">{schoolClass.homeroomTeacher?.name ?? "Non attribué"}</span></p>
               {isActiveClass(schoolClass) && (canEdit || canArchive) ? <div className="grid grid-cols-2 gap-2">{canEdit ? <Button type="button" variant="outline" size="sm" onClick={() => openEdit(schoolClass)}><EditIcon className="mr-2 h-4 w-4" />Modifier</Button> : null}{canArchive ? <Button type="button" variant="outline" size="sm" className="text-destructive" onClick={() => setClassPendingArchive(schoolClass)}><DeleteIcon className="mr-2 h-4 w-4" />Archiver</Button> : null}</div> : <Badge variant="outline">Lecture seule</Badge>}
             </div>

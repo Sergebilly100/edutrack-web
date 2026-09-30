@@ -18,6 +18,7 @@ import { usePermissions } from "@/shared/hooks/usePermissions"
 import { getMissingTuition, tuitionSettingsUrl } from "@/modules/finance/tuition-recovery"
 import { confirmEnrollmentPayment, getEnrollmentPaymentSummary } from "./enrollments.api"
 import { enrollmentStatusLabel } from "./enrollments.helpers"
+import { refreshConfirmedPopulation } from "./confirmed-population-cache"
 
 type PaymentMethod = "cash" | "mobile_money" | "bank_transfer"
 
@@ -45,9 +46,7 @@ export default function EnrollmentPaymentPage() {
       schoolReceiptReference: schoolReceiptReference.trim(),
     }),
     onSuccess: async (result) => {
-      await queryClient.invalidateQueries({ queryKey: ["enrollments"] })
-      await queryClient.invalidateQueries({ queryKey: ["students"] })
-      await queryClient.invalidateQueries({ queryKey: ["academic", "classes"] })
+      await refreshConfirmedPopulation(queryClient)
       toast({ title: "Paiement confirmé", description: result.documentWarning ?? "Le paiement et l’inscription sont confirmés." })
       navigate("/enrollments")
     },

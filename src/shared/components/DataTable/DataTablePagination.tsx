@@ -13,10 +13,11 @@ import { ChevronLeftIcon, ChevronRightIcon } from "@/shared/components/icons"
 interface DataTablePaginationProps<TData> {
   table: TanStackTable<TData>
   pageSize: number
+  serverTotal?: number
 }
 
-export function DataTablePagination<TData>({ table, pageSize }: DataTablePaginationProps<TData>) {
-  const total = table.getFilteredRowModel().rows.length
+export function DataTablePagination<TData>({ table, pageSize, serverTotal }: DataTablePaginationProps<TData>) {
+  const total = serverTotal ?? table.getFilteredRowModel().rows.length
 
   if (total <= pageSize) {
     return null
@@ -32,7 +33,7 @@ export function DataTablePagination<TData>({ table, pageSize }: DataTablePaginat
         Affichant {start}–{end} sur {total} resultats
       </p>
       <div className="flex items-center gap-2">
-        <Select
+        {serverTotal === undefined ? <Select
           value={String(currentPageSize)}
           onValueChange={(value) => table.setPageSize(Number(value))}
         >
@@ -44,7 +45,7 @@ export function DataTablePagination<TData>({ table, pageSize }: DataTablePaginat
             <SelectItem value="20">20 / page</SelectItem>
             <SelectItem value="50">50 / page</SelectItem>
           </SelectContent>
-        </Select>
+        </Select> : null}
 
         <Button
           variant="outline"

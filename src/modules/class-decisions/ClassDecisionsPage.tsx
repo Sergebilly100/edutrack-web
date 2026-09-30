@@ -589,7 +589,7 @@ export default function ClassDecisionsPage() {
               <EmptyState
                 icon={StudentsIcon}
                 title="Aucun élève à valider"
-                message="Aucun élève actif n’est rattaché aux classes de l’année en cours."
+                message="Aucune inscription confirmée n’est rattachée aux classes de l’année en cours."
               />
             }
             mobileCard={(decision) => (

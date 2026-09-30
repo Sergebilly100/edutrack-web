@@ -143,209 +143,309 @@ export default function ImportPage() {
   return (
     <>
       <TourGuide
-        steps={isHistoricalStudentsImport ? historicalStudentsImportTourSteps : importTourSteps}
+        steps={
+          isHistoricalStudentsImport
+            ? historicalStudentsImportTourSteps
+            : importTourSteps
+        }
         run={tour.run}
         stepIndex={tour.stepIndex}
         onStepChange={tour.setStepIndex}
         onFinish={tour.markDone}
       />
-    <div className="space-y-6 px-4 md:px-1">
-      <OfflineIndicator />
-      <OnboardingReturn />
-      <header className="space-y-1" data-tour="import-header">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Import de données</h1>
-            <p className="text-sm text-muted-foreground">
-              {isHistoricalStudentsImport
-                ? "Profils élèves et contacts parents pour les réinscriptions."
-                : isInitialTeacherImport
-                ? "Importez les profils et contrats des professeurs. Les affectations viendront après les inscriptions."
-                : "Importez l’emploi du temps et consultez les opérations déjà effectuées."}
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="min-h-12 text-muted-foreground"
-            onClick={() => tour.restart()}
-            aria-label="Revoir le guide"
-          >
-            <Info className="mr-1.5 h-4 w-4" />
-            Guide
-          </Button>
-        </div>
-      </header>
-
-      <div>
-        {checkingAccess ? <div role="status" className="flex min-h-64 items-center justify-center gap-3 rounded-lg bg-muted text-sm text-muted-foreground"><Spinner size="sm" />Vérification du contexte d’import…</div>
-          : accessQuery.isError || onboardingContext.error ? <QueryErrorState message="Impossible de vérifier le contexte d’import." onRetry={() => { void accessQuery.refetch(); void onboardingContext.retry() }} />
-          : <>
-        {!initialProfileContext ? <ContextualHelp title={accessQuery.data?.canImportProfiles ? "Imports de profils pendant l’initialisation" : "Imports de profils terminés"}>
-          {accessQuery.data?.canImportProfiles && user?.tenantId ? <div className="space-y-3"><p>Les élèves et les professeurs peuvent être importés en plusieurs lots avant la finalisation de la configuration initiale.</p><Button asChild variant="outline" className="min-h-12"><Link to={`/onboarding?step=4&school=${encodeURIComponent(user.tenantId)}`}>Préparer les profils à l’étape 4</Link></Button></div> : <p>Les imports élèves et professeurs sont réservés à la configuration initiale. Ajoutez ensuite les élèves depuis les inscriptions et les professeurs depuis leur liste. Pour une reprise de données, contactez le super administrateur.</p>}
-        </ContextualHelp> : null}
-        {allowedImportTypes.length > 0 ? (
-          isImportBlocked ? (
-            <ContextualHelp title="Import indisponible hors ligne" tone="warning">
-              L'import de fichiers nécessite une connexion réseau active. Reconnectez-vous puis recommencez.
-            </ContextualHelp>
-          ) : (
-            isHistoricalStudentsImport ? <div className="space-y-4">
-              <HistoricalStudentsImport key={`${user?.schemaName}:${user?.tenantId}`} />
-            </div> : <ImportWizard
-              selectedImportType={selectedImportType}
-              onImportTypeChange={setActiveImportType}
-              allowedImportTypes={allowedImportTypes}
-            />
-          )
-        ) : (
-          <ContextualHelp title="Import indisponible pour votre poste" tone="warning">
-            Aucun import n’est disponible pour votre poste dans ce contexte.
-          </ContextualHelp>
-        )}
-        </>}
-      </div>
-
-      {canViewHistory ? (
-        <Card data-tour="import-history">
-          <CardHeader>
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <CalendarClockIcon className="h-5 w-5" />
-                  Historique des imports
-                </CardTitle>
-                <CardDescription className="mt-1">Opérations d’import confirmées.</CardDescription>
-              </div>
-
-              {/* Filters */}
-              <div className="flex flex-wrap items-center gap-2">
-                <Select value={historyMonth ?? "all"} onValueChange={handleMonthChange}>
-                  <SelectTrigger className="min-h-12 w-[160px] text-xs">
-                    <SelectValue placeholder="Tous les mois" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tous les mois</SelectItem>
-                    {MONTH_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={historyType ?? "all"} onValueChange={handleTypeChange}>
-                  <SelectTrigger className="min-h-12 w-[150px] text-xs">
-                    <SelectValue placeholder="Tous les types" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tous les types</SelectItem>
-                    <SelectItem value="students">{studentLabels.plural}</SelectItem>
-                    <SelectItem value="teachers">Professeurs</SelectItem>
-                    <SelectItem value="schedule">Emploi du temps</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+      <div className="space-y-6 px-4 md:px-1">
+        <OfflineIndicator />
+        <OnboardingReturn />
+        <header className="space-y-1" data-tour="import-header">
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">
+                Import de données
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {isHistoricalStudentsImport
+                  ? "Profils élèves et contacts parents pour les réinscriptions."
+                  : isInitialTeacherImport
+                    ? "Importez les profils et contrats des professeurs. Les affectations viendront après les inscriptions."
+                    : "Importez l’emploi du temps et consultez les opérations déjà effectuées."}
+              </p>
             </div>
-          </CardHeader>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-h-12 text-muted-foreground"
+              onClick={() => tour.restart()}
+              aria-label="Revoir le guide"
+            >
+              <Info className="mr-1.5 h-4 w-4" />
+              Guide
+            </Button>
+          </div>
+        </header>
 
-          <CardContent className="space-y-4">
-            {historyQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">Chargement de l’historique...</p>
-            ) : null}
-
-            {historyQuery.isError ? (
-              <Alert variant="destructive">
-                <AlertDescription>Impossible de charger l’historique des imports.</AlertDescription>
-              </Alert>
-            ) : null}
-
-            {!historyQuery.isLoading && !historyQuery.isError && historyItems.length === 0 ? (
-              <EmptyState title="Aucun import trouvé" description={historyMonth ?? historyType ? "Aucun import ne correspond aux filtres sélectionnés." : "Les imports validés apparaîtront ici."} />
-            ) : null}
-
-            {!historyQuery.isLoading && !historyQuery.isError && historyItems.length > 0 ? (
-              <>
-                <div className="overflow-x-auto rounded-lg border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Action par</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead className="text-right">Importés</TableHead>
-                        <TableHead className="text-right">Mis à jour</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {historyItems.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell>{formatDateTime(item.importedAt)}</TableCell>
-                          <TableCell>
-                            <p className="font-medium">{item.importedByName ?? "Utilisateur inconnu"}</p>
-                            <p className="text-xs text-muted-foreground">{item.importedByRole ?? "Rôle non renseigné"}</p>
-                          </TableCell>
-                          <TableCell>
-                            <p>{labelByType[item.type]}</p>
-                            {item.schedulePeriod && (
-                              <p className="text-xs text-muted-foreground">
-                                (Période de validité  : {item.schedulePeriod})
-                              </p>
-                            )}
-                            {item.historicalSchoolYearLabel ? <p className="text-xs text-muted-foreground">Historique {item.historicalSchoolYearLabel}</p> : null}
-                          </TableCell>
-                          <TableCell className="text-right">{item.importedCount}</TableCell>
-                          <TableCell className="text-right">
-                            {item.updatedCount > 0 ? (
-                              <span className="text-green-600">{item.updatedCount}</span>
-                            ) : (
-                              <Badge variant="outline">Aucune</Badge>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                {/* Pagination */}
-                <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
-                  <span>
-                    {totalItems} résultat{totalItems !== 1 ? "s" : ""}
-                    {totalPages > 1 ? ` · page ${historyPage}/${totalPages}` : ""}
-                  </span>
-                  {totalPages > 1 ? (
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-12 w-12"
-                        disabled={historyPage <= 1 || historyQuery.isFetching}
-                        onClick={() => setHistoryPage((p) => p - 1)}
-                        aria-label="Page précédente"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-12 w-12"
-                        disabled={historyPage >= totalPages || historyQuery.isFetching}
-                        onClick={() => setHistoryPage((p) => p + 1)}
-                        aria-label="Page suivante"
-                      >
-                        <ChevronRight className="h-4 w-4" />
+        <div>
+          {checkingAccess ? (
+            <div
+              role="status"
+              className="flex min-h-64 items-center justify-center gap-3 rounded-lg bg-muted text-sm text-muted-foreground"
+            >
+              <Spinner size="sm" />
+              Vérification du contexte d’import…
+            </div>
+          ) : accessQuery.isError || onboardingContext.error ? (
+            <QueryErrorState
+              message="Impossible de vérifier le contexte d’import."
+              onRetry={() => {
+                void accessQuery.refetch();
+                void onboardingContext.retry();
+              }}
+            />
+          ) : (
+            <>
+              {!initialProfileContext && accessQuery.data?.canImportProfiles ? (
+                <ContextualHelp
+                  title="Imports de profils pendant l’initialisation"
+                >
+                  {user?.tenantId ? (
+                    <div className="space-y-3">
+                      <p>
+                        Les élèves et les professeurs peuvent être importés en
+                        plusieurs lots avant la finalisation de la configuration
+                        initiale.
+                      </p>
+                      <Button asChild variant="outline" className="min-h-12">
+                        <Link
+                          to={`/onboarding?step=4&school=${encodeURIComponent(user.tenantId)}`}
+                        >
+                          Préparer les profils à l’étape 4
+                        </Link>
                       </Button>
                     </div>
-                  ) : null}
+                  ) : (
+                    <p>Préparez les profils depuis l’étape 4 de l’initialisation.</p>
+                  )}
+                </ContextualHelp>
+              ) : null}
+              {allowedImportTypes.length > 0 ? (
+                isImportBlocked ? (
+                  <ContextualHelp
+                    title="Import indisponible hors ligne"
+                    tone="warning"
+                  >
+                    L'import de fichiers nécessite une connexion réseau active.
+                    Reconnectez-vous puis recommencez.
+                  </ContextualHelp>
+                ) : isHistoricalStudentsImport ? (
+                  <div className="space-y-4">
+                    <HistoricalStudentsImport
+                      key={`${user?.schemaName}:${user?.tenantId}`}
+                    />
+                  </div>
+                ) : (
+                  <ImportWizard
+                    selectedImportType={selectedImportType}
+                    onImportTypeChange={setActiveImportType}
+                    allowedImportTypes={allowedImportTypes}
+                  />
+                )
+              ) : (
+                <ContextualHelp
+                  title="Import indisponible pour votre poste"
+                  tone="warning"
+                >
+                  Aucun import n’est disponible pour votre poste dans ce
+                  contexte.
+                </ContextualHelp>
+              )}
+            </>
+          )}
+        </div>
+
+        {canViewHistory ? (
+          <Card data-tour="import-history">
+            <CardHeader>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <CalendarClockIcon className="h-5 w-5" />
+                    Historique des imports
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    Opérations d’import confirmées.
+                  </CardDescription>
                 </div>
-              </>
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
-    </div>
+
+                {/* Filters */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Select
+                    value={historyMonth ?? "all"}
+                    onValueChange={handleMonthChange}
+                  >
+                    <SelectTrigger className="min-h-12 w-[160px] text-xs">
+                      <SelectValue placeholder="Tous les mois" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous les mois</SelectItem>
+                      {MONTH_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select
+                    value={historyType ?? "all"}
+                    onValueChange={handleTypeChange}
+                  >
+                    <SelectTrigger className="min-h-12 w-[150px] text-xs">
+                      <SelectValue placeholder="Tous les types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous les types</SelectItem>
+                      <SelectItem value="students">
+                        {studentLabels.plural}
+                      </SelectItem>
+                      <SelectItem value="teachers">Professeurs</SelectItem>
+                      <SelectItem value="schedule">Emploi du temps</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-4">
+              {historyQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">
+                  Chargement de l’historique...
+                </p>
+              ) : null}
+
+              {historyQuery.isError ? (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    Impossible de charger l’historique des imports.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+
+              {!historyQuery.isLoading &&
+              !historyQuery.isError &&
+              historyItems.length === 0 ? (
+                <EmptyState
+                  title="Aucun import trouvé"
+                  description={
+                    (historyMonth ?? historyType)
+                      ? "Aucun import ne correspond aux filtres sélectionnés."
+                      : "Les imports validés apparaîtront ici."
+                  }
+                />
+              ) : null}
+
+              {!historyQuery.isLoading &&
+              !historyQuery.isError &&
+              historyItems.length > 0 ? (
+                <>
+                  <div className="overflow-x-auto rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Action par</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead className="text-right">Importés</TableHead>
+                          <TableHead className="text-right">
+                            Mis à jour
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {historyItems.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell>
+                              {formatDateTime(item.importedAt)}
+                            </TableCell>
+                            <TableCell>
+                              <p className="font-medium">
+                                {item.importedByName ?? "Utilisateur inconnu"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {item.importedByRole ?? "Rôle non renseigné"}
+                              </p>
+                            </TableCell>
+                            <TableCell>
+                              <p>{labelByType[item.type]}</p>
+                              {item.schedulePeriod && (
+                                <p className="text-xs text-muted-foreground">
+                                  (Période de validité : {item.schedulePeriod})
+                                </p>
+                              )}
+                              {item.historicalSchoolYearLabel ? (
+                                <p className="text-xs text-muted-foreground">
+                                  Historique {item.historicalSchoolYearLabel}
+                                </p>
+                              ) : null}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {item.importedCount}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {item.updatedCount > 0 ? (
+                                <span className="text-green-600">
+                                  {item.updatedCount}
+                                </span>
+                              ) : (
+                                <Badge variant="outline">Aucune</Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Pagination */}
+                  <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+                    <span>
+                      {totalItems} résultat{totalItems !== 1 ? "s" : ""}
+                      {totalPages > 1
+                        ? ` · page ${historyPage}/${totalPages}`
+                        : ""}
+                    </span>
+                    {totalPages > 1 ? (
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-12 w-12"
+                          disabled={historyPage <= 1 || historyQuery.isFetching}
+                          onClick={() => setHistoryPage((p) => p - 1)}
+                          aria-label="Page précédente"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-12 w-12"
+                          disabled={
+                            historyPage >= totalPages || historyQuery.isFetching
+                          }
+                          onClick={() => setHistoryPage((p) => p + 1)}
+                          aria-label="Page suivante"
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                </>
+              ) : null}
+            </CardContent>
+          </Card>
+        ) : null}
+      </div>
     </>
-  )
+  );
 }

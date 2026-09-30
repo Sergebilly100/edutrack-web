@@ -116,7 +116,7 @@ export default function EvaluationReviewPage() {
   const changeClass = (value: string) => { setClassId(value); setSubject(""); setTeacher(""); resetPage() }
   const changeSubject = (value: string) => { setSubject(value); setTeacher(""); resetPage() }
 
-  return <PageLayout title="Suivi des évaluations et notes" subtitle="Consultez les évaluations saisies et les notes des élèves." contentClassName="max-w-6xl">
+  return <PageLayout title="Suivi des évaluations et notes" subtitle="Consultez les évaluations saisies et les notes des élèves." >
     <Alert variant="info" role="note"><Info className="h-4 w-4" /><AlertDescription>Utilisez les filtres pour obtenir des résultats plus précis : choisissez une période, puis affinez par niveau, classe, matière et professeur. Les périodes à venir sont aussi disponibles.</AlertDescription></Alert>
     <section aria-label="Filtres" className="grid gap-4 rounded-lg border bg-card p-4 sm:grid-cols-2 lg:grid-cols-3">
       <ReviewSelect label="Année scolaire" value={schoolYearId} options={yearsQuery.data?.schoolYears ?? []} onChange={changeYear} disabled={yearsQuery.isLoading} />
@@ -141,8 +141,8 @@ export default function EvaluationReviewPage() {
     {schoolYearId && !gradingPeriodId && !calendarQuery.isLoading ? <EmptyState title="Aucune période configurée" description="Configurez une période pour cette année scolaire." /> : null}
     <Tabs value={view} onValueChange={setView} className="space-y-4">
       <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto sm:w-auto">
-        <TabsTrigger value="scheduled" className="min-h-10 whitespace-nowrap">Évaluations programmées</TabsTrigger>
-        <TabsTrigger value="spontaneous" className="min-h-10 whitespace-nowrap">Notes spontanées</TabsTrigger>
+        <TabsTrigger value="scheduled" className="min-h-12 whitespace-nowrap">Évaluations programmées</TabsTrigger>
+        <TabsTrigger value="spontaneous" className="min-h-12 whitespace-nowrap">Notes spontanées</TabsTrigger>
       </TabsList>
       <TabsContent ref={scheduledSectionRef} value="scheduled" className="space-y-4">
     {yearsQuery.isLoading || calendarQuery.isLoading || optionsQuery.isLoading || resultQuery.isLoading || resultQuery.isFetching ? <div aria-label="Chargement des évaluations" className="space-y-3"><Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" /></div> : null}

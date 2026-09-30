@@ -665,7 +665,7 @@ function EvaluationGradesDialog({ evaluation, students, readOnly, onOpenChange }
         <DialogDescription>{evaluation ? `${evaluation.subjectName ?? "Matière"} · ${formatEvaluationDate(evaluation.evaluationDate)} · ${evaluation.startTime}-${evaluation.endTime} · ${evaluation.roomName} · coef. ${evaluation.coefficient}` : ""}</DialogDescription>
       </DialogHeader>
       <div className="min-h-0 overflow-y-auto py-1 sm:px-6 sm:py-5">
-        {evaluation && students.length === 0 ? <EmptyState title="Aucun élève actif" description="La classe ne contient aucun élève disponible pour la saisie." classNameRendu="py-0" /> : null}
+        {evaluation && students.length === 0 ? <EmptyState title="Aucun élève confirmé" description="Aucune inscription confirmée dans cette classe pour l’année scolaire de la saisie." classNameRendu="py-0" /> : null}
         {evaluation && students.length > 0 ? <div className="divide-y rounded-lg border">{students.map((student) => <GradeRow key={`${evaluation.id}-${student.id}-${evaluation.grades.find((item) => item.studentId === student.id)?.score ?? "empty"}`} fullName={`${student.firstName} ${student.lastName}`} initialScore={String(evaluation.grades.find((item) => item.studentId === student.id)?.score ?? "")} readOnly={readOnly} onSave={(score) => gradeMutation.mutateAsync({ studentId: student.id, score })} />)}</div> : null}
       </div>
     </DialogContent>

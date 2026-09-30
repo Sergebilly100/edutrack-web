@@ -90,6 +90,18 @@ describe("ReportCardsPage", () => {
     expect(screen.getByText("Clôturez et validez les moyennes de chaque matière avant de générer.")).toBeInTheDocument()
   })
 
+  it("explique pourquoi une classe sans inscription confirmée ne peut pas générer de bulletins", async () => {
+    mocks.fetchReadiness.mockResolvedValue([{ classId: "class-1", className: "6ème A", headcount: 0, studentsWithGeneralAverage: 0, readyToGenerate: false }])
+    renderPage()
+
+    fireEvent.click(await screen.findByRole("combobox", { name: /classe/i }))
+    fireEvent.click(await screen.findByRole("option", { name: "6ème A" }))
+
+    expect(await screen.findByText("Aucun élève confirmé")).toBeInTheDocument()
+    expect(screen.getByText(/après la confirmation d’une inscription/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /générer les bulletins/i })).toBeDisabled()
+  })
+
   it("rend une période à venir indisponible à la sélection", async () => {
     mocks.listGradingPeriods.mockResolvedValue([
       { id: "period-1", label: "Trimestre 1", isCurrent: true, isCompleted: false },

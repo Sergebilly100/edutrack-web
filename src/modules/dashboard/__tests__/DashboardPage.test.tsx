@@ -253,6 +253,20 @@ describe("DashboardPage", () => {
     expect(screen.queryByRole("tab")).not.toBeInTheDocument()
   })
 
+  it("explique l'absence d'effectif confirmé sans cacher les niveaux fournis par l'API", async () => {
+    getDashboardPilotageMock.mockResolvedValue({
+      population: { activeStudents: 0, activeTeachers: 1, activeClasses: 1 },
+      academic: [{ levelId: "level-1", levelName: "6e", classCount: 1, expectedSubjects: 0, completedSubjects: 0, completionRate: 0, studentsWithAverage: 0, averageScore: null, performingStudents: 0, attentionStudents: 0, criticalStudents: 0, gradeCount: 0, gradesAtLeastTen: 0 }],
+      risks: { studentAbsences: 0, studentGrades: 0, studentPayments: 0, teacherAbsences: 0, teacherLateness: 0, teachersAtRisk: 0 },
+    })
+    renderWithQueryClient(<DashboardPage />)
+
+    expect(await screen.findByText("Aucun élève confirmé")).toBeInTheDocument()
+    expect(screen.getByText(/Les dossiers en attente ne font pas partie/)).toBeInTheDocument()
+    expect(screen.getAllByRole("row", { name: /6e/ }).length).toBeGreaterThan(0)
+    expect(screen.getByText("Élèves confirmés")).toBeInTheDocument()
+  })
+
   it("affiche un total enseignant unique lorsque les deux signaux sont actifs", async () => {
     getDashboardPilotageMock.mockResolvedValue({
       population: { activeStudents: 10, activeTeachers: 1, activeClasses: 1 },

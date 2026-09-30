@@ -8,7 +8,9 @@ import {
   useReactTable,
   type ColumnDef,
   type ColumnFiltersState,
+  type PaginationState,
   type SortingState,
+  type Updater,
 } from "@tanstack/react-table"
 
 import {
@@ -42,6 +44,7 @@ interface DataTableProps<TData, TValue> {
   onRowClick?: (row: TData) => void
   mobileCard?: (row: TData) => React.ReactNode
   toolbarActions?: React.ReactNode
+  serverPagination?: { pageIndex: number; pageCount: number; total: number; onPageChange: (pageIndex: number) => void }
 }
 
 export function DataTable<TData, TValue>({
@@ -55,6 +58,7 @@ export function DataTable<TData, TValue>({
   onRowClick,
   mobileCard,
   toolbarActions,
+  serverPagination,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -65,8 +69,18 @@ export function DataTable<TData, TValue>({
     columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    ...(serverPagination ? {
+      manualPagination: true,
+      pageCount: serverPagination.pageCount,
+      onPaginationChange: (updater: Updater<PaginationState>) => {
+        const current = { pageIndex: serverPagination.pageIndex, pageSize }
+        const next = typeof updater === "function" ? updater(current) : updater
+        if (next.pageIndex !== current.pageIndex) serverPagination.onPageChange(next.pageIndex)
+      },
+    } : {}),
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    enableSorting: !serverPagination,
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: {
@@ -77,6 +91,7 @@ export function DataTable<TData, TValue>({
     state: {
       sorting,
       columnFilters,
+      ...(serverPagination ? { pagination: { pageIndex: serverPagination.pageIndex, pageSize } } : {}),
     },
   })
 
@@ -178,7 +193,7 @@ export function DataTable<TData, TValue>({
         renderTable("overflow-x-auto")
       )}
 
-      <DataTablePagination table={table} pageSize={pageSize} />
+      <DataTablePagination table={table} pageSize={pageSize} serverTotal={serverPagination?.total} />
     </div>
   )
 }

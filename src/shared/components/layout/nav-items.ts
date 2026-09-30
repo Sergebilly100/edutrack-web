@@ -13,7 +13,7 @@ import {
   TeachersIcon,
   ClassIcon,
 } from "@/shared/components/icons"
-import { Building2, ClipboardCheck, FileCheck2, GraduationCap, HandCoins, History, Landmark, LayoutDashboard, MessageSquareCode, NotebookPen, ReceiptText, Settings2, TrendingUp, User, WalletCards } from "lucide-react"
+import { Building2, ClipboardCheck, FileCheck2, GraduationCap, HandCoins, History, Landmark, LayoutDashboard, MessageSquareCode, NotebookPen, ReceiptText, ScrollText, Settings2, TrendingUp, User, WalletCards } from "lucide-react"
 import { FINANCE_PATHS } from "@/modules/finance/finance.routes"
 
 import { isStaffRole, type AuthRole, type PermissionKey } from "@/shared/store/auth.store"
@@ -107,21 +107,21 @@ export const NAV_ITEMS: NavItem[] = [
     activePaths: ["/academic", "/academic/school-years", "/academic/levels", "/academic/classes", "/academic/subjects"],
   },
   {
-    label: "Bulletins",
-    href: "/academic/report-cards",
-    icon: GraduationCap,
-    group: "Académique",
-    roles: ["director", "staff"],
-    requiredPermissions: ["report_cards.view"],
-    mobileVisible: false,
-  },
-  {
     label: "Évaluations et notes",
     href: "/academic/evaluations",
     icon: NotebookPen,
     group: "Académique",
     roles: ["director", "staff"],
     requiredPermissions: ["evaluations.view"],
+    mobileVisible: false,
+  },
+  {
+    label: "Bulletins",
+    href: "/academic/report-cards",
+    icon: ScrollText,
+    group: "Académique",
+    roles: ["director", "staff"],
+    requiredPermissions: ["report_cards.view"],
     mobileVisible: false,
   },
   {

@@ -190,7 +190,7 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
               <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><CalendarClock className="h-5 w-5 text-primary" />Courbe individuelle</CardTitle></CardHeader>
               <CardContent className="space-y-4 mb-6">
                 <p className="text-sm text-muted-foreground">Pour un cas particulier, remplacez la Courbe cumulative attendue pour cet élève uniquement. Les alertes et le statut de paiement suivront cette nouvelle courbe.</p>
-                <div className="space-y-2"><Label>Élève</Label><StudentSearch value={scheduleStudent} onChange={setScheduleStudent} placeholder="Rechercher un élève à personnaliser" /></div>
+                <div className="space-y-2"><Label>Élève</Label><StudentSearch schoolYearId={schoolYearId} value={scheduleStudent} onChange={setScheduleStudent} placeholder="Rechercher un élève à personnaliser" /></div>
                 {scheduleStudent ? (
                   <div className="space-y-3">
                     {studentScheduleQuery.isLoading ? <p className="text-sm text-muted-foreground">Chargement de la courbe de l’élève…</p> : null}
@@ -226,7 +226,7 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
           <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Tag className="h-5 w-5 text-primary" />Ajustement individuel</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">Une seule remise ou un seul montant personnalisé peut être accordé par élève et par année scolaire.</p>
-            <div className="space-y-2"><Label>Élève</Label><StudentSearch value={student} onChange={setStudent} /></div>
+            <div className="space-y-2"><Label>Élève</Label><StudentSearch schoolYearId={schoolYearId} value={student} onChange={setStudent} /></div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2"><Label htmlFor="override-type">Type d’ajustement</Label><Select value={overrideType} onValueChange={(value) => setOverrideType(value as "discount" | "total")}><SelectTrigger id="override-type" className="min-h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="discount">Remise à déduire</SelectItem><SelectItem value="total">Montant total personnalisé</SelectItem></SelectContent></Select></div>
               <div className="space-y-2"><Label htmlFor="override-amount">Montant</Label><Input id="override-amount" className="min-h-12" inputMode="numeric" value={overrideAmount} onChange={(event) => setOverrideAmount(event.target.value.replace(/\D/g, ""))} placeholder="Montant en FCFA" /></div>

@@ -884,9 +884,11 @@ export default function EnrollmentsPage() {
                     {existing?.status === "blocked_unpaid" ? (
                       <Alert variant="destructive">
                         <AlertDescription>
-                          La réinscription est bloquée par un impayé. L’élève
-                          reste disponible dans la saisie rapide des
-                          encaissements pour régulariser la situation.
+                          La réinscription est bloquée par un impayé. La caisse
+                          peut régulariser la dette si l’inscription de l’année
+                          précédente est validée. Si l’élève n’apparaît pas
+                          dans les encaissements, faites vérifier son dossier
+                          antérieur par la direction.
                         </AlertDescription>
                       </Alert>
                     ) : null}
@@ -921,7 +923,7 @@ export default function EnrollmentsPage() {
                             <SelectContent>
                               {eligibleClasses.map((item) => (
                                 <SelectItem key={item.id} value={item.id}>
-                                  {item.name} · {item.studentCount} élèves
+                                  {item.name} · {item.studentCount} {item.studentCount === 1 ? "élève confirmé" : "élèves confirmés"}
                                 </SelectItem>
                               ))}
                             </SelectContent>

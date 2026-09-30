@@ -27,6 +27,7 @@ export type Level = {
 export type SchoolClass = {
   id: string
   name: string
+  /** Distinct students with a confirmed enrollment in schoolYear.id and this class. */
   studentCount: number
   isActive: boolean
   level: Pick<Level, "id" | "name" | "orderIndex">
