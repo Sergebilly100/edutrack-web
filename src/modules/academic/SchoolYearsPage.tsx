@@ -131,44 +131,33 @@ export default function SchoolYearsPage() {
         <QueryErrorState onRetry={() => void query.refetch()} isRetrying={query.isFetching} message="Impossible de charger les années scolaires." />
       ) : null}
 
-      {!query.isError && activeYear ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Décisions de fin d’année</CardTitle>
-            <CardDescription>
-              Cette date ouvre le menu Fin d’année et la validation des décisions de passage pour {activeYear.label}. La saisie des notes s’arrête à la date de début de revue de chaque période, configurée ci-dessous.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form className="my-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-6" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
-                <FormField
-                  control={form.control}
-                  name="endOfYearReviewStartDate"
-                  render={({ field }) => (
-                    <FormItem className="w-full sm:max-w-[25rem] sm:min-w-[25rem]">
-                      <FormLabel className="whitespace-nowrap">Ouverture des décisions de fin d’année</FormLabel>
-                      <FormControl><Input type="date" max={previousIsoDate(activeYear.endDate)} disabled={!canEdit || mutation.isPending} {...field} /></FormControl>
-                      <FormDescription>Cette date doit précéder le {formatDate(activeYear.endDate)}.</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                {canEdit ? (
-                  <Button type="submit" className="min-h-10 self-start sm:self-end" disabled={mutation.isPending}>
-                    {mutation.isPending ? <Spinner size="sm" className="mr-2" /> : null}
-                    {mutation.isPending ? "Enregistrement…" : "Enregistrer la date"}
-                  </Button>
-                ) : null}
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
+      {!query.isError ? (
+        <DataTable
+          columns={columns}
+          data={query.data ?? []}
+          isLoading={query.isLoading}
+          searchKey="label"
+          searchPlaceholder="Rechercher une année…"
+          emptyState={<EmptyState icon={CalendarIcon} title="Aucune année scolaire" message="La prochaine année scolaire doit être ouverte depuis l’espace super administrateur." />}
+          mobileCard={(schoolYear) => (
+            <div className="space-y-3 rounded-lg border bg-card p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{schoolYear.label}</p>
+                  <p className="text-sm text-muted-foreground">{formatDate(schoolYear.startDate)} au {formatDate(schoolYear.endDate)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{schoolYear.gradingPeriodType === "semester" ? "2 semestres" : "3 trimestres"}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">Décisions dès le {formatDate(schoolYear.endOfYearReviewStartDate)}</p>
+                </div>
+                <Badge variant={schoolYear.status === "active" ? "default" : "outline"}>{statusLabel[schoolYear.status]}</Badge>
+              </div>
+            </div>
+          )}
+        />
       ) : null}
 
       {activeYear ? (
-        <Card>
-          <CardHeader>
+        <Card className="mt-5">
+          <CardHeader className="border-none">
             <CardTitle className="text-lg">Périodes d’évaluation</CardTitle>
             <CardDescription>
               Début de période : premier jour couvert par la période. Début de revue : arrêt des notes de cette période, ouverture de sa conduite et de la saisie de la suivante. Fin de période : borne finale du calendrier, égale ou postérieure au début de revue. Les dates des périodes successives doivent se chevaucher.
@@ -200,12 +189,12 @@ export default function SchoolYearsPage() {
                     {period.isClosed ? <Badge variant="outline">Clôturée</Badge> : null}
                     {period.hasGeneratedCards && !period.isClosed ? <Badge variant="outline">Bulletins déjà générés</Badge> : null}
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto]">
                     <label className="space-y-1 text-sm">Début de période<Input name="startDate" type="date" defaultValue={period.startDate} disabled={!canEdit || period.hasGeneratedCards} required /></label>
                     <label className="space-y-1 text-sm">Début de revue<Input name="reviewStartDate" type="date" defaultValue={period.reviewStartDate} disabled={!canEdit || period.hasGeneratedCards} required /></label>
                     <label className="space-y-1 text-sm">Fin de période<Input name="endDate" type="date" defaultValue={period.endDate} disabled={!canEdit || period.hasGeneratedCards} required /></label>
+                    {canEdit && !period.hasGeneratedCards ? <Button type="submit" className="min-h-10 lg:self-end lg:whitespace-nowrap" disabled={periodMutation.isPending}>{periodMutation.isPending ? <Spinner size="sm" className="mr-2" /> : null}Enregistrer {period.label}</Button> : null}
                   </div>
-                  {canEdit && !period.hasGeneratedCards ? <Button type="submit" className="min-h-12" disabled={periodMutation.isPending}>{periodMutation.isPending ? <Spinner size="sm" className="mr-2" /> : null}Enregistrer {period.label}</Button> : null}
                 </form>
               )
             }) : null}
@@ -225,29 +214,41 @@ export default function SchoolYearsPage() {
         </Card>
       ) : null}
 
-      {!query.isError ? (
-        <DataTable
-          columns={columns}
-          data={query.data ?? []}
-          isLoading={query.isLoading}
-          searchKey="label"
-          searchPlaceholder="Rechercher une année…"
-          emptyState={<EmptyState icon={CalendarIcon} title="Aucune année scolaire" message="La prochaine année scolaire doit être ouverte depuis l’espace super administrateur." />}
-          mobileCard={(schoolYear) => (
-            <div className="space-y-3 rounded-lg border bg-card p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium">{schoolYear.label}</p>
-                  <p className="text-sm text-muted-foreground">{formatDate(schoolYear.startDate)} au {formatDate(schoolYear.endDate)}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{schoolYear.gradingPeriodType === "semester" ? "2 semestres" : "3 trimestres"}</p>
-                  <p className="mt-2 text-xs text-muted-foreground">Décisions dès le {formatDate(schoolYear.endOfYearReviewStartDate)}</p>
-                </div>
-                <Badge variant={schoolYear.status === "active" ? "default" : "outline"}>{statusLabel[schoolYear.status]}</Badge>
-              </div>
-            </div>
-          )}
-        />
+      {!query.isError && activeYear ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Décisions de fin d’année</CardTitle>
+            <CardDescription>
+              Cette date ouvre le menu "Fin d’année" et la validation des décisions de passage pour l'année scolaire {activeYear.label}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...form}>
+              <form className="my-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-6" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
+                <FormField
+                  control={form.control}
+                  name="endOfYearReviewStartDate"
+                  render={({ field }) => (
+                    <FormItem className="w-full sm:max-w-[25rem] sm:min-w-[25rem]">
+                      <FormLabel className="whitespace-nowrap">Ouverture des décisions de fin d’année</FormLabel>
+                      <FormControl><Input type="date" max={previousIsoDate(activeYear.endDate)} disabled={!canEdit || mutation.isPending} {...field} /></FormControl>
+                      <FormDescription>Cette date doit précéder le {formatDate(activeYear.endDate)}.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {canEdit ? (
+                  <Button type="submit" className="min-h-10 self-start sm:self-end" disabled={mutation.isPending}>
+                    {mutation.isPending ? <Spinner size="sm" className="mr-2" /> : null}
+                    {mutation.isPending ? "Enregistrement…" : "Enregistrer la date"}
+                  </Button>
+                ) : null}
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
       ) : null}
+
     </PageLayout>
   )
 }
