@@ -4,6 +4,7 @@ import { ArrowRight, CalendarPlus, CheckCircle2, ClipboardCheck, Loader2 } from 
 import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -36,6 +37,14 @@ import { InstallPwaCard } from "@/shared/pwa/InstallPwaCard"
 
 const GRADE_MAX = 20
 const formatEvaluationDate = (value: string | null) => value ? new Intl.DateTimeFormat("fr-FR").format(new Date(`${value}T00:00:00`)) : "-"
+const isForbidden = (error: unknown) => typeof error === "object" && error !== null && "status" in error && error.status === 403
+
+function NotesLoadError({ message, retryLabel, onRetry }: { message: string; retryLabel: string; onRetry: () => void }) {
+  return <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+    <span>{message}</span>
+    <Button type="button" variant="outline" className="min-h-12" onClick={onRetry}>{retryLabel}</Button>
+  </AlertDescription></Alert>
+}
 
 export default function NotesPage() {
   const { toast } = useToast()
@@ -276,9 +285,18 @@ export default function NotesPage() {
             <Loader2 className="h-4 w-4 animate-spin" /> Chargement…
           </p>
         ) : scopeQuery.isError || studentsQuery.isError ? (
-          <p className="text-sm text-destructive">
-            Impossible de charger votre espace de notation pour cette classe.
-          </p>
+          <div className="space-y-2">
+            {scopeQuery.isError ? <NotesLoadError
+              message={isForbidden(scopeQuery.error) ? "Cette classe n’est plus dans votre périmètre de notation. Vérifiez vos affectations ou votre EDT." : "Impossible de charger les évaluations de cette classe."}
+              retryLabel="Réessayer les évaluations"
+              onRetry={() => void scopeQuery.refetch()}
+            /> : null}
+            {studentsQuery.isError ? <NotesLoadError
+              message={isForbidden(studentsQuery.error) ? "L’accès aux élèves de cette classe est refusé. Vérifiez vos affectations ou votre EDT." : "Impossible de charger les élèves de cette classe."}
+              retryLabel="Réessayer les élèves"
+              onRetry={() => void studentsQuery.refetch()}
+            /> : null}
+          </div>
         ) : (
           <>
             {isPeriodReadOnly ? (

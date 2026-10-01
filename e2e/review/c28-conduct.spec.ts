@@ -58,18 +58,19 @@ test("C28 : professeur, Notes affiche Conduite et un badge mobile sans décision
   await mockSession(page, "teacher", false)
   await page.setViewportSize({ width: 320, height: 800 })
   await page.goto(`/academic/notes?tab=conduite&classId=${classId}&gradingPeriodId=${periodId}`)
-  await expect(page.getByRole("tab", { name: "Conduite" })).toBeVisible()
+  await expect(page.getByRole("tab", { name: /Conduite.*1/ })).toBeVisible()
   await expect(page.getByRole("tab", { name: "Décisions" })).toHaveCount(0)
   await expect(page.getByRole("navigation", { name: "Navigation professeur mobile" }).getByText("Notes")).toBeVisible()
+  await expect(page.getByRole("navigation", { name: "Navigation professeur mobile" }).getByText("Conduite · 1")).toBeVisible()
   await expect(page.getByRole("navigation", { name: "Navigation professeur mobile" }).getByLabel("1 avis de conduite à renseigner")).toBeVisible()
   await expect(page.getByText("Aya Kouamé")).toBeVisible()
   await page.getByText("Aya Kouamé").scrollIntoViewIfNeeded()
   await expect(page.getByText("Aya Kouamé")).toBeInViewport()
-  await page.getByRole("tab", { name: "Conduite" }).focus()
+  await page.getByRole("tab", { name: /Conduite.*1/ }).focus()
   await page.keyboard.press("ArrowLeft")
   await expect(page.getByRole("tab", { name: "Moyennes" })).toBeFocused()
   await page.keyboard.press("ArrowRight")
-  await expect(page.getByRole("tab", { name: "Conduite" })).toBeFocused()
+  await expect(page.getByRole("tab", { name: /Conduite.*1/ })).toBeFocused()
   for (const width of [320, 360, 393]) {
     await page.setViewportSize({ width, height: 800 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
@@ -89,6 +90,14 @@ test("C28 : professeur principal, la décision reste possible sans avis", async 
   await page.getByRole("button", { name: "Aya Kouamé" }).click()
   await expect(page.getByText("Les avis manquants ne bloquent pas la décision.")).toBeVisible()
   await expect(page.getByRole("button", { name: "Arrêter la note" })).toBeVisible()
+})
+
+test("C29 : un professeur sans portée de décision revient à ses avis", async ({ page }) => {
+  await mockSession(page, "teacher", false)
+  await page.goto(`/academic/notes?tab=decisions&classId=${classId}&gradingPeriodId=${periodId}`)
+  await expect(page).toHaveURL(/\/academic\/notes\?[^#]*tab=conduite/)
+  await expect(page.getByRole("tab", { name: "Décisions" })).toHaveCount(0)
+  await expect(page.getByText("Aya Kouamé")).toBeVisible()
 })
 
 for (const role of ["director", "staff"] as const) {

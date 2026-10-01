@@ -26,6 +26,7 @@ export default function ConductDecisionWorkspace() {
   const queryClient = useQueryClient()
   const workspaceQuery = useQuery({
     queryKey: ["conduct", "decision-workspace"], queryFn: fetchConductDecisionWorkspace,
+    refetchOnMount: "always", refetchOnWindowFocus: "always", refetchInterval: 30_000,
   })
   const scopes = workspaceQuery.data?.decisionScopes ?? []
   const years = Array.from(new Map(scopes.map((item) => [item.schoolYearId, item.schoolYearLabel])).entries())
@@ -68,7 +69,7 @@ export default function ConductDecisionWorkspace() {
     })
   }
   const parsedNote = Number(note.replace(",", "."))
-  const canSave = Boolean(currentScope?.reviewOpen && !currentScope.isClosed && studentId && note !== "" && Number.isFinite(parsedNote) && parsedNote >= 0 && parsedNote <= 20)
+  const canSave = Boolean(workspaceQuery.isSuccess && !workspaceQuery.isFetching && currentScope?.reviewOpen && !currentScope.isClosed && studentId && note !== "" && Number.isFinite(parsedNote) && parsedNote >= 0 && parsedNote <= 20)
   const overview = overviewQuery.data
 
   return <div className="min-w-0 space-y-5 py-4">

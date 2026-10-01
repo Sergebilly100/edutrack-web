@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { listStudents } from "@/modules/students/students.api"
 
 const fetchScope = vi.fn()
 const markSubjectCompleted = vi.fn()
@@ -61,6 +62,21 @@ describe("NotesPage", () => {
     renderWithClient(<NotesPage />)
     expect(screen.getByText("Choisissez une classe et une période")).toBeInTheDocument()
     expect(fetchScope).not.toHaveBeenCalled()
+  })
+
+  it("explique un refus de portée d'évaluation et propose de réessayer", async () => {
+    fetchScope.mockRejectedValue({ status: 403, code: "EVALUATION_SCOPE_FORBIDDEN" })
+    renderAcademicPage()
+    expect(await screen.findByText(/Cette classe n’est plus dans votre périmètre de notation/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Réessayer les évaluations" })).toBeInTheDocument()
+  })
+
+  it("identifie séparément un refus d'accès aux élèves", async () => {
+    fetchScope.mockResolvedValue({ lessonSlots: [], subjects: [], evaluations: [], completion: [] })
+    vi.mocked(listStudents).mockRejectedValueOnce({ status: 403, code: "FORBIDDEN" })
+    renderAcademicPage()
+    expect(await screen.findByText(/L’accès aux élèves de cette classe est refusé/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Réessayer les élèves" })).toBeInTheDocument()
   })
 
   it("charge le périmètre professeur et permet de programmer une évaluation", async () => {

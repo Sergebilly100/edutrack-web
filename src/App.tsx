@@ -312,7 +312,7 @@ function TeacherNavigation({ variant }: { variant: "desktop" | "mobile" }) {
               >
                 <Icon className="h-4 w-4" />
                 {item.label}
-                {item.href === "/academic/notes" && conductCount > 0 ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900" aria-label={`${conductCount} avis de conduite à renseigner`}>{conductCount}</span> : null}
+                {item.href === "/academic/notes" && conductCount > 0 ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900" aria-label={`${conductCount} avis de conduite à renseigner`}>Conduite · {conductCount}</span> : null}
               </NavLink>
             )
           })}
@@ -338,7 +338,7 @@ function TeacherNavigation({ variant }: { variant: "desktop" | "mobile" }) {
             >
               <Icon className="h-4 w-4" />
               <span className="max-w-full truncate">{item.label}</span>
-              {item.href === "/academic/notes" && conductCount > 0 ? <span className="absolute right-1 top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-amber-100 px-1 text-[10px] font-semibold text-amber-900" aria-label={`${conductCount} avis de conduite à renseigner`}>{conductCount}</span> : null}
+              {item.href === "/academic/notes" && conductCount > 0 ? <span className="max-w-full truncate rounded-full bg-amber-100 px-1 text-[9px] font-semibold text-amber-900" aria-label={`${conductCount} avis de conduite à renseigner`}>Conduite · {conductCount}</span> : null}
             </NavLink>
           )
         })}

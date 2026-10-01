@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-const { decisionWorkspace } = vi.hoisted(() => ({ decisionWorkspace: vi.fn() }))
+const { decisionWorkspace, teacherActions } = vi.hoisted(() => ({ decisionWorkspace: vi.fn(), teacherActions: vi.fn() }))
 vi.mock("@/modules/academic/academic.api", () => ({
   fetchConductDecisionWorkspace: () => decisionWorkspace(),
+  fetchConductTeacherActions: () => teacherActions(),
 }))
 vi.mock("@/modules/academic/NotesPage", () => ({ default: () => <div>Évaluations disponibles</div> }))
 vi.mock("@/modules/academic/TeacherAveragesPage", () => ({ default: () => <div>Moyennes disponibles</div> }))
@@ -16,13 +17,16 @@ import TeacherNotesWorkspace from "@/modules/academic/TeacherNotesWorkspace"
 
 function renderWorkspace(url: string) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<MemoryRouter initialEntries={[url]}><QueryClientProvider client={client}>
+  return { client, ...render(<MemoryRouter initialEntries={[url]}><QueryClientProvider client={client}>
     <TeacherNotesWorkspace />
-  </QueryClientProvider></MemoryRouter>)
+  </QueryClientProvider></MemoryRouter>) }
 }
 
+const activeScope = { classId: "c1", schoolYearStatus: "active", reviewOpen: true, isClosed: false, studentCount: 1, pendingCount: 1 }
+
 describe("TeacherNotesWorkspace", () => {
-  afterEach(() => decisionWorkspace.mockReset())
+  beforeEach(() => teacherActions.mockResolvedValue({ teacherActions: [] }))
+  afterEach(() => { decisionWorkspace.mockReset(); teacherActions.mockReset() })
 
   it("garde Évaluations, Moyennes et Conduite utilisables si la politique échoue", async () => {
     decisionWorkspace.mockRejectedValue(new Error("policy unavailable"))
@@ -47,9 +51,22 @@ describe("TeacherNotesWorkspace", () => {
   })
 
   it("affiche Décisions après confirmation de la portée serveur", async () => {
-    decisionWorkspace.mockResolvedValue({ decisionScopes: [{ classId: "c1" }], decisionActions: [] })
+    decisionWorkspace.mockResolvedValue({ decisionScopes: [activeScope], decisionActions: [] })
+    teacherActions.mockResolvedValue({ teacherActions: [{ pendingCount: 2 }] })
     renderWorkspace("/academic/notes?tab=decisions")
     expect(await screen.findByText("Décisions disponibles")).toBeInTheDocument()
     expect(screen.getByRole("tab", { name: "Décisions" })).toBeInTheDocument()
+    expect(await screen.findByRole("tab", { name: "Conduite 2" })).toBeInTheDocument()
+  })
+
+  it("retire Décisions après le passage de la politique à Direction", async () => {
+    decisionWorkspace.mockResolvedValueOnce({ decisionScopes: [activeScope], decisionActions: [] })
+      .mockResolvedValue({ decisionScopes: [], decisionActions: [] })
+    teacherActions.mockResolvedValue({ teacherActions: [] })
+    const { client } = renderWorkspace("/academic/notes?tab=decisions")
+    expect(await screen.findByText("Décisions disponibles")).toBeInTheDocument()
+    await client.invalidateQueries({ queryKey: ["conduct", "decision-workspace"] })
+    expect(await screen.findByText("Avis disponibles")).toBeInTheDocument()
+    expect(screen.queryByRole("tab", { name: "Décisions" })).not.toBeInTheDocument()
   })
 })
