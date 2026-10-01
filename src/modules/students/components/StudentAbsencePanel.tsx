@@ -130,7 +130,7 @@ export default function StudentAbsencePanel() {
           {classesQuery.isError || levelsQuery.isError ? (
             <Alert variant="destructive" className="mb-3"><AlertDescription>Impossible de charger les niveaux et classes.</AlertDescription></Alert>
           ) : null}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7 2xl:gap-x-2">
             <div className="min-w-0 space-y-2">
               <p className="text-sm font-medium">Du</p>
               <DateInput
@@ -246,12 +246,22 @@ export default function StudentAbsencePanel() {
                 }
               />
             </div>
-            <Button className="min-h-12" size="lg" onClick={handleApply}>
-              Analyser
-            </Button>
-            <Button className="min-h-12" variant="outline" onClick={handleReset}>
-              Réinitialiser
-            </Button>
+            <div className="col-span-full flex flex-col gap-2 pt-2 sm:flex-row sm:justify-start">
+              <Button
+                className="min-h-12 w-full sm:w-auto sm:min-w-40"
+                size="lg"
+                onClick={handleApply}
+              >
+                Analyser
+              </Button>
+              <Button
+                className="min-h-12 w-full sm:w-auto"
+                variant="outline"
+                onClick={handleReset}
+              >
+                Réinitialiser
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
