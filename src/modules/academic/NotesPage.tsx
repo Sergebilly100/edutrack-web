@@ -32,8 +32,6 @@ import {
   upsertEvaluationGrade,
   type EvaluationWithGrades,
 } from "./academic.api"
-import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
-import { InstallPwaCard } from "@/shared/pwa/InstallPwaCard"
 
 const GRADE_MAX = 20
 const formatEvaluationDate = (value: string | null) => value ? new Intl.DateTimeFormat("fr-FR").format(new Date(`${value}T00:00:00`)) : "-"
@@ -163,19 +161,12 @@ export default function NotesPage() {
   )
 
   return (
-    <>
-      <OfflineIndicator />
-      <div className="space-y-6 md:px-6 md:py-8">
-        <InstallPwaCard
-          audience="user"
-          headline="Installez IvoirEdu pour pointer plus vite"
-          className="!mb-4 !mt-0"
-        />
+    <> 
+      <div className="space-y-4">
+
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div className="max-w-2xl space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              Espace d’enseignement
-            </p>
+
             <h1 className="text-2xl font-semibold tracking-tight">
               Évaluations & notes
             </h1>

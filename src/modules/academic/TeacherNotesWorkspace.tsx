@@ -11,6 +11,8 @@ import ConductPage from "./ConductPage"
 import ConductDecisionWorkspace from "./ConductDecisionWorkspace"
 import NotesPage from "./NotesPage"
 import TeacherAveragesPage from "./TeacherAveragesPage"
+import { InstallPwaCard } from "@/shared/pwa/InstallPwaCard"
+import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 
 type NotesTab = "evaluations" | "moyennes" | "conduite" | "decisions"
 
@@ -44,7 +46,16 @@ export default function TeacherNotesWorkspace() {
     ? requestedTab
     : requestedTab === "decisions" && canDecide ? "decisions" : requestedTab === "decisions" ? "conduite" : "evaluations"
 
-  return <div className="min-w-0 space-y-4">
+  return  <div className="min-w-0 space-y-4">
+    <OfflineIndicator />
+    <InstallPwaCard
+      audience="user"
+      headline="Installez IvoirEdu pour pointer plus vite"
+      className="!mb-4 !mt-0"
+    />
+    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+      Espace d’enseignement
+    </p>
     <Tabs value={tab} onValueChange={(value) => {
       setSearchParams((current) => {
         const next = new URLSearchParams(current)
@@ -55,7 +66,7 @@ export default function TeacherNotesWorkspace() {
       <TabsList aria-label="Sections de Notes" className="grid h-auto w-full grid-cols-3 gap-1 p-1 data-[decisions=true]:grid-cols-4" data-decisions={canDecide}>
         <TabsTrigger value="evaluations" className="min-h-12 px-1 text-xs sm:text-sm">Évaluations</TabsTrigger>
         <TabsTrigger value="moyennes" className="min-h-12 px-1 text-xs sm:text-sm">Moyennes</TabsTrigger>
-        <TabsTrigger value="conduite" className="min-h-12 gap-1 px-1 text-xs sm:text-sm">Conduite{conductPendingCount > 0 ? <Badge variant="secondary" className="px-1.5 text-[10px]">{conductPendingCount}</Badge> : null}</TabsTrigger>
+        <TabsTrigger value="conduite" className="min-h-12 gap-1 px-1 text-xs sm:text-sm">Conduite{conductPendingCount > 0 ? <Badge variant="warning" className="px-1.5 text-[10px]">{conductPendingCount}</Badge> : null}</TabsTrigger>
         {canDecide ? <TabsTrigger value="decisions" className="min-h-12 px-1 text-xs sm:text-sm">Décisions</TabsTrigger> : null}
       </TabsList>
     </Tabs>

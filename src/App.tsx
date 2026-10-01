@@ -264,6 +264,18 @@ function TeacherShell({ element }: { element: ReactElement }) {
   // Le shell porte le seul défilement de l’espace professeur. La hauteur
   // dynamique suit la zone réellement visible de Chrome Android (barres du
   // navigateur comprises) et évite un second scroll sur le document.
+  useEffect(() => {
+    const htmlOverflow = document.documentElement.style.overflow
+    const bodyOverflow = document.body.style.overflow
+    document.documentElement.style.overflow = "hidden"
+    document.body.style.overflow = "hidden"
+
+    return () => {
+      document.documentElement.style.overflow = htmlOverflow
+      document.body.style.overflow = bodyOverflow
+    }
+  }, [])
+
   const location = useLocation()
   const isAcademicWorkspace = location.pathname === "/academic/calculation" || location.pathname.includes("/academic/students/")
 
@@ -271,7 +283,7 @@ function TeacherShell({ element }: { element: ReactElement }) {
     <div className="flex h-dvh min-w-0 flex-col overflow-hidden bg-background">
       <TeacherTopBar />
       {!isAcademicWorkspace ? <TeacherNavigation variant="desktop" /> : null}
-      <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+      <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain">
         <div className="mx-auto w-full min-w-0 max-w-lg px-4 py-4 lg:max-w-4xl lg:py-6">{element}</div>
       </main>
       {!isAcademicWorkspace ? <TeacherNavigation variant="mobile" /> : null}
@@ -338,7 +350,7 @@ function TeacherNavigation({ variant }: { variant: "desktop" | "mobile" }) {
             >
               <Icon className="h-4 w-4" />
               <span className="max-w-full truncate">{item.label}</span>
-              {item.href === "/academic/notes" && conductCount > 0 ? <span className="max-w-full truncate rounded-full bg-amber-100 px-1 text-[9px] font-semibold text-amber-900" aria-label={`${conductCount} avis de conduite à renseigner`}>Conduite · {conductCount}</span> : null}
+              {item.href === "/academic/notes" && conductCount > 0 ? <span className="absolute right-1 top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-amber-100 px-1 text-[10px] font-semibold text-amber-900" aria-label={`${conductCount} avis de conduite à renseigner`}>{conductCount}</span> : null}
             </NavLink>
           )
         })}

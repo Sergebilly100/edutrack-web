@@ -72,7 +72,7 @@ export default function ConductDecisionWorkspace() {
   const canSave = Boolean(workspaceQuery.isSuccess && !workspaceQuery.isFetching && currentScope?.reviewOpen && !currentScope.isClosed && studentId && note !== "" && Number.isFinite(parsedNote) && parsedNote >= 0 && parsedNote <= 20)
   const overview = overviewQuery.data
 
-  return <div className="min-w-0 space-y-5 py-4">
+  return <div className="min-w-0 space-y-4">
     <header><h1 className="text-2xl font-semibold">Conduite</h1><p className="text-sm text-muted-foreground">Décisions des classes qui vous sont confiées.</p></header>
     {workspaceQuery.isLoading ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Chargement des classes…</p> : null}
     {workspaceQuery.isError ? <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center justify-between gap-2"><span>Impossible de charger les décisions de conduite. Vérifiez la connexion ou les migrations de l’école.</span><Button type="button" variant="outline" className="min-h-12" onClick={() => void workspaceQuery.refetch()}>Réessayer</Button></AlertDescription></Alert> : null}

@@ -23,7 +23,7 @@ const CONDUCT_MAX = 20
 
 export default function ConductPage() {
   return (
-    <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
+    <div className="space-y-4">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Conduite</h1>
         <p className="text-sm text-muted-foreground">
@@ -130,7 +130,7 @@ function TeacherConductSection() {
       </CardHeader>
       <CardContent className="space-y-4">
         {contextQuery.isLoading ? <p role="status" className="text-sm text-muted-foreground">Chargement de vos classes…</p> : null}
-        {contextQuery.isError ? <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive"><span>Impossible de charger vos classes.</span><Button type="button" variant="outline" className="min-h-12" onClick={() => void contextQuery.refetch()}>Réessayer</Button></div> : null}
+        {contextQuery.isError ? <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive"><span>Impossible de charger vos classes.</span><Button type="button" variant="outline" className="min-h-6" onClick={() => void contextQuery.refetch()}>Réessayer</Button></div> : null}
         {contextQuery.isSuccess && contextQuery.data.classes.length === 0 ? <EmptyState title="Aucune classe affectée" description="Aucune affectation pédagogique ni aucun créneau actif ne vous associe à une classe." /> : null}
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
@@ -140,7 +140,7 @@ function TeacherConductSection() {
               setGradingPeriodId("")
               setSelectedStudentIds([])
             }}>
-              <SelectTrigger className="min-h-12" aria-label="Classe"><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
+              <SelectTrigger className="min-h-6" aria-label="Classe"><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
               <SelectContent>
                 {(contextQuery.data?.classes ?? []).map((klass) => (
                   <SelectItem key={klass.id} value={klass.id}>{klass.name} · {klass.levelName}</SelectItem>
@@ -154,7 +154,7 @@ function TeacherConductSection() {
               value={gradingPeriodId || "none"}
               onValueChange={(value) => setGradingPeriodId(value === "none" ? "" : value)}
             >
-              <SelectTrigger className="min-h-12" aria-label="Période"><SelectValue placeholder="Choisir une période" /></SelectTrigger>
+              <SelectTrigger className="min-h-6" aria-label="Période"><SelectValue placeholder="Choisir une période" /></SelectTrigger>
               <SelectContent>
                 {periods.map((period) => (
                   <SelectItem key={period.id} value={period.id}>{period.label}</SelectItem>
@@ -167,7 +167,7 @@ function TeacherConductSection() {
         {classId && gradingPeriodId ? scopeQuery.isLoading ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Chargement des élèves…</p>
         ) : scopeQuery.isError ? (
-          <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive"><span>Impossible de charger les élèves de cette classe.</span><Button type="button" variant="outline" className="min-h-12" onClick={() => void scopeQuery.refetch()}>Réessayer</Button></div>
+          <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive"><span>Impossible de charger les élèves de cette classe.</span><Button type="button" variant="outline" className="min-h-6" onClick={() => void scopeQuery.refetch()}>Réessayer</Button></div>
         ) : scopeQuery.data?.isAvailable === false ? (
           <EmptyState
             title="Revue de conduite indisponible"
@@ -178,19 +178,24 @@ function TeacherConductSection() {
             {periodEnded ? <div className="rounded-lg border border-muted-foreground/20 bg-muted/40 p-4 text-sm text-muted-foreground">Cette période est consultable, mais les notes de conduite sont verrouillées : elle est finalisée ou pas encore courante.</div> : null}
             {!periodEnded && availableStudents.length > 0 ? (
               <div className="space-y-3 rounded-lg border p-4">
-                <div>
-                  <p className="font-medium">Attribution en masse</p>
-                  <p className="text-sm text-muted-foreground">Sélectionnez tous les élèves concernés, puis appliquez la même note.</p>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  <Button type="button" variant="outline" className="min-h-12" onClick={() => setSelectedStudentIds(availableStudents.map((student) => student.studentId))}>Sélectionner tous</Button>
-                  <Button type="button" variant="ghost" className="min-h-12" onClick={() => setSelectedStudentIds([])}>Effacer la sélection</Button>
-                  <Badge variant="secondary" className="min-h-12 px-3">{selectedStudentIds.length} sélectionné(s)</Badge>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Checkbox
+                      aria-label="Sélectionner tous les élèves"
+                      checked={availableStudents.every((student) => selectedStudentIds.includes(student.studentId))}
+                      onCheckedChange={(checked) => setSelectedStudentIds(checked === true
+                        ? availableStudents.map((student) => student.studentId)
+                        : [])}
+                    />
+                    <p className="font-medium">Attribution en masse</p>
+                    <Badge variant="secondary" className="min-h-6 px-3">{selectedStudentIds.length} sélectionné(s)</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">Sélectionnez tous les élèves, puis appliquez la même note.</p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-[120px_1fr_auto] sm:items-end">
                   <div className="space-y-1"><Label htmlFor="bulk-conduct-note">Note / 20</Label><Input id="bulk-conduct-note" type="number" min={0} max={20} step={0.5} value={bulkNote} onChange={(event) => setBulkNote(event.target.value)} /></div>
                   <div className="space-y-1"><Label htmlFor="bulk-conduct-observation">Observation commune</Label><Input id="bulk-conduct-observation" placeholder="Optionnel" value={bulkObservation} onChange={(event) => setBulkObservation(event.target.value)} /></div>
-                  <Button type="button" className="min-h-12" disabled={!bulkValid || bulkMutation.isPending} onClick={() => bulkMutation.mutate()}>{bulkMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Appliquer à la sélection</Button>
+                  <Button type="button" className="min-h-6" disabled={!bulkValid || bulkMutation.isPending} onClick={() => bulkMutation.mutate()}>{bulkMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Appliquer à la sélection</Button>
                 </div>
               </div>
             ) : null}
@@ -245,9 +250,11 @@ function ConductInputRow({
   const valid = note !== "" && Number.isFinite(parsed) && parsed >= 0 && parsed <= CONDUCT_MAX
 
   return (
-    <div className="grid items-end gap-3 rounded-lg border p-3 sm:grid-cols-[48px_1fr_100px_1fr_auto_auto]">
-      <div className="flex min-h-12 items-center"><Checkbox aria-label={`Sélectionner ${fullName}`} checked={selected} disabled={readOnly} onCheckedChange={(checked) => onSelectedChange(checked === true)} /></div>
-      <div className="min-h-12 flex flex-col justify-center"><p className="font-medium">{fullName}</p>{existingInput ? <p className="text-xs text-muted-foreground">Déjà saisie : {existingInput.note}/20{existingInput.observation ? ` · ${existingInput.observation}` : ""}</p> : null}</div>
+    <div className="grid items-end gap-3 rounded-lg border p-3 sm:grid-cols-[1fr_100px_1fr_auto]">
+      <div className="flex min-h-12 items-center gap-2">
+        <Checkbox aria-label={`Sélectionner ${fullName}`} checked={selected} disabled={readOnly} onCheckedChange={(checked) => onSelectedChange(checked === true)} />
+        <div className="flex min-w-0 flex-col justify-center"><p className="font-medium">{fullName}</p>{existingInput ? <p className="text-xs text-muted-foreground">Déjà saisie : {existingInput.note}/20{existingInput.observation ? ` · ${existingInput.observation}` : ""}</p> : null}</div>
+      </div>
       <div className="space-y-1">
         <Label className="sr-only">Note</Label>
         <Input
@@ -273,7 +280,7 @@ function ConductInputRow({
       <Button
         type="button"
         variant="outline"
-        className="min-h-12"
+        className="min-h-6"
         disabled={readOnly || !valid}
         onClick={() => onSave(parsed, observation.trim() || undefined)}
       >
