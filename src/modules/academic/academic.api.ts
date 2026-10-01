@@ -505,19 +505,24 @@ export type ConductDecisionScope = ConductReviewAction & {
   levelName: string
   schoolYearId: string
   schoolYearLabel: string
+  schoolYearStatus: "draft" | "active" | "closed"
   studentCount: number
   reviewOpen: boolean
   isClosed: boolean
 }
 
-export type ConductReviewWorkspace = {
+export type ConductTeacherActions = {
   teacherActions: ConductReviewAction[]
+}
+export type ConductDecisionWorkspaceResponse = {
   decisionScopes: ConductDecisionScope[]
   decisionActions: ConductDecisionScope[]
 }
 
-export const fetchConductReviewWorkspace = () =>
-  api.get<ConductReviewWorkspace>("/conduct/review-workspace").then((response) => response.data)
+export const fetchConductTeacherActions = () =>
+  api.get<ConductTeacherActions>("/conduct/teacher-actions").then((response) => response.data)
+export const fetchConductDecisionWorkspace = () =>
+  api.get<ConductDecisionWorkspaceResponse>("/conduct/decision-workspace").then((response) => response.data)
 
 export type ConductPolicyMode = "homeroom" | "direction" | "delegated"
 export type ConductPolicy = { mode: ConductPolicyMode; coefficient: number }

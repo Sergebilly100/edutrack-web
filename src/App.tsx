@@ -10,7 +10,7 @@ import { AppShell } from "@/shared/components/layout/AppShell"
 import { TeacherTopBar } from "@/shared/components/layout/TeacherTopBar"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
-import { fetchConductReviewWorkspace } from "@/modules/academic/academic.api"
+import { fetchConductTeacherActions } from "@/modules/academic/academic.api"
 import { useAutoSync } from "@/shared/hooks/useAutoSync"
 import { useRestoreSession } from "@/shared/hooks/useRestoreSession"
 import { queryCacheRestorePromise } from "@/shared/api/query-client"
@@ -284,8 +284,8 @@ function TeacherNavigation({ variant }: { variant: "desktop" | "mobile" }) {
   const permissions = useAuthStore((state) => state.permissions)
   const items = getNavItemsByRole(user?.role, permissions)
   const conductQuery = useQuery({
-    queryKey: ["conduct", "review-workspace"],
-    queryFn: fetchConductReviewWorkspace,
+    queryKey: ["conduct", "teacher-actions"],
+    queryFn: fetchConductTeacherActions,
     enabled: user?.role === "teacher",
   })
   const conductCount = (conductQuery.data?.teacherActions ?? []).reduce((total, action) => total + action.pendingCount, 0)
@@ -544,19 +544,12 @@ function FinanceLegacyRoute() {
 function ConductLegacyRoute({ decision = false }: { decision?: boolean }) {
   const user = useAuthStore((state) => state.user)
   const location = useLocation()
-  const conductQuery = useQuery({
-    queryKey: ["conduct", "review-workspace"],
-    queryFn: fetchConductReviewWorkspace,
-    enabled: Boolean(user && user.role !== "teacher"),
-  })
   const params = new URLSearchParams(location.search)
   if (user?.role === "teacher") {
     params.set("tab", decision ? "decisions" : "conduite")
     return <Navigate to={`/academic/notes?${params.toString()}`} replace />
   }
   if (decision) return <Navigate to={`/academic/conduct${location.search}`} replace />
-  if (conductQuery.isLoading) return <SessionLoader />
-  if (conductQuery.isSuccess && conductQuery.data.decisionScopes.length === 0) return <Navigate to="/dashboard" replace />
   return <ConductDecisionWorkspace />
 }
 

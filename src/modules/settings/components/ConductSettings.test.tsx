@@ -1,15 +1,16 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { beforeAll, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
-const { updatePolicy, createAssignment } = vi.hoisted(() => ({
+const { updatePolicy, createAssignment, fetchPolicy } = vi.hoisted(() => ({
   updatePolicy: vi.fn().mockResolvedValue({ mode: "direction", coefficient: 2 }),
   createAssignment: vi.fn().mockResolvedValue({ assignment: { id: "a1" } }),
+  fetchPolicy: vi.fn().mockResolvedValue({ mode: "homeroom", coefficient: 1 }),
 }))
 
 vi.mock("@/modules/academic/academic.api", () => ({
   listSchoolYears: async () => [{ id: "y1", label: "2026-2027", status: "active" }],
-  fetchConductPolicy: async () => ({ mode: "homeroom", coefficient: 1 }),
+  fetchConductPolicy: () => fetchPolicy(),
   updateConductPolicy: (...args: unknown[]) => updatePolicy(...args),
   fetchEducatorAssignments: async () => ({ assignments: [] }),
   fetchEligibleEducators: async () => ({ users: [{ id: "u1", name: "Éducatrice Koffi" }] }),
@@ -32,6 +33,10 @@ const renderSettings = () => render(
 )
 
 describe("ConductSettings", () => {
+  afterEach(() => {
+    fetchPolicy.mockReset()
+    fetchPolicy.mockResolvedValue({ mode: "homeroom", coefficient: 1 })
+  })
   it("enregistre le décideur et le coefficient de l’année", async () => {
     renderSettings()
     fireEvent.click(await screen.findByRole("combobox", { name: "Responsable de la décision" }))
@@ -51,5 +56,14 @@ describe("ConductSettings", () => {
     fireEvent.click(await screen.findByRole("option", { name: "Éducatrice Koffi" }))
     fireEvent.click(screen.getByRole("button", { name: "Affecter" }))
     await waitFor(() => expect(createAssignment).toHaveBeenCalledWith({ user_id: "u1", class_id: "c1" }))
+  })
+
+  it("explique la migration manquante puis relance la politique", async () => {
+    fetchPolicy.mockRejectedValueOnce({ isAxiosError: true, response: { status: 503, data: { code: "CONDUCT_MIGRATION_REQUIRED" } } })
+    renderSettings()
+    expect(await screen.findByText(/migration de conduite de cette école/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Réessayer" }))
+    expect(await screen.findByRole("combobox", { name: "Responsable de la décision" })).toBeInTheDocument()
+    expect(fetchPolicy).toHaveBeenCalledTimes(2)
   })
 })

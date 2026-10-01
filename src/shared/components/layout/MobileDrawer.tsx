@@ -8,7 +8,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { getSmsFeatureSettings } from "@/modules/subscriptions/subscriptions.api"
-import { fetchConductReviewWorkspace } from "@/modules/academic/academic.api"
+import { fetchConductDecisionWorkspace } from "@/modules/academic/academic.api"
+import { getConductReminderCount, getOpenConductScopes } from "@/modules/academic/conduct-navigation"
 import { useEndOfYearReviewStatus } from "@/modules/class-decisions/useEndOfYearReviewStatus"
 import { filterNavItemsByFeatures, getNavItemsByRole, isNavItemActive } from "@/shared/components/layout/nav-items"
 import { UserMenu } from "@/shared/components/layout/UserMenu"
@@ -38,14 +39,17 @@ export function MobileDrawer({ open, onClose, variant = "default" }: MobileDrawe
   const subscriptionsEnabled = smsFeatureQuery.data?.monetize_parent_alerts === true
   const endOfYearStatusQuery = useEndOfYearReviewStatus()
   const conductQuery = useQuery({
-    queryKey: ["conduct", "review-workspace"],
-    queryFn: fetchConductReviewWorkspace,
+    queryKey: ["conduct", "decision-workspace"],
+    queryFn: fetchConductDecisionWorkspace,
+    refetchInterval: 60_000,
     enabled: !isSuperAdmin && (userRole === "director" || isStaffRole(userRole)),
   })
+  const openConductScopes = getOpenConductScopes(conductQuery.data)
+  const conductReminderCount = getConductReminderCount(conductQuery.data)
   const items = filterNavItemsByFeatures(
     getNavItemsByRole(userRole, permissions, studentLabels.plural),
     { subscriptionsEnabled, endOfYearReviewVisible: endOfYearStatusQuery.data?.visible === true },
-  ).filter((item) => item.href !== "/academic/conduct" || (conductQuery.data?.decisionScopes.length ?? 0) > 0)
+  ).filter((item) => item.href !== "/academic/conduct" || openConductScopes.length > 0)
   const navigationGroups = items.reduce<Array<{ label: string; items: typeof items }>>(
     (groups, item) => {
       const current = groups[groups.length - 1]
@@ -117,6 +121,11 @@ export function MobileDrawer({ open, onClose, variant = "default" }: MobileDrawe
                         >
                           <Icon size={18} strokeWidth={1.75} />
                           <span>{item.label}</span>
+                          {item.href === "/academic/conduct" && conductReminderCount > 0 ? (
+                            <span aria-label={`${conductReminderCount} décision${conductReminderCount > 1 ? "s" : ""} de conduite à finaliser`} className="ml-auto inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-semibold text-white">
+                              {conductReminderCount}
+                            </span>
+                          ) : null}
                         </Link>
                       )
                     })}

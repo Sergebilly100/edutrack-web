@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useSearchParams } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import { Loader2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -10,9 +10,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { EmptyState } from "@/shared/components/EmptyState"
-import { decideConductGrade, fetchConductDecisionStudents, fetchConductOverview, fetchConductReviewWorkspace } from "./academic.api"
+import { useAuthStore } from "@/shared/store/auth.store"
+import { decideConductGrade, fetchConductDecisionStudents, fetchConductOverview, fetchConductDecisionWorkspace } from "./academic.api"
 
 export default function ConductDecisionWorkspace() {
+  const role = useAuthStore((state) => state.user?.role)
   const [params, setParams] = useSearchParams()
   const yearId = params.get("schoolYearId") ?? ""
   const levelId = params.get("levelId") ?? ""
@@ -23,7 +25,7 @@ export default function ConductDecisionWorkspace() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const workspaceQuery = useQuery({
-    queryKey: ["conduct", "review-workspace"], queryFn: fetchConductReviewWorkspace,
+    queryKey: ["conduct", "decision-workspace"], queryFn: fetchConductDecisionWorkspace,
   })
   const scopes = workspaceQuery.data?.decisionScopes ?? []
   const years = Array.from(new Map(scopes.map((item) => [item.schoolYearId, item.schoolYearLabel])).entries())
@@ -46,7 +48,8 @@ export default function ConductDecisionWorkspace() {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["conduct-overview", studentId, periodId] }),
-        queryClient.invalidateQueries({ queryKey: ["conduct", "review-workspace"] }),
+        queryClient.invalidateQueries({ queryKey: ["conduct", "decision-workspace"] }),
+        queryClient.invalidateQueries({ queryKey: ["conduct", "teacher-actions"] }),
       ])
       setNote("")
       toast({ title: "Note de conduite arrêtée" })
@@ -71,8 +74,8 @@ export default function ConductDecisionWorkspace() {
   return <div className="min-w-0 space-y-5 py-4">
     <header><h1 className="text-2xl font-semibold">Conduite</h1><p className="text-sm text-muted-foreground">Décisions des classes qui vous sont confiées.</p></header>
     {workspaceQuery.isLoading ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Chargement des classes…</p> : null}
-    {workspaceQuery.isError ? <Alert variant="destructive"><AlertDescription>Impossible de charger vos classes autorisées.</AlertDescription></Alert> : null}
-    {workspaceQuery.isSuccess && scopes.length === 0 ? <EmptyState title="Aucune décision autorisée" description="La direction peut configurer le décideur dans Paramètres." /> : null}
+    {workspaceQuery.isError ? <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center justify-between gap-2"><span>Impossible de charger les décisions de conduite. Vérifiez la connexion ou les migrations de l’école.</span><Button type="button" variant="outline" className="min-h-12" onClick={() => void workspaceQuery.refetch()}>Réessayer</Button></AlertDescription></Alert> : null}
+    {workspaceQuery.isSuccess && scopes.length === 0 ? <div className="space-y-3"><EmptyState title="Aucune décision autorisée" description="Vérifiez le mode de décision de l’année dans Paramètres → Personnel. L’entrée Conduite apparaît pendant la revue lorsqu’une classe vous est autorisée." />{role === "director" ? <Button asChild variant="outline" className="min-h-12"><Link to="/settings?tab=personnel">Ouvrir les paramètres de conduite</Link></Button> : null}</div> : null}
     {scopes.length > 0 ? <>
       <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-2"><Label htmlFor="conduct-year">Année</Label><Select value={yearId} onValueChange={(value) => setFilter("schoolYearId", value)}><SelectTrigger id="conduct-year" className="min-h-12"><SelectValue placeholder="Toutes les années" /></SelectTrigger><SelectContent>{years.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}</SelectContent></Select></div>

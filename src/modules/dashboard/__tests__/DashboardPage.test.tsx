@@ -112,7 +112,7 @@ vi.mock("@/modules/finance/finance.api", () => ({
 
 vi.mock("@/modules/academic/academic.api", () => ({
   listSchoolYears: () => listSchoolYearsMock(),
-  fetchConductReviewWorkspace: () => getConductReviewWorkspaceMock(),
+  fetchConductDecisionWorkspace: () => getConductReviewWorkspaceMock(),
 }))
 
 import DashboardPage from "@/modules/dashboard/DashboardPage"
@@ -240,13 +240,23 @@ describe("DashboardPage", () => {
   it("propose la décision de conduite autorisée avec un lien direct vers la classe et la période", async () => {
     getConductReviewWorkspaceMock.mockResolvedValue({ teacherActions: [], decisionScopes: [], decisionActions: [{
       schoolYearId: "school-year-1", levelId: "level-1", classId: "class-1", gradingPeriodId: "period-current",
-      className: "6e A", gradingPeriodLabel: "Trimestre 1", pendingCount: 1,
+      className: "6e A", gradingPeriodLabel: "Trimestre 1", pendingCount: 1, schoolYearStatus: "active",
     }] })
     renderWithQueryClient(<DashboardPage />)
 
     expect(await screen.findByRole("link", { name: /6e A : 1 décision à finaliser/ })).toHaveAttribute(
       "href", "/academic/conduct?schoolYearId=school-year-1&levelId=level-1&classId=class-1&gradingPeriodId=period-current",
     )
+  })
+
+  it("ne rappelle pas une décision d'une année en préparation", async () => {
+    getConductReviewWorkspaceMock.mockResolvedValue({ teacherActions: [], decisionScopes: [], decisionActions: [{
+      schoolYearId: "school-year-1", levelId: "level-1", classId: "class-1", gradingPeriodId: "period-current",
+      className: "6e A", gradingPeriodLabel: "Trimestre 1", pendingCount: 1, schoolYearStatus: "draft",
+    }] })
+    renderWithQueryClient(<DashboardPage />)
+    await waitFor(() => expect(getConductReviewWorkspaceMock).toHaveBeenCalled())
+    expect(screen.queryByRole("link", { name: /6e A : 1 décision à finaliser/ })).not.toBeInTheDocument()
   })
 
   it("affiche une vue de pilotage unique pour un directeur", async () => {

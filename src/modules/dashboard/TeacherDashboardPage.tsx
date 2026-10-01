@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { fetchConductReviewWorkspace, fetchTeacherAcademicContext } from "@/modules/academic/academic.api"
+import { fetchConductTeacherActions, fetchTeacherAcademicContext } from "@/modules/academic/academic.api"
 import TeacherNotificationsPanel from "@/modules/attendance/components/TeacherNotificationsPanel"
 import { fetchTeacherSchedule } from "@/modules/schedule/schedule.api"
 import { TourGuide } from "@/shared/components/TourGuide"
@@ -63,7 +63,7 @@ export default function TeacherDashboardPage() {
 
   const scheduleQuery = useQuery({ queryKey: ["teacher-schedule", "me"], queryFn: fetchTeacherSchedule })
   const academicQuery = useQuery({ queryKey: ["academic", "teacher-context"], queryFn: fetchTeacherAcademicContext })
-  const conductQuery = useQuery({ queryKey: ["conduct", "review-workspace"], queryFn: fetchConductReviewWorkspace })
+  const conductQuery = useQuery({ queryKey: ["conduct", "teacher-actions"], queryFn: fetchConductTeacherActions })
 
   const schedules = scheduleQuery.data ?? []
   const activeSchedule = getActiveSchedule(schedules, now)
@@ -115,7 +115,7 @@ export default function TeacherDashboardPage() {
         </div>
       </header>
 
-      {conductQuery.isError ? <Alert variant="destructive"><AlertDescription>Impossible de charger les avis de conduite à renseigner.</AlertDescription></Alert> : null}
+      {conductQuery.isError ? <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center justify-between gap-2"><span>Impossible de charger les avis de conduite à renseigner.</span><Button type="button" variant="outline" className="min-h-12" onClick={() => void conductQuery.refetch()}>Réessayer</Button></AlertDescription></Alert> : null}
       {(conductQuery.data?.teacherActions.length ?? 0) > 0 ? <section aria-labelledby="conduct-review-actions" className="space-y-2"><h2 id="conduct-review-actions" className="text-lg font-semibold">Conduite à renseigner</h2><div className="divide-y rounded-lg border bg-card">{conductQuery.data!.teacherActions.map((action) => <Button key={`${action.classId}:${action.gradingPeriodId}`} type="button" variant="ghost" className="min-h-14 w-full justify-between rounded-none px-4 text-left" onClick={() => navigate(`/academic/notes?tab=conduite&classId=${encodeURIComponent(action.classId)}&gradingPeriodId=${encodeURIComponent(action.gradingPeriodId)}`)}><span className="min-w-0 truncate">{action.className} · {action.gradingPeriodLabel} : {action.pendingCount} avis à renseigner</span><ArrowRight className="ml-2 h-4 w-4 shrink-0" /></Button>)}</div></section> : null}
 
       {scheduleQuery.isLoading ? <FocusCourseSkeleton /> : null}

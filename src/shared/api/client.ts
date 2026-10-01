@@ -114,7 +114,8 @@ apiClient.interceptors.response.use(
     }
 
     const isUnauthorized = error.response?.status === 401
-    const isMaintenance = error.response?.status === 503
+    const payload = error.response?.data as { error?: string; message?: string; code?: string } | undefined
+    const isMaintenance = error.response?.status === 503 && payload?.code === "MAINTENANCE_MODE"
     const isForbidden = error.response?.status === 403
     const requestUrl = originalRequest.url ?? ""
     const isAuthEndpoint = requestUrl.includes("/auth/")
@@ -124,7 +125,6 @@ apiClient.interceptors.response.use(
       requestUrl.includes("/settings/public")
 
     if (isMaintenance) {
-      const payload = error.response?.data as { error?: string; message?: string } | undefined
       redirectToMaintenance(payload?.error ?? payload?.message)
       return Promise.reject(error)
     }
@@ -158,7 +158,6 @@ apiClient.interceptors.response.use(
       }
     }
 
-    const payload = error.response?.data as { error?: string; message?: string; code?: string } | undefined
     const friendlyMessage = payload?.error ?? payload?.message ?? error.message
 
     return Promise.reject(

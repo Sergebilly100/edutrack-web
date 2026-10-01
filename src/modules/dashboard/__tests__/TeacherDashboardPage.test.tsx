@@ -21,7 +21,7 @@ vi.mock("@/modules/schedule/schedule.api", () => ({
 
 vi.mock("@/modules/academic/academic.api", () => ({
   fetchTeacherAcademicContext: () => contextMock(),
-  fetchConductReviewWorkspace: () => Promise.resolve({ teacherActions: [], decisionScopes: [], decisionActions: [] }),
+  fetchConductTeacherActions: () => Promise.resolve({ teacherActions: [] }),
 }))
 
 vi.mock("@/shared/api/client", () => ({

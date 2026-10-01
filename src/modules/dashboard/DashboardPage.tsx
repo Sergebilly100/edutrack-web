@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { fetchSchoolInfo } from "@/modules/onboarding/onboarding.api"
-import { fetchConductReviewWorkspace, listSchoolYears, type SchoolYear } from "@/modules/academic/academic.api"
+import { fetchConductDecisionWorkspace, listSchoolYears, type SchoolYear } from "@/modules/academic/academic.api"
 import {
   getAttendanceHistory,
   getDashboardCounts,
@@ -366,8 +366,8 @@ export default function DashboardPage() {
     refetchInterval: 5 * 60_000,
   })
   const conductReviewQuery = useQuery({
-    queryKey: ["conduct", "review-workspace"],
-    queryFn: fetchConductReviewWorkspace,
+    queryKey: ["conduct", "decision-workspace"],
+    queryFn: fetchConductDecisionWorkspace,
     enabled: isDirector || permissions.includes("conduct.finalize"),
     staleTime: 60_000,
   })
@@ -445,7 +445,7 @@ export default function DashboardPage() {
       href: notification.targetHref ?? "/dashboard",
       tone: notification.tone,
     }
-  }), ...(conductReviewQuery.data?.decisionActions ?? []).map((action) => ({
+  }), ...(conductReviewQuery.data?.decisionActions ?? []).filter((action) => action.schoolYearStatus === "active").map((action) => ({
     id: `conduct:${action.classId}:${action.gradingPeriodId}`,
     title: `${action.className} : ${action.pendingCount} décision${action.pendingCount > 1 ? "s" : ""} à finaliser`,
     message: action.gradingPeriodLabel,
@@ -656,7 +656,7 @@ export default function DashboardPage() {
           />
         ) : null}
 
-        {conductReviewQuery.isError ? <QueryErrorState message="Impossible de charger les décisions de conduite." /> : null}
+        {conductReviewQuery.isError ? <QueryErrorState message="Impossible de charger les décisions de conduite." onRetry={() => void conductReviewQuery.refetch()} isRetrying={conductReviewQuery.isFetching} /> : null}
         <Suspense fallback={<DashboardSkeleton />}>
           <OverviewTab
             canViewAttendance={canViewAttendance}

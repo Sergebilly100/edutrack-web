@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Gavel, Loader2, MessageSquareText } from "lucide-react"
+import { Loader2, MessageSquareText } from "lucide-react"
 import { useSearchParams } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
@@ -12,12 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { EmptyState } from "@/shared/components/EmptyState"
-import { useAuthStore } from "@/shared/store/auth.store"
 import {
-  decideConductGrade,
-  fetchConductDecisionContext,
-  fetchConductDecisionStudents,
-  fetchConductOverview,
   fetchTeacherAcademicContext,
   fetchTeacherConductScope,
   submitBulkConductInputs,
@@ -26,15 +21,7 @@ import {
 
 const CONDUCT_MAX = 20
 
-type ConductView = "teacher" | "decision" | "all"
-
-export default function ConductPage({ view = "all" }: { view?: ConductView }) {
-  const user = useAuthStore((state) => state.user)
-  const permissions = useAuthStore((state) => state.permissions)
-  const isTeacher = user?.role === "teacher"
-  const canFinalize =
-    isTeacher || user?.role === "director" || (permissions as string[] | undefined)?.includes("conduct.finalize") === true
-
+export default function ConductPage() {
   return (
     <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
       <header className="space-y-1">
@@ -44,14 +31,7 @@ export default function ConductPage({ view = "all" }: { view?: ConductView }) {
         </p>
       </header>
 
-      {view !== "decision" && isTeacher ? <TeacherConductSection /> : null}
-      {view !== "teacher" && canFinalize ? <EducatorDecisionSection /> : null}
-      {((view === "teacher" && !isTeacher) || (view === "decision" && !canFinalize) || (view === "all" && !isTeacher && !canFinalize)) ? (
-        <EmptyState
-          title="Accès non configuré"
-          description="Ni la saisie professeur ni la décision éducateur ne sont disponibles pour votre compte."
-        />
-      ) : null}
+      <TeacherConductSection />
     </div>
   )
 }
@@ -97,7 +77,7 @@ function TeacherConductSection() {
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["conduct-input-scope", classId, gradingPeriodId] })
-      await queryClient.invalidateQueries({ queryKey: ["conduct", "review-workspace"] })
+      await queryClient.invalidateQueries({ queryKey: ["conduct", "teacher-actions"] })
       toast({ title: "Note de conduite enregistrée", duration: 3000 })
     },
     onError: (error) =>
@@ -119,7 +99,7 @@ function TeacherConductSection() {
     }),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ["conduct-input-scope", classId, gradingPeriodId] })
-      await queryClient.invalidateQueries({ queryKey: ["conduct", "review-workspace"] })
+      await queryClient.invalidateQueries({ queryKey: ["conduct", "teacher-actions"] })
       setSelectedStudentIds([])
       setBulkNote("")
       setBulkObservation("")
@@ -150,7 +130,7 @@ function TeacherConductSection() {
       </CardHeader>
       <CardContent className="space-y-4">
         {contextQuery.isLoading ? <p role="status" className="text-sm text-muted-foreground">Chargement de vos classes…</p> : null}
-        {contextQuery.isError ? <p role="alert" className="text-sm text-destructive">Impossible de charger vos classes.</p> : null}
+        {contextQuery.isError ? <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive"><span>Impossible de charger vos classes.</span><Button type="button" variant="outline" className="min-h-12" onClick={() => void contextQuery.refetch()}>Réessayer</Button></div> : null}
         {contextQuery.isSuccess && contextQuery.data.classes.length === 0 ? <EmptyState title="Aucune classe affectée" description="Aucune affectation pédagogique ni aucun créneau actif ne vous associe à une classe." /> : null}
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
@@ -187,7 +167,7 @@ function TeacherConductSection() {
         {classId && gradingPeriodId ? scopeQuery.isLoading ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Chargement des élèves…</p>
         ) : scopeQuery.isError ? (
-          <p className="text-sm text-destructive">Impossible de charger les élèves de cette classe.</p>
+          <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive"><span>Impossible de charger les élèves de cette classe.</span><Button type="button" variant="outline" className="min-h-12" onClick={() => void scopeQuery.refetch()}>Réessayer</Button></div>
         ) : scopeQuery.data?.isAvailable === false ? (
           <EmptyState
             title="Revue de conduite indisponible"
@@ -299,252 +279,6 @@ function ConductInputRow({
       >
         {existingInput ? "Corriger" : "Enregistrer"}
       </Button>
-    </div>
-  )
-}
-
-function EducatorDecisionSection() {
-  const [classId, setClassId] = useState("")
-  const [gradingPeriodId, setGradingPeriodId] = useState("")
-  const [selectedStudentId, setSelectedStudentId] = useState("")
-
-  const contextQuery = useQuery({
-    queryKey: ["conduct", "decision-context"],
-    queryFn: fetchConductDecisionContext,
-  })
-  const selectedClass = contextQuery.data?.classes.find((item) => item.id === classId)
-  const periods = (contextQuery.data?.gradingPeriods ?? []).filter(
-    (period) => !selectedClass || period.schoolYearId === selectedClass.schoolYearId,
-  )
-  const studentsQuery = useQuery({
-    queryKey: ["conduct", "decision-students", classId, gradingPeriodId],
-    queryFn: () => fetchConductDecisionStudents(classId, gradingPeriodId),
-    enabled: Boolean(classId && gradingPeriodId),
-  })
-  const selectedPeriod = periods.find((period) => period.id === gradingPeriodId)
-  const isReadOnly = selectedPeriod?.conductReviewOpen === false || Boolean(selectedPeriod?.closedClassIds?.includes(classId))
-
-  useEffect(() => {
-    if (gradingPeriodId || periods.length === 0) return
-    const current = periods.find((period) => period.conductReviewOpen)
-    if (current) setGradingPeriodId(current.id)
-  }, [gradingPeriodId, periods])
-
-  return (
-    <Card className="shadow-sm">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2">
-          <Gavel className="h-4 w-4" />
-          Décision finale de conduite
-        </CardTitle>
-        <CardDescription>
-          Consultez les notes des professeurs et les remarques spontanées, puis arrêtez la note
-          définitive.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {contextQuery.isLoading ? <p role="status" className="text-sm text-muted-foreground">Chargement des classes autorisées…</p> : null}
-        {contextQuery.isError ? <p role="alert" className="text-sm text-destructive">Impossible de charger les classes autorisées.</p> : null}
-        {contextQuery.isSuccess && contextQuery.data.classes.length === 0 ? <EmptyState title="Aucune décision autorisée" description="La direction configure le responsable de conduite dans Paramètres." /> : null}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Classe à décider</Label>
-            <Select value={classId || "none"} onValueChange={(value) => {
-              setClassId(value === "none" ? "" : value)
-              setGradingPeriodId("")
-              setSelectedStudentId("")
-            }}>
-              <SelectTrigger className="min-h-12" aria-label="Classe à décider"><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
-              <SelectContent>
-                {(contextQuery.data?.classes ?? []).map((klass) => (
-                  <SelectItem key={klass.id} value={klass.id}>{klass.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Période</Label>
-            <Select
-              value={gradingPeriodId || "none"}
-              onValueChange={(value) => setGradingPeriodId(value === "none" ? "" : value)}
-            >
-              <SelectTrigger className="min-h-12" aria-label="Période"><SelectValue placeholder="Choisir une période" /></SelectTrigger>
-              <SelectContent>
-                {periods.map((period) => (
-                  <SelectItem key={period.id} value={period.id}>
-                    {period.label}{period.closedClassIds.includes(classId) ? " · finalisée" : period.conductReviewOpen ? " · en revue" : " · à venir"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {classId && gradingPeriodId ? (
-          <div className="space-y-2">
-            <Label>Élève</Label>
-            <Select
-              value={selectedStudentId || "none"}
-              onValueChange={(value) => setSelectedStudentId(value === "none" ? "" : value)}
-            >
-              <SelectTrigger className="min-h-12" aria-label="Élève"><SelectValue placeholder="Choisir un élève" /></SelectTrigger>
-              <SelectContent>
-                {(studentsQuery.data?.students ?? []).map((student) => (
-                  <SelectItem key={student.id} value={student.id}>
-                    {student.fullName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {studentsQuery.isLoading ? <p role="status" className="text-sm text-muted-foreground">Chargement des élèves…</p> : null}
-            {studentsQuery.isError ? <p role="alert" className="text-sm text-destructive">Impossible de charger les élèves confirmés.</p> : null}
-            {studentsQuery.isSuccess && studentsQuery.data.students.length === 0 ? <EmptyState title="Aucun élève confirmé" description="Cette classe ne comporte aucun élève confirmé pour cette année." /> : null}
-          </div>
-        ) : null}
-
-        {isReadOnly ? (
-          <div className="rounded-lg border border-muted-foreground/20 bg-muted/40 p-4 text-sm text-muted-foreground">
-            Cette période est consultable uniquement : les bulletins sont déjà générés ou la période n&apos;est pas encore courante.
-          </div>
-        ) : null}
-
-        {selectedStudentId && gradingPeriodId ? (
-          <EducatorDecisionPanel studentId={selectedStudentId} gradingPeriodId={gradingPeriodId} readOnly={isReadOnly} />
-        ) : null}
-      </CardContent>
-    </Card>
-  )
-}
-
-function EducatorDecisionPanel({
-  studentId,
-  gradingPeriodId,
-  readOnly,
-}: {
-  studentId: string
-  gradingPeriodId: string
-  readOnly: boolean
-}) {
-  const { toast } = useToast()
-  const queryClient = useQueryClient()
-  const [note, setNote] = useState("")
-
-  const overviewQuery = useQuery({
-    queryKey: ["conduct-overview", studentId, gradingPeriodId],
-    queryFn: () => fetchConductOverview(studentId, gradingPeriodId),
-  })
-
-  const decideMutation = useMutation({
-    mutationFn: () =>
-      decideConductGrade({
-        student_id: studentId,
-        grading_period_id: gradingPeriodId,
-        note: Number(note.replace(",", ".")),
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["conduct-overview", studentId, gradingPeriodId] })
-      setNote("")
-      toast({ title: "Note définitive enregistrée", duration: 3000 })
-    },
-    onError: (error) =>
-      toast({
-        title: "Décision impossible",
-        description: error instanceof Error ? error.message : undefined,
-        variant: "destructive",
-        duration: 6000,
-      }),
-  })
-
-  if (overviewQuery.isLoading) {
-    return <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Chargement…</p>
-  }
-  if (overviewQuery.isError) {
-    return <p className="text-sm text-red-600">Impossible de charger le dossier de conduite.</p>
-  }
-
-  const overview = overviewQuery.data!
-  const parsed = Number(note.replace(",", "."))
-  const valid = note !== "" && Number.isFinite(parsed) && parsed >= 0 && parsed <= CONDUCT_MAX
-
-  return (
-    <div className="space-y-4 rounded-lg border p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline">{overview.student.className}</Badge>
-        {overview.finalGrade ? (
-          <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
-            Note définitive : {overview.finalGrade.note}/20
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
-            Pas encore de note définitive
-          </Badge>
-        )}
-      </div>
-
-      <div>
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-medium">Notes saisies par les professeurs</p>
-          <Badge variant={overview.inputSummary.isComplete ? "success" : "secondary"}>
-            {overview.inputSummary.submittedCount}/{overview.inputSummary.expectedCount} renseignés
-          </Badge>
-        </div>
-        {overview.teacherInputs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucun enseignant n’est affecté à cette classe.</p>
-        ) : (
-          <ul className="divide-y rounded-lg border">
-            {overview.teacherInputs.map((input) => (
-              <li key={input.teacherId} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
-                <span>
-                  <span className="font-medium">{input.teacherName}</span>
-                  {input.isSubmitted ? ` : ${input.note}/20` : ""}
-                  {input.observation ? ` - ${input.observation}` : ""}
-                </span>
-                {!input.isSubmitted ? <Badge variant="outline">À renseigner</Badge> : null}
-              </li>
-            ))}
-          </ul>
-        )}
-        {!overview.inputSummary.isComplete ? <p className="mt-2 text-sm text-muted-foreground">Les avis manquants peuvent être relancés. Ils ne bloquent pas la décision.</p> : null}
-      </div>
-
-      {overview.spontaneousEvaluations.length > 0 ? (
-        <div>
-          <p className="mb-2 text-sm font-medium">Remarques spontanées</p>
-          <ul className="space-y-1">
-            {overview.spontaneousEvaluations.map((item) => (
-              <li key={item.id} className="text-sm">
-                {item.score > 0 ? "+" : "-"} {item.comment ?? item.label}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      <div className="flex items-end gap-3">
-        <div className="space-y-1">
-          <Label htmlFor="final-conduct-decision">Note définitive / {CONDUCT_MAX}</Label>
-          <Input
-            id="final-conduct-decision"
-            type="number"
-            min={0}
-            max={CONDUCT_MAX}
-            step={0.5}
-            className="max-w-24"
-            value={note}
-            disabled={readOnly}
-            onChange={(event) => setNote(event.target.value)}
-          />
-        </div>
-        <Button
-          type="button"
-          className="min-h-12"
-          disabled={readOnly || !valid || decideMutation.isPending}
-          onClick={() => decideMutation.mutate()}
-        >
-          {decideMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          {overview.finalGrade ? "Rectifier la note" : "Arrêter la note"}
-        </Button>
-      </div>
     </div>
   )
 }

@@ -76,18 +76,8 @@ describe("ConductPage professeur", () => {
     fetchConductOverview.mockReset()
   })
 
-  it("charge la liste confirmée dans le périmètre de décision serveur", async () => {
-    fetchDecisionStudents.mockResolvedValueOnce({ students: [{ id: "s101", fullName: "Dernier Élève" }] })
-    renderWithClient(<ConductPage view="decision" />)
-    fireEvent.click(await screen.findByRole("combobox", { name: "Classe à décider" }))
-    fireEvent.click(await screen.findByRole("option", { name: /6ème A/ }))
-    await waitFor(() => expect(fetchDecisionStudents).toHaveBeenCalledWith("c1", "p1"))
-    fireEvent.click(await screen.findByRole("combobox", { name: "Élève" }))
-    expect(await screen.findByRole("option", { name: "Dernier Élève" })).toBeInTheDocument()
-  })
-
   it("permet d’attribuer une même note à tous les élèves sélectionnés", async () => {
-    renderWithClient(<ConductPage view="teacher" />)
+    renderWithClient(<ConductPage />)
 
     fireEvent.click(await screen.findByRole("combobox", { name: /classe/i }))
     fireEvent.click(await screen.findByText(/6ème A/))
@@ -109,7 +99,7 @@ describe("ConductPage professeur", () => {
 
   it("signale une revue de conduite indisponible", async () => {
     fetchConductScope.mockResolvedValueOnce({ isAvailable: false, students: [] })
-    renderWithClient(<ConductPage view="teacher" />)
+    renderWithClient(<ConductPage />)
 
     fireEvent.click(await screen.findByRole("combobox", { name: /classe/i }))
     fireEvent.click(await screen.findByText(/6ème A/))
@@ -125,7 +115,7 @@ describe("ConductPage professeur", () => {
       classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2019-2020" }],
       gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2019-09-01", endDate: "2019-12-20", isCurrent: false, isCompleted: true, conductReviewOpen: false, closedClassIds: ["c1"] }],
     })
-    renderWithClient(<ConductPage view="teacher" />)
+    renderWithClient(<ConductPage />)
 
     fireEvent.click(await screen.findByRole("combobox", { name: /classe/i }))
     fireEvent.click(await screen.findByText(/6ème A/))
@@ -136,48 +126,5 @@ describe("ConductPage professeur", () => {
     expect(screen.queryByText("Attribution en masse")).not.toBeInTheDocument()
   })
 
-  it("n’affiche à un professeur décisionnaire que ses classes enseignées", async () => {
-    authState.permissions = ["conduct.finalize"]
-    fetchTeacherContext.mockResolvedValueOnce({
-      classes: [
-        { id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2026-2027" },
-        { id: "c2", name: "5ème B", levelId: "l2", levelName: "5ème", schoolYearId: "y1", schoolYearLabel: "2026-2027" },
-      ],
-      gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2026-09-01", endDate: "2026-12-20", isCurrent: true, isCompleted: false, conductReviewOpen: true, closedClassIds: [] }],
-    })
 
-    renderWithClient(<ConductPage view="decision" />)
-
-    fireEvent.click(await screen.findByRole("combobox", { name: "Classe à décider" }))
-    expect(await screen.findByRole("option", { name: /6ème A/ })).toBeInTheDocument()
-    expect(screen.queryByRole("option", { name: /5ème B/ })).not.toBeInTheDocument()
-    expect(listClassesMock).not.toHaveBeenCalled()
-  })
-
-  it("liste les professeurs manquants sans bloquer la décision finale", async () => {
-    fetchConductOverview.mockResolvedValue({
-      student: { id: "s1", fullName: "Awa Koné", className: "6ème A" },
-      gradingPeriod: { id: "p1", label: "1er trimestre" },
-      teacherInputs: [
-        { id: "i1", teacherId: "t1", teacherName: "Mme Traoré", subjectLabel: "Mathématiques", note: 16, observation: null, createdAt: "2026-09-10", isSubmitted: true },
-        { id: null, teacherId: "t2", teacherName: "M. Yao", subjectLabel: "Français", note: null, observation: null, createdAt: null, isSubmitted: false },
-      ],
-      inputSummary: { expectedCount: 2, submittedCount: 1, isComplete: false },
-      spontaneousEvaluations: [],
-      finalGrade: null,
-    })
-    renderWithClient(<ConductPage view="decision" />)
-
-    fireEvent.click(await screen.findByRole("combobox", { name: "Classe à décider" }))
-    fireEvent.click(await screen.findByRole("option", { name: /6ème A/ }))
-    fireEvent.click(await screen.findByRole("combobox", { name: "Élève" }))
-    fireEvent.click(await screen.findByRole("option", { name: "Awa Koné" }))
-
-    expect(await screen.findByText("1/2 renseignés")).toBeInTheDocument()
-    expect(screen.getByText("M. Yao")).toBeInTheDocument()
-    expect(screen.getByText("À renseigner")).toBeInTheDocument()
-    expect(screen.getByRole("spinbutton", { name: "Note définitive / 20" })).toBeEnabled()
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Note définitive / 20" }), { target: { value: "16" } })
-    expect(screen.getByRole("button", { name: "Arrêter la note" })).toBeEnabled()
-  })
 })

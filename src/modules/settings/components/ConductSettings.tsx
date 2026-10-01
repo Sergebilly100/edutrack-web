@@ -18,6 +18,18 @@ const modes: Array<{ value: ConductPolicyMode; label: string }> = [
   { value: "delegated", label: "Éducateur délégué" },
 ]
 
+function policyErrorMessage(error: unknown): string {
+  const failure = error && typeof error === "object" ? error as {
+    code?: string; status?: number; response?: { status?: number; data?: { code?: string } }
+  } : null
+  const code = failure?.code ?? failure?.response?.data?.code
+  const status = failure?.status ?? failure?.response?.status
+  if (code === "SCHOOL_YEAR_NOT_FOUND") return "Cette année scolaire est introuvable. Choisissez une autre année."
+  if (status === 403) return "Vous n’avez pas le droit de consulter cette politique."
+  if (code === "CONDUCT_MIGRATION_REQUIRED") return "La migration de conduite de cette école n’est pas appliquée. Contactez l’administrateur technique."
+  return "La politique est indisponible. Vérifiez la connexion puis réessayez."
+}
+
 export function ConductSettings({ canEditPolicy, canManageAssignments }: { canEditPolicy: boolean; canManageAssignments: boolean }) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
@@ -41,7 +53,10 @@ export function ConductSettings({ canEditPolicy, canManageAssignments }: { canEd
     mutationFn: () => updateConductPolicy(schoolYearId, { mode: chosenMode, coefficient: numericCoefficient }),
     onSuccess: async () => {
       setMode(""); setCoefficient("")
-      await queryClient.invalidateQueries({ queryKey: ["conduct"] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["conduct", "policy"] }),
+        queryClient.invalidateQueries({ queryKey: ["conduct", "decision-workspace"] }),
+      ])
       toast({ title: "Politique de conduite enregistrée" })
     },
     onError: (error) => toast({ title: "Politique impossible à enregistrer", description: error instanceof Error ? error.message : undefined, variant: "destructive" }),
@@ -51,6 +66,7 @@ export function ConductSettings({ canEditPolicy, canManageAssignments }: { canEd
     onSuccess: async () => {
       setTargetId(""); setUserId("")
       await queryClient.invalidateQueries({ queryKey: ["conduct", "assignments"] })
+      await queryClient.invalidateQueries({ queryKey: ["conduct", "decision-workspace"] })
       toast({ title: "Affectation enregistrée" })
     },
     onError: (error) => toast({ title: "Affectation impossible", description: error instanceof Error ? error.message : undefined, variant: "destructive" }),
@@ -59,6 +75,7 @@ export function ConductSettings({ canEditPolicy, canManageAssignments }: { canEd
     mutationFn: deleteEducatorAssignment,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["conduct", "assignments"] })
+      await queryClient.invalidateQueries({ queryKey: ["conduct", "decision-workspace"] })
       toast({ title: "Affectation supprimée" })
     },
     onError: (error) => toast({ title: "Suppression impossible", description: error instanceof Error ? error.message : undefined, variant: "destructive" }),
@@ -66,9 +83,9 @@ export function ConductSettings({ canEditPolicy, canManageAssignments }: { canEd
 
   return <section className="space-y-5 rounded-lg border p-4" aria-label="Conduite">
     <div><h2 className="font-semibold">Décision de conduite</h2><p className="text-sm text-muted-foreground">Le responsable décide même si des avis enseignants manquent. Seule la note finale entre dans la moyenne.</p></div>
-    {yearsQuery.isLoading ? <p role="status">Chargement des années scolaires…</p> : yearsQuery.isError ? <p role="alert">Années scolaires indisponibles.</p> : (yearsQuery.data?.length ?? 0) === 0 ? <EmptyState title="Aucune année scolaire" description="Créez une année scolaire avant de configurer la conduite." /> : <>
+    {yearsQuery.isLoading ? <p role="status">Chargement des années scolaires…</p> : yearsQuery.isError ? <div role="alert" className="space-y-2"><p>Années scolaires indisponibles.</p><Button type="button" variant="outline" className="min-h-12" onClick={() => void yearsQuery.refetch()}>Réessayer</Button></div> : (yearsQuery.data?.length ?? 0) === 0 ? <EmptyState title="Aucune année scolaire" description="Créez une année scolaire avant de configurer la conduite." /> : <>
       <div className="max-w-sm space-y-2"><Label htmlFor="conduct-year">Année scolaire</Label><Select value={schoolYearId} onValueChange={value => { setSelectedYearId(value); setMode(""); setCoefficient("") }}><SelectTrigger id="conduct-year" className="min-h-12"><SelectValue /></SelectTrigger><SelectContent>{yearsQuery.data?.map(year => <SelectItem key={year.id} value={year.id}>{year.label}</SelectItem>)}</SelectContent></Select></div>
-      {policyQuery.isLoading ? <p role="status">Chargement de la politique…</p> : policyQuery.isError ? <p role="alert">Politique de conduite indisponible.</p> : <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_10rem_auto] sm:items-end">
+      {policyQuery.isLoading ? <p role="status">Chargement de la politique…</p> : policyQuery.isError ? <div role="alert" className="space-y-2"><p>{policyErrorMessage(policyQuery.error)}</p><Button type="button" variant="outline" className="min-h-12" onClick={() => void policyQuery.refetch()}>Réessayer</Button></div> : <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_10rem_auto] sm:items-end">
         <div className="space-y-2"><Label htmlFor="conduct-mode">Responsable de la décision</Label><Select value={chosenMode} onValueChange={value => setMode(value as ConductPolicyMode)} disabled={!canEditPolicy}><SelectTrigger id="conduct-mode" className="min-h-12"><SelectValue /></SelectTrigger><SelectContent>{modes.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
         <div className="space-y-2"><Label htmlFor="conduct-coefficient">Coefficient annuel</Label><Input id="conduct-coefficient" type="number" min="0.001" max="99999.999" step="0.001" className="min-h-12" value={chosenCoefficient} onChange={event => setCoefficient(event.target.value)} disabled={!canEditPolicy} /></div>
         {canEditPolicy ? <Button className="min-h-12" disabled={!Number.isFinite(numericCoefficient) || numericCoefficient <= 0 || numericCoefficient > 99999.999 || savePolicy.isPending} onClick={() => savePolicy.mutate()}>{savePolicy.isPending ? "Enregistrement…" : "Enregistrer"}</Button> : null}

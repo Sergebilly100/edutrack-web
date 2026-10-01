@@ -32,7 +32,8 @@ import { cn } from "@/lib/utils"
 import { logout as logoutApi } from "@/modules/auth/auth.api"
 import { getSmsFeatureSettings } from "@/modules/subscriptions/subscriptions.api"
 import { getPendingValidationCount } from "@/modules/validations/validations.api"
-import { fetchConductReviewWorkspace } from "@/modules/academic/academic.api"
+import { fetchConductDecisionWorkspace } from "@/modules/academic/academic.api"
+import { getConductReminderCount, getOpenConductScopes } from "@/modules/academic/conduct-navigation"
 import { useEndOfYearReviewStatus } from "@/modules/class-decisions/useEndOfYearReviewStatus"
 import { LogoutOfflineGuardDialog } from "@/shared/components/LogoutOfflineGuardDialog"
 import { OfflineQueueBadge } from "@/shared/components/OfflineQueueBadge"
@@ -81,7 +82,7 @@ function NavItemComponent({
         {item.label}
       </span>
       {!collapsed && badgeCount && badgeCount > 0 ? (
-        <span className="ml-auto inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-semibold text-white">
+        <span aria-label={item.href === "/academic/conduct" ? `${badgeCount} décision${badgeCount > 1 ? "s" : ""} de conduite à finaliser` : `${badgeCount} actions en attente`} className="ml-auto inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-semibold text-white">
           {badgeCount}
         </span>
       ) : null}
@@ -130,17 +131,20 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
   })
   const endOfYearStatusQuery = useEndOfYearReviewStatus()
   const conductQuery = useQuery({
-    queryKey: ["conduct", "review-workspace"],
-    queryFn: fetchConductReviewWorkspace,
+    queryKey: ["conduct", "decision-workspace"],
+    queryFn: fetchConductDecisionWorkspace,
+    refetchInterval: 60_000,
     enabled: role === "director" || isStaffRole(role),
   })
+  const openConductScopes = getOpenConductScopes(conductQuery.data)
+  const conductReminderCount = getConductReminderCount(conductQuery.data)
   const visibleItems = filterNavItemsByFeatures(
     getNavItemsByRole(role, permissions, studentLabels.plural),
     {
       subscriptionsEnabled,
       endOfYearReviewVisible: endOfYearStatusQuery.data?.visible === true,
     },
-  ).filter((item) => item.href !== "/academic/conduct" || (conductQuery.data?.decisionScopes.length ?? 0) > 0)
+  ).filter((item) => item.href !== "/academic/conduct" || openConductScopes.length > 0)
   const navigationGroups = visibleItems.reduce<Array<{ label: string; items: typeof visibleItems }>>(
     (groups, item) => {
       const current = groups[groups.length - 1]
@@ -240,7 +244,9 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
             const isGroupActive = group.label === activeGroup
             const groupBadgeCount = group.items.some((item) => item.href === "/validations")
               ? validationCountQuery.data?.total
-              : undefined
+              : group.items.some((item) => item.href === "/academic/conduct")
+                ? conductReminderCount
+                : undefined
 
             if (!Icon) return null
 
@@ -297,7 +303,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
                     key={item.href}
                     item={item}
                     collapsed={false}
-                    badgeCount={item.href === "/validations" ? validationCountQuery.data?.total : undefined}
+                    badgeCount={item.href === "/validations" ? validationCountQuery.data?.total : item.href === "/academic/conduct" ? conductReminderCount : undefined}
                   />
                 ))}
               </CollapsibleContent>

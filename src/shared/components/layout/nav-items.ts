@@ -116,6 +116,15 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: false,
   },
   {
+    label: "Conduite",
+    href: "/academic/conduct",
+    icon: ClipboardCheck,
+    group: "Académique",
+    roles: ["director", "staff"],
+    requiredPermissions: ["conduct.finalize"],
+    mobileVisible: false,
+  },
+  {
     label: "Bulletins",
     href: "/academic/report-cards",
     icon: ScrollText,
@@ -133,15 +142,6 @@ export const NAV_ITEMS: NavItem[] = [
     requiredPermissions: ["class_decisions.view"],
     mobileVisible: false,
     requiresEndOfYearReview: true,
-  },
-  {
-    label: "Conduite",
-    href: "/academic/conduct",
-    icon: ClipboardCheck,
-    group: "Académique",
-    roles: ["director", "staff"],
-    requiredPermissions: ["conduct.finalize"],
-    mobileVisible: false,
   },
   {
     label: "Vue financière",

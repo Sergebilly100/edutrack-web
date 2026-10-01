@@ -44,6 +44,11 @@ export default defineConfig({
       testIgnore: /setup\//,
     },
     {
+      name: "review-tests",
+      use: { ...devices["Pixel 5"] },
+      testMatch: /review\/.*\.spec\.ts/,
+    },
+    {
       name: "subscription-tests",
       use: { ...devices["Desktop Chrome"] },
       testMatch: /subscriptions\/.*\.spec\.ts/,

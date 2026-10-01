@@ -179,7 +179,7 @@ function ClassesContent() {
     <PageLayout
       title="Structure scolaire"
       subtitle="Gérez les classes de chaque année et attribuez leur professeur principal."
-      actions={canCreate && !createdClassId ? <Button type="button" className="min-h-12" onClick={openCreate} disabled={!activeSchoolYear || Boolean(enrollmentContext && (contextInvalid || contextLoading || contextError))}><AddIcon className="mr-2 h-4 w-4" />Ajouter une classe</Button> : undefined}
+      actions={canCreate && !createdClassId ? <Button type="button" className="min-h-10" onClick={openCreate} disabled={!activeSchoolYear || Boolean(enrollmentContext && (contextInvalid || contextLoading || contextError))}><AddIcon className="mr-2 h-4 w-4" />Ajouter une classe</Button> : undefined}
     >
       <AcademicNavigation />
       {enrollmentContext ? (
