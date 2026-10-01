@@ -31,6 +31,8 @@ type DocumentListProps = {
   includeSharedDocuments?: boolean
   includeEnrollmentDocuments?: boolean
   canManageEnrollmentDocuments?: boolean
+  readOnly?: boolean
+  schoolYear?: { startDate: string; endDate: string } | null
 }
 
 type DossierDocument = {
@@ -65,6 +67,8 @@ export function DocumentList({
   includeSharedDocuments = true,
   includeEnrollmentDocuments = false,
   canManageEnrollmentDocuments = false,
+  readOnly = false,
+  schoolYear = null,
 }: DocumentListProps) {
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -163,7 +167,9 @@ export function DocumentList({
         documentTypeId: document.documentTypeId,
         status: document.status === "to_renew" ? "to_renew" as const : "provided" as const,
       })),
-  ].sort((left, right) => (right.createdAt ?? "").localeCompare(left.createdAt ?? ""))
+  ].filter((document) => !schoolYear || Boolean(document.createdAt &&
+    document.createdAt.slice(0, 10) >= schoolYear.startDate && document.createdAt.slice(0, 10) <= schoolYear.endDate))
+    .sort((left, right) => (right.createdAt ?? "").localeCompare(left.createdAt ?? ""))
 
   if (documents.length === 0) {
     return (
@@ -251,7 +257,7 @@ export function DocumentList({
                     >
                       <Eye className="mr-2 h-4 w-4" />Consulter
                     </Button>
-                    {(document.source === "shared" || canManageEnrollmentDocuments) ? (
+                    {!readOnly && (document.source === "shared" || canManageEnrollmentDocuments) ? (
                       <>
                         <input
                           ref={(node) => { replacementInputRefs.current[document.id] = node }}
@@ -278,7 +284,7 @@ export function DocumentList({
                         </Button>
                       </>
                     ) : null}
-                    {document.source === "enrollment" && canManageEnrollmentDocuments ? (
+                    {!readOnly && document.source === "enrollment" && canManageEnrollmentDocuments ? (
                       <Button
                         type="button"
                         variant="ghost"
@@ -290,7 +296,7 @@ export function DocumentList({
                         <RotateCcw className="mr-2 h-4 w-4" />À renouveler
                       </Button>
                     ) : null}
-                    {document.source === "shared" ? (
+                    {!readOnly && document.source === "shared" ? (
                       <Button
                         type="button"
                         variant="destructive"

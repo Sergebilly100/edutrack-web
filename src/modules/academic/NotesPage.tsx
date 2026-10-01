@@ -60,9 +60,9 @@ export default function NotesPage() {
     ),
     [contextQuery.data?.gradingPeriods, selectedClass],
   )
-  const gradingPeriodId = selectedPeriodId || periods.find((period) => period.isCurrent)?.id || ""
+  const gradingPeriodId = selectedPeriodId || periods.find((period) => period.notesEntryOpen)?.id || ""
   const activePeriod = periods.find((period) => period.id === gradingPeriodId)
-  const isPeriodReadOnly = activePeriod?.isCurrent === false
+  const isPeriodReadOnly = activePeriod?.notesEntryOpen === false || Boolean(activePeriod?.closedClassIds?.includes(classId))
 
   const scopeEnabled = Boolean(classId) && Boolean(gradingPeriodId)
   const scopeQuery = useQuery({
@@ -89,16 +89,11 @@ export default function NotesPage() {
       label: draft.label.trim(),
       evaluationDate: draft.evaluationDate,
     }),
-    onSuccess: async (result) => {
+    onSuccess: async () => {
       await invalidateScope()
       setCreateOpen(false)
       setDraft({ label: "", lessonSlotId: "", subjectId: "", coefficient: "1", evaluationDate: "" })
-      toast({
-        title: "Évaluation programmée",
-        description: result.routedToPeriod
-          ? `Elle a été rattachée à ${result.routedToPeriod.label}.`
-          : undefined,
-      })
+      toast({ title: "Évaluation programmée" })
     },
     onError: (error) => toast({
       title: "Création impossible",
@@ -149,9 +144,9 @@ export default function NotesPage() {
     .filter((period) => activePeriod && period.startDate > activePeriod.startDate)
     .sort((left, right) => left.startDate.localeCompare(right.startDate))[0]
   const draftSubjectIsLocked = completionBySubject.get(draft.subjectId)?.calculationStarted === true
-  const draftTargetPeriod = draftSubjectIsLocked ? nextPeriod : activePeriod
   const canCreate = draft.label.trim() !== "" && draft.subjectId !== "" && draft.evaluationDate !== ""
-    && (!draftSubjectIsLocked || Boolean(nextPeriod))
+    && !isPeriodReadOnly && !draftSubjectIsLocked
+    && Boolean(activePeriod && draft.evaluationDate >= activePeriod.startDate && draft.evaluationDate <= activePeriod.endDate)
     && Number.isFinite(Number(draft.coefficient)) && Number(draft.coefficient) > 0
   const selectedEvaluation = scheduledEvaluations.find((evaluation) => evaluation.id === selectedEvaluationId) ?? null
   const pendingCalculationSubject = (scopeQuery.data?.completion ?? []).find(
@@ -240,13 +235,15 @@ export default function NotesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {periods.map((period) => (
-                    <SelectItem key={period.id} value={period.id}  disabled={!period.isCurrent && !period.isCompleted}>
+                    <SelectItem key={period.id} value={period.id} disabled={!period.notesEntryOpen && !period.conductReviewOpen && !period.isClosed}>
                       {period.label}
-                      {period.isCurrent
+                      {period.notesEntryOpen
                         ? " · en cours"
-                        : period.isCompleted
-                          ? " · finalisée"
-                          : " · à venir"}
+                        : period.conductReviewOpen
+                          ? " · en revue"
+                          : period.isClosed
+                            ? " · finalisée"
+                            : " · à venir"}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -454,8 +451,8 @@ export default function NotesPage() {
                 </span>
                 <span className="block">
                   {nextPeriod
-                    ? `Les prochaines évaluations de cette matière seront rattachées à ${nextPeriod.label}.`
-                    : "Aucune période suivante n’est configurée : aucune nouvelle évaluation de cette matière ne pourra être programmée après ce verrouillage."}
+                    ? `Pour programmer les prochaines évaluations de cette matière, sélectionnez explicitement ${nextPeriod.label} lorsqu’elle sera ouverte à la saisie.`
+                    : "Aucune période suivante n’est configurée pour les prochaines évaluations de cette matière."}
                 </span>
               </AlertDialogDescription>
             </AlertDialogHeader>
@@ -545,8 +542,8 @@ export default function NotesPage() {
                   id="evaluation-date"
                   type="date"
                   required
-                  min={draftTargetPeriod?.startDate}
-                  max={draftTargetPeriod?.endDate}
+                  min={activePeriod?.startDate}
+                  max={activePeriod?.endDate}
                   value={draft.evaluationDate}
                   onChange={(event) =>
                     setDraft((previous) => ({
@@ -558,7 +555,7 @@ export default function NotesPage() {
                 {draftSubjectIsLocked ? (
                   <p className="text-xs text-muted-foreground">
                     {nextPeriod
-                      ? `Le calcul est déjà lancé pour cette matière. Cette évaluation sera rattachée à ${nextPeriod.label}.`
+                      ? `Le calcul est déjà lancé pour cette matière. Sélectionnez ${nextPeriod.label} pour y programmer l’évaluation lorsqu’elle sera ouverte.`
                       : "Le calcul est déjà lancé et aucune période suivante n’est configurée."}
                   </p>
                 ) : null}

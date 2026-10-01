@@ -39,7 +39,7 @@ export function SpontaneousGradeDialog({ open, slot, onOpenChange }: Spontaneous
   })
   const schoolYearId = contextQuery.data?.classes.find((item) => item.id === classId)?.schoolYearId
   const gradingPeriod = contextQuery.data?.gradingPeriods.find(
-    (item) => item.schoolYearId === schoolYearId && item.isCurrent,
+    (item) => item.schoolYearId === schoolYearId && item.notesEntryOpen,
   )
   const scopeQuery = useQuery({
     queryKey: ["evaluations-scope", classId, gradingPeriod?.id],

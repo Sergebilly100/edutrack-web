@@ -5,7 +5,6 @@ import {
   CheckCircle2,
   Eye,
   Loader2,
-  NotebookPen,
   ShieldCheck,
 } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -23,12 +22,9 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -44,12 +40,9 @@ import {
 } from "@/modules/students/students.api";
 import { EmptyState } from "@/shared/components/EmptyState";
 import {
-  decideConductGrade,
-  fetchConductOverview,
   fetchEvaluationsScope,
   fetchTeacherAcademicContext,
   markSubjectCompleted,
-  type ConductOverviewResponse,
   type EvaluationWithGrades,
 } from "./academic.api";
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator";
@@ -116,12 +109,6 @@ export default function CalculationPage() {
   const subjectId = searchParams.get("subjectId") ?? "";
   const [currentStep, setCurrentStep] = useState<2 | 3>(2);
   const [detailsStudentId, setDetailsStudentId] = useState<string | null>(null);
-  const [finalConductStudentId, setFinalConductStudentId] = useState<
-    string | null
-  >(null);
-  const [savedFinalConducts, setSavedFinalConducts] = useState<
-    Record<string, number>
-  >({});
 
   const contextQuery = useQuery({
     queryKey: ["academic", "teacher-context"],
@@ -169,8 +156,6 @@ export default function CalculationPage() {
     );
   const detailsStudent =
     students.find((student) => student.id === detailsStudentId) ?? null;
-  const finalConductStudent =
-    students.find((student) => student.id === finalConductStudentId) ?? null;
 
   useEffect(() => {
     if (completion?.status === "completed") setCurrentStep(3);
@@ -243,8 +228,7 @@ export default function CalculationPage() {
     );
 
   const editable =
-    completion.status !== "completed" && period?.isCurrent !== false;
-  const canFinalizeConduct = selectedClass?.isHomeroomTeacher === true;
+    completion.status !== "completed" && period?.notesEntryOpen !== false && !period?.closedClassIds?.includes(classId);
   return (
     <>
       <OfflineIndicator />
@@ -302,11 +286,11 @@ export default function CalculationPage() {
             3. Moyennes
           </li>
         </ol>
-        {completion.status === "completed" || period?.isCurrent === false ? (
+        {completion.status === "completed" || period?.notesEntryOpen === false ? (
           <Card className="shadow-sm !mt-3">
             <CardContent className="flex gap-3 p-4 text-xs">
               <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
-              {period?.isCurrent === false
+              {period?.notesEntryOpen === false
                 ? "Cette période est consultable uniquement. Les données ne redeviennent jamais modifiables après la génération des bulletins."
                 : "Cette matière est validée. Les moyennes et le détail des notes restent consultables."}
             </CardContent>
@@ -362,8 +346,7 @@ export default function CalculationPage() {
             <CardHeader className="pb-3">
               <CardTitle>Moyennes de {subject.name}</CardTitle>
               <CardDescription>
-                Consultez les moyennes et, pour le professeur principal, arrêtez
-                la conduite finale de chaque élève.
+                Consultez les résultats académiques de chaque élève.
               </CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
@@ -372,9 +355,6 @@ export default function CalculationPage() {
                   <TableRow>
                     <TableHead>Élève</TableHead>
                     <TableHead>Moyenne / 20</TableHead>
-                    {canFinalizeConduct ? (
-                      <TableHead>Conduite finale</TableHead>
-                    ) : null}
                     <TableHead className="text-right">Détail</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -387,20 +367,6 @@ export default function CalculationPage() {
                       <TableCell className="font-medium px-2 py-2" pNone="true">
                         {formatAverage(subjectAverage(evaluations, student.id))}
                       </TableCell>
-                      {canFinalizeConduct ? (
-                        <TableCell className="px-2 py-2" pNone="true">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="min-h-6"
-                            onClick={() => setFinalConductStudentId(student.id)}
-                            aria-label={`Définir la conduite de ${student.firstName} ${student.lastName}`}
-                          >
-                            <NotebookPen className="h-4 w-4" />
-                            {savedFinalConducts[student.id] ?? ""}
-                          </Button>
-                        </TableCell>
-                      ) : null}
                       <TableCell className="text-right px-2 py-2"  pNone="true">
                         <Button
                           type="button"
@@ -462,19 +428,6 @@ export default function CalculationPage() {
           student={detailsStudent}
           evaluations={evaluations}
           onOpenChange={(open) => !open && setDetailsStudentId(null)}
-        />
-        <FinalConductDialog
-          student={finalConductStudent}
-          gradingPeriodId={gradingPeriodId}
-          editable={editable}
-          onOpenChange={(open) => !open && setFinalConductStudentId(null)}
-          onSaved={(note) =>
-            setSavedFinalConducts((current) =>
-              finalConductStudent
-                ? { ...current, [finalConductStudent.id]: note }
-                : current,
-            )
-          }
         />
       </div>
     </>
@@ -601,184 +554,6 @@ function NotesList({
                 <span className="block text-muted-foreground">
                   Justificatif : {item.comment}
                 </span>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function FinalConductDialog({
-  student,
-  gradingPeriodId,
-  editable,
-  onOpenChange,
-  onSaved,
-}: {
-  student: StudentItem | null;
-  gradingPeriodId: string;
-  editable: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSaved: (note: number) => void;
-}) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [note, setNote] = useState("");
-  const overviewQuery = useQuery({
-    queryKey: ["conduct-overview", student?.id, gradingPeriodId],
-    queryFn: () => fetchConductOverview(student!.id, gradingPeriodId),
-    enabled: Boolean(student),
-  });
-  useEffect(() => {
-    setNote(
-      overviewQuery.data?.finalGrade
-        ? String(overviewQuery.data.finalGrade.note)
-        : "",
-    );
-  }, [overviewQuery.data?.finalGrade?.note, student?.id]);
-  const saveMutation = useMutation({
-    mutationFn: () =>
-      decideConductGrade({
-        student_id: student!.id,
-        grading_period_id: gradingPeriodId,
-        note: Number(note.replace(",", ".")),
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ["conduct-overview", student?.id, gradingPeriodId],
-      });
-      onSaved(Number(note.replace(",", ".")));
-      toast({ title: "Conduite finale enregistrée" });
-      onOpenChange(false);
-    },
-    onError: (error) =>
-      toast({
-        title: "Enregistrement impossible",
-        description: error instanceof Error ? error.message : undefined,
-        variant: "destructive",
-      }),
-  });
-  const parsed = Number(note.replace(",", "."));
-  const allTeacherInputsCompleted = overviewQuery.data?.inputSummary.isComplete === true;
-  const valid =
-    editable &&
-    allTeacherInputsCompleted &&
-    note !== "" &&
-    Number.isFinite(parsed) &&
-    parsed >= 0 &&
-    parsed <= MAX_GRADE;
-  return (
-    <Dialog open={Boolean(student)} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-2xl overflow-y-auto rounded-lg p-0 sm:w-full gap-2">
-        <DialogHeader className="border-b px-5 py-5 text-left sm:px-6">
-          <DialogTitle>
-            Conduite finale de{" "}
-            {student ? `${student.firstName} ${student.lastName}` : "l’élève"}
-          </DialogTitle>
-          <DialogDescription>
-            Consultez les avis des enseignants avant d’arrêter la note utilisée
-            dans la moyenne générale.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 px-5 py-5 sm:px-6">
-          {overviewQuery.isLoading ? (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Chargement des avis…
-            </p>
-          ) : null}
-          {overviewQuery.isError ? (
-            <p className="text-sm text-destructive">
-              Impossible de charger les avis des enseignants.
-            </p>
-          ) : null}
-          {overviewQuery.data ? (
-            <TeacherConductInputs overview={overviewQuery.data} />
-          ) : null}
-          <div className="space-y-2">
-            <Label htmlFor="final-conduct-note">Note finale / 20</Label>
-            <Input
-              id="final-conduct-note"
-              type="number"
-              min={0}
-              max={MAX_GRADE}
-              step={0.5}
-              disabled={!editable || !allTeacherInputsCompleted}
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-            />
-          </div>
-        </div>
-        <DialogFooter className="border-t px-5 py-4 sm:px-6">
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-6"
-            onClick={() => onOpenChange(false)}
-            disabled={saveMutation.isPending}
-          >
-            Annuler
-          </Button>
-          <Button
-            type="button"
-            className="min-h-6"
-            disabled={!valid || saveMutation.isPending}
-            onClick={() => saveMutation.mutate()}
-          >
-            {saveMutation.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : null}
-            {saveMutation.isPending
-              ? "Enregistrement…"
-              : "Enregistrer la note finale"}
-          </Button>
-          {overviewQuery.data && !allTeacherInputsCompleted ? (
-            <p className="w-full text-sm text-destructive sm:text-right">
-              La décision finale sera disponible après la saisie de tous les enseignants.
-            </p>
-          ) : null}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function TeacherConductInputs({
-  overview,
-}: {
-  overview: ConductOverviewResponse;
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-medium">Avis des enseignants</p>
-        <Badge variant={overview.inputSummary.isComplete ? "success" : "secondary"}>
-          {overview.inputSummary.submittedCount}/{overview.inputSummary.expectedCount} renseignés
-        </Badge>
-      </div>
-      {overview.teacherInputs.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Aucun enseignant n’est affecté à cette classe.
-        </p>
-      ) : (
-        <ul className="divide-y rounded-lg border">
-          {overview.teacherInputs.map((input) => (
-            <li key={input.teacherId} className="p-3 text-sm">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-medium">
-                  {input.teacherName}
-                  {input.isSubmitted ? ` · ${input.note}/20` : ""}
-                </p>
-                {!input.isSubmitted ? <Badge variant="outline">À renseigner</Badge> : null}
-              </div>
-              {input.subjectLabel ? (
-                <p className="text-muted-foreground">{input.subjectLabel}</p>
-              ) : null}
-              {input.observation ? (
-                <p className="mt-1 text-muted-foreground">
-                  {input.observation}
-                </p>
               ) : null}
             </li>
           ))}

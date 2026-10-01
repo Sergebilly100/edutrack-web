@@ -6,10 +6,21 @@ vi.mock("@/shared/api/client", () => ({
   apiClient: { get: getMock, post: postMock, patch: patchMock, delete: vi.fn() },
 }))
 
-import { createSpontaneousGrade, createSubjectsBulk, fetchTeacherAcademicContext, listClasses, listLevels, listSchoolYears, updateSubjectsBulk } from "@/modules/academic/academic.api"
+import { createGradingPeriod, createSpontaneousGrade, createSubjectsBulk, fetchTeacherAcademicContext, listClasses, listLevels, listSchoolYears, updateGradingPeriod, updateSubjectsBulk } from "@/modules/academic/academic.api"
 
 describe("academic.api", () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it("transmet les trois dates d'une période à la création et à la mise à jour", async () => {
+    const dates = { startDate: "2026-09-01", reviewStartDate: "2026-11-15", endDate: "2026-12-20" }
+    const input = { ...dates, schoolYearId: "year-1", type: "trimester" as const, orderIndex: 1, label: "T1" }
+    postMock.mockResolvedValueOnce({ data: { gradingPeriod: { id: "period-1", ...input } } })
+    patchMock.mockResolvedValueOnce({ data: { gradingPeriod: { id: "period-1", ...input } } })
+    await createGradingPeriod(input)
+    await updateGradingPeriod("period-1", dates)
+    expect(postMock).toHaveBeenCalledWith("/grading-periods", input)
+    expect(patchMock).toHaveBeenCalledWith("/grading-periods/period-1", dates)
+  })
 
   it("demande une revalidation serveur qui contourne le cache offline des classes", async () => {
     getMock.mockResolvedValueOnce({ data: { classes: [] } })

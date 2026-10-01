@@ -158,7 +158,7 @@ describe("NotesPage", () => {
     expect(screen.getByRole("button", { name: "Enregistrer" })).toBeDisabled()
   })
 
-  it("avertit explicitement avant de verrouiller les notes et annonce la période suivante", async () => {
+  it("avertit explicitement avant de verrouiller les notes et demande de sélectionner la période suivante", async () => {
     fetchContext.mockResolvedValueOnce({
       classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2026-2027" }],
       gradingPeriods: [
@@ -177,7 +177,7 @@ describe("NotesPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Calculer les moyennes" }))
     expect(screen.getByRole("alertdialog", { name: "Passer au calcul des moyennes ?" })).toBeInTheDocument()
     expect(screen.getByText(/ne pourront plus être modifiées/)).toBeInTheDocument()
-    expect(screen.getByText(/seront rattachées à 2e trimestre/)).toBeInTheDocument()
+    expect(screen.getByText(/sélectionnez explicitement 2e trimestre/)).toBeInTheDocument()
     expect(markSubjectCompleted).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole("button", { name: "Verrouiller et calculer" }))

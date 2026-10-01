@@ -49,6 +49,7 @@ async function setupStudentsPage(page: import("@playwright/test").Page, students
         body: JSON.stringify({ permissions: [
           "teachers.view", "teachers.edit", "teachers.block", "teachers.documents",
           "students.view", "students.create", "enrollments.create", "enrollments.view",
+          "payments.view",
           "schedule.view", "schedule.edit",
           "attendance.view",
           "salary.view", "salary.mark_paid", "salary.export",
@@ -103,6 +104,32 @@ async function setupStudentsPage(page: import("@playwright/test").Page, students
         }) })
     }
     // Détail élève
+    if (path.endsWith("/school-profile")) {
+      if (path.includes("/students/pending-e2e/")) {
+        return route.fulfill({ status: 404, contentType: "application/json",
+          body: JSON.stringify({ error: "Student is not enrolled in the active school year", code: "STUDENT_NOT_CURRENTLY_ENROLLED", statusCode: 404 }) })
+      }
+      return route.fulfill({ status: 200, contentType: "application/json",
+        body: JSON.stringify({ data: {
+          ...STUDENT, activeSchoolYear: { id: "year-e2e", label: "2026-2027" },
+          absenceSummary: { total: 0, excused: 0, thisMonth: 0, thisWeek: 0 },
+          recentAbsences: [], documents: [], parentSms: [],
+        } }) })
+    }
+    if (path.endsWith("/financial-status")) {
+      return route.fulfill({ status: 200, contentType: "application/json",
+        body: JSON.stringify({ financialStatus: {
+          studentId: STUDENT_ID, schoolYearId: "year-e2e", asOfDate: "2026-09-30", currency: "FCFA",
+          totalDue: 100000, confirmedPaid: 65000, waivedAmount: 5000,
+          remainingDue: 30000, cumulativeExpectedAtDate: 80000, standing: "late",
+        } }) })
+    }
+    if (path.endsWith("/absences") && path.includes(`/students/${STUDENT_ID}/`)) {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) })
+    }
+    if (path.endsWith("/dossier") && path.includes(`/students/${STUDENT_ID}/`)) {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ student: STUDENT, events: [] }) })
+    }
     if (path.includes(`/students/${STUDENT_ID}`)) {
       return route.fulfill({ status: 200, contentType: "application/json",
         body: JSON.stringify({ data: STUDENT }) })
@@ -251,6 +278,26 @@ test.describe("Gestion élèves - directeur", () => {
     await expect(page.getByText("Koné Amara").last()).toBeVisible({ timeout: 10000 })
     await page.getByText("Koné Amara").last().click()
     await expect(page).toHaveURL(new RegExp(`/students/${STUDENT_ID}`))
+  })
+
+  test("la fiche confirmée montre sa situation financière sans débordement mobile", async ({ page }) => {
+    await setupStudentsPage(page)
+    await page.goto(`/students/${STUDENT_ID}`)
+    for (const width of [320, 360, 393]) {
+      await page.setViewportSize({ width, height: 800 })
+      await expect(page.getByText("Situation financière · 2026-2027")).toBeVisible()
+      await expect(page.getByText("Échéances en retard")).toBeVisible()
+      await expect(page.getByText(/30\s*000 FCFA/)).toBeVisible()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    }
+  })
+
+  test("un dossier en attente ouvert directement ne montre pas de fiche scolaire", async ({ page }) => {
+    await setupStudentsPage(page)
+    await page.goto("/students/pending-e2e")
+    await expect(page.getByText(/ne fait pas partie des élèves scolarisés confirmés dans l’année scolaire active/)).toBeVisible()
+    await expect(page.getByRole("button", { name: "Ouvrir les réinscriptions" })).toBeVisible()
+    await expect(page.getByText("Situation financière · 2026-2027")).toHaveCount(0)
   })
 
   test("la liste vide ouvre le parcours d’inscription", async ({ page }) => {

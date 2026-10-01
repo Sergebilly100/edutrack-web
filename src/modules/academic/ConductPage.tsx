@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Gavel, Loader2, MessageSquareText } from "lucide-react"
-import { useNavigate } from "react-router-dom"
+import { useSearchParams } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -15,13 +15,14 @@ import { EmptyState } from "@/shared/components/EmptyState"
 import { useAuthStore } from "@/shared/store/auth.store"
 import {
   decideConductGrade,
+  fetchConductDecisionContext,
+  fetchConductDecisionStudents,
   fetchConductOverview,
   fetchTeacherAcademicContext,
   fetchTeacherConductScope,
   submitBulkConductInputs,
   submitConductInput,
 } from "./academic.api"
-import { listStudents } from "@/modules/students/students.api"
 
 const CONDUCT_MAX = 20
 
@@ -39,7 +40,7 @@ export default function ConductPage({ view = "all" }: { view?: ConductView }) {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Conduite</h1>
         <p className="text-sm text-muted-foreground">
-          Saisie par les professeurs, puis décision finale par le professeur principal de classe ou l&apos;éducateur assigné.
+          Les professeurs donnent leur avis pendant la revue. Le responsable configuré arrête la note finale.
         </p>
       </header>
 
@@ -58,9 +59,9 @@ export default function ConductPage({ view = "all" }: { view?: ConductView }) {
 function TeacherConductSection() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
-  const [classId, setClassId] = useState("")
-  const [gradingPeriodId, setGradingPeriodId] = useState("")
+  const [searchParams] = useSearchParams()
+  const [classId, setClassId] = useState(searchParams.get("classId") ?? "")
+  const [gradingPeriodId, setGradingPeriodId] = useState(searchParams.get("gradingPeriodId") ?? "")
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([])
   const [bulkNote, setBulkNote] = useState("")
   const [bulkObservation, setBulkObservation] = useState("")
@@ -74,10 +75,10 @@ function TeacherConductSection() {
     (period) => !selectedClass || period.schoolYearId === selectedClass.schoolYearId,
   )
   const selectedPeriod = periods.find((period) => period.id === gradingPeriodId)
-  const periodEnded = selectedPeriod?.isCurrent === false
+  const periodEnded = selectedPeriod?.conductReviewOpen === false || Boolean(selectedPeriod?.closedClassIds?.includes(classId))
   useEffect(() => {
     if (gradingPeriodId || periods.length === 0) return
-    const current = periods.find((period) => period.isCurrent)
+    const current = periods.find((period) => period.conductReviewOpen)
     if (current) setGradingPeriodId(current.id)
   }, [gradingPeriodId, periods])
   const scopeQuery = useQuery({
@@ -96,6 +97,7 @@ function TeacherConductSection() {
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["conduct-input-scope", classId, gradingPeriodId] })
+      await queryClient.invalidateQueries({ queryKey: ["conduct", "review-workspace"] })
       toast({ title: "Note de conduite enregistrée", duration: 3000 })
     },
     onError: (error) =>
@@ -117,6 +119,7 @@ function TeacherConductSection() {
     }),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ["conduct-input-scope", classId, gradingPeriodId] })
+      await queryClient.invalidateQueries({ queryKey: ["conduct", "review-workspace"] })
       setSelectedStudentIds([])
       setBulkNote("")
       setBulkObservation("")
@@ -129,7 +132,7 @@ function TeacherConductSection() {
     }),
   })
 
-  const availableStudents = (scopeQuery.data?.students ?? []).filter((student) => student.input === null)
+  const availableStudents = (scopeQuery.data?.students ?? []).filter((student) => !student.isLocked)
   const parsedBulkNote = Number(bulkNote.replace(",", "."))
   const bulkValid = selectedStudentIds.length > 0 && bulkNote !== ""
     && Number.isFinite(parsedBulkNote) && parsedBulkNote >= 0 && parsedBulkNote <= CONDUCT_MAX
@@ -146,6 +149,9 @@ function TeacherConductSection() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {contextQuery.isLoading ? <p role="status" className="text-sm text-muted-foreground">Chargement de vos classes…</p> : null}
+        {contextQuery.isError ? <p role="alert" className="text-sm text-destructive">Impossible de charger vos classes.</p> : null}
+        {contextQuery.isSuccess && contextQuery.data.classes.length === 0 ? <EmptyState title="Aucune classe affectée" description="Aucune affectation pédagogique ni aucun créneau actif ne vous associe à une classe." /> : null}
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>Classe</Label>
@@ -184,12 +190,8 @@ function TeacherConductSection() {
           <p className="text-sm text-destructive">Impossible de charger les élèves de cette classe.</p>
         ) : scopeQuery.data?.isAvailable === false ? (
           <EmptyState
-            title="Conduite pas encore ouverte"
-            description="Passez d’abord au calcul des moyennes pour cette classe et cette période depuis Évaluations & notes."
-            action={{
-              label: "Passer au calcul des moyennes",
-              onClick: () => navigate(`/academic/notes?classId=${encodeURIComponent(classId)}&gradingPeriodId=${encodeURIComponent(gradingPeriodId)}`),
-            }}
+            title="Revue de conduite indisponible"
+            description="Les avis sont accessibles dès l’ouverture de la revue de conduite."
           />
         ) : (
           <div className="space-y-5">
@@ -218,7 +220,7 @@ function TeacherConductSection() {
                 studentId={student.studentId}
                 fullName={student.fullName}
                 existingInput={student.input}
-                readOnly={periodEnded}
+                readOnly={periodEnded || student.isLocked}
                 selected={selectedStudentIds.includes(student.studentId)}
                 onSelectedChange={(selected) => setSelectedStudentIds((current) => selected
                   ? [...current, student.studentId]
@@ -257,14 +259,14 @@ function ConductInputRow({
   onSelectedChange: (selected: boolean) => void
   onSave: (note: number, observation?: string) => void
 }) {
-  const [note, setNote] = useState("")
-  const [observation, setObservation] = useState("")
+  const [note, setNote] = useState(existingInput ? String(existingInput.note) : "")
+  const [observation, setObservation] = useState(existingInput?.observation ?? "")
   const parsed = Number(note.replace(",", "."))
   const valid = note !== "" && Number.isFinite(parsed) && parsed >= 0 && parsed <= CONDUCT_MAX
 
   return (
     <div className="grid items-end gap-3 rounded-lg border p-3 sm:grid-cols-[48px_1fr_100px_1fr_auto_auto]">
-      <div className="flex min-h-12 items-center"><Checkbox aria-label={`Sélectionner ${fullName}`} checked={selected} disabled={readOnly || existingInput !== null} onCheckedChange={(checked) => onSelectedChange(checked === true)} /></div>
+      <div className="flex min-h-12 items-center"><Checkbox aria-label={`Sélectionner ${fullName}`} checked={selected} disabled={readOnly} onCheckedChange={(checked) => onSelectedChange(checked === true)} /></div>
       <div className="min-h-12 flex flex-col justify-center"><p className="font-medium">{fullName}</p>{existingInput ? <p className="text-xs text-muted-foreground">Déjà saisie : {existingInput.note}/20{existingInput.observation ? ` · ${existingInput.observation}` : ""}</p> : null}</div>
       <div className="space-y-1">
         <Label className="sr-only">Note</Label>
@@ -275,7 +277,7 @@ function ConductInputRow({
           step={0.5}
           placeholder={`/${CONDUCT_MAX}`}
           value={note}
-          disabled={readOnly || existingInput !== null}
+          disabled={readOnly}
           onChange={(event) => setNote(event.target.value)}
         />
       </div>
@@ -284,7 +286,7 @@ function ConductInputRow({
         <Input
           placeholder="Observation (optionnel)"
           value={observation}
-          disabled={readOnly || existingInput !== null}
+          disabled={readOnly}
           onChange={(event) => setObservation(event.target.value)}
         />
       </div>
@@ -292,10 +294,10 @@ function ConductInputRow({
         type="button"
         variant="outline"
         className="min-h-12"
-        disabled={readOnly || !valid || existingInput !== null}
+        disabled={readOnly || !valid}
         onClick={() => onSave(parsed, observation.trim() || undefined)}
       >
-        Enregistrer
+        {existingInput ? "Corriger" : "Enregistrer"}
       </Button>
     </div>
   )
@@ -307,32 +309,24 @@ function EducatorDecisionSection() {
   const [selectedStudentId, setSelectedStudentId] = useState("")
 
   const contextQuery = useQuery({
-    queryKey: ["academic", "teacher-context"],
-    queryFn: fetchTeacherAcademicContext,
+    queryKey: ["conduct", "decision-context"],
+    queryFn: fetchConductDecisionContext,
   })
   const selectedClass = contextQuery.data?.classes.find((item) => item.id === classId)
   const periods = (contextQuery.data?.gradingPeriods ?? []).filter(
     (period) => !selectedClass || period.schoolYearId === selectedClass.schoolYearId,
   )
   const studentsQuery = useQuery({
-    queryKey: ["students-list", classId],
-    queryFn: async () => {
-      const first = await listStudents({ classId, isActive: true, limit: 100, page: 1 })
-      const data = [...first.data]
-      for (let page = 2; page <= first.pagination.totalPages; page += 1) {
-        const next = await listStudents({ classId, isActive: true, limit: 100, page })
-        data.push(...next.data)
-      }
-      return { ...first, data }
-    },
-    enabled: Boolean(classId),
+    queryKey: ["conduct", "decision-students", classId, gradingPeriodId],
+    queryFn: () => fetchConductDecisionStudents(classId, gradingPeriodId),
+    enabled: Boolean(classId && gradingPeriodId),
   })
   const selectedPeriod = periods.find((period) => period.id === gradingPeriodId)
-  const isReadOnly = selectedPeriod?.isCurrent === false
+  const isReadOnly = selectedPeriod?.conductReviewOpen === false || Boolean(selectedPeriod?.closedClassIds?.includes(classId))
 
   useEffect(() => {
     if (gradingPeriodId || periods.length === 0) return
-    const current = periods.find((period) => period.isCurrent)
+    const current = periods.find((period) => period.conductReviewOpen)
     if (current) setGradingPeriodId(current.id)
   }, [gradingPeriodId, periods])
 
@@ -349,18 +343,21 @@ function EducatorDecisionSection() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {contextQuery.isLoading ? <p role="status" className="text-sm text-muted-foreground">Chargement des classes autorisées…</p> : null}
+        {contextQuery.isError ? <p role="alert" className="text-sm text-destructive">Impossible de charger les classes autorisées.</p> : null}
+        {contextQuery.isSuccess && contextQuery.data.classes.length === 0 ? <EmptyState title="Aucune décision autorisée" description="La direction configure le responsable de conduite dans Paramètres." /> : null}
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label>Classe enseignée</Label>
+            <Label>Classe à décider</Label>
             <Select value={classId || "none"} onValueChange={(value) => {
               setClassId(value === "none" ? "" : value)
               setGradingPeriodId("")
               setSelectedStudentId("")
             }}>
-              <SelectTrigger className="min-h-12" aria-label="Classe enseignée"><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
+              <SelectTrigger className="min-h-12" aria-label="Classe à décider"><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
               <SelectContent>
                 {(contextQuery.data?.classes ?? []).map((klass) => (
-                  <SelectItem key={klass.id} value={klass.id}>{klass.name} · {klass.levelName}</SelectItem>
+                  <SelectItem key={klass.id} value={klass.id}>{klass.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -375,7 +372,7 @@ function EducatorDecisionSection() {
               <SelectContent>
                 {periods.map((period) => (
                   <SelectItem key={period.id} value={period.id}>
-                    {period.label}{period.isCurrent ? " · en cours" : period.isCompleted ? " · finalisée" : " · à venir"}
+                    {period.label}{period.closedClassIds.includes(classId) ? " · finalisée" : period.conductReviewOpen ? " · en revue" : " · à venir"}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -392,13 +389,16 @@ function EducatorDecisionSection() {
             >
               <SelectTrigger className="min-h-12" aria-label="Élève"><SelectValue placeholder="Choisir un élève" /></SelectTrigger>
               <SelectContent>
-                {(studentsQuery.data?.data ?? []).map((student) => (
+                {(studentsQuery.data?.students ?? []).map((student) => (
                   <SelectItem key={student.id} value={student.id}>
-                    {student.firstName} {student.lastName}
+                    {student.fullName}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {studentsQuery.isLoading ? <p role="status" className="text-sm text-muted-foreground">Chargement des élèves…</p> : null}
+            {studentsQuery.isError ? <p role="alert" className="text-sm text-destructive">Impossible de charger les élèves confirmés.</p> : null}
+            {studentsQuery.isSuccess && studentsQuery.data.students.length === 0 ? <EmptyState title="Aucun élève confirmé" description="Cette classe ne comporte aucun élève confirmé pour cette année." /> : null}
           </div>
         ) : null}
 
@@ -504,11 +504,7 @@ function EducatorDecisionPanel({
             ))}
           </ul>
         )}
-        {!overview.inputSummary.isComplete ? (
-          <p className="mt-2 text-sm text-destructive">
-            La décision finale sera disponible après la saisie de tous les enseignants.
-          </p>
-        ) : null}
+        {!overview.inputSummary.isComplete ? <p className="mt-2 text-sm text-muted-foreground">Les avis manquants peuvent être relancés. Ils ne bloquent pas la décision.</p> : null}
       </div>
 
       {overview.spontaneousEvaluations.length > 0 ? (
@@ -535,18 +531,18 @@ function EducatorDecisionPanel({
             step={0.5}
             className="max-w-24"
             value={note}
-            disabled={readOnly || !overview.inputSummary.isComplete}
+            disabled={readOnly}
             onChange={(event) => setNote(event.target.value)}
           />
         </div>
         <Button
           type="button"
           className="min-h-12"
-          disabled={readOnly || !overview.inputSummary.isComplete || !valid || decideMutation.isPending}
+          disabled={readOnly || !valid || decideMutation.isPending}
           onClick={() => decideMutation.mutate()}
         >
           {decideMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          Arrêter la note
+          {overview.finalGrade ? "Rectifier la note" : "Arrêter la note"}
         </Button>
       </div>
     </div>

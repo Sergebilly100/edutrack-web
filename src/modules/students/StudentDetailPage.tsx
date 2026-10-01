@@ -5,6 +5,8 @@ import { BookOpen, Clock3, MessageSquare, Phone, UserCheck } from "lucide-react"
 import { useDebounce } from "@/shared/hooks/useDebounce"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { ApiError } from "@/shared/api/client"
+import { getFinancialStatus } from "@/modules/finance/finance.api"
+import { formatFcfa } from "@/shared/utils/formatting"
 import { normalizePhoneInput, isValidOptionalPhone } from "@/shared/utils/phone"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -32,19 +34,25 @@ import { useToast } from "@/components/ui/use-toast"
 import {
   excuseAbsence,
   getStudentAbsenceRecords,
-  getStudentById,
+  getCurrentStudentProfile,
+  getHistoricalStudentProfile,
   retrySmsNotification,
   updateStudent,
   type StudentAbsenceRecord,
+  type CurrentStudentProfile,
+  type HistoricalStudentProfile,
 } from "@/modules/students/students.api"
 import { DocumentList, DocumentUpload, OfflineDisabledFieldset, PageLayout, PresenceDonut, StatCard } from "@/shared/components"
 import { StudentDossierTimeline } from "@/modules/students/components/StudentDossierTimeline"
+import { StudentReportCards } from "@/modules/students/components/StudentReportCards"
 import { DocumentChecklist } from "@/modules/enrollments/components/DocumentChecklist"
-import { listStudentDocuments } from "@/modules/enrollments/enrollments.api"
+import { getStudentAcademicSummary, listStudentDocuments } from "@/modules/enrollments/enrollments.api"
+import { enrollmentStatusLabel } from "@/modules/enrollments/enrollments.helpers"
 import { countMissingMandatoryDocuments } from "@/modules/enrollments/enrollments.helpers"
 import { BackIcon, InfoIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabel, useStudentLabels } from "@/shared/hooks/useStudentLabel"
+import { EmptyState } from "@/shared/components/EmptyState"
 import { TourGuide } from "@/shared/components/TourGuide"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { studentDetailTourSteps } from "@/shared/lib/tour-steps"
@@ -78,7 +86,8 @@ const ABSENCE_HISTORY_RANGE = {
   to: "2100-12-31",
 } as const
 
-export default function StudentDetailPage() {
+export default function StudentDetailPage({ mode = "current" }: { mode?: "current" | "historical" }) {
+  const historical = mode === "historical"
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
@@ -87,12 +96,15 @@ export default function StudentDetailPage() {
   const studentLabel = useStudentLabel()
   const studentLabels = useStudentLabels()
   const { hasPermission } = usePermissions()
-  const canManageStudentDocuments = hasPermission("students.documents")
+  const canViewSharedDocuments = hasPermission("students.documents")
+  const canManageStudentDocuments = !historical && canViewSharedDocuments
   const canViewEnrollmentDocuments = hasPermission("enrollments.view")
-  const canManageEnrollmentDocuments = hasPermission("enrollments.edit")
-  const canViewDocuments = canManageStudentDocuments || canViewEnrollmentDocuments
-  const canEditStudent = hasPermission("students.edit")
+  const canManageEnrollmentDocuments = !historical && hasPermission("enrollments.edit")
+  const canViewDocuments = canViewSharedDocuments || canViewEnrollmentDocuments
+  const canEditStudent = !historical && hasPermission("students.edit")
   const canViewAttendance = hasPermission("attendance.view")
+  const canViewFinance = hasPermission("tuition.view") || hasPermission("payments.view") || hasPermission("payments.record")
+  const canViewReportCards = hasPermission("report_cards.view") || hasPermission("enrollments.view")
   const tour = useTourGuide("student-detail", true)
 
   const [parentName, setParentName] = useState("")
@@ -103,6 +115,7 @@ export default function StudentDetailPage() {
   const [note, setNote] = useState("")
   const [noteStatus, setNoteStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
   const [recentAbsencesPage, setRecentAbsencesPage] = useState(1)
+  const [selectedSchoolYearId, setSelectedSchoolYearId] = useState<string | null>(null)
 
   // Filtres tableau absences
   const [absenceFilterMonth, setAbsenceFilterMonth] = useState<string>("all")
@@ -117,16 +130,43 @@ export default function StudentDetailPage() {
   const hydratedRef = useRef(false)
   const debouncedNote = useDebounce(note, 1000)
 
-  const studentQuery = useQuery({
-    queryKey: ["students", "detail", studentId],
-    queryFn: () => getStudentById(studentId),
+  const studentQuery = useQuery<CurrentStudentProfile | HistoricalStudentProfile>({
+    queryKey: ["students", "detail", studentId, historical ? "historical-profile" : "school-profile"],
+    queryFn: async () => historical ? getHistoricalStudentProfile(studentId) : getCurrentStudentProfile(studentId),
     enabled: studentId.trim().length > 0,
+    refetchOnMount: "always",
+  })
+
+  const academicSummaryQuery = useQuery({
+    queryKey: ["enrollments", "re-enrollment", "student-summary-v3", studentId],
+    queryFn: () => getStudentAcademicSummary(studentId),
+    enabled: historical && Boolean(studentQuery.data) && !studentQuery.isFetching,
+  })
+  const academicYears = academicSummaryQuery.data?.years ?? []
+  const preferredYearId = studentQuery.data && "latestConfirmedSchoolYear" in studentQuery.data
+    ? studentQuery.data.latestConfirmedSchoolYear.id
+    : null
+  const defaultYear = academicYears.find((year) => year.schoolYearId === preferredYearId)
+    ?? academicYears.find((year) => year.enrollmentStatus === "confirmed")
+    ?? academicYears[0]
+  const selectedYearId = selectedSchoolYearId ?? defaultYear?.schoolYearId ?? "all"
+  const selectedYear = selectedYearId === "all"
+    ? null
+    : academicYears.find((year) => year.schoolYearId === selectedYearId) ?? null
+  const absenceRange = historical && selectedYear?.startDate && selectedYear?.endDate
+    ? { from: selectedYear.startDate, to: selectedYear.endDate }
+    : ABSENCE_HISTORY_RANGE
+
+  const financialQuery = useQuery({
+    queryKey: ["finance", "financial-status", studentId, studentQuery.data?.activeSchoolYear?.id],
+    queryFn: () => getFinancialStatus(studentId, studentQuery.data!.activeSchoolYear!.id),
+    enabled: !historical && canViewFinance && Boolean(studentQuery.data?.activeSchoolYear?.id) && !studentQuery.isFetching,
   })
 
   const enrollmentDocumentsQuery = useQuery({
     queryKey: ["enrollments", "documents", studentId],
     queryFn: () => listStudentDocuments(studentId),
-    enabled: canViewEnrollmentDocuments && studentId.trim().length > 0,
+    enabled: canViewEnrollmentDocuments && Boolean(studentQuery.data) && !studentQuery.isFetching,
   })
   const isEnrollmentDossierComplete = enrollmentDocumentsQuery.isSuccess &&
     countMissingMandatoryDocuments(enrollmentDocumentsQuery.data ?? []) === 0
@@ -137,11 +177,11 @@ export default function StudentDetailPage() {
       "detail",
       studentId,
       "absence-records",
-      ABSENCE_HISTORY_RANGE.from,
-      ABSENCE_HISTORY_RANGE.to,
+      absenceRange.from,
+      absenceRange.to,
     ],
-    queryFn: () => getStudentAbsenceRecords(studentId, ABSENCE_HISTORY_RANGE),
-    enabled: canViewAttendance && studentId.trim().length > 0,
+    queryFn: () => getStudentAbsenceRecords(studentId, absenceRange),
+    enabled: canViewAttendance && Boolean(studentQuery.data) && !studentQuery.isFetching && (!historical || !academicSummaryQuery.isLoading),
   })
 
   const saveContactsMutation = useMutation({
@@ -247,12 +287,14 @@ export default function StudentDetailPage() {
     return Math.max(0, schoolDaysEstimate - absences)
   }, [studentQuery.data?.absenceSummary.thisMonth])
 
-  const absenceRows = useMemo<StudentAbsenceRecord[]>(() => {
+  const absenceRows: StudentAbsenceRecord[] = (() => {
     if (canViewAttendance) {
       return absenceRecordsQuery.data ?? []
     }
 
-    return (studentQuery.data?.recentAbsences ?? []).map((row) => ({
+    return (studentQuery.data?.recentAbsences ?? [])
+      .filter((row) => !historical || !selectedYear || (row.date >= selectedYear.startDate && row.date <= selectedYear.endDate))
+      .map((row) => ({
       id: row.id,
       date: row.date,
       subject: row.subject,
@@ -273,7 +315,7 @@ export default function StudentDetailPage() {
         sentAt: null,
       },
     }))
-  }, [absenceRecordsQuery.data, canViewAttendance, studentQuery.data])
+  })()
 
   const absenceMonthOptions = useMemo(() => {
     const months = new Map<string, string>()
@@ -316,7 +358,7 @@ export default function StudentDetailPage() {
     )
   }
 
-  if (studentQuery.isLoading) {
+  if (studentQuery.isLoading || studentQuery.isFetching) {
     return (
       <div className="space-y-4 p-4 md:p-6">
         <Skeleton className="h-10 w-52" />
@@ -333,6 +375,13 @@ export default function StudentDetailPage() {
     return <div className="p-4 md:p-6"><QueryErrorState className="[&_button]:min-h-12" title="Fiche indisponible" message="Impossible de charger la fiche de l’élève. Réessayez dans un instant." onRetry={() => void studentQuery.refetch()} isRetrying={studentQuery.isFetching} /></div>
   }
 
+  if (studentQuery.error instanceof ApiError && studentQuery.error.code === "STUDENT_NOT_CURRENTLY_ENROLLED") {
+    return <PageLayout title="Fiche scolaire indisponible">
+      <Alert><AlertDescription>Ce profil ne fait pas partie des élèves scolarisés confirmés dans l’année scolaire active. Les anciens dossiers se consultent depuis Réinscriptions.</AlertDescription></Alert>
+      {hasPermission("enrollments.view") ? <Button className="mt-4 min-h-12" onClick={() => navigate("/enrollments?tab=re-enrollment")}>Ouvrir les réinscriptions</Button> : null}
+    </PageLayout>
+  }
+
   if (studentQuery.isError || !studentQuery.data) {
     return (
       <div className="p-4 md:p-6">
@@ -344,10 +393,13 @@ export default function StudentDetailPage() {
   }
 
   const student = studentQuery.data
+  const latestConfirmedSchoolYear = "latestConfirmedSchoolYear" in student ? student.latestConfirmedSchoolYear : null
+  const parentSmsRows = student.parentSms.filter((row) => !historical || !selectedYear ||
+    (row.date.slice(0, 10) >= selectedYear.startDate && row.date.slice(0, 10) <= selectedYear.endDate))
   const params = new URLSearchParams(location.search)
-  const returnTo = params.get("returnTo") || "/students"
-  const sentSmsCount = student.parentSms.filter((row) => row.status === "sent" || row.status === "delivered").length
-  const failedSmsCount = student.parentSms.filter((row) => row.status === "failed").length
+  const returnTo = params.get("returnTo") || (historical ? "/enrollments?tab=re-enrollment" : "/students")
+  const sentSmsCount = parentSmsRows.filter((row) => row.status === "sent" || row.status === "delivered").length
+  const failedSmsCount = parentSmsRows.filter((row) => row.status === "failed").length
   const hasParentContact = Boolean(parentPhone.trim() || parentPhone2.trim())
   const absenceRiskLabel =
     student.absenceSummary.thisMonth > 3
@@ -363,7 +415,7 @@ export default function StudentDetailPage() {
     recentAbsencesPage * recentAbsencesPageSize
   )
 
-  const canExcuse = hasPermission("students.excuse")
+  const canExcuse = !historical && hasPermission("students.excuse")
   const isAbsenceTableLoading =
     canViewAttendance && absenceRecordsQuery.isLoading && !absenceRecordsQuery.data
   const hasAbsenceTableError = canViewAttendance && absenceRecordsQuery.isError
@@ -378,7 +430,7 @@ export default function StudentDetailPage() {
         onFinish={tour.markDone}
       />
     <PageLayout
-      title={`Profil détaillé ${studentLabel.toLowerCase()}`}
+      title={historical ? `Dossier historique ${studentLabel.toLowerCase()}` : `Profil détaillé ${studentLabel.toLowerCase()}`}
       subtitle=""
       actions={
         <div className="flex gap-2">
@@ -402,10 +454,35 @@ export default function StudentDetailPage() {
       }
     >
       <OfflineDisabledFieldset showNotice={false}>
+      {historical && latestConfirmedSchoolYear ? <Alert className="mb-4"><AlertDescription>
+        {student.activeSchoolYear && !("confirmedInActiveYear" in student && student.confirmedInActiveYear)
+          ? `Cet élève n’est pas inscrit dans l’année scolaire en cours : ${student.activeSchoolYear.label}. `
+          : student.activeSchoolYear ? `Inscription confirmée dans l’année scolaire en cours : ${student.activeSchoolYear.label}. ` : ""}
+        Dernière année scolaire confirmée : {latestConfirmedSchoolYear.label} · {latestConfirmedSchoolYear.className}.
+      </AlertDescription></Alert> : null}
       {student.historicalSources?.length ? <div className="mb-4 space-y-2 rounded-lg border p-4">
         <h2 className="text-sm font-semibold">Historique importé</h2>
         <ul className="space-y-1 text-sm text-muted-foreground">{student.historicalSources.map((source) => <li key={source.schoolYearLabel}>{source.schoolYearLabel} · Ancienne classe : {source.oldClassName ?? "non renseignée"}</li>)}</ul>
         <p className="text-xs text-muted-foreground">Ces références historiques ne constituent pas des inscriptions.</p>
+      </div> : null}
+      {historical ? <div className="mb-4 rounded-lg border bg-card p-4">
+        <Label htmlFor="student-school-year">Année scolaire consultée</Label>
+        <Select value={selectedYearId} onValueChange={(value) => {
+          setSelectedSchoolYearId(value)
+          setRecentAbsencesPage(1)
+          setAbsenceFilterMonth("all")
+          setAbsenceFilterSubject("all")
+          setAbsenceFilterStatus("all")
+        }}>
+          <SelectTrigger id="student-school-year" className="mt-2 min-h-12 w-full sm:max-w-xs">
+            <SelectValue placeholder="Choisir une année scolaire" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Toutes les années</SelectItem>
+            {academicYears.map((year) => <SelectItem key={year.schoolYearId} value={year.schoolYearId}>{year.schoolYearLabel} · {year.className}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <p className="mt-2 text-xs text-muted-foreground">Les absences, bulletins, documents datés, événements et notifications suivent cette sélection. Les contacts parents sont les coordonnées actuelles du dossier.</p>
       </div> : null}
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="student-detail-profile">
         <div className="flex flex-col gap-4 bg-muted/30 px-4 py-4 md:flex-row md:items-center md:justify-between">
@@ -417,7 +494,7 @@ export default function StudentDetailPage() {
             </Avatar>
             <div className="min-w-0">
               <p className="truncate text-lg font-semibold">{student.lastName} {student.firstName}</p>
-              <p className="truncate text-sm text-muted-foreground">{student.className ?? "Non inscrit"}</p>
+              <p className="truncate text-sm text-muted-foreground">{historical ? selectedYear?.className ?? latestConfirmedSchoolYear?.className ?? "Classe indisponible" : student.className ?? "Classe indisponible"} · {historical ? selectedYear?.schoolYearLabel ?? latestConfirmedSchoolYear?.label : student.activeSchoolYear?.label}</p>
               {student.matricule ? (
                 <p className="truncate text-xs text-muted-foreground">Matricule : {student.matricule}</p>
               ) : null}
@@ -429,41 +506,78 @@ export default function StudentDetailPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Badge variant={student.isActive ? "secondary" : "destructive"} className="rounded-md px-2.5 py-1">
-              {student.isActive ? "Actif" : "Inactif"}
+            <Badge variant={historical ? "outline" : student.isActive ? "secondary" : "destructive"} className="rounded-md px-2.5 py-1">
+              {historical ? "Dossier historique" : student.isActive ? "Actif" : "Inactif"}
             </Badge>
-            <Badge variant={student.absenceSummary.thisMonth > 3 ? "destructive" : "outline"} className="rounded-md px-2.5 py-1">
+            {!historical ? <Badge variant={student.absenceSummary.thisMonth > 3 ? "destructive" : "outline"} className="rounded-md px-2.5 py-1">
               {absenceRiskLabel}
-            </Badge>
+            </Badge> : null}
           </div>
         </div>
         <div className="grid gap-px bg-border sm:grid-cols-4">
           <div className="bg-background px-4 py-3">
-            <p className="text-[11px] font-medium uppercase text-muted-foreground">Absences ce mois</p>
-            <p className="mt-1 text-lg font-semibold tabular-nums">{student.absenceSummary.thisMonth}</p>
+            <p className="text-[11px] font-medium uppercase text-muted-foreground">{historical ? "Absences de la sélection" : "Absences ce mois"}</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums">{historical ? canViewAttendance ? absenceRows.length : "—" : student.absenceSummary.thisMonth}</p>
           </div>
           <div className="bg-background px-4 py-3">
-            <p className="text-[11px] font-medium uppercase text-muted-foreground">Absences cette semaine</p>
-            <p className="mt-1 text-lg font-semibold tabular-nums">{student.absenceSummary.thisWeek}</p>
+            <p className="text-[11px] font-medium uppercase text-muted-foreground">{historical ? "Année consultée" : "Absences cette semaine"}</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums">{historical ? selectedYear?.schoolYearLabel ?? "Toutes" : student.absenceSummary.thisWeek}</p>
           </div>
           <div className="bg-background px-4 py-3">
             <p className="text-[11px] font-medium uppercase text-muted-foreground">Contact parent</p>
             <p className="mt-1 truncate text-sm font-medium">{hasParentContact ? "Renseigné" : "Manquant"}</p>
           </div>
           <div className="bg-background px-4 py-3">
-            <p className="text-[11px] font-medium uppercase text-muted-foreground">Alertes envoyés</p>
+            <p className="text-[11px] font-medium uppercase text-muted-foreground">Alertes envoyées</p>
             <p className="mt-1 text-lg font-semibold tabular-nums">{sentSmsCount}</p>
           </div>
         </div>
       </div>
 
+      {historical ? <Card className="mt-4" aria-label="Parcours scolaire et situation financière">
+        <CardHeader><CardTitle className="text-base">Parcours scolaire et situation financière</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          {academicSummaryQuery.isLoading ? <Skeleton className="h-24 w-full" /> : null}
+          {academicSummaryQuery.isError ? <QueryErrorState title="Historique indisponible" message="Impossible de charger les années scolaires et leurs finances." onRetry={() => void academicSummaryQuery.refetch()} /> : null}
+          {academicSummaryQuery.data && academicYears.length === 0 ? <EmptyState title="Aucune année scolaire" description="Ce dossier ne contient pas encore d’année scolaire à consulter." /> : null}
+          {academicYears.filter((year) => !selectedYear || year.schoolYearId === selectedYear.schoolYearId).map((year) => <div key={year.schoolYearId} className="rounded-lg border p-3">
+            <div className="flex flex-wrap items-center gap-2"><strong>{year.schoolYearLabel}</strong><span>· {year.className}</span><Badge variant="outline">{year.enrollmentStatus ? enrollmentStatusLabel[year.enrollmentStatus] : "Classe historique"}</Badge></div>
+            <p className="mt-1 text-sm text-muted-foreground">Décision : {year.decision}</p>
+            <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-4">
+              <div><dt className="text-muted-foreground">Total dû</dt><dd>{year.totalDue === null ? "Non disponible" : formatFcfa(year.totalDue)}</dd></div>
+              <div><dt className="text-muted-foreground">Paiements confirmés</dt><dd>{year.confirmedPaid === null ? "Non disponible" : formatFcfa(year.confirmedPaid)}</dd></div>
+              <div><dt className="text-muted-foreground">Remises accordées</dt><dd>{year.waivedAmount === null ? "Non disponible" : formatFcfa(year.waivedAmount)}</dd></div>
+              <div><dt className="text-muted-foreground">Reste à régler</dt><dd className="font-semibold">{year.remainingDue === null ? "Non disponible" : formatFcfa(year.remainingDue)}</dd></div>
+            </dl>
+          </div>)}
+        </CardContent>
+      </Card> : canViewFinance ? <Card className="mt-4" aria-label="Situation financière de l’élève">
+        <CardHeader>
+          <CardTitle className="text-base">Situation financière · {student.activeSchoolYear?.label}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {financialQuery.isLoading ? <Skeleton className="h-20 w-full" aria-label="Chargement de la situation financière" /> : null}
+          {financialQuery.isError ? <QueryErrorState title="Situation financière indisponible" message={financialQuery.error instanceof ApiError && financialQuery.error.code === "TUITION_PLAN_REQUIRED" ? "Les frais scolaires ne sont pas encore configurés pour cette année." : "Impossible de charger la situation financière."} onRetry={() => void financialQuery.refetch()} isRetrying={financialQuery.isFetching} /> : null}
+          {financialQuery.data ? <div className="space-y-3">
+            <Badge variant={financialQuery.data.standing === "late" ? "destructive" : "secondary"}>{financialQuery.data.standing === "late" ? "Échéances en retard" : "Échéances à jour"}</Badge>
+            <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div><dt className="text-xs text-muted-foreground">Total dû</dt><dd className="font-semibold tabular-nums">{formatFcfa(financialQuery.data.totalDue)}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">Paiements confirmés</dt><dd className="font-semibold tabular-nums">{formatFcfa(financialQuery.data.confirmedPaid)}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">Remises accordées</dt><dd className="font-semibold tabular-nums">{formatFcfa(financialQuery.data.waivedAmount)}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">Reste total à régler</dt><dd className="font-semibold tabular-nums">{formatFcfa(financialQuery.data.remainingDue)}</dd></div>
+            </dl>
+          </div> : null}
+        </CardContent>
+      </Card> : null}
+
       <Tabs defaultValue="absences" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mt-4 h-auto w-full">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-6 mt-4 h-auto w-full">
           <TabsTrigger value="absences" data-tour="student-detail-tab-absences" className="min-h-12">Absences</TabsTrigger>
           <TabsTrigger value="dossier" className="min-h-12">Fil d'activité</TabsTrigger>
           {canViewDocuments ? <TabsTrigger value="documents" data-tour="student-detail-tab-documents" className="min-h-12">
             Dossier
           </TabsTrigger> : null}
+          {canViewReportCards ? <TabsTrigger value="report-cards" className="min-h-12">Bulletins</TabsTrigger> : null}
           <TabsTrigger value="informations" data-tour="student-detail-tab-informations" className="min-h-12">
             Infos Parents
           </TabsTrigger>
@@ -473,7 +587,7 @@ export default function StudentDetailPage() {
         </TabsList>
 
         <TabsContent value="absences" className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-4" data-tour="student-detail-absences">
+          {!historical ? <div className="grid gap-3 md:grid-cols-4" data-tour="student-detail-absences">
             <StatCard title="Total absences" value={student.absenceSummary.total} icon={<BookOpen className="h-4 w-4" />} variant="danger" />
             <StatCard title="Ce mois" value={student.absenceSummary.thisMonth} icon={<Clock3 className="h-4 w-4" />} variant="warning" />
             <StatCard title="Cette semaine" value={student.absenceSummary.thisWeek} icon={<UserCheck className="h-4 w-4" />} />
@@ -488,7 +602,7 @@ export default function StudentDetailPage() {
                 </p>
               </CardContent>
             </Card>
-          </div>
+          </div> : <Card><CardContent className="p-4 text-sm">Absences pour {selectedYear?.schoolYearLabel ?? "toutes les années"} : <strong>{canViewAttendance ? absenceRows.length : "consultation non autorisée"}</strong></CardContent></Card>}
 
           <Card>
             <CardHeader>
@@ -648,7 +762,7 @@ export default function StudentDetailPage() {
         </TabsContent>
 
         <TabsContent value="dossier" className="space-y-4">
-          <StudentDossierTimeline studentId={student.id} />
+          <StudentDossierTimeline studentId={student.id} schoolYear={historical && selectedYear ? { id: selectedYear.schoolYearId, startDate: selectedYear.startDate, endDate: selectedYear.endDate } : null} />
         </TabsContent>
 
         {canViewDocuments ? (
@@ -657,7 +771,7 @@ export default function StudentDetailPage() {
               <CardHeader>
                 <div className="flex flex-wrap items-center gap-2">
                   <CardTitle className="text-base">Documents du Dossier</CardTitle>
-                  {isEnrollmentDossierComplete ? <Badge className="bg-green-600 text-white hover:bg-green-600">Complet</Badge> : null}
+                  {!historical && isEnrollmentDossierComplete ? <Badge className="bg-green-600 text-white hover:bg-green-600">Complet</Badge> : null}
                   
                 </div>
                 <p className="text-xs text-muted-foreground">Toute pièce ajoutée est rattachée au dossier de cet élève.</p>
@@ -671,11 +785,13 @@ export default function StudentDetailPage() {
                 <DocumentList
                   entityType="student"
                   entityId={student.id}
-                  includeSharedDocuments={canManageStudentDocuments}
+                  includeSharedDocuments={canViewSharedDocuments}
                   includeEnrollmentDocuments={canViewEnrollmentDocuments}
                   canManageEnrollmentDocuments={canManageEnrollmentDocuments}
+                  readOnly={historical}
+                  schoolYear={historical && selectedYear ? { startDate: selectedYear.startDate, endDate: selectedYear.endDate } : null}
                 />
-                {canViewEnrollmentDocuments && !isEnrollmentDossierComplete ? (
+                {canViewEnrollmentDocuments && !historical && !isEnrollmentDossierComplete ? (
                   <>
                     <Separator />
                     <div className="space-y-3">
@@ -683,7 +799,7 @@ export default function StudentDetailPage() {
                         <h3 className="text-sm font-medium">Pièces requises</h3>
                         <p className="text-xs text-muted-foreground">Complétez ou mettez à jour les pièces demandées pour l’inscription.</p>
                       </div>
-                      <DocumentChecklist studentId={student.id} canEdit={hasPermission("enrollments.edit")} />
+                      <DocumentChecklist studentId={student.id} canEdit={!historical && hasPermission("enrollments.edit")} />
                     </div>
                   </>
                 ) : null}
@@ -691,6 +807,10 @@ export default function StudentDetailPage() {
             </Card>
           </TabsContent>
         ) : null}
+
+        {canViewReportCards ? <TabsContent value="report-cards" className="space-y-4">
+          <StudentReportCards studentId={student.id} schoolYearId={historical ? selectedYear?.schoolYearId ?? null : student.activeSchoolYear?.id ?? null} />
+        </TabsContent> : null}
 
         <TabsContent value="informations" className="space-y-4">
           <Card>
@@ -803,7 +923,7 @@ export default function StudentDetailPage() {
               <CardTitle className="text-base">Historique Notifications parents</CardTitle>
             </CardHeader>
             <CardContent>
-              {student.parentSms.length === 0 ? (
+              {parentSmsRows.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{`Aucun SMS trouvé pour cet ${studentLabels.singularLower}.`}</p>
               ) : (
                 <div className="space-y-3">
@@ -819,11 +939,11 @@ export default function StudentDetailPage() {
                       <TableHead>Motif</TableHead>
                       <TableHead>Destinataire</TableHead>
                       <TableHead>Statut</TableHead>
-                      <TableHead className="w-[130px]">Action</TableHead>
+                      {!historical ? <TableHead className="w-[130px]">Action</TableHead> : null}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {student.parentSms.map((row) => (
+                    {parentSmsRows.map((row) => (
                       <TableRow key={row.id}>
                         <TableCell>{new Date(row.date).toLocaleString()}</TableCell>
                         <TableCell className="max-w-[360px] truncate">{row.reason}</TableCell>
@@ -831,7 +951,7 @@ export default function StudentDetailPage() {
                         <TableCell>
                           <Badge variant={row.status === "failed" ? "destructive" : "secondary"}>{smsLabel[row.status]}</Badge>
                         </TableCell>
-                        <TableCell>
+                        {!historical ? <TableCell>
                           <Button
                             type="button"
                             size="sm"
@@ -842,7 +962,7 @@ export default function StudentDetailPage() {
                             <MessageSquare className="mr-2 h-4 w-4" />
                             Renvoyer
                           </Button>
-                        </TableCell>
+                        </TableCell> : null}
                       </TableRow>
                     ))}
                   </TableBody>

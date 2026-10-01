@@ -85,7 +85,7 @@ export default function EvaluationReviewPage() {
     queryFn: () => fetchReviewOptions({ schoolYearId }), enabled: Boolean(schoolYearId) })
   const availablePeriods = calendarQuery.data?.gradingPeriods ?? []
   const gradingPeriodId = period || availablePeriods.find((item) => !item.isFuture && item.hasEvaluations)?.id
-    || availablePeriods.find((item) => item.isCurrent)?.id || availablePeriods.find((item) => !item.isFuture)?.id
+    || availablePeriods.find((item) => item.notesEntryOpen)?.id || availablePeriods.find((item) => !item.isFuture)?.id
     || availablePeriods[availablePeriods.length - 1]?.id || ""
   const optionsQuery = useQuery({ queryKey: ["evaluation-review", "options", schoolYearId, gradingPeriodId, level, classId, subject],
     queryFn: () => fetchReviewOptions({ schoolYearId, gradingPeriodId, levelId: level || undefined,

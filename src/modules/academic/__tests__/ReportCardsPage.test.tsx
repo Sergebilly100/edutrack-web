@@ -6,6 +6,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => ({
   fetchClassCompletion: vi.fn(),
   fetchClassReportCards: vi.fn(),
+  fetchConductBulletinAudit: vi.fn(),
   fetchReadiness: vi.fn(),
   generateReportCards: vi.fn(),
   listClasses: vi.fn(),
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/modules/academic/academic.api", () => ({
   fetchClassCompletion: (...args: unknown[]) => mocks.fetchClassCompletion(...args),
   fetchClassReportCards: (...args: unknown[]) => mocks.fetchClassReportCards(...args),
+  fetchConductBulletinAudit: () => mocks.fetchConductBulletinAudit(),
   fetchReadiness: (...args: unknown[]) => mocks.fetchReadiness(...args),
   generateReportCards: (...args: unknown[]) => mocks.generateReportCards(...args),
   listClasses: () => mocks.listClasses(),
@@ -67,12 +69,13 @@ describe("ReportCardsPage", () => {
       { id: "level-1", name: "6ème", orderIndex: 1 },
       { id: "level-3", name: "4ème", orderIndex: 2 },
     ])
-    mocks.listGradingPeriods.mockResolvedValue([{ id: "period-1", label: "Trimestre 1", isCurrent: true, isCompleted: false }])
+    mocks.listGradingPeriods.mockResolvedValue([{ id: "period-1", label: "Trimestre 1", isCurrent: true, isCompleted: false, bulletinGenerationAvailable: true }])
     mocks.fetchReadiness.mockResolvedValue([{ classId: "class-1", className: "6ème A", headcount: 2, studentsWithGeneralAverage: 1, readyToGenerate: false }])
     mocks.fetchClassCompletion.mockResolvedValue({
       subjects: [{ subjectId: "subject-1", subjectName: "Mathématiques", subjectCoefficient: 4, status: "in_progress", completedAt: null, calculationStarted: false, teacher: { id: "teacher-1", name: "Awa Koné" } }],
     })
     mocks.fetchClassReportCards.mockResolvedValue([])
+    mocks.fetchConductBulletinAudit.mockResolvedValue([])
     mocks.generateReportCards.mockResolvedValue({ generatedCount: 2, periodCompleted: false })
     mocks.publishBulkReportCards.mockResolvedValue({ publishedCount: 1 })
   })
@@ -90,6 +93,16 @@ describe("ReportCardsPage", () => {
     expect(screen.getByText("Clôturez et validez les moyennes de chaque matière avant de générer.")).toBeInTheDocument()
   })
 
+  it("signale séparément les notes finales de conduite manquantes", async () => {
+    mocks.fetchReadiness.mockResolvedValue([{ classId: "class-1", className: "6ème A", headcount: 2, studentsWithGeneralAverage: 2, studentsWithFinalConduct: 1, readyToGenerate: false }])
+    mocks.fetchClassCompletion.mockResolvedValue({ subjects: [{ subjectId: "subject-1", subjectName: "Mathématiques", status: "completed", teacher: null }] })
+    renderPage()
+    await selectOption(/classe/i, "6ème A")
+    expect(await screen.findByText("1/2 conduites finales")).toBeInTheDocument()
+    expect(screen.getByText("Arrêtez la note finale de conduite de chaque élève confirmé.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /générer les bulletins/i })).toBeDisabled()
+  })
+
   it("explique pourquoi une classe sans inscription confirmée ne peut pas générer de bulletins", async () => {
     mocks.fetchReadiness.mockResolvedValue([{ classId: "class-1", className: "6ème A", headcount: 0, studentsWithGeneralAverage: 0, readyToGenerate: false }])
     renderPage()
@@ -104,12 +117,12 @@ describe("ReportCardsPage", () => {
 
   it("rend une période à venir indisponible à la sélection", async () => {
     mocks.listGradingPeriods.mockResolvedValue([
-      { id: "period-1", label: "Trimestre 1", isCurrent: true, isCompleted: false },
-      { id: "period-2", label: "Trimestre 2", isCurrent: false, isCompleted: false },
+      { id: "period-1", label: "Trimestre 1", isCurrent: true, isCompleted: false, bulletinGenerationAvailable: true },
+      { id: "period-2", label: "Trimestre 2", isCurrent: false, isCompleted: false, bulletinGenerationAvailable: false },
     ])
     renderPage()
 
-    await screen.findByText("Trimestre 1 · en cours")
+    await screen.findByText("Trimestre 1 · en revue")
     fireEvent.click(await screen.findByRole("combobox", { name: /période/i }))
 
     expect(screen.getByRole("option", { name: /trimestre 2.*à venir/i })).toHaveAttribute("aria-disabled", "true")
@@ -156,7 +169,7 @@ describe("ReportCardsPage", () => {
     await selectOption(/niveau/i, "5ème")
 
     expect(screen.getByRole("combobox", { name: /classe/i })).toHaveTextContent("Choisir une classe")
-    expect(screen.getByRole("combobox", { name: /période/i })).toHaveTextContent("Trimestre 1 · en cours")
+    expect(screen.getByRole("combobox", { name: /période/i })).toHaveTextContent("Trimestre 1 · en revue")
     expect(screen.getByText("Choisissez une classe et une période")).toBeInTheDocument()
     expect(mocks.fetchClassReportCards).toHaveBeenCalledTimes(1)
     expect(mocks.fetchClassCompletion).toHaveBeenCalledTimes(1)
@@ -178,12 +191,12 @@ describe("ReportCardsPage", () => {
 
     await waitFor(() => expect(screen.getByRole("combobox", { name: /classe/i })).toHaveTextContent("Choisir une classe"))
     expect(screen.getByText("Choisissez une classe et une période")).toBeInTheDocument()
-    expect(screen.getByRole("combobox", { name: /période/i })).toHaveTextContent("Trimestre 1 · en cours")
+    expect(screen.getByRole("combobox", { name: /période/i })).toHaveTextContent("Trimestre 1 · en revue")
     expect(mocks.fetchClassReportCards).toHaveBeenCalledTimes(1)
   })
 
   it("garde les appels de génération et de publication centrés sur la classe et la période", async () => {
-    mocks.fetchReadiness.mockResolvedValue([{ classId: "class-1", className: "6ème A", headcount: 2, studentsWithGeneralAverage: 2, readyToGenerate: true }])
+    mocks.fetchReadiness.mockResolvedValue([{ classId: "class-1", className: "6ème A", headcount: 2, studentsWithGeneralAverage: 2, studentsWithFinalConduct: 2, readyToGenerate: true }])
     mocks.fetchClassCompletion.mockResolvedValue({ subjects: [
       { subjectId: "subject-1", subjectName: "Mathématiques", status: "completed", teacher: { id: "teacher-1", name: "Awa Koné" } },
     ] })

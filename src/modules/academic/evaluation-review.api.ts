@@ -3,7 +3,7 @@ import { apiClient } from "@/shared/api/client"
 export type ReviewOption = { id: string; label: string }
 export type ReviewOptions = {
   schoolYears: Array<ReviewOption & { active: boolean }>
-  gradingPeriods: Array<ReviewOption & { schoolYearId: string; isCurrent: boolean; isFuture: boolean; hasEvaluations: boolean }>
+  gradingPeriods: Array<ReviewOption & { schoolYearId: string; isCurrent: boolean; notesEntryOpen: boolean; isFuture: boolean; hasEvaluations: boolean }>
   levels: ReviewOption[]
   classes: Array<ReviewOption & { levelId: string }>
   subjects: Array<ReviewOption & { levelId: string }>

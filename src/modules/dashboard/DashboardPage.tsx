@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { fetchSchoolInfo } from "@/modules/onboarding/onboarding.api"
-import { listSchoolYears, type SchoolYear } from "@/modules/academic/academic.api"
+import { fetchConductReviewWorkspace, listSchoolYears, type SchoolYear } from "@/modules/academic/academic.api"
 import {
   getAttendanceHistory,
   getDashboardCounts,
@@ -297,7 +297,7 @@ export default function DashboardPage() {
   const gradingPeriodsQuery = useQuery({
     queryKey: ["academic", "grading-periods", schoolYearId],
     queryFn: async () => {
-      const response = await apiClient.get<{ gradingPeriods?: Array<{ id: string; schoolYearId?: string; school_year_id?: string; label: string; orderIndex?: number; order_index?: number; isCurrent?: boolean; isCompleted?: boolean }> }>("/grading-periods")
+      const response = await apiClient.get<{ gradingPeriods?: Array<{ id: string; schoolYearId?: string; school_year_id?: string; label: string; orderIndex?: number; order_index?: number; notesEntryOpen?: boolean; conductReviewOpen?: boolean; isClosed?: boolean; isCurrent?: boolean; isCompleted?: boolean }> }>("/grading-periods")
       return (response.data.gradingPeriods ?? []).filter((period) => (period.schoolYearId ?? period.school_year_id) === schoolYearId)
     },
     enabled: Boolean(schoolYearId),
@@ -335,7 +335,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (gradingPeriodId || !gradingPeriodsQuery.data?.length) return
-    const current = gradingPeriodsQuery.data.find((period) => period.isCurrent)
+    const current = gradingPeriodsQuery.data.find((period) => period.notesEntryOpen)
     if (current) setGradingPeriodId(current.id)
   }, [gradingPeriodId, gradingPeriodsQuery.data])
 
@@ -364,6 +364,12 @@ export default function DashboardPage() {
     enabled: isDirector || canViewValidations,
     staleTime: 60_000,
     refetchInterval: 5 * 60_000,
+  })
+  const conductReviewQuery = useQuery({
+    queryKey: ["conduct", "review-workspace"],
+    queryFn: fetchConductReviewWorkspace,
+    enabled: isDirector || permissions.includes("conduct.finalize"),
+    staleTime: 60_000,
   })
 
   const resolveItemMutation = useMutation({
@@ -428,7 +434,7 @@ export default function DashboardPage() {
     }
   }, [dispatchMobileHeaderState, handleDashboardRefresh])
 
-  const priorityActions = (actionItemsQuery.data ?? [])
+  const priorityActions = [...(actionItemsQuery.data ?? [])
     .filter((item) => canViewValidations || item.type !== "validations_pending")
     .map((item) => {
     const notification = actionItemToNotification(item)
@@ -439,7 +445,13 @@ export default function DashboardPage() {
       href: notification.targetHref ?? "/dashboard",
       tone: notification.tone,
     }
-  })
+  }), ...(conductReviewQuery.data?.decisionActions ?? []).map((action) => ({
+    id: `conduct:${action.classId}:${action.gradingPeriodId}`,
+    title: `${action.className} : ${action.pendingCount} décision${action.pendingCount > 1 ? "s" : ""} à finaliser`,
+    message: action.gradingPeriodLabel,
+    href: `/academic/conduct?schoolYearId=${encodeURIComponent(action.schoolYearId)}&levelId=${encodeURIComponent(action.levelId)}&classId=${encodeURIComponent(action.classId)}&gradingPeriodId=${encodeURIComponent(action.gradingPeriodId)}`,
+    tone: "warning" as const,
+  }))]
 
   if (isInitialLoading) {
     return (
@@ -535,13 +547,15 @@ export default function DashboardPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {gradingPeriodsQuery.data.map((period) => (
-                        <SelectItem key={period.id} value={period.id} disabled={!period.isCurrent && !period.isCompleted}>
+                        <SelectItem key={period.id} value={period.id} disabled={!period.notesEntryOpen && !period.conductReviewOpen && !period.isClosed}>
                           {period.label}
-                          {period.isCurrent
+                          {period.notesEntryOpen
                             ? " · en cours"
-                            : period.isCompleted
-                              ? " · finalisée"
-                              : " · à venir"}
+                            : period.conductReviewOpen
+                              ? " · en revue"
+                              : period.isClosed
+                                ? " · finalisée"
+                                : " · à venir"}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -642,6 +656,7 @@ export default function DashboardPage() {
           />
         ) : null}
 
+        {conductReviewQuery.isError ? <QueryErrorState message="Impossible de charger les décisions de conduite." /> : null}
         <Suspense fallback={<DashboardSkeleton />}>
           <OverviewTab
             canViewAttendance={canViewAttendance}

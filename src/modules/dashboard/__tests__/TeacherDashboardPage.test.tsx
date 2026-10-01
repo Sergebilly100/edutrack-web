@@ -21,6 +21,7 @@ vi.mock("@/modules/schedule/schedule.api", () => ({
 
 vi.mock("@/modules/academic/academic.api", () => ({
   fetchTeacherAcademicContext: () => contextMock(),
+  fetchConductReviewWorkspace: () => Promise.resolve({ teacherActions: [], decisionScopes: [], decisionActions: [] }),
 }))
 
 vi.mock("@/shared/api/client", () => ({
@@ -51,7 +52,7 @@ describe("TeacherDashboardPage", () => {
     }])
     contextMock.mockResolvedValue({
       classes: [{ id: "class-1", name: "6ème A", levelId: "level-1", levelName: "6ème", schoolYearId: "year-1", schoolYearLabel: "2098-2099" }],
-      gradingPeriods: [{ id: "period-1", schoolYearId: "year-1", label: "1er trimestre", startDate: "2098-09-01", endDate: "2098-12-20", isCompleted: false, isCurrent: true }],
+      gradingPeriods: [{ id: "period-1", schoolYearId: "year-1", label: "1er trimestre", startDate: "2098-09-01", endDate: "2098-12-20", isCompleted: false, isCurrent: true, notesEntryOpen: true }],
     })
   })
 
@@ -65,6 +66,20 @@ describe("TeacherDashboardPage", () => {
     expect(navigateMock).toHaveBeenCalledWith("/academic/notes?classId=class-1&gradingPeriodId=period-1")
     fireEvent.click(screen.getAllByRole("button", { name: /6ème A/ })[1])
     expect(navigateMock).toHaveBeenCalledWith("/academic/notes?classId=class-1&gradingPeriodId=period-1")
+  })
+
+  it("ouvre T2 pour la saisie pendant la revue de T1", async () => {
+    contextMock.mockResolvedValue({
+      classes: [{ id: "class-1", name: "6ème A", levelId: "level-1", levelName: "6ème", schoolYearId: "year-1", schoolYearLabel: "2098-2099" }],
+      gradingPeriods: [
+        { id: "period-1", label: "1er trimestre", isCurrent: true, notesEntryOpen: false, conductReviewOpen: true },
+        { id: "period-2", label: "2e trimestre", isCurrent: true, notesEntryOpen: true, conductReviewOpen: false },
+      ],
+    })
+    renderWithClient(<TeacherDashboardPage />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "Saisir les notes" }))
+    expect(navigateMock).toHaveBeenCalledWith("/academic/notes?classId=class-1&gradingPeriodId=period-2")
   })
 
   it("met à jour tous les statuts et affiche une journée libre quand les cours sont passés", async () => {

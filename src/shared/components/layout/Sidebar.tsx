@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils"
 import { logout as logoutApi } from "@/modules/auth/auth.api"
 import { getSmsFeatureSettings } from "@/modules/subscriptions/subscriptions.api"
 import { getPendingValidationCount } from "@/modules/validations/validations.api"
+import { fetchConductReviewWorkspace } from "@/modules/academic/academic.api"
 import { useEndOfYearReviewStatus } from "@/modules/class-decisions/useEndOfYearReviewStatus"
 import { LogoutOfflineGuardDialog } from "@/shared/components/LogoutOfflineGuardDialog"
 import { OfflineQueueBadge } from "@/shared/components/OfflineQueueBadge"
@@ -128,13 +129,18 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
     enabled: role === "director" || isStaffRole(role),
   })
   const endOfYearStatusQuery = useEndOfYearReviewStatus()
+  const conductQuery = useQuery({
+    queryKey: ["conduct", "review-workspace"],
+    queryFn: fetchConductReviewWorkspace,
+    enabled: role === "director" || isStaffRole(role),
+  })
   const visibleItems = filterNavItemsByFeatures(
     getNavItemsByRole(role, permissions, studentLabels.plural),
     {
       subscriptionsEnabled,
       endOfYearReviewVisible: endOfYearStatusQuery.data?.visible === true,
     },
-  )
+  ).filter((item) => item.href !== "/academic/conduct" || (conductQuery.data?.decisionScopes.length ?? 0) > 0)
   const navigationGroups = visibleItems.reduce<Array<{ label: string; items: typeof visibleItems }>>(
     (groups, item) => {
       const current = groups[groups.length - 1]

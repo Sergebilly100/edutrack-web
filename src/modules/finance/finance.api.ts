@@ -14,6 +14,7 @@ export type FinancialStatus = {
   currency: string
   totalDue: number
   confirmedPaid: number
+  waivedAmount: number
   remainingDue: number
   cumulativeExpectedAtDate: number
   standing: "up_to_date" | "late"
@@ -178,6 +179,7 @@ const parseFinancialStatus = (value: unknown): FinancialStatus => {
     currency: asString(row.currency, "FCFA"),
     totalDue: asNumber(row.totalDue),
     confirmedPaid: asNumber(row.confirmedPaid),
+    waivedAmount: asNumber(row.waivedAmount),
     remainingDue: asNumber(row.remainingDue),
     cumulativeExpectedAtDate: asNumber(row.cumulativeExpectedAtDate),
     standing: row.standing === "late" ? "late" : "up_to_date",

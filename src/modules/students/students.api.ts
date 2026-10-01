@@ -122,11 +122,22 @@ export type StudentDetail = {
   }>
 }
 
+export type CurrentStudentProfile = StudentDetail & {
+  activeSchoolYear: { id: string; label: string }
+}
+
+export type HistoricalStudentProfile = StudentDetail & {
+  activeSchoolYear: { id: string; label: string } | null
+  latestConfirmedSchoolYear: { id: string; label: string; className: string }
+  confirmedInActiveYear: boolean
+}
+
 export type StudentDossierEvent = {
   type: "enrollment" | "payment" | "report_card" | "document"
   date: string
   label: string
   detail: string | null
+  schoolYearId?: string | null
 }
 
 export type StudentDossier = {
@@ -138,6 +149,37 @@ export type StudentDossier = {
     matricule: string | null
   }
   events: StudentDossierEvent[]
+}
+
+export type StudentReportCardSummary = {
+  id: string
+  periodLabel: string
+  schoolYearId: string
+  schoolYearLabel: string
+  className: string
+  generalAverage: number
+  rank: number
+  classHeadcount: number
+  publishedAt: string
+}
+
+export type StudentReportCardDetail = {
+  id: string
+  periodLabel: string
+  className: string
+  generalAverage: number
+  rank: number
+  classHeadcount: number
+  classAverage: number
+  status: "published"
+  lines: Array<{
+    id: string
+    subjectName: string | null
+    lineType: "subject" | "conduct"
+    average: number
+    coefficient: number
+    rank: number | null
+  }>
 }
 
 export type AttendanceHistoryItem = {
@@ -335,8 +377,26 @@ export const getTodayAbsences = () =>
 export const getStudentById = (studentId: string) =>
   api.get<{ data: StudentDetail }>(`/students/${studentId}`).then((response) => response.data.data)
 
+export const getCurrentStudentProfile = (studentId: string) =>
+  api.get<{ data: CurrentStudentProfile }>(`/students/${studentId}/school-profile`).then((response) => response.data.data)
+
+export const getHistoricalStudentProfile = (studentId: string) =>
+  api.get<{ data: HistoricalStudentProfile }>(`/students/${studentId}/historical-profile`).then((response) => response.data.data)
+
 export const getStudentDossier = (studentId: string) =>
   api.get<StudentDossier>(`/students/${studentId}/dossier`).then((response) => response.data)
+
+export const listStudentReportCards = (studentId: string) =>
+  api.get<{ reportCards: StudentReportCardSummary[] }>(`/students/${studentId}/report-cards`)
+    .then((response) => response.data.reportCards)
+
+export const getStudentReportCard = (studentId: string, cardId: string) =>
+  api.get<{ reportCard: StudentReportCardDetail }>(`/students/${studentId}/report-cards/${cardId}`)
+    .then((response) => response.data.reportCard)
+
+export const requestStudentReportCardPdf = (studentId: string, cardId: string) =>
+  api.post<{ jobId: string }>(`/students/${studentId}/report-cards/${cardId}/pdf`)
+    .then((response) => response.data)
 
 export const getStudentAbsenceStats = (query: StudentAbsenceStatsQuery) =>
   api

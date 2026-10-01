@@ -22,13 +22,13 @@ export default function CompletionTrackingPage() {
     queryFn: async () => {
       const { apiClient } = await import("@/shared/api/client")
       return apiClient
-        .get<{ gradingPeriods: Array<{ id: string; label: string; isCurrent: boolean; isCompleted: boolean }> }>("/grading-periods")
+        .get<{ gradingPeriods: Array<{ id: string; label: string; notesEntryOpen: boolean; conductReviewOpen: boolean; isClosed: boolean; isCurrent: boolean; isCompleted: boolean }> }>("/grading-periods")
         .then((r) => r.data.gradingPeriods)
     },
   })
   useEffect(() => {
     if (gradingPeriodId || !periodsQuery.data?.length) return
-    const current = periodsQuery.data.find((period) => period.isCurrent)
+    const current = periodsQuery.data.find((period) => period.notesEntryOpen || period.conductReviewOpen)
     if (current) setGradingPeriodId(current.id)
   }, [gradingPeriodId, periodsQuery.data])
   const completionQuery = useQuery({
@@ -67,7 +67,7 @@ export default function CompletionTrackingPage() {
             <SelectTrigger className="min-h-12"><SelectValue placeholder="Choisir une période" /></SelectTrigger>
             <SelectContent>
               {(periodsQuery.data ?? []).map((period) => (
-                <SelectItem key={period.id} value={period.id}>{period.label}{period.isCurrent ? " · en cours" : period.isCompleted ? " · finalisée" : " · à venir"}</SelectItem>
+                <SelectItem key={period.id} value={period.id}>{period.label}{period.notesEntryOpen ? " · saisie" : period.conductReviewOpen ? " · en revue" : period.isClosed ? " · finalisée" : " · à venir"}</SelectItem>
               ))}
             </SelectContent>
           </Select>

@@ -55,17 +55,15 @@ describe("navigation académique professeur", () => {
       "Aujourd’hui",
       "Mes cours",
       "Notes",
-      "Conduite",
-      "Décision finale de conduite",
       "Compte",
     ])
   })
 
-  it("expose la décision aux professeurs et réserve le menu staff à conduct.finalize", () => {
-    expect(getNavItemsByRole("teacher").map((item) => item.href)).toContain("/academic/conduct/decision")
-    expect(getNavItemsByRole("teacher", ["conduct.finalize"]).map((item) => item.href)).toContain("/academic/conduct/decision")
+  it("réserve l’entrée Conduite au staff habilité et conserve Notes comme seule entrée professeur", () => {
+    expect(getNavItemsByRole("teacher").map((item) => item.href)).not.toContain("/academic/conduct")
+    expect(getNavItemsByRole("teacher", ["conduct.finalize"]).map((item) => item.href)).not.toContain("/academic/conduct/decision")
     const staffConductItems = getNavItemsByRole("staff", ["conduct.finalize"])
-      .filter((item) => item.href === "/academic/conduct/decision")
+      .filter((item) => item.href === "/academic/conduct")
     expect(staffConductItems).toHaveLength(1)
     expect(staffConductItems[0]).toMatchObject({ group: "Académique" })
   })

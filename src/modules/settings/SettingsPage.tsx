@@ -26,6 +26,7 @@ import { RiskAlertRules } from "@/modules/risk/components/RiskAlertRules"
 import SchoolConfigPanel from "@/modules/settings/components/SchoolConfigPanel"
 import SmsTemplatePanel from "@/modules/settings/components/SmsTemplatePanel"
 import { RequiredDocumentsSettings } from "@/modules/settings/components/RequiredDocumentsSettings"
+import { ConductSettings } from "@/modules/settings/components/ConductSettings"
 import {
   fetchSchoolConfig,
   fetchAdministrationConfig,
@@ -63,6 +64,8 @@ export default function SettingsPage() {
   useEffect(() => { currentLocation.current = location; return () => { currentLocation.current = null } }, [location])
   const studentLabels = useStudentLabels()
   const canManagePositions = user?.role === "director" || hasPermission("settings.positions")
+  const canEditConductPolicy = user?.role === "director" || hasPermission("school_years.edit")
+  const canViewConductSettings = canManagePositions || canEditConductPolicy
   const canManageSchoolSettings = user?.role === "director" || hasPermission("settings.school")
   const tour = useTourGuide("settings", user?.role === "director")
   const canAccessSmsTemplate = user?.role === "director" || hasPermission("settings.sms_templates")
@@ -171,7 +174,7 @@ export default function SettingsPage() {
   const canManageGeneralSettings = canManageSchoolSettings
   const defaultTab = canManageGeneralSettings
     ? "general"
-    : canViewRequiredDocuments
+    : canViewConductSettings ? "personnel" : canViewRequiredDocuments
       ? "scolarite"
       : canManageFinance ? "finance" : canManageRiskAlerts ? "risques" : canAccessSmsTemplate ? "communication" : "relances"
 
@@ -274,7 +277,7 @@ export default function SettingsPage() {
       ) : null}
 
       <Tabs value={([
-        canManageGeneralSettings && "general", canManagePositions && "personnel",
+        canManageGeneralSettings && "general", canViewConductSettings && "personnel",
         canViewRequiredDocuments && "scolarite", canManageFinance && "finance",
         canViewFinancialAlerts && "relances", canManageRiskAlerts && "risques",
         canAccessSmsTemplate && "communication",
@@ -286,7 +289,7 @@ export default function SettingsPage() {
         className="space-y-4">
       <TabsList className="grid h-auto w-full grid-cols-2 rounded-xl border border-border sm:grid-cols-4 lg:grid-cols-7">
         {canManageGeneralSettings ? <TabsTrigger value="general" className="min-h-12">Général</TabsTrigger> : null}
-        {canManagePositions ? <TabsTrigger value="personnel" className="min-h-12">Personnel</TabsTrigger> : null}
+        {canViewConductSettings ? <TabsTrigger value="personnel" className="min-h-12">Personnel</TabsTrigger> : null}
         {canViewRequiredDocuments ? <TabsTrigger value="scolarite" className="min-h-12">Scolarité</TabsTrigger> : null}
         {canManageFinance ? <TabsTrigger value="finance" className="min-h-12">Finance</TabsTrigger> : null}
         {canViewFinancialAlerts ? <TabsTrigger value="relances" className="min-h-12">Relances</TabsTrigger> : null}
@@ -301,10 +304,13 @@ export default function SettingsPage() {
         </TabsContent>
       ) : null}
 
-      {canManagePositions ? (
+      {canViewConductSettings ? (
         <TabsContent value="personnel">
           <OfflineDisabledFieldset notice="Gestion du personnel indisponible hors ligne. Reconnectez-vous pour modifier les postes et les accès.">
-            <SchoolConfigPanel section="personnel" />
+            <div className="space-y-5">
+              {canManagePositions ? <SchoolConfigPanel section="personnel" /> : null}
+              <ConductSettings canEditPolicy={canEditConductPolicy} canManageAssignments={canManagePositions} />
+            </div>
           </OfflineDisabledFieldset>
         </TabsContent>
       ) : null}

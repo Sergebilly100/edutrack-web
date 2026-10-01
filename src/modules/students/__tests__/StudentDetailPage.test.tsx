@@ -4,12 +4,18 @@ import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ApiError } from "@/shared/api/client"
 
-const mocks = vi.hoisted(() => ({ getStudent: vi.fn() }))
+const mocks = vi.hoisted(() => ({ getCurrentProfile: vi.fn(), getHistoricalProfile: vi.fn(), getAcademicSummary: vi.fn(), getFinancialStatus: vi.fn(), permissions: new Set<string>() }))
 vi.mock("@/modules/students/students.api", () => ({
-  getStudentById: mocks.getStudent, getStudentAbsenceRecords: vi.fn(),
+  getCurrentStudentProfile: mocks.getCurrentProfile, getHistoricalStudentProfile: mocks.getHistoricalProfile, getStudentAbsenceRecords: vi.fn(),
   updateStudent: vi.fn(), excuseAbsence: vi.fn(), retrySmsNotification: vi.fn(),
 }))
-vi.mock("@/shared/hooks/usePermissions", () => ({ usePermissions: () => ({ hasPermission: () => false }) }))
+vi.mock("@/modules/enrollments/enrollments.api", async (original) => ({
+  ...(await original<typeof import("@/modules/enrollments/enrollments.api")>()),
+  getStudentAcademicSummary: mocks.getAcademicSummary,
+  listStudentDocuments: vi.fn().mockResolvedValue([]),
+}))
+vi.mock("@/modules/finance/finance.api", () => ({ getFinancialStatus: mocks.getFinancialStatus }))
+vi.mock("@/shared/hooks/usePermissions", () => ({ usePermissions: () => ({ hasPermission: (permission: string) => mocks.permissions.has(permission) }) }))
 vi.mock("@/shared/hooks/useTourGuide", () => ({ useTourGuide: () => ({ run: false }) }))
 vi.mock("@/shared/hooks/useStudentLabel", () => ({
   useStudentLabel: () => "Élève",
@@ -27,29 +33,37 @@ const renderPage = () => render(
   </QueryClientProvider>,
 )
 
+const renderHistoricalPage = () => render(
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <MemoryRouter initialEntries={[`/enrollments/re-enrollment/students/${studentId}`]}>
+      <Routes><Route path="/enrollments/re-enrollment/students/:studentId" element={<StudentDetailPage mode="historical" />} /></Routes>
+    </MemoryRouter>
+  </QueryClientProvider>,
+)
+
 describe("StudentDetailPage loading errors", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks(); mocks.permissions.clear() })
   afterEach(() => onlineManager.setOnline(true))
 
   it("transmet l’UUID du lien et propose une nouvelle tentative pour une erreur serveur", async () => {
-    mocks.getStudent.mockRejectedValue(new ApiError("Unexpected error", { status: 500, code: "INTERNAL_SERVER_ERROR" }))
+    mocks.getCurrentProfile.mockRejectedValue(new ApiError("Unexpected error", { status: 500, code: "INTERNAL_SERVER_ERROR" }))
     renderPage()
     expect(await screen.findByText("Fiche indisponible")).toBeInTheDocument()
     expect(screen.queryByText("Élève introuvable.")).not.toBeInTheDocument()
-    expect(mocks.getStudent).toHaveBeenCalledWith(studentId)
+    expect(mocks.getCurrentProfile).toHaveBeenCalledWith(studentId)
     fireEvent.click(screen.getByRole("button", { name: "Réessayer" }))
-    await waitFor(() => expect(mocks.getStudent).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(mocks.getCurrentProfile).toHaveBeenCalledTimes(2))
   })
 
   it("réserve le message introuvable à une vraie réponse 404", async () => {
-    mocks.getStudent.mockRejectedValue(new ApiError("Student not found", { status: 404, code: "STUDENT_NOT_FOUND" }))
+    mocks.getCurrentProfile.mockRejectedValue(new ApiError("Student not found", { status: 404, code: "STUDENT_NOT_FOUND" }))
     renderPage()
     expect(await screen.findByText("Élève introuvable.")).toBeInTheDocument()
     expect(screen.queryByText("Fiche indisponible")).not.toBeInTheDocument()
   })
 
   it("ne présente pas une connexion interrompue comme un élève absent", async () => {
-    mocks.getStudent.mockRejectedValue(new ApiError("Network Error"))
+    mocks.getCurrentProfile.mockRejectedValue(new ApiError("Network Error"))
     renderPage()
     expect(await screen.findByText("Fiche indisponible")).toBeInTheDocument()
     expect(screen.queryByText("Élève introuvable.")).not.toBeInTheDocument()
@@ -60,6 +74,73 @@ describe("StudentDetailPage loading errors", () => {
     renderPage()
     expect(await screen.findByText("Connexion indisponible")).toBeInTheDocument()
     expect(screen.queryByText("Élève introuvable.")).not.toBeInTheDocument()
-    expect(mocks.getStudent).not.toHaveBeenCalled()
+    expect(mocks.getCurrentProfile).not.toHaveBeenCalled()
+  })
+
+  it("oriente un ancien dossier vers Réinscriptions sans afficher la fiche scolaire", async () => {
+    mocks.getCurrentProfile.mockRejectedValue(new ApiError("Student is not enrolled", { status: 404, code: "STUDENT_NOT_CURRENTLY_ENROLLED" }))
+    mocks.permissions.add("enrollments.view")
+    renderPage()
+    expect(await screen.findByText(/ne fait pas partie des élèves scolarisés confirmés dans l’année scolaire active/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Ouvrir les réinscriptions" })).toBeInTheDocument()
+    expect(screen.queryByText("Profil détaillé élève")).not.toBeInTheDocument()
+    expect(mocks.getFinancialStatus).not.toHaveBeenCalled()
+  })
+
+  it("affiche la situation financière de l’année active sur la fiche confirmée", async () => {
+    mocks.permissions.add("payments.view")
+    mocks.getCurrentProfile.mockResolvedValue({
+      id: studentId, firstName: "Awa", lastName: "Koné", matricule: "MAT-1", birthDate: null,
+      className: "6e A", classId: "class-1", isActive: true, parentPhone: null, parentEmail: null,
+      parentPhone2: null, parentName: null, parentName2: null, note: null, createdAt: "2026-01-01T00:00:00Z",
+      absenceSummary: { total: 0, excused: 0, thisMonth: 0, thisWeek: 0 },
+      recentAbsences: [], documents: [], parentSms: [],
+      activeSchoolYear: { id: "year-active", label: "2026-2027" },
+    })
+    mocks.getFinancialStatus.mockResolvedValue({
+      studentId, schoolYearId: "year-active", asOfDate: "2026-09-30", currency: "FCFA",
+      totalDue: 100000, confirmedPaid: 65000, waivedAmount: 5000, remainingDue: 30000,
+      cumulativeExpectedAtDate: 80000, standing: "late",
+    })
+    renderPage()
+    expect(await screen.findByText("Situation financière · 2026-2027")).toBeInTheDocument()
+    expect(await screen.findByText(/30\s*000 FCFA/)).toBeInTheDocument()
+    expect(screen.getByText("Échéances en retard")).toBeInTheDocument()
+    expect(mocks.getFinancialStatus).toHaveBeenCalledWith(studentId, "year-active")
+  })
+
+  it("montre un dossier ancien complet et les finances de trois années depuis Réinscriptions", async () => {
+    mocks.permissions.add("enrollments.view")
+    mocks.getHistoricalProfile.mockResolvedValue({
+      id: studentId, firstName: "Awa", lastName: "Koné", matricule: "MAT-1", birthDate: null,
+      className: "6e A", classId: "class-1", isActive: true, parentPhone: "0700000000", parentEmail: null,
+      parentPhone2: null, parentName: "M. Koné", parentName2: null, note: null, createdAt: "2023-01-01T00:00:00Z",
+      absenceSummary: { total: 0, excused: 0, thisMonth: 0, thisWeek: 0 },
+      recentAbsences: [], documents: [], parentSms: [],
+      activeSchoolYear: { id: "year-active", label: "2026-2027" },
+      latestConfirmedSchoolYear: { id: "year-2025", label: "2025-2026", className: "6e A" },
+      confirmedInActiveYear: false,
+    })
+    mocks.getAcademicSummary.mockResolvedValue({
+      student: { id: studentId, firstName: "Awa", lastName: "Koné", matricule: "MAT-1" },
+      years: ["2025-2026", "2024-2025", "2023-2024"].map((label, index) => ({
+        schoolYearId: index === 0 ? "year-2025" : `year-${2025 - index}`, schoolYearLabel: label,
+        startDate: `${2025 - index}-09-01`, endDate: `${2026 - index}-06-30`,
+        className: `${index + 1}e A`,
+        enrollmentStatus: "confirmed", decision: "Admis(e)", financialStatus: "remaining_due",
+        totalDue: 100000, confirmedPaid: 70000, waivedAmount: 5000, remainingDue: 25000, currency: "FCFA",
+      })),
+    })
+    renderHistoricalPage()
+    expect(await screen.findByText("Dossier historique élève")).toBeInTheDocument()
+    expect(screen.getByText(/Cet élève n’est pas inscrit dans l’année scolaire en cours : 2026-2027/)).toBeInTheDocument()
+    expect(screen.getByText(/Dernière année scolaire confirmée : 2025-2026/)).toBeInTheDocument()
+    expect(await screen.findByText(/25\s*000 FCFA/)).toBeInTheDocument()
+    expect(screen.queryByText("2023-2024")).not.toBeInTheDocument()
+    expect(screen.getByLabelText("Année scolaire consultée")).toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: "Dossier" })).toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: "Fil d'activité" })).toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: "Infos Parents" })).toBeInTheDocument()
+    expect(mocks.getCurrentProfile).not.toHaveBeenCalled()
   })
 })

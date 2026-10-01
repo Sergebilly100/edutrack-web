@@ -10,19 +10,12 @@ import {
   RefreshCw,
   Search,
 } from "lucide-react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -51,10 +44,8 @@ import { EmptyState } from "@/shared/components/EmptyState";
 import { PageLayout } from "@/shared/components/PageLayout";
 import { QueryErrorState } from "@/shared/components/QueryErrorState";
 import { usePermissions } from "@/shared/hooks/usePermissions";
-import { formatFcfa } from "@/shared/utils/formatting";
 import {
   createEnrollment,
-  getStudentAcademicSummary,
   listEnrollments,
   listReEnrollmentCandidates,
   normalizeEnrollmentsListResponse,
@@ -99,118 +90,8 @@ function EnrollmentDocumentBadge({ enrollment }: { enrollment: Enrollment }) {
   );
 }
 
-function StudentAcademicSummaryDialog({
-  studentId,
-  open,
-  onOpenChange,
-}: {
-  studentId: string | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const summaryQuery = useQuery({
-    queryKey: ["enrollments", "re-enrollment", "student-summary", studentId],
-    queryFn: () => getStudentAcademicSummary(studentId!),
-    enabled: open && Boolean(studentId),
-  });
-  const summary = summaryQuery.data;
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Synthèse scolaire</DialogTitle>
-          <DialogDescription>
-            {summary
-              ? `${summary.student.lastName} ${summary.student.firstName}${summary.student.matricule ? ` · ${summary.student.matricule}` : ""}`
-              : "Chargement du cursus et de la situation financière."}
-          </DialogDescription>
-        </DialogHeader>
-        {summaryQuery.isLoading ? (
-          <div
-            className="space-y-3"
-            aria-label="Chargement de la synthèse scolaire"
-          >
-            <div className="h-10 animate-pulse rounded-lg bg-muted" />
-            <div className="h-32 animate-pulse rounded-lg bg-muted" />
-          </div>
-        ) : null}
-        {summaryQuery.isError ? (
-          <QueryErrorState
-            message="Impossible de charger la synthèse scolaire."
-            onRetry={() => void summaryQuery.refetch()}
-            isRetrying={summaryQuery.isFetching}
-          />
-        ) : null}
-        {summary && !summaryQuery.isLoading && !summaryQuery.isError ? (
-          summary.years.length === 0 ? (
-            <EmptyState
-              title="Aucune année scolaire trouvée"
-              description="Le cursus de cet élève ne contient encore aucune année exploitable."
-            />
-          ) : (
-            <div className="overflow-x-auto rounded-lg border">
-              <Table className="min-w-[42rem]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Année scolaire</TableHead>
-                    <TableHead>Classe</TableHead>
-                    <TableHead>Décision</TableHead>
-                    <TableHead>Situation financière</TableHead>
-                    <TableHead className="text-right">Reste à verser</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {summary.years.map((year) => (
-                    <TableRow key={year.schoolYearId}>
-                      <TableCell className="font-medium">
-                        {year.schoolYearLabel}
-                      </TableCell>
-                      <TableCell>{year.className}</TableCell>
-                      <TableCell>{year.decision}</TableCell>
-                      <TableCell>
-                        {year.financialStatus === "settled" ? (
-                          <Badge
-                            variant="outline"
-                            className="border-green-200 bg-green-50 text-green-700"
-                          >
-                            Soldé
-                          </Badge>
-                        ) : year.financialStatus === "remaining_due" ? (
-                          <Badge
-                            variant="outline"
-                            className="border-amber-200 bg-amber-50 text-amber-700"
-                          >
-                            Reste à régler
-                          </Badge>
-                        ) : (
-                          <Badge
-                            variant="outline"
-                            className="text-muted-foreground"
-                          >
-                            Non configuré
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-medium tabular-nums">
-                        {year.remainingDue === null
-                          ? "Non disponible"
-                          : year.remainingDue > 0
-                            ? formatFcfa(year.remainingDue)
-                            : "—"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )
-        ) : null}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 export default function EnrollmentsPage() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedTab = searchParams.get("tab") === "re-enrollment" ? "re-enrollment" : "dossiers";
   const { hasPermission } = usePermissions();
@@ -231,7 +112,6 @@ export default function EnrollmentsPage() {
   const [classSelections, setClassSelections] = useState<
     Record<string, string>
   >({});
-  const [summaryStudentId, setSummaryStudentId] = useState<string | null>(null);
   const enrollmentsQuery = useQuery({
     queryKey: [
       "enrollments",
@@ -809,7 +689,7 @@ export default function EnrollmentsPage() {
                           size="sm"
                           className="min-h-10"
                           onClick={() =>
-                            setSummaryStudentId(candidate.studentId)
+                            navigate(`/enrollments/re-enrollment/students/${candidate.studentId}`)
                           }
                         >
                           <Eye className="mr-2 h-4 w-4" />
@@ -849,7 +729,7 @@ export default function EnrollmentsPage() {
                           size="sm"
                           className="min-h-10"
                           onClick={() =>
-                            setSummaryStudentId(candidate.studentId)
+                            navigate(`/enrollments/re-enrollment/students/${candidate.studentId}`)
                           }
                         >
                           <Eye className="mr-2 h-4 w-4" />
@@ -992,13 +872,6 @@ export default function EnrollmentsPage() {
           ) : null}
         </TabsContent>
       </Tabs>
-      <StudentAcademicSummaryDialog
-        studentId={summaryStudentId}
-        open={summaryStudentId !== null}
-        onOpenChange={(open) => {
-          if (!open) setSummaryStudentId(null);
-        }}
-      />
     </PageLayout>
   );
 }

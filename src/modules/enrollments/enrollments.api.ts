@@ -94,10 +94,16 @@ export type StudentAcademicSummary = {
   years: Array<{
     schoolYearId: string
     schoolYearLabel: string
+    startDate: string
+    endDate: string
     className: string
+    enrollmentStatus: EnrollmentStatus | null
     decision: string
     financialStatus: "settled" | "remaining_due" | "not_configured" | "unavailable"
     remainingDue: number | null
+    totalDue: number | null
+    confirmedPaid: number | null
+    waivedAmount: number | null
     currency: string
   }>
 }

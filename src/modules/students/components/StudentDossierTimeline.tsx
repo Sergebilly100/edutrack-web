@@ -60,7 +60,7 @@ export function DossierTimeline({ events }: { events: StudentDossierEvent[] }) {
   )
 }
 
-export function StudentDossierTimeline({ studentId }: { studentId: string }) {
+export function StudentDossierTimeline({ studentId, schoolYear }: { studentId: string; schoolYear?: { id: string; startDate: string; endDate: string } | null }) {
   const dossierQuery = useStudentDossier(studentId)
 
   if (dossierQuery.isLoading) {
@@ -75,5 +75,7 @@ export function StudentDossierTimeline({ studentId }: { studentId: string }) {
     return <Alert variant="destructive"><AlertDescription>Impossible de charger le dossier de cet élève. Vérifiez votre connexion puis réessayez.</AlertDescription></Alert>
   }
 
-  return <DossierTimeline events={dossierQuery.data?.events ?? []} />
+  const events = (dossierQuery.data?.events ?? []).filter((event) => !schoolYear ||
+    (event.schoolYearId ? event.schoolYearId === schoolYear.id : event.date >= schoolYear.startDate && event.date <= schoolYear.endDate))
+  return <DossierTimeline events={events} />
 }

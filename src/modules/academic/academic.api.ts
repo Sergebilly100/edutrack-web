@@ -314,23 +314,48 @@ export type TeacherAcademicContext = {
     schoolYearId: string
     label: string
     startDate: string
+    reviewStartDate: string
     endDate: string
     isCompleted: boolean
     isCurrent: boolean
+    notesEntryOpen: boolean
+    conductReviewOpen: boolean
+    bulletinGenerationAvailable: boolean
+    isClosed: boolean
+    closedClassIds: string[]
+    hasGeneratedCards: boolean
   }>
 }
 
 export type GradingPeriod = {
   id: string
+  schoolYearId: string
   label: string
+  type: "trimester" | "semester"
+  orderIndex: number
+  startDate: string
+  reviewStartDate: string
+  endDate: string
   isCurrent: boolean
   isCompleted: boolean
+  notesEntryOpen: boolean
+  conductReviewOpen: boolean
+  bulletinGenerationAvailable: boolean
+  isClosed: boolean
+  closedClassIds: string[]
+  hasGeneratedCards: boolean
 }
 
 export const listGradingPeriods = () =>
   api
     .get<{ gradingPeriods: GradingPeriod[] }>("/grading-periods")
     .then((response) => response.data.gradingPeriods)
+
+export const createGradingPeriod = (input: Pick<GradingPeriod, "schoolYearId" | "type" | "orderIndex" | "label" | "startDate" | "reviewStartDate" | "endDate">) =>
+  api.post<{ gradingPeriod: GradingPeriod }>("/grading-periods", input).then((response) => response.data.gradingPeriod)
+
+export const updateGradingPeriod = (id: string, input: Pick<GradingPeriod, "startDate" | "reviewStartDate" | "endDate">) =>
+  api.patch<{ gradingPeriod: GradingPeriod }>(`/grading-periods/${id}`, input).then((response) => response.data.gradingPeriod)
 
 export const fetchTeacherAcademicContext = () =>
   api.get<TeacherAcademicContext>("/academic/teacher-context").then((response) => response.data)
@@ -397,7 +422,18 @@ export type TeacherConductScopeItem = {
   fullName: string
   matricule: string | null
   input: { note: number; observation: string | null; createdAt: string } | null
+  isLocked: boolean
 }
+
+export const fetchConductDecisionContext = () => api.get<{
+  classes: Array<{ id: string; name: string; schoolYearId: string }>
+  gradingPeriods: Array<{ id: string; label: string; schoolYearId: string; conductReviewOpen: boolean; closedClassIds: string[] }>
+}>("/conduct/decision-classes").then(response => response.data)
+
+export const fetchConductDecisionStudents = (classId: string, gradingPeriodId: string) =>
+  api.get<{ students: Array<{ id: string; fullName: string }> }>("/conduct/decision-students", {
+    params: { class_id: classId, grading_period_id: gradingPeriodId },
+  }).then(response => response.data)
 
 export const fetchTeacherConductScope = (classId: string, gradingPeriodId: string) =>
   api
@@ -454,8 +490,55 @@ export const decideConductGrade = (payload: {
   student_id: string
   grading_period_id: string
   note: number
-  coefficient?: number
 }) => api.put("/conduct/grades", payload).then((r) => r.data)
+
+export type ConductReviewAction = {
+  classId: string
+  className: string
+  gradingPeriodId: string
+  gradingPeriodLabel: string
+  pendingCount: number
+}
+
+export type ConductDecisionScope = ConductReviewAction & {
+  levelId: string
+  levelName: string
+  schoolYearId: string
+  schoolYearLabel: string
+  studentCount: number
+  reviewOpen: boolean
+  isClosed: boolean
+}
+
+export type ConductReviewWorkspace = {
+  teacherActions: ConductReviewAction[]
+  decisionScopes: ConductDecisionScope[]
+  decisionActions: ConductDecisionScope[]
+}
+
+export const fetchConductReviewWorkspace = () =>
+  api.get<ConductReviewWorkspace>("/conduct/review-workspace").then((response) => response.data)
+
+export type ConductPolicyMode = "homeroom" | "direction" | "delegated"
+export type ConductPolicy = { mode: ConductPolicyMode; coefficient: number }
+export const fetchConductPolicy = (schoolYearId: string) =>
+  api.get<{ policy: ConductPolicy }>(`/conduct/policy/${schoolYearId}`).then((response) => response.data.policy)
+export const updateConductPolicy = (schoolYearId: string, payload: { mode: ConductPolicyMode; coefficient: number }) =>
+  api.put<{ policy: ConductPolicy }>(`/conduct/policy/${schoolYearId}`, payload).then((response) => response.data.policy)
+
+export type EducatorAssignment = {
+  id: string; classId: string | null; className: string | null;
+  levelId: string | null; levelName: string | null; userId: string;
+  userName: string; assignedAt: string
+}
+export const fetchEducatorAssignments = () =>
+  api.get<{ assignments: EducatorAssignment[] }>("/conduct/educator-assignments").then((response) => response.data)
+export const fetchEligibleEducators = () =>
+  api.get<{ users: Array<{ id: string; name: string }> }>("/conduct/eligible-educators").then((response) => response.data)
+export const createEducatorAssignment = (payload: { class_id?: string; level_id?: string; user_id: string }) =>
+  api.post("/conduct/educator-assignments", payload).then((response) => response.data)
+export const deleteEducatorAssignment = (id: string) =>
+  api.delete(`/conduct/educator-assignments/${id}`).then((response) => response.data)
 
 // ── Suivi de complétude (direction) ─────────────────────────────────────────
 
@@ -495,14 +578,18 @@ export const fetchClassReportCards = (classId: string, gradingPeriodId: string) 
 
 export const fetchReadiness = (gradingPeriodId: string) =>
   api
-    .get<{ classes: Array<{ classId: string; className: string; headcount: number; studentsWithGeneralAverage: number; readyToGenerate: boolean }> }>(
+    .get<{ classes: Array<{ classId: string; className: string; headcount: number; studentsWithGeneralAverage: number; studentsWithFinalConduct: number; readyToGenerate: boolean }> }>(
       "/report-cards/readiness",
       { params: { grading_period_id: gradingPeriodId } },
     )
     .then((response) => response.data.classes)
 
+export const fetchConductBulletinAudit = () => api.get<{ periods: Array<{
+  gradingPeriodId: string; periodLabel: string; generatedCount: number; publishedCount: number
+}> }>("/report-cards/conduct-audit").then(response => response.data.periods)
+
 export const generateReportCards = (payload: { class_id: string; grading_period_id: string }) =>
-  api.post<{ generatedCount: number; periodCompleted: boolean }>("/report-cards/generate", payload).then((r) => r.data)
+  api.post<{ generatedCount: number; classClosed: boolean; periodCompleted: boolean }>("/report-cards/generate", payload).then((r) => r.data)
 
 export const publishReportCard = (cardId: string) =>
   api.post(`/report-cards/${cardId}/publish`).then((r) => r.data)

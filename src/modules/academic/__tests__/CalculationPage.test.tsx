@@ -1,6 +1,6 @@
 import { type ReactNode } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -11,8 +11,6 @@ const scopeInProgress = {
 }
 const fetchScope = vi.fn()
 const fetchContext = vi.fn()
-const fetchConductOverview = vi.fn()
-const decideConductGrade = vi.fn()
 
 vi.mock("@/modules/academic/academic.api", async () => {
   const actual = await vi.importActual<typeof import("@/modules/academic/academic.api")>("@/modules/academic/academic.api")
@@ -20,9 +18,6 @@ vi.mock("@/modules/academic/academic.api", async () => {
     ...actual,
     fetchEvaluationsScope: (...args: unknown[]) => fetchScope(...args),
     fetchTeacherAcademicContext: (...args: unknown[]) => fetchContext(...args),
-    fetchTeacherConductScope: vi.fn().mockResolvedValue({ isAvailable: true, students: [] }),
-    fetchConductOverview: (...args: unknown[]) => fetchConductOverview(...args),
-    decideConductGrade: (...args: unknown[]) => decideConductGrade(...args),
   }
 })
 
@@ -41,8 +36,6 @@ describe("CalculationPage", () => {
   beforeEach(() => {
     fetchScope.mockReset()
     fetchContext.mockReset()
-    fetchConductOverview.mockReset()
-    decideConductGrade.mockReset()
     fetchScope.mockResolvedValue(scopeInProgress)
     fetchContext.mockResolvedValue({
       classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2026-2027", isHomeroomTeacher: false }],
@@ -78,56 +71,16 @@ describe("CalculationPage", () => {
     expect(await screen.findByText("Notes de Awa Koné")).toBeInTheDocument()
   })
 
-  it("permet au professeur principal de consulter les avis et d’enregistrer la conduite finale", async () => {
+  it("ne propose plus de décision de conduite au professeur principal depuis les moyennes", async () => {
     fetchContext.mockResolvedValue({
       classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2026-2027", isHomeroomTeacher: true }],
       gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2026-09-01", endDate: "2026-12-20", isCompleted: false, isCurrent: true }],
-    })
-    fetchConductOverview.mockResolvedValue({
-      student: { id: "student-1", displayName: "Awa Koné", className: "6ème A" },
-      teacherInputs: [{ id: "input-1", teacherId: "teacher-1", teacherName: "Mme Traoré", note: 17, subjectLabel: "Mathématiques", observation: "Très impliquée", createdAt: "2026-09-10", isSubmitted: true }],
-      inputSummary: { expectedCount: 1, submittedCount: 1, isComplete: true },
-      finalGrade: null,
-    })
-    decideConductGrade.mockResolvedValue({ note: 18 })
-    renderWithClient(<CalculationPage />)
-
-    await screen.findByText("Notes de Mathématiques")
-    fireEvent.click(screen.getByRole("button", { name: "Voir les moyennes par élève" }))
-    fireEvent.click(await screen.findByRole("button", { name: "Définir la conduite de Awa Koné" }))
-    expect(await screen.findByText("Avis des enseignants")).toBeInTheDocument()
-    expect(screen.getByText("Mme Traoré · 17/20")).toBeInTheDocument()
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Note finale / 20" }), { target: { value: "18" } })
-    fireEvent.click(screen.getByRole("button", { name: "Enregistrer la note finale" }))
-    await waitFor(() => expect(decideConductGrade).toHaveBeenCalledWith({ student_id: "student-1", grading_period_id: "p1", note: 18 }))
-  })
-
-  it("affiche les avis manquants et empêche la décision finale", async () => {
-    fetchContext.mockResolvedValue({
-      classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2026-2027", isHomeroomTeacher: true }],
-      gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2026-09-01", endDate: "2026-12-20", isCompleted: false, isCurrent: true }],
-    })
-    fetchConductOverview.mockResolvedValue({
-      student: { id: "student-1", fullName: "Awa Koné", className: "6ème A" },
-      gradingPeriod: { id: "p1", label: "1er trimestre" },
-      teacherInputs: [
-        { id: "input-1", teacherId: "teacher-1", teacherName: "Mme Traoré", note: 17, subjectLabel: "Mathématiques", observation: null, createdAt: "2026-09-10", isSubmitted: true },
-        { id: null, teacherId: "teacher-2", teacherName: "M. Yao", note: null, subjectLabel: "Français", observation: null, createdAt: null, isSubmitted: false },
-      ],
-      inputSummary: { expectedCount: 2, submittedCount: 1, isComplete: false },
-      spontaneousEvaluations: [],
-      finalGrade: null,
     })
     renderWithClient(<CalculationPage />)
 
     await screen.findByText("Notes de Mathématiques")
     fireEvent.click(screen.getByRole("button", { name: "Voir les moyennes par élève" }))
-    fireEvent.click(await screen.findByRole("button", { name: "Définir la conduite de Awa Koné" }))
-
-    expect(await screen.findByText("1/2 renseignés")).toBeInTheDocument()
-    expect(screen.getByText("M. Yao")).toBeInTheDocument()
-    expect(screen.getByText("À renseigner")).toBeInTheDocument()
-    expect(screen.getByRole("spinbutton", { name: "Note finale / 20" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "Enregistrer la note finale" })).toBeDisabled()
+    expect(await screen.findByText("Moyenne / 20")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Définir la conduite de Awa Koné" })).not.toBeInTheDocument()
   })
 })

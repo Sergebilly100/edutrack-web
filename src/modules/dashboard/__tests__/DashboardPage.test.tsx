@@ -15,8 +15,8 @@ vi.mock("@/shared/api/client", () => ({
         return Promise.resolve({
           data: {
             gradingPeriods: [
-              { id: "period-current", school_year_id: "school-year-1", label: "Trimestre 1", isCurrent: true, isCompleted: false },
-              { id: "period-upcoming", school_year_id: "school-year-1", label: "Trimestre 2", isCurrent: false, isCompleted: false },
+              { id: "period-current", school_year_id: "school-year-1", label: "Trimestre 1", isCurrent: true, isCompleted: false, notesEntryOpen: true, conductReviewOpen: false, isClosed: false },
+              { id: "period-upcoming", school_year_id: "school-year-1", label: "Trimestre 2", isCurrent: false, isCompleted: false, notesEntryOpen: false, conductReviewOpen: false, isClosed: false },
             ],
           },
         })
@@ -62,6 +62,7 @@ const getTodayAbsencesMock = vi.fn()
 const getStudentAbsenceStatsMock = vi.fn()
 const fetchFinancialSummaryMock = vi.fn()
 const listSchoolYearsMock = vi.fn()
+const getConductReviewWorkspaceMock = vi.fn()
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom")
@@ -111,6 +112,7 @@ vi.mock("@/modules/finance/finance.api", () => ({
 
 vi.mock("@/modules/academic/academic.api", () => ({
   listSchoolYears: () => listSchoolYearsMock(),
+  fetchConductReviewWorkspace: () => getConductReviewWorkspaceMock(),
 }))
 
 import DashboardPage from "@/modules/dashboard/DashboardPage"
@@ -232,6 +234,19 @@ describe("DashboardPage", () => {
     listSchoolYearsMock.mockResolvedValue([
       { id: "school-year-1", label: "2025-2026", status: "active" },
     ])
+    getConductReviewWorkspaceMock.mockResolvedValue({ teacherActions: [], decisionScopes: [], decisionActions: [] })
+  })
+
+  it("propose la décision de conduite autorisée avec un lien direct vers la classe et la période", async () => {
+    getConductReviewWorkspaceMock.mockResolvedValue({ teacherActions: [], decisionScopes: [], decisionActions: [{
+      schoolYearId: "school-year-1", levelId: "level-1", classId: "class-1", gradingPeriodId: "period-current",
+      className: "6e A", gradingPeriodLabel: "Trimestre 1", pendingCount: 1,
+    }] })
+    renderWithQueryClient(<DashboardPage />)
+
+    expect(await screen.findByRole("link", { name: /6e A : 1 décision à finaliser/ })).toHaveAttribute(
+      "href", "/academic/conduct?schoolYearId=school-year-1&levelId=level-1&classId=class-1&gradingPeriodId=period-current",
+    )
   })
 
   it("affiche une vue de pilotage unique pour un directeur", async () => {
@@ -242,9 +257,9 @@ describe("DashboardPage", () => {
     renderWithQueryClient(<DashboardPage />)
 
     expect(await screen.findByText("Bonjour, Directeur Test")).toBeInTheDocument()
-    expect(await screen.findByText("Vue de pilotage")).toBeInTheDocument()
+    expect(await screen.findByText("Vue de pilotage", {}, { timeout: 5000 })).toBeInTheDocument()
     expect(await screen.findByText("Présences professeurs aujourd’hui")).toBeInTheDocument()
-    expect(screen.getByText("Notes saisies")).toBeInTheDocument()
+    expect(await screen.findByText("Notes saisies")).toBeInTheDocument()
     expect(screen.getByText("Notes ≥ 10/20")).toBeInTheDocument()
     expect(screen.getByLabelText("Légende du graphique")).toHaveTextContent("Retards")
     expect(await screen.findByText("Suivi financier")).toBeInTheDocument()

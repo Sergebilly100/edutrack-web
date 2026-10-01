@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { MemoryRouter } from "react-router-dom"
+import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
@@ -65,7 +65,7 @@ describe("EnrollmentsPage", () => {
     })
     mocks.getStudentAcademicSummary.mockResolvedValue({
       student: { id: "student-1", firstName: "Awa", lastName: "Koné", matricule: "MAT-001" },
-      years: [{ schoolYearId: "year-1", schoolYearLabel: "2026-2027", className: "6e A", decision: "Admis(e)", financialStatus: "settled", remainingDue: 0 }],
+      years: [{ schoolYearId: "year-1", schoolYearLabel: "2026-2027", className: "6e A", enrollmentStatus: "confirmed", decision: "Admis(e)", financialStatus: "settled", remainingDue: 0 }],
     })
     mocks.listEnrollments.mockImplementation(({ page = 1 }: { page?: number }) => Promise.resolve({
       enrollments: [page === 1 ? enrollment("1", "Awa") : enrollment("2", "Aya")],
@@ -108,7 +108,15 @@ describe("EnrollmentsPage", () => {
     expect(screen.getByRole("table")).toBeInTheDocument()
   })
 
-  it("affiche tous les élèves et le bouton Voir dossier avant la sélection de l’année cible", async () => {
+  it("ouvre le dossier complet depuis Réinscriptions avant la sélection de l’année cible", async () => {
+    mocks.listSchoolYears.mockResolvedValue([{ id: "year-active", label: "2027-2028", status: "active" }])
+    mocks.getStudentAcademicSummary.mockResolvedValue({
+      student: { id: "student-1", firstName: "Awa", lastName: "Koné", matricule: "MAT-001" },
+      years: [
+        { schoolYearId: "year-active", schoolYearLabel: "2027-2028", className: "5e A", enrollmentStatus: "pending_cashier", decision: "Non renseignée", financialStatus: "unavailable", remainingDue: null },
+        { schoolYearId: "year-1", schoolYearLabel: "2026-2027", className: "6e A", enrollmentStatus: "confirmed", decision: "Admis(e)", financialStatus: "remaining_due", remainingDue: 25000, totalDue: 100000, confirmedPaid: 65000, waivedAmount: 10000 },
+      ],
+    })
     mocks.listReEnrollmentCandidates.mockResolvedValue({
       candidates: [{
         studentId: "student-1", studentFirstName: "Awa", studentLastName: "Koné", studentMatricule: "MAT-001",
@@ -119,7 +127,10 @@ describe("EnrollmentsPage", () => {
     })
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter><EnrollmentsPage /></MemoryRouter>
+        <MemoryRouter><Routes>
+          <Route path="/" element={<EnrollmentsPage />} />
+          <Route path="/enrollments/re-enrollment/students/:studentId" element={<p>Dossier complet de l’élève</p>} />
+        </Routes></MemoryRouter>
       </QueryClientProvider>,
     )
 
@@ -131,8 +142,7 @@ describe("EnrollmentsPage", () => {
     expect(screen.getByLabelText("Niveau récent")).toBeInTheDocument()
     expect(screen.getByLabelText("Classe récente")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Voir dossier" }))
-    expect(await screen.findByRole("dialog")).toBeInTheDocument()
-    expect(screen.getByText("Synthèse scolaire")).toBeInTheDocument()
+    expect(await screen.findByText("Dossier complet de l’élève")).toBeInTheDocument()
     await waitFor(() => expect(mocks.listReEnrollmentCandidates).toHaveBeenCalledWith({
       schoolYearId: undefined, sourceSchoolYearId: undefined, levelId: undefined, classId: undefined, search: undefined, page: 1, limit: 20,
     }))

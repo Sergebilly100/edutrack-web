@@ -10,6 +10,7 @@ import { AppShell } from "@/shared/components/layout/AppShell"
 import { TeacherTopBar } from "@/shared/components/layout/TeacherTopBar"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { getNavItemsByRole } from "@/shared/components/layout/nav-items"
+import { fetchConductReviewWorkspace } from "@/modules/academic/academic.api"
 import { useAutoSync } from "@/shared/hooks/useAutoSync"
 import { useRestoreSession } from "@/shared/hooks/useRestoreSession"
 import { queryCacheRestorePromise } from "@/shared/api/query-client"
@@ -56,10 +57,11 @@ const SchoolYearsPage = lazy(() => import("@/modules/academic/SchoolYearsPage"))
 const LevelsPage = lazy(() => import("@/modules/academic/LevelsPage"))
 const ClassesPage = lazy(() => import("@/modules/academic/ClassesPage"))
 const SubjectsPage = lazy(() => import("@/modules/academic/SubjectsPage"))
-const NotesPage = lazy(() => import("@/modules/academic/NotesPage"))
+const TeacherNotesWorkspace = lazy(() => import("@/modules/academic/TeacherNotesWorkspace"))
 const EvaluationReviewPage = lazy(() => import("@/modules/academic/EvaluationReviewPage"))
 const CalculationPage = lazy(() => import("@/modules/academic/CalculationPage"))
 const ConductPage = lazy(() => import("@/modules/academic/ConductPage"))
+const ConductDecisionWorkspace = lazy(() => import("@/modules/academic/ConductDecisionWorkspace"))
 const ReportCardsPage = lazy(() => import("@/modules/academic/ReportCardsPage"))
 const ClassDecisionsPage = lazy(() => import("@/modules/class-decisions/ClassDecisionsPage"))
 const EnrollmentsPage = lazy(() => import("@/modules/enrollments/EnrollmentsPage"))
@@ -281,6 +283,12 @@ function TeacherNavigation({ variant }: { variant: "desktop" | "mobile" }) {
   const user = useAuthStore((state) => state.user)
   const permissions = useAuthStore((state) => state.permissions)
   const items = getNavItemsByRole(user?.role, permissions)
+  const conductQuery = useQuery({
+    queryKey: ["conduct", "review-workspace"],
+    queryFn: fetchConductReviewWorkspace,
+    enabled: user?.role === "teacher",
+  })
+  const conductCount = (conductQuery.data?.teacherActions ?? []).reduce((total, action) => total + action.pendingCount, 0)
 
   const mobileItems = items.filter((item) =>
     item.href === "/dashboard" || item.href === "/attendance" || item.href === "/academic/notes" || item.href === "/account",
@@ -304,6 +312,7 @@ function TeacherNavigation({ variant }: { variant: "desktop" | "mobile" }) {
               >
                 <Icon className="h-4 w-4" />
                 {item.label}
+                {item.href === "/academic/notes" && conductCount > 0 ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900" aria-label={`${conductCount} avis de conduite à renseigner`}>{conductCount}</span> : null}
               </NavLink>
             )
           })}
@@ -329,6 +338,7 @@ function TeacherNavigation({ variant }: { variant: "desktop" | "mobile" }) {
             >
               <Icon className="h-4 w-4" />
               <span className="max-w-full truncate">{item.label}</span>
+              {item.href === "/academic/notes" && conductCount > 0 ? <span className="absolute right-1 top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-amber-100 px-1 text-[10px] font-semibold text-amber-900" aria-label={`${conductCount} avis de conduite à renseigner`}>{conductCount}</span> : null}
             </NavLink>
           )
         })}
@@ -531,6 +541,25 @@ function FinanceLegacyRoute() {
   return <Navigate to={getFinancePathFromLegacyTab(searchParams.get("tab"))} replace />
 }
 
+function ConductLegacyRoute({ decision = false }: { decision?: boolean }) {
+  const user = useAuthStore((state) => state.user)
+  const location = useLocation()
+  const conductQuery = useQuery({
+    queryKey: ["conduct", "review-workspace"],
+    queryFn: fetchConductReviewWorkspace,
+    enabled: Boolean(user && user.role !== "teacher"),
+  })
+  const params = new URLSearchParams(location.search)
+  if (user?.role === "teacher") {
+    params.set("tab", decision ? "decisions" : "conduite")
+    return <Navigate to={`/academic/notes?${params.toString()}`} replace />
+  }
+  if (decision) return <Navigate to={`/academic/conduct${location.search}`} replace />
+  if (conductQuery.isLoading) return <SessionLoader />
+  if (conductQuery.isSuccess && conductQuery.data.decisionScopes.length === 0) return <Navigate to="/dashboard" replace />
+  return <ConductDecisionWorkspace />
+}
+
 function FinanceHistoryDetailRoute() {
   const { studentId } = useParams()
   const [searchParams] = useSearchParams()
@@ -617,6 +646,7 @@ export default function App() {
           <Route path="/teachers/:teacherId" element={<PermissionRoute href="/teachers" element={<TeacherDetailPage />} />} />
           <Route path="/students" element={<PermissionRoute href="/students" element={<StudentsPage />} />} />
           <Route path="/students/:studentId" element={<PermissionRoute href="/students" element={<StudentDetailPage />} />} />
+          <Route path="/enrollments/re-enrollment/students/:studentId" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.view"]} element={<StudentDetailPage mode="historical" />} />} />
           <Route path="/academic" element={<PermissionRoute href="/academic" element={<AcademicIndexRoute />} />} />
           <Route path="/academic/school-years" element={<PermissionRoute href="/academic" requiredAnyPermissions={["school_years.view"]} element={<SchoolYearsPage />} />} />
           <Route path="/academic/levels" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<LevelsPage />} />} />
@@ -659,10 +689,10 @@ export default function App() {
         </Route>
 
         <Route element={<TeacherAcademicShellRoute />}>
-          <Route path="/academic/notes" element={<NotesPage />} />
+          <Route path="/academic/notes" element={<TeacherNotesWorkspace />} />
           <Route path="/academic/calculation" element={<CalculationPage />} />
-          <Route path="/academic/conduct" element={<ConductPage view="teacher" />} />
-          <Route path="/academic/conduct/decision" element={<ConductPage view="decision" />} />
+          <Route path="/academic/conduct" element={<ConductLegacyRoute />} />
+          <Route path="/academic/conduct/decision" element={<ConductLegacyRoute decision />} />
         </Route>
 
         <Route path="/account" element={<AccountRoute />} />

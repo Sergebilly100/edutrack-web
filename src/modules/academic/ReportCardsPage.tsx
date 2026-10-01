@@ -19,6 +19,7 @@ import {
 import {
   fetchClassReportCards,
   fetchClassCompletion,
+  fetchConductBulletinAudit,
   fetchReadiness,
   generateReportCards,
   listClasses,
@@ -62,7 +63,7 @@ export default function ReportCardsPage() {
   })
   useEffect(() => {
     if (gradingPeriodId || !periodsQuery.data?.length) return
-    const current = periodsQuery.data.find((period) => period.isCurrent)
+    const current = periodsQuery.data.find((period) => period.bulletinGenerationAvailable)
     if (current) setGradingPeriodId(current.id)
   }, [gradingPeriodId, periodsQuery.data])
   const readinessEnabled = Boolean(gradingPeriodId)
@@ -71,6 +72,7 @@ export default function ReportCardsPage() {
     queryFn: () => fetchReadiness(gradingPeriodId),
     enabled: readinessEnabled,
   })
+  const conductAuditQuery = useQuery({ queryKey: ["report-cards", "conduct-audit"], queryFn: fetchConductBulletinAudit })
   const enabled = Boolean(classId) && Boolean(gradingPeriodId)
   const cardsQuery = useQuery({
     queryKey: ["report-cards-class", classId, gradingPeriodId],
@@ -96,7 +98,7 @@ export default function ReportCardsPage() {
     onSuccess: async (result) => {
       await invalidate()
       await queryClient.invalidateQueries({ queryKey: ["academic", "grading-periods"] })
-      toast({ title: `${result.generatedCount} bulletin(s) généré(s)`, description: result.periodCompleted ? "La période est complète : la période suivante devient la période en cours." : undefined })
+      toast({ title: `${result.generatedCount} bulletin(s) généré(s)`, description: result.classClosed ? "La revue de cette classe est clôturée pour cette période." : undefined })
     },
     onError: (error) =>
       toast({
@@ -143,18 +145,24 @@ export default function ReportCardsPage() {
     (entry) => entry.classId === classId
   )
   const selectedPeriod = periodsQuery.data?.find((period) => period.id === gradingPeriodId)
+  const historicalAmbiguity = conductAuditQuery.data?.find(period => period.gradingPeriodId === gradingPeriodId)
   const completionSubjects = completionQuery.data?.subjects ?? []
   const completedSubjectsCount = completionSubjects.filter((subject) => subject.status === "completed").length
   const allSubjectsCompleted = completionSubjects.length > 0 && completedSubjectsCount === completionSubjects.length
   const allStudentsAveraged = readinessForClass !== undefined && readinessForClass.studentsWithGeneralAverage >= readinessForClass.headcount && readinessForClass.headcount > 0
-  const canGenerate = Boolean(selectedPeriod?.isCurrent) && allSubjectsCompleted && allStudentsAveraged
+  const allStudentsHaveConduct = readinessForClass !== undefined && readinessForClass.studentsWithFinalConduct >= readinessForClass.headcount && readinessForClass.headcount > 0
+  const hasGeneratedCards = cardsQuery.data?.some(card => card.status === "generated") === true
+  const classClosed = selectedPeriod?.closedClassIds?.includes(classId) === true
+  const canGenerate = Boolean(selectedPeriod?.bulletinGenerationAvailable) && (!classClosed || hasGeneratedCards) && allSubjectsCompleted && allStudentsAveraged && allStudentsHaveConduct
   const preparationLoading = completionQuery.isLoading || readinessQuery.isLoading
   const preparationError = completionQuery.isError || readinessQuery.isError
 
   const generationBlocker = (): string | null => {
-    if (!selectedPeriod?.isCurrent) return "Sélectionnez la période scolaire en cours pour générer les bulletins."
+    if (!selectedPeriod?.bulletinGenerationAvailable) return "Sélectionnez une période dont la revue est ouverte pour générer les bulletins."
+    if (classClosed && !hasGeneratedCards) return "Tous les bulletins sont publiés ou la revue est clôturée."
     if (!allSubjectsCompleted) return "Clôturez et validez les moyennes de chaque matière avant de générer."
     if (!allStudentsAveraged) return "Calculez une moyenne générale pour tous les élèves de la classe."
+    if (!allStudentsHaveConduct) return "Arrêtez la note finale de conduite de chaque élève confirmé."
     return null
   }
 
@@ -214,7 +222,7 @@ export default function ReportCardsPage() {
             <SelectTrigger id="report-cards-period" className="min-h-12"><SelectValue placeholder="Choisir une période" /></SelectTrigger>
             <SelectContent>
               {(periodsQuery.data ?? []).map((period) => (
-                <SelectItem key={period.id} value={period.id} disabled={!period.isCurrent && !period.isCompleted}>{period.label}{period.isCurrent ? " · en cours" : period.isCompleted ? " · finalisée" : " · à venir"}</SelectItem>
+                <SelectItem key={period.id} value={period.id} disabled={!period.bulletinGenerationAvailable && !period.isClosed}>{period.label}{period.bulletinGenerationAvailable ? " · en revue" : period.isClosed ? " · finalisée" : " · à venir"}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -225,6 +233,9 @@ export default function ReportCardsPage() {
         <EmptyState title="Choisissez une classe et une période" description="Les bulletins s'afficheront ici." />
       ) : (
         <>
+          {historicalAmbiguity ? <Alert variant="destructive"><AlertDescription>
+            Période historique à vérifier : {historicalAmbiguity.generatedCount} bulletin(s) non publié(s) et {historicalAmbiguity.publishedCount} publié(s) présentent une conduite absente ou une moyenne incohérente. Les bulletins publiés restent figés.
+          </AlertDescription></Alert> : null}
           {preparationError ? (
             <Alert variant="destructive">
               <AlertDescription>Impossible de charger l’état de préparation de cette classe. Réessayez dans un instant.</AlertDescription>
@@ -263,6 +274,7 @@ export default function ReportCardsPage() {
                         {readinessForClass.studentsWithGeneralAverage}/{readinessForClass.headcount} moyennes générales
                       </Badge>
                     ) : null}
+                    {readinessForClass ? <Badge variant="outline" className={allStudentsHaveConduct ? "border-green-200 bg-green-50 text-green-700" : "border-amber-200 bg-amber-50 text-amber-800"}>{readinessForClass.studentsWithFinalConduct}/{readinessForClass.headcount} conduites finales</Badge> : null}
                   </div>
                   <div className="overflow-x-auto">
                     <Table>
@@ -297,7 +309,7 @@ export default function ReportCardsPage() {
             <Card className="shadow-sm">
               <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
                 <p className="text-sm text-muted-foreground">
-                  {canGenerate ? "Cette classe est prête à générer ses bulletins." : generationBlocker()}
+                  {canGenerate ? classClosed ? "Les bulletins non publiés peuvent être recalculés sans modifier les bulletins publiés." : "Cette classe est prête à générer ses bulletins." : generationBlocker()}
                 </p>
                 <Button
                   type="button"
@@ -309,7 +321,7 @@ export default function ReportCardsPage() {
                   ) : (
                     <Sparkles className="mr-2 h-4 w-4" />
                   )}
-                  Générer les bulletins de la classe
+                  {classClosed ? "Recalculer les bulletins non publiés" : "Générer les bulletins de la classe"}
                 </Button>
               </CardContent>
             </Card>

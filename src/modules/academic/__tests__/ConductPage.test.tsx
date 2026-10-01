@@ -5,24 +5,25 @@ import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
 const submitBulk = vi.fn().mockResolvedValue({ savedCount: 2 })
-const listStudentsMock = vi.fn()
+const fetchDecisionStudents = vi.fn().mockResolvedValue({ students: [{ id: "s1", fullName: "Awa Koné" }] })
+const fetchDecisionContext = vi.fn().mockResolvedValue({
+  classes: [{ id: "c1", name: "6ème A", schoolYearId: "y1" }],
+  gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", conductReviewOpen: true, closedClassIds: [] }],
+})
 const fetchConductOverview = vi.fn()
-vi.mock("@/modules/students/students.api", () => ({
-  listStudents: (...args: unknown[]) => listStudentsMock(...args),
-}))
 const { authState, listClassesMock } = vi.hoisted(() => ({
   authState: { permissions: [] as string[] },
   listClassesMock: vi.fn(),
 }))
 const fetchTeacherContext = vi.fn().mockResolvedValue({
   classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2026-2027" }],
-  gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2026-09-01", endDate: "2026-12-20", isCurrent: true, isCompleted: false }],
+  gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2026-09-01", endDate: "2026-12-20", isCurrent: true, isCompleted: false, conductReviewOpen: true, closedClassIds: [] }],
 })
 const fetchConductScope = vi.fn().mockResolvedValue({
   isAvailable: true,
   students: [
-    { studentId: "s1", fullName: "Awa Koné", matricule: "A1", input: null },
-    { studentId: "s2", fullName: "Yao N'Guessan", matricule: "A2", input: null },
+    { studentId: "s1", fullName: "Awa Koné", matricule: "A1", input: null, isLocked: false },
+    { studentId: "s2", fullName: "Yao N'Guessan", matricule: "A2", input: null, isLocked: false },
   ],
 })
 
@@ -47,6 +48,8 @@ vi.mock("@/modules/academic/academic.api", async () => {
   return {
     ...actual,
     fetchTeacherAcademicContext: (...args: unknown[]) => fetchTeacherContext(...args),
+    fetchConductDecisionContext: (...args: unknown[]) => fetchDecisionContext(...args),
+    fetchConductDecisionStudents: (...args: unknown[]) => fetchDecisionStudents(...args),
     fetchTeacherConductScope: (...args: unknown[]) => fetchConductScope(...args),
     fetchConductOverview: (...args: unknown[]) => fetchConductOverview(...args),
     listClasses: (...args: unknown[]) => listClassesMock(...args),
@@ -69,20 +72,16 @@ describe("ConductPage professeur", () => {
   afterEach(() => {
     authState.permissions = []
     listClassesMock.mockReset()
-    listStudentsMock.mockReset()
+    fetchDecisionStudents.mockClear()
     fetchConductOverview.mockReset()
   })
 
-  it("charge aussi la deuxième page d’élèves pour la décision finale, avec la limite API de 100", async () => {
-    listStudentsMock
-      .mockResolvedValueOnce({ data: [{ id: "s1", firstName: "Awa", lastName: "Koné" }], pagination: { page: 1, limit: 100, total: 101, totalPages: 2 } })
-      .mockResolvedValueOnce({ data: [{ id: "s101", firstName: "Dernier", lastName: "Élève" }], pagination: { page: 2, limit: 100, total: 101, totalPages: 2 } })
+  it("charge la liste confirmée dans le périmètre de décision serveur", async () => {
+    fetchDecisionStudents.mockResolvedValueOnce({ students: [{ id: "s101", fullName: "Dernier Élève" }] })
     renderWithClient(<ConductPage view="decision" />)
-    fireEvent.click(await screen.findByRole("combobox", { name: "Classe enseignée" }))
+    fireEvent.click(await screen.findByRole("combobox", { name: "Classe à décider" }))
     fireEvent.click(await screen.findByRole("option", { name: /6ème A/ }))
-    await waitFor(() => expect(listStudentsMock).toHaveBeenCalledTimes(2))
-    expect(listStudentsMock).toHaveBeenNthCalledWith(1, { classId: "c1", isActive: true, limit: 100, page: 1 })
-    expect(listStudentsMock).toHaveBeenNthCalledWith(2, { classId: "c1", isActive: true, limit: 100, page: 2 })
+    await waitFor(() => expect(fetchDecisionStudents).toHaveBeenCalledWith("c1", "p1"))
     fireEvent.click(await screen.findByRole("combobox", { name: "Élève" }))
     expect(await screen.findByRole("option", { name: "Dernier Élève" })).toBeInTheDocument()
   })
@@ -108,7 +107,7 @@ describe("ConductPage professeur", () => {
       }))
   })
 
-  it("masque la conduite tant que le calcul des moyennes n’est pas activé", async () => {
+  it("signale une revue de conduite indisponible", async () => {
     fetchConductScope.mockResolvedValueOnce({ isAvailable: false, students: [] })
     renderWithClient(<ConductPage view="teacher" />)
 
@@ -117,14 +116,14 @@ describe("ConductPage professeur", () => {
     fireEvent.click(screen.getByRole("combobox", { name: /période/i }))
     fireEvent.click(await screen.findByRole("option", { name: "1er trimestre" }))
 
-    expect(await screen.findByText("Conduite pas encore ouverte")).toBeInTheDocument()
+    expect(await screen.findByText("Revue de conduite indisponible")).toBeInTheDocument()
     expect(screen.queryByText("Attribution en masse")).not.toBeInTheDocument()
   })
 
   it("verrouille la conduite quand les bulletins rendent la période complète", async () => {
     fetchTeacherContext.mockResolvedValueOnce({
       classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2019-2020" }],
-      gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2019-09-01", endDate: "2019-12-20", isCurrent: false, isCompleted: true }],
+      gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2019-09-01", endDate: "2019-12-20", isCurrent: false, isCompleted: true, conductReviewOpen: false, closedClassIds: ["c1"] }],
     })
     renderWithClient(<ConductPage view="teacher" />)
 
@@ -144,22 +143,18 @@ describe("ConductPage professeur", () => {
         { id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2026-2027" },
         { id: "c2", name: "5ème B", levelId: "l2", levelName: "5ème", schoolYearId: "y1", schoolYearLabel: "2026-2027" },
       ],
-      gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2026-09-01", endDate: "2026-12-20", isCurrent: true, isCompleted: false }],
+      gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2026-09-01", endDate: "2026-12-20", isCurrent: true, isCompleted: false, conductReviewOpen: true, closedClassIds: [] }],
     })
 
     renderWithClient(<ConductPage view="decision" />)
 
-    fireEvent.click(await screen.findByRole("combobox", { name: "Classe enseignée" }))
+    fireEvent.click(await screen.findByRole("combobox", { name: "Classe à décider" }))
     expect(await screen.findByRole("option", { name: /6ème A/ })).toBeInTheDocument()
-    expect(screen.getByRole("option", { name: /5ème B/ })).toBeInTheDocument()
+    expect(screen.queryByRole("option", { name: /5ème B/ })).not.toBeInTheDocument()
     expect(listClassesMock).not.toHaveBeenCalled()
   })
 
-  it("liste les professeurs manquants et bloque la décision finale", async () => {
-    listStudentsMock.mockResolvedValue({
-      data: [{ id: "s1", firstName: "Awa", lastName: "Koné" }],
-      pagination: { page: 1, limit: 100, total: 1, totalPages: 1 },
-    })
+  it("liste les professeurs manquants sans bloquer la décision finale", async () => {
     fetchConductOverview.mockResolvedValue({
       student: { id: "s1", fullName: "Awa Koné", className: "6ème A" },
       gradingPeriod: { id: "p1", label: "1er trimestre" },
@@ -173,7 +168,7 @@ describe("ConductPage professeur", () => {
     })
     renderWithClient(<ConductPage view="decision" />)
 
-    fireEvent.click(await screen.findByRole("combobox", { name: "Classe enseignée" }))
+    fireEvent.click(await screen.findByRole("combobox", { name: "Classe à décider" }))
     fireEvent.click(await screen.findByRole("option", { name: /6ème A/ }))
     fireEvent.click(await screen.findByRole("combobox", { name: "Élève" }))
     fireEvent.click(await screen.findByRole("option", { name: "Awa Koné" }))
@@ -181,7 +176,8 @@ describe("ConductPage professeur", () => {
     expect(await screen.findByText("1/2 renseignés")).toBeInTheDocument()
     expect(screen.getByText("M. Yao")).toBeInTheDocument()
     expect(screen.getByText("À renseigner")).toBeInTheDocument()
-    expect(screen.getByRole("spinbutton", { name: "Note définitive / 20" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "Arrêter la note" })).toBeDisabled()
+    expect(screen.getByRole("spinbutton", { name: "Note définitive / 20" })).toBeEnabled()
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Note définitive / 20" }), { target: { value: "16" } })
+    expect(screen.getByRole("button", { name: "Arrêter la note" })).toBeEnabled()
   })
 })
