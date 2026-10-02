@@ -117,7 +117,7 @@ export default function EvaluationReviewPage() {
   const changeSubject = (value: string) => { setSubject(value); setTeacher(""); resetPage() }
 
   return <PageLayout title="Suivi des évaluations et notes" subtitle="Consultez les évaluations saisies et les notes des élèves." >
-    <Alert variant="info" role="note"><Info className="h-4 w-4" /><AlertDescription>Utilisez les filtres pour obtenir des résultats plus précis : choisissez une période, puis affinez par niveau, classe, matière et professeur. Les périodes à venir sont aussi disponibles.</AlertDescription></Alert>
+    <Alert variant="info" role="note"><Info className="h-4 w-4" /><AlertDescription>Utilisez les filtres pour obtenir des résultats plus précis : choisissez une période, puis affinez par niveau, classe, matière et professeur.</AlertDescription></Alert>
     <section aria-label="Filtres" className="grid gap-4 rounded-lg border bg-card p-4 sm:grid-cols-2 lg:grid-cols-3">
       <ReviewSelect label="Année scolaire" value={schoolYearId} options={yearsQuery.data?.schoolYears ?? []} onChange={changeYear} disabled={yearsQuery.isLoading} />
       <ReviewSelect label="Période" value={gradingPeriodId}

@@ -324,7 +324,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
             </div>
           ) : null}
 
-          <div className="flex items-center justify-between rounded-lg px-2 py-1.5 transition-colors hover:bg-accent">
+          <div className="flex items-center justify-between rounded-lg px-2 py-1.5 transition-colors hover:bg-accent !mt-0">
             <span className="text-xs font-medium text-muted-foreground">Thème</span>
             <div className="flex gap-0.5">
               {([
