@@ -90,7 +90,7 @@ export function StudentReportCards({ studentId, schoolYearId }: { studentId: str
                   <TableCell>{line.lineType === "conduct" ? "Conduite" : line.subjectName ?? "Matière"}</TableCell>
                   <TableCell>{averageLabel(line.average)}/20</TableCell>
                   <TableCell>{line.coefficient}</TableCell>
-                  <TableCell>{line.rank ?? "—"}</TableCell>
+                  <TableCell>{line.rank ?? "-"}</TableCell>
                 </TableRow>)}</TableBody>
               </Table>
             </div>

@@ -23,7 +23,7 @@ import { RefreshCw } from "lucide-react"
 const VIEW_COPY: Record<FinanceView, { title: string; subtitle: string }> = {
   dashboard: {
     title: "Vue financière",
-    subtitle: "Suivez le recouvrement et les situations de paiement par année scolaire.",
+    subtitle: "Suivez le recouvrement et les situations de paiement de scolarité par année scolaire.",
   },
   journal: {
     title: "Journal de caisse",

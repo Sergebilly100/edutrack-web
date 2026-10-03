@@ -243,7 +243,7 @@ export default function ReportCardsPage() {
           ) : null}
 
           <Card className="shadow-sm">
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 border-none">
               <CardTitle>Préparation de la classe</CardTitle>
               <CardDescription>
                 Vérifiez les matières et les moyennes avant de générer les bulletins.

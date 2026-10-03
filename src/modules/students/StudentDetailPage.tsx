@@ -517,7 +517,7 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
         <div className="grid gap-px bg-border sm:grid-cols-4">
           <div className="bg-background px-4 py-3">
             <p className="text-[11px] font-medium uppercase text-muted-foreground">{historical ? "Absences de la sélection" : "Absences ce mois"}</p>
-            <p className="mt-1 text-lg font-semibold tabular-nums">{historical ? canViewAttendance ? absenceRows.length : "—" : student.absenceSummary.thisMonth}</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums">{historical ? canViewAttendance ? absenceRows.length : "-" : student.absenceSummary.thisMonth}</p>
           </div>
           <div className="bg-background px-4 py-3">
             <p className="text-[11px] font-medium uppercase text-muted-foreground">{historical ? "Année consultée" : "Absences cette semaine"}</p>

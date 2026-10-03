@@ -639,7 +639,7 @@ function EvaluationGradeEditor({ evaluation, students, readOnly, onOpen }: { eva
     <Button type="button" variant="ghost" className="min-h-6 w-full justify-between gap-3 px-0 text-left" onClick={onOpen}>
       <span className="min-w-0">
         <span className="block truncate font-semibold">{evaluation.label}</span>
-        <span className="mt-1 block text-xs text-muted-foreground">{evaluation.subjectName ?? "-"} · {formatEvaluationDate(evaluation.evaluationDate)} · {evaluation.startTime || "Sans créneau EDT"}</span>
+        <span className="mt-1 block text-xs text-muted-foreground">{evaluation.subjectName ?? "-"} · {formatEvaluationDate(evaluation.evaluationDate)} · {evaluation.startTime || ""}</span>
       </span>
       <span className="shrink-0 text-right">
         <Badge variant={readOnly ? "success" : "secondary"}>{readOnly ? "Saisie clôturée" : `${completedCount}/${totalCount} notes`}</Badge>

@@ -18,7 +18,7 @@ vi.mock("@/modules/teachers/teachers.api", () => ({ getAllTeachers: vi.fn() }))
 
 import ClassesPage from "../ClassesPage"
 
-describe("ClassesPage — effectif confirmé", () => {
+describe("ClassesPage - effectif confirmé", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useAuthStore.setState({ user: { id: "director-1", role: "director", name: "Directeur", phone: null, email: null, profilePhotoUrl: null, mustChangePassword: false, tenantId: "tenant-1", schemaName: "school_test", plan: "standard" }, permissions: [] })

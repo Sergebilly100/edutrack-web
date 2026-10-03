@@ -218,7 +218,7 @@ export function CashJournalPanel({ schoolYearId }: { schoolYearId: string }) {
                     <TableCell>
                       {entry.providerReference ??
                         entry.schoolReceiptReference ??
-                        "—"}
+                        "-"}
                     </TableCell>
                     <TableCell className="text-right font-semibold tabular-nums">
                       {formatFcfa(entry.amount)}

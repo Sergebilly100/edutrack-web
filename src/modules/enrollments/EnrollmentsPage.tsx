@@ -679,7 +679,7 @@ export default function EnrollmentsPage() {
                       <TableCell className="font-medium">
                         {candidate.studentLastName} {candidate.studentFirstName}
                       </TableCell>
-                      <TableCell>{candidate.studentMatricule ?? "—"}</TableCell>
+                      <TableCell>{candidate.studentMatricule ?? "-"}</TableCell>
                       <TableCell>{candidate.currentClassName}</TableCell>
                       <TableCell>{candidate.currentSchoolYearLabel}</TableCell>
                       <TableCell className="text-right">

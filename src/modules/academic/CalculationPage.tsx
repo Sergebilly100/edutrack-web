@@ -97,7 +97,7 @@ const subjectAverage = (
 };
 
 const formatAverage = (average: number | null) =>
-  average === null ? "—" : average.toFixed(2).replace(".", ",");
+  average === null ? "-" : average.toFixed(2).replace(".", ",");
 
 export default function CalculationPage() {
   const { toast } = useToast();
