@@ -63,6 +63,7 @@ const CalculationPage = lazy(() => import("@/modules/academic/CalculationPage"))
 const ConductPage = lazy(() => import("@/modules/academic/ConductPage"))
 const ConductDecisionWorkspace = lazy(() => import("@/modules/academic/ConductDecisionWorkspace"))
 const ReportCardsPage = lazy(() => import("@/modules/academic/ReportCardsPage"))
+const ReportCardClaimsPage = lazy(() => import("@/modules/academic/ReportCardClaimsPage"))
 const ClassDecisionsPage = lazy(() => import("@/modules/class-decisions/ClassDecisionsPage"))
 const EnrollmentsPage = lazy(() => import("@/modules/enrollments/EnrollmentsPage"))
 const NewEnrollmentPage = lazy(() => import("@/modules/enrollments/NewEnrollmentPage"))
@@ -659,6 +660,7 @@ export default function App() {
           <Route path="/academic/subjects" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<SubjectsPage />} />} />
           <Route path="/academic/completion" element={<PermissionRoute href="/academic/report-cards" requiredAnyPermissions={["report_cards.view"]} element={<Navigate replace to="/academic/report-cards" />} />} />
           <Route path="/academic/report-cards" element={<PermissionRoute href="/academic/report-cards" requiredAnyPermissions={["report_cards.view", "report_cards.publish"]} element={<ReportCardsPage />} />} />
+          <Route path="/academic/report-card-claims" element={<PermissionRoute href="/academic/report-card-claims" requiredAnyPermissions={["report_cards.view", "report_cards.publish"]} element={<ReportCardClaimsPage />} />} />
           <Route path="/academic/evaluations" element={<PermissionRoute href="/academic/evaluations" requiredAnyPermissions={["evaluations.view"]} element={<EvaluationReviewPage />} />} />
           <Route path="/end-of-year" element={<PermissionRoute href="/end-of-year" requiredAnyPermissions={["class_decisions.view"]} element={<EndOfYearAccessRoute />} />} />
           <Route path="/enrollments" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.view"]} element={<EnrollmentsPage />} />} />

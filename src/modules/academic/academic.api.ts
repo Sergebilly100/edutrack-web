@@ -297,6 +297,7 @@ export type EvaluationsScope = {
   subjects: Array<{ id: string; name: string; coefficient: number }>
   evaluations: EvaluationWithGrades[]
   completion: CompletionSubject[]
+  correctionStatuses?: Array<{ subjectId: string; status: string }>
 }
 
 export type TeacherAcademicContext = {
@@ -351,6 +352,11 @@ export const listGradingPeriods = () =>
     .get<{ gradingPeriods: GradingPeriod[] }>("/grading-periods")
     .then((response) => response.data.gradingPeriods)
 
+export const listGradingPeriodsForYear = (schoolYearId: string) =>
+  api
+    .get<{ gradingPeriods: GradingPeriod[] }>("/grading-periods", { params: { schoolYearId } })
+    .then((response) => response.data.gradingPeriods)
+
 export const createGradingPeriod = (input: Pick<GradingPeriod, "schoolYearId" | "type" | "orderIndex" | "label" | "startDate" | "reviewStartDate" | "endDate">) =>
   api.post<{ gradingPeriod: GradingPeriod }>("/grading-periods", input).then((response) => response.data.gradingPeriod)
 
@@ -398,7 +404,7 @@ export const createSpontaneousGrade = (payload: {
 
 export const upsertEvaluationGrade = (
   evaluationId: string,
-  payload: { studentId: string; score: number; maxScore: number; comment?: string | null }
+  payload: { studentId: string; score: number | null; maxScore: number; comment?: string | null }
 ) => api.put(`/evaluations/${evaluationId}/grades`, payload).then((r) => r.data)
 
 export const markSubjectCompleted = (payload: {
@@ -574,6 +580,17 @@ export type ReportCardSummary = {
   status: "generated" | "published"
 }
 
+export type ReportCardClass = {
+  id: string
+  name: string
+  isActive: boolean
+  level: Pick<Level, "id" | "name" | "orderIndex">
+}
+
+export const listReportCardClasses = (schoolYearId: string) =>
+  api.get<{ classes: ReportCardClass[] }>("/report-cards/classes", { params: { schoolYearId } })
+    .then((response) => response.data.classes)
+
 export const fetchClassReportCards = (classId: string, gradingPeriodId: string) =>
   api
     .get<{ reportCards: ReportCardSummary[] }>(`/report-cards/class/${classId}`, {
@@ -604,3 +621,49 @@ export const publishBulkReportCards = (payload: { class_id: string; grading_peri
 
 export const requestReportCardPdf = (cardId: string) =>
   api.post<{ jobId: string }>(`/report-cards/${cardId}/pdf`).then((r) => r.data.jobId)
+
+export type ReportCardClaimStatus = 'open' | 'pending_exceptional_authorization' | 'approved' | 'refused' | 'corrected' | 'regenerated' | 'republished'
+export type ReportCardClaim = {
+  id: string
+  class_id: string
+  student_id: string | null
+  student_name: string | null
+  subject_id: string
+  grading_period_id: string
+  school_year_id: string
+  class_name: string
+  subject_name: string
+  status: ReportCardClaimStatus
+  phase: 'before' | 'generated' | 'published' | null
+  reason: string
+  created_at: string
+  decision_reason: string | null
+  decided_at: string | null
+  revalidated_at: string | null
+  regenerated_at: string | null
+  republished_at: string | null
+}
+
+export const listReportCardClaims = (filters: { schoolYearId?: string; gradingPeriodId?: string; classId?: string; studentId?: string; subjectId?: string; status?: string } = {}) =>
+  api.get<{ claims: ReportCardClaim[] }>('/report-cards/claims', { params: filters }).then((response) => response.data.claims)
+
+export const listReportCardClaimStudents = (classId: string) =>
+  api.get<{ students: Array<{ id: string; fullName: string }> }>('/report-cards/claims/students', { params: { classId } }).then((response) => response.data.students)
+
+export const createReportCardClaim = (input: { classId: string; studentId?: string; subjectId: string; gradingPeriodId: string; reason: string }) =>
+  api.post<{ claim: { id: string } }>('/report-cards/claims', input).then((response) => response.data.claim)
+
+export const decideReportCardClaim = (id: string, input: { decision: 'approved' | 'refused'; reason: string }) =>
+  api.post<{ claim: { id: string; status: string; phase: string } }>(`/report-cards/claims/${id}/decision`, input).then((response) => response.data.claim)
+
+export type ReportCardVersion = { id: string; student_id: string; revision: number; snapshot: unknown; published_at: string; invalidated_at: string | null; invalidation_reason: string | null }
+export const listReportCardVersions = (classId: string, gradingPeriodId: string) =>
+  api.get<{ versions: ReportCardVersion[] }>('/report-cards/versions', { params: { classId, gradingPeriodId } }).then((response) => response.data.versions)
+
+export type AcademicChangeAuditEntry = {
+  id: string; actor_user_id: string; subject_id: string; evaluation_id: string | null;
+  student_id: string | null; claim_id: string | null; operation: string;
+  old_value: unknown; new_value: unknown; created_at: string
+}
+export const listReportCardAcademicAudit = (classId: string, gradingPeriodId: string) =>
+  api.get<{ entries: AcademicChangeAuditEntry[] }>('/report-cards/audit', { params: { classId, gradingPeriodId } }).then((response) => response.data.entries)

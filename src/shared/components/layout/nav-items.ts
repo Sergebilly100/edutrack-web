@@ -134,6 +134,15 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: false,
   },
   {
+    label: "Réclamations de bulletins",
+    href: "/academic/report-card-claims",
+    icon: FileCheck2,
+    group: "Académique",
+    roles: ["director", "staff"],
+    requiredAnyPermissions: ["report_cards.view", "report_cards.publish"],
+    mobileVisible: false,
+  },
+  {
     label: "Fin d’année",
     href: "/end-of-year",
     icon: GraduationCap,

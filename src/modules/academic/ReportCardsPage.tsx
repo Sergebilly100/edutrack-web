@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { FileDown, Loader2, Send, Sparkles } from "lucide-react"
+import { Link } from "react-router-dom"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -12,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/components/ui/use-toast"
 import { EmptyState } from "@/shared/components/EmptyState"
+import { usePermissions } from "@/shared/hooks/usePermissions"
 import {
   getPdfExportJobStatus,
   triggerPdfExportDownload,
@@ -21,83 +23,100 @@ import {
   fetchClassCompletion,
   fetchConductBulletinAudit,
   fetchReadiness,
+  listReportCardClaims,
   generateReportCards,
-  listClasses,
-  listGradingPeriods,
+  listReportCardClasses,
+  listGradingPeriodsForYear,
   listLevels,
+  listSchoolYears,
   publishBulkReportCards,
   publishReportCard,
   requestReportCardPdf,
 } from "./academic.api"
 import { PageLayout } from "@/shared/components/PageLayout"
+import { invalidateAcademicReportScope } from "./academic-report-cache"
 
 export default function ReportCardsPage() {
   const { toast } = useToast()
+  const { hasPermission } = usePermissions()
   const queryClient = useQueryClient()
+  const [selectedYearId, setSelectedYearId] = useState("")
   const [levelId, setLevelId] = useState("")
   const [selectedClassId, setSelectedClassId] = useState("")
   const [gradingPeriodId, setGradingPeriodId] = useState("")
 
+  const yearsQuery = useQuery({ queryKey: ["academic", "school-years"], queryFn: listSchoolYears })
+  const activeYear = yearsQuery.data?.find((year) => year.status === "active")
+  const schoolYearId = selectedYearId || activeYear?.id || ""
+  const selectedYear = yearsQuery.data?.find((year) => year.id === schoolYearId)
+  const historicalYear = selectedYear?.status === "closed"
   const levelsQuery = useQuery({
     queryKey: ["academic", "levels"],
     queryFn: listLevels,
   })
   const classesQuery = useQuery({
-    queryKey: ["academic", "classes-for-report-cards"],
-    queryFn: () => listClasses(),
+    queryKey: ["report-cards", "classes", schoolYearId],
+    queryFn: () => listReportCardClasses(schoolYearId),
+    enabled: Boolean(schoolYearId),
   })
-  const levels = [...(levelsQuery.data ?? [])].sort(
+  const classes = classesQuery.data ?? []
+  const levels = [...(levelsQuery.data ?? [])].filter((level) => classes.some((klass) => klass.level.id === level.id)).sort(
     (left, right) => left.orderIndex - right.orderIndex || left.name.localeCompare(right.name, "fr")
   )
-  const classes = classesQuery.data?.classes ?? []
   const filteredClasses = levelId ? classes.filter((klass) => klass.level.id === levelId) : classes
   const classId = filteredClasses.some((klass) => klass.id === selectedClassId) ? selectedClassId : ""
+  const selectedClass = classes.find((klass) => klass.id === classId)
+  const readOnlyClass = historicalYear || selectedClass?.isActive === false
 
   useEffect(() => {
     if (selectedClassId && classesQuery.data && !classId) setSelectedClassId("")
   }, [selectedClassId, classesQuery.data, classId])
 
   const periodsQuery = useQuery({
-    queryKey: ["academic", "grading-periods"],
-    queryFn: listGradingPeriods,
+    queryKey: ["academic", "grading-periods", schoolYearId],
+    queryFn: () => listGradingPeriodsForYear(schoolYearId),
+    enabled: Boolean(schoolYearId),
   })
-  useEffect(() => {
-    if (gradingPeriodId || !periodsQuery.data?.length) return
-    const current = periodsQuery.data.find((period) => period.bulletinGenerationAvailable)
-    if (current) setGradingPeriodId(current.id)
-  }, [gradingPeriodId, periodsQuery.data])
-  const readinessEnabled = Boolean(gradingPeriodId)
+  const periods = (periodsQuery.data ?? []).filter((period) => period.schoolYearId === schoolYearId)
+  const defaultPeriod = historicalYear
+    ? periods.find((period) => period.hasGeneratedCards) ?? periods.find((period) => period.isClosed) ?? periods[0]
+    : periods.find((period) => period.bulletinGenerationAvailable)
+      ?? periods.find((period) => period.isClosed)
+      ?? periods.find((period) => period.hasGeneratedCards)
+  const periodId = periods.some((period) => period.id === gradingPeriodId) ? gradingPeriodId : defaultPeriod?.id ?? ""
+  const readinessEnabled = Boolean(periodId) && !readOnlyClass
   const readinessQuery = useQuery({
-    queryKey: ["report-cards-readiness", gradingPeriodId],
-    queryFn: () => fetchReadiness(gradingPeriodId),
+    queryKey: ["report-cards-readiness", periodId],
+    queryFn: () => fetchReadiness(periodId),
     enabled: readinessEnabled,
   })
   const conductAuditQuery = useQuery({ queryKey: ["report-cards", "conduct-audit"], queryFn: fetchConductBulletinAudit })
-  const enabled = Boolean(classId) && Boolean(gradingPeriodId)
+  const enabled = Boolean(classId) && Boolean(periodId)
   const cardsQuery = useQuery({
-    queryKey: ["report-cards-class", classId, gradingPeriodId],
-    queryFn: () => fetchClassReportCards(classId, gradingPeriodId),
+    queryKey: ["report-cards-class", classId, periodId],
+    queryFn: () => fetchClassReportCards(classId, periodId),
     enabled,
   })
   const completionQuery = useQuery({
-    queryKey: ["class-completion", classId, gradingPeriodId],
-    queryFn: () => fetchClassCompletion(classId, gradingPeriodId),
-    enabled,
+    queryKey: ["class-completion", classId, periodId],
+    queryFn: () => fetchClassCompletion(classId, periodId),
+    enabled: enabled && !readOnlyClass,
+  })
+  const claimsQuery = useQuery({
+    queryKey: ["report-card-claims", classId, periodId],
+    queryFn: () => listReportCardClaims({ classId, gradingPeriodId: periodId }),
+    enabled: enabled && !readOnlyClass,
   })
 
   const invalidate = async (): Promise<void> => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["report-cards-class", classId, gradingPeriodId] }),
-      queryClient.invalidateQueries({ queryKey: ["report-cards-readiness", gradingPeriodId] }),
-      queryClient.invalidateQueries({ queryKey: ["class-completion", classId, gradingPeriodId] }),
-    ])
+    await invalidateAcademicReportScope(queryClient, classId, periodId)
   }
 
   const generateMutation = useMutation({
-    mutationFn: () => generateReportCards({ class_id: classId, grading_period_id: gradingPeriodId }),
+    mutationFn: () => generateReportCards({ class_id: classId, grading_period_id: periodId }),
     onSuccess: async (result) => {
       await invalidate()
-      await queryClient.invalidateQueries({ queryKey: ["academic", "grading-periods"] })
+      await queryClient.invalidateQueries({ queryKey: ["academic", "grading-periods", schoolYearId] })
       toast({ title: `${result.generatedCount} bulletin(s) généré(s)`, description: result.classClosed ? "La revue de cette classe est clôturée pour cette période." : undefined })
     },
     onError: (error) =>
@@ -110,7 +129,7 @@ export default function ReportCardsPage() {
   })
 
   const bulkPublishMutation = useMutation({
-    mutationFn: () => publishBulkReportCards({ class_id: classId, grading_period_id: gradingPeriodId }),
+    mutationFn: () => publishBulkReportCards({ class_id: classId, grading_period_id: periodId }),
     onSuccess: async (result) => {
       await invalidate()
       toast({ title: `${result.publishedCount} bulletin(s) publié(s)` })
@@ -144,8 +163,8 @@ export default function ReportCardsPage() {
   const readinessForClass = readinessQuery.data?.find(
     (entry) => entry.classId === classId
   )
-  const selectedPeriod = periodsQuery.data?.find((period) => period.id === gradingPeriodId)
-  const historicalAmbiguity = conductAuditQuery.data?.find(period => period.gradingPeriodId === gradingPeriodId)
+  const selectedPeriod = periods.find((period) => period.id === periodId)
+  const historicalAmbiguity = conductAuditQuery.data?.find(period => period.gradingPeriodId === periodId)
   const completionSubjects = completionQuery.data?.subjects ?? []
   const completedSubjectsCount = completionSubjects.filter((subject) => subject.status === "completed").length
   const allSubjectsCompleted = completionSubjects.length > 0 && completedSubjectsCount === completionSubjects.length
@@ -153,11 +172,12 @@ export default function ReportCardsPage() {
   const allStudentsHaveConduct = readinessForClass !== undefined && readinessForClass.studentsWithFinalConduct >= readinessForClass.headcount && readinessForClass.headcount > 0
   const hasGeneratedCards = cardsQuery.data?.some(card => card.status === "generated") === true
   const classClosed = selectedPeriod?.closedClassIds?.includes(classId) === true
-  const canGenerate = Boolean(selectedPeriod?.bulletinGenerationAvailable) && (!classClosed || hasGeneratedCards) && allSubjectsCompleted && allStudentsAveraged && allStudentsHaveConduct
+  const canGenerate = hasPermission("report_cards.publish") && !readOnlyClass && Boolean(selectedYear && selectedYear.status !== "closed") && Boolean(selectedPeriod?.bulletinGenerationAvailable) && (!classClosed || hasGeneratedCards) && allSubjectsCompleted && allStudentsAveraged && allStudentsHaveConduct
   const preparationLoading = completionQuery.isLoading || readinessQuery.isLoading
   const preparationError = completionQuery.isError || readinessQuery.isError
 
   const generationBlocker = (): string | null => {
+    if (historicalYear) return "Cette année scolaire est clôturée."
     if (!selectedPeriod?.bulletinGenerationAvailable) return "Sélectionnez une période dont la revue est ouverte pour générer les bulletins."
     if (classClosed && !hasGeneratedCards) return "Tous les bulletins sont publiés ou la revue est clôturée."
     if (!allSubjectsCompleted) return "Clôturez et validez les moyennes de chaque matière avant de générer."
@@ -173,7 +193,25 @@ export default function ReportCardsPage() {
       subtitle="Génération figée par période, publication manuelle classe par classe."
     >
 
-      <div className="grid gap-4 rounded-lg border bg-muted/20 p-4 lg:grid-cols-3">
+      <div className="grid gap-4 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="space-y-2">
+          <Label htmlFor="report-cards-year">Année scolaire</Label>
+          <Select value={schoolYearId} onValueChange={(value) => {
+            setSelectedYearId(value)
+            setLevelId("")
+            setSelectedClassId("")
+            setGradingPeriodId("")
+          }}>
+            <SelectTrigger id="report-cards-year" className="min-h-12"><SelectValue placeholder="Choisir une année" /></SelectTrigger>
+            <SelectContent>
+              {yearsQuery.isPending ? <SelectItem value="loading-years" disabled>Chargement des années…</SelectItem> : null}
+              {yearsQuery.isError ? <SelectItem value="years-error" disabled>Années indisponibles</SelectItem> : null}
+              {(yearsQuery.data ?? []).map((year) => (
+                <SelectItem key={year.id} value={year.id}>{year.label}{year.status === "active" ? " · active" : ""}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="space-y-2">
           <Label htmlFor="report-cards-level">Niveau</Label>
           <Select
@@ -199,13 +237,13 @@ export default function ReportCardsPage() {
         </div>
         <div className="space-y-2">
           <Label htmlFor="report-cards-class">Classe</Label>
-          <Select value={classId} onValueChange={setSelectedClassId}>
+          <Select value={classId} onValueChange={setSelectedClassId} disabled={!schoolYearId || classesQuery.isPending}>
             <SelectTrigger id="report-cards-class" className="min-h-12"><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
             <SelectContent>
               {classesQuery.isPending ? <SelectItem value="loading-classes" disabled>Chargement des classes…</SelectItem> : null}
               {classesQuery.isError ? <SelectItem value="classes-error" disabled>Classes indisponibles</SelectItem> : null}
               {filteredClasses.map((klass) => (
-                <SelectItem key={klass.id} value={klass.id}>{klass.name}</SelectItem>
+                <SelectItem key={klass.id} value={klass.id}>{klass.name}{!klass.isActive ? " · archivée" : ""}</SelectItem>
               ))}
               {classesQuery.isSuccess && filteredClasses.length === 0 ? (
                 <SelectItem value="no-class" disabled>Aucune classe pour ce niveau</SelectItem>
@@ -216,22 +254,30 @@ export default function ReportCardsPage() {
         <div className="space-y-2">
           <Label htmlFor="report-cards-period">Période</Label>
           <Select
-            value={gradingPeriodId || "none"}
+            value={periodId || "none"}
             onValueChange={(value) => setGradingPeriodId(value === "none" ? "" : value)}
+            disabled={!schoolYearId || periodsQuery.isPending}
           >
             <SelectTrigger id="report-cards-period" className="min-h-12"><SelectValue placeholder="Choisir une période" /></SelectTrigger>
             <SelectContent>
-              {(periodsQuery.data ?? []).map((period) => (
-                <SelectItem key={period.id} value={period.id} disabled={!period.bulletinGenerationAvailable && !period.isClosed}>{period.label}{period.bulletinGenerationAvailable ? " · en revue" : period.isClosed ? " · finalisée" : " · à venir"}</SelectItem>
+              {periods.map((period) => (
+                <SelectItem key={period.id} value={period.id} disabled={!historicalYear && !period.bulletinGenerationAvailable && !period.isClosed && !period.hasGeneratedCards}>{period.label}{period.bulletinGenerationAvailable ? " · en revue" : period.isClosed ? " · finalisée" : historicalYear || period.hasGeneratedCards ? " · historique" : " · à venir"}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      {!enabled ? (
-        <EmptyState title="Choisissez une classe et une période" description="Les bulletins s'afficheront ici." />
-      ) : (
+      {selectedYear ? <p className="text-sm text-muted-foreground">Année scolaire consultée : <span className="font-medium text-foreground">{selectedYear.label}</span>{historicalYear ? " · clôturée, consultation uniquement" : ""}</p> : null}
+
+      {classesQuery.isPending || periodsQuery.isPending ? <div className="space-y-3"><Skeleton className="h-5 w-48" /><Skeleton className="h-24 w-full" /></div> : null}
+      {classesQuery.isError || periodsQuery.isError || yearsQuery.isError ? <Alert variant="destructive"><AlertDescription>Impossible de charger les années, classes ou périodes. Réessayez dans un instant.</AlertDescription></Alert> : null}
+
+      {!enabled && !classesQuery.isPending && !periodsQuery.isPending ? (
+        classesQuery.isSuccess && classes.length === 0
+          ? <EmptyState title={`Aucune classe pour ${selectedYear?.label ?? "cette année"}`} description="Cette année ne contient ni classe exploitable pour les bulletins ni bulletin historique." />
+          : <EmptyState title="Choisissez une classe et une période" description="Les bulletins s'afficheront ici." />
+      ) : enabled ? (
         <>
           {historicalAmbiguity ? <Alert variant="destructive"><AlertDescription>
             Période historique à vérifier : {historicalAmbiguity.generatedCount} bulletin(s) non publié(s) et {historicalAmbiguity.publishedCount} publié(s) présentent une conduite absente ou une moyenne incohérente. Les bulletins publiés restent figés.
@@ -242,7 +288,7 @@ export default function ReportCardsPage() {
             </Alert>
           ) : null}
 
-          <Card className="shadow-sm">
+          {!readOnlyClass ? <Card className="shadow-sm">
             <CardHeader className="pb-3 border-none">
               <CardTitle>Préparation de la classe</CardTitle>
               <CardDescription>
@@ -283,6 +329,7 @@ export default function ReportCardsPage() {
                           <TableHead>Matière</TableHead>
                           <TableHead>Professeur</TableHead>
                           <TableHead>État</TableHead>
+                          <TableHead>Réclamation</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -292,8 +339,16 @@ export default function ReportCardsPage() {
                             <TableCell>{subject.teacher?.name ?? <span className="text-muted-foreground">Non identifié</span>}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className={subject.status === "completed" ? "border-green-200 bg-green-50 text-green-700" : "border-amber-200 bg-amber-50 text-amber-800"}>
-                                {subject.status === "completed" ? "Moyennes validées" : subject.calculationStarted ? "Calcul en cours" : "Saisie à clôturer"}
+                                {subject.status === "completed" ? "Moyennes validées" : subject.calculationStarted ? "Moyennes calculées, révisables" : "Saisie en cours"}
                               </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {(() => {
+                                const claim = claimsQuery.data?.find((item) => item.subject_id === subject.subjectId && item.status !== "refused")
+                                return claim ? <Badge variant="outline">{claim.status === "approved" ? "Correction ouverte" : claim.status === "republished" ? "Republiée" : claim.status === "regenerated" ? "Régénérée" : claim.status === "corrected" ? "Revalidée" : "En attente"}</Badge>
+                                  : subject.status === "completed" && (hasPermission("report_cards.view") || hasPermission("report_cards.publish")) ? <Button asChild variant="outline" className="min-h-12"><Link to={`/academic/report-card-claims?schoolYearId=${encodeURIComponent(schoolYearId)}&gradingPeriodId=${encodeURIComponent(periodId)}&classId=${encodeURIComponent(classId)}&subjectId=${encodeURIComponent(subject.subjectId)}`}>Ouvrir une réclamation</Link></Button>
+                                    : <span className="text-sm text-muted-foreground">Après validation</span>
+                              })()}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -303,13 +358,13 @@ export default function ReportCardsPage() {
                 </>
               )}
             </CardContent>
-          </Card>
+          </Card> : null}
 
-          {readinessForClass ? (
+          {readinessForClass && !readOnlyClass && hasPermission("report_cards.publish") ? (
             <Card className="shadow-sm">
               <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
                 <p className="text-sm text-muted-foreground">
-                  {canGenerate ? classClosed ? "Les bulletins non publiés peuvent être recalculés sans modifier les bulletins publiés." : "Cette classe est prête à générer ses bulletins." : generationBlocker()}
+                  {canGenerate ? classClosed ? "Les bulletins générés peuvent être recalculés." : "Cette classe est prête à générer ses bulletins." : generationBlocker()}
                 </p>
                 <Button
                   type="button"
@@ -332,21 +387,21 @@ export default function ReportCardsPage() {
               <div className="space-y-1">
                 <CardTitle>Bulletins de la classe</CardTitle>
                 <CardDescription>
-                  Publiés = visibles par les parents. Un bulletin publié n&apos;est plus modifiable.
+                  Les bulletins publiés sont visibles par les parents. Une correction approuvée les retire et impose une nouvelle publication.
                 </CardDescription>
               </div>
-              <Button
+              {!readOnlyClass && selectedYear && selectedYear.status !== "closed" && hasPermission("report_cards.publish") && hasGeneratedCards ? <Button
                 type="button"
                 variant="outline"
                 onClick={() => bulkPublishMutation.mutate()}
-                disabled={bulkPublishMutation.isPending || (cardsQuery.data?.length ?? 0) === 0}
+                disabled={bulkPublishMutation.isPending}
               >
                 {bulkPublishMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                 Publier tous les générés
-              </Button>
+              </Button> : null}
             </CardHeader>
             <CardContent>
-              {(cardsQuery.data?.length ?? 0) === 0 ? (
+              {cardsQuery.isPending ? <div className="space-y-3"><Skeleton className="h-5 w-48" /><Skeleton className="h-24 w-full" /></div> : cardsQuery.isError ? <Alert variant="destructive"><AlertDescription>Impossible de charger les bulletins de cette classe.</AlertDescription></Alert> : (cardsQuery.data?.length ?? 0) === 0 ? (
                 <EmptyState
                   title="Aucun bulletin généré"
                   description="Lancez d'abord la génération pour cette classe et cette période."
@@ -380,7 +435,7 @@ export default function ReportCardsPage() {
                           )}
                         </TableCell>
                         <TableCell className="space-x-2 text-right">
-                          {card.status === "generated" ? (
+                          {card.status === "generated" && !readOnlyClass && selectedYear && selectedYear.status !== "closed" && hasPermission("report_cards.publish") ? (
                             <PublishOneButton cardId={card.id} onDone={invalidate} />
                           ) : null}
                           <Button
@@ -402,7 +457,7 @@ export default function ReportCardsPage() {
             </CardContent>
           </Card>
         </>
-      )}
+      ) : null}
     </PageLayout>
   )
 }

@@ -16,7 +16,7 @@ test.describe("Espace académique professeur", () => {
       contentType: "application/json",
       body: JSON.stringify({
         classes: [{ id: slot.class_id, name: slot.class_name, levelId: "level-e2e", levelName: "3ème", schoolYearId: "year-e2e", schoolYearLabel: "2026-2027", isHomeroomTeacher: false }],
-        gradingPeriods: [{ id: periodId, schoolYearId: "year-e2e", label: "1er trimestre", startDate: "2026-01-01", endDate: "2026-12-31", isCurrent: true }],
+        gradingPeriods: [{ id: periodId, schoolYearId: "year-e2e", label: "1er trimestre", startDate: "2026-01-01", endDate: "2026-12-31", isCurrent: true, notesEntryOpen: true }],
       }),
     }))
     const grades = [{ studentId: "student-e2e-1", score: 16, maxScore: 20, comment: null }, { studentId: "student-e2e-2", score: 12, maxScore: 20, comment: null }]
@@ -71,7 +71,15 @@ test.describe("Espace académique professeur", () => {
 
     await page.getByRole("dialog", { name: "Saisie des notes" }).getByRole("button", { name: "Close" }).click()
     await page.getByRole("button", { name: "Calculer les moyennes" }).click()
+    await page.getByRole("alertdialog", { name: "Passer au calcul des moyennes ?" }).getByRole("button", { name: "Calculer les moyennes" }).click()
     await expect(page.getByText("1 note", { exact: true }).first()).toBeVisible()
+    await page.goto(`/academic/notes?classId=${slot.class_id}&gradingPeriodId=${periodId}&lessonSlotId=${slot.id}`)
+    await page.getByRole("button", { name: /Devoir 1/ }).click()
+    await expect(page.getByRole("spinbutton", { name: "Note de Aya Kouamé" })).toBeEnabled()
+    await page.getByRole("spinbutton", { name: "Note de Aya Kouamé" }).fill("18")
+    await page.getByRole("dialog", { name: "Saisie des notes" }).getByRole("button", { name: "Enregistrer" }).first().click()
+    await expect.poll(() => gradePayload).toMatchObject({ studentId: "student-e2e-1", score: 18 })
+    await page.goto(`/academic/calculation?classId=${slot.class_id}&gradingPeriodId=${periodId}&subjectId=subject-e2e`)
     await expect(page.getByText("Conduite en masse")).toHaveCount(0)
     await page.getByRole("button", { name: "Consulter les notes de Aya Kouamé" }).click()
     await expect(page.getByRole("dialog", { name: "Notes de Aya Kouamé" })).toBeVisible()
@@ -79,11 +87,14 @@ test.describe("Espace académique professeur", () => {
     await page.getByRole("button", { name: "Voir les moyennes par élève" }).click()
     await expect(page.getByText("Moyenne / 20")).toBeVisible()
     await expect(page.getByRole("button", { name: `Valider mes moyennes de ${slot.subject_name}` })).toBeVisible()
-    await expect(page.getByText("17,00", { exact: true }).first()).toBeVisible()
+    await expect(page.getByText("18,00", { exact: true }).first()).toBeVisible()
     await page.getByRole("button", { name: `Valider mes moyennes de ${slot.subject_name}` }).click()
     await expect(page.getByText("Moyennes validées", { exact: true })).toBeVisible()
     await page.getByRole("button", { name: "Consulter les notes de Aya Kouamé" }).click()
     await expect(page.getByRole("dialog", { name: "Notes de Aya Kouamé" })).toBeVisible()
+    await page.goto(`/academic/notes?classId=${slot.class_id}&gradingPeriodId=${periodId}&lessonSlotId=${slot.id}`)
+    await page.getByRole("button", { name: /Devoir 1/ }).click()
+    await expect(page.getByRole("spinbutton", { name: "Note de Aya Kouamé" })).toBeDisabled()
 
     const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
     expect(hasHorizontalOverflow).toBe(false)

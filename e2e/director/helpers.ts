@@ -37,7 +37,7 @@ export const mockDirectorAuth = async (page: Page) => {
           "teachers.view", "teachers.edit", "teachers.block", "teachers.documents",
           "students.view", "students.create", "students.edit",
           "enrollments.view", "enrollments.create", "enrollments.confirm_payment",
-          "school_years.view", "classes.view", "report_cards.view", "report_cards.publish",
+          "school_years.view", "classes.view", "report_cards.view", "report_cards.publish", "report_cards.published_correction",
           "schedule.view", "schedule.edit",
           "attendance.view",
           "salary.view", "salary.mark_paid", "salary.export",

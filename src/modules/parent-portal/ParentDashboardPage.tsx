@@ -370,6 +370,12 @@ export default function ParentDashboardPage() {
               </span>
               <ChevronRight className="h-4 w-4 shrink-0 text-blue-700" />
             </Link>
+          ) : !overviewQuery.isLoading ? (
+            <Link to="/parent/report-cards" className="flex min-h-12 items-center gap-3 rounded-lg border bg-card p-4 text-sm font-medium shadow-card">
+              <GraduationCap className="h-5 w-5 text-primary" />
+              Consulter les bulletins scolaires
+              <ChevronRight className="ml-auto h-4 w-4 text-muted-foreground" />
+            </Link>
           ) : null}
 
           {overviewQuery.data?.financial ? (

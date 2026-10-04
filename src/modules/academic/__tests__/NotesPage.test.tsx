@@ -160,7 +160,7 @@ describe("NotesPage", () => {
     expect(screen.getAllByRole("spinbutton", { name: "Note de Awa Koné" })).toHaveLength(1)
   })
 
-  it("verrouille les notes dès que le calcul des moyennes a commencé", async () => {
+  it("laisse les notes modifiables quand les moyennes sont calculées", async () => {
     fetchScope.mockResolvedValue({
       lessonSlots: [{ id: "slot1", dayOfWeek: 1, startTime: "08:00", endTime: "09:00", subjectName: "Mathématiques" }],
       subjects: [{ id: "s1", name: "Mathématiques", coefficient: 4 }],
@@ -170,11 +170,11 @@ describe("NotesPage", () => {
     renderAcademicPage()
 
     fireEvent.click(await screen.findByRole("button", { name: /Devoir 1/ }))
-    expect(screen.getByRole("spinbutton", { name: "Note de Awa Koné" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "Enregistrer" })).toBeDisabled()
+    expect(screen.getByRole("spinbutton", { name: "Note de Awa Koné" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Enregistrer" })).toBeEnabled()
   })
 
-  it("avertit explicitement avant de verrouiller les notes et demande de sélectionner la période suivante", async () => {
+  it("annonce que le calcul laisse les notes modifiables", async () => {
     fetchContext.mockResolvedValueOnce({
       classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2026-2027" }],
       gradingPeriods: [
@@ -192,11 +192,10 @@ describe("NotesPage", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Calculer les moyennes" }))
     expect(screen.getByRole("alertdialog", { name: "Passer au calcul des moyennes ?" })).toBeInTheDocument()
-    expect(screen.getByText(/ne pourront plus être modifiées/)).toBeInTheDocument()
-    expect(screen.getByText(/sélectionnez explicitement 2e trimestre/)).toBeInTheDocument()
+    expect(screen.getByText(/pourrez encore modifier les notes/)).toBeInTheDocument()
     expect(markSubjectCompleted).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole("button", { name: "Verrouiller et calculer" }))
+    fireEvent.click(screen.getByRole("button", { name: "Calculer les moyennes" }))
     await waitFor(() => expect(markSubjectCompleted).toHaveBeenCalledWith({
       classId: "c1",
       subjectId: "s1",

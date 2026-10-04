@@ -32,6 +32,7 @@ import {
   upsertEvaluationGrade,
   type EvaluationWithGrades,
 } from "./academic.api"
+import { invalidateAcademicReportScope } from "./academic-report-cache"
 
 const GRADE_MAX = 20
 const formatEvaluationDate = (value: string | null) => value ? new Intl.DateTimeFormat("fr-FR").format(new Date(`${value}T00:00:00`)) : "-"
@@ -67,9 +68,12 @@ export default function NotesPage() {
     ),
     [contextQuery.data?.gradingPeriods, selectedClass],
   )
-  const gradingPeriodId = selectedPeriodId || periods.find((period) => period.notesEntryOpen)?.id || ""
+  const today = new Date().toISOString().slice(0, 10)
+  const gradingPeriodId = selectedPeriodId
+    || periods.find((period) => period.notesEntryOpen && today >= period.startDate && today <= period.endDate)?.id
+    || periods.find((period) => period.notesEntryOpen)?.id || ""
   const activePeriod = periods.find((period) => period.id === gradingPeriodId)
-  const isPeriodReadOnly = activePeriod?.notesEntryOpen === false || Boolean(activePeriod?.closedClassIds?.includes(classId))
+  const isPeriodReadOnly = Boolean(activePeriod?.isCompleted || activePeriod?.closedClassIds?.includes(classId))
 
   const scopeEnabled = Boolean(classId) && Boolean(gradingPeriodId)
   const scopeQuery = useQuery({
@@ -82,8 +86,7 @@ export default function NotesPage() {
     queryFn: () => listStudents({ classId, isActive: true, limit: 100 }),
     enabled: Boolean(classId),
   })
-  const invalidateScope = () =>
-    queryClient.invalidateQueries({ queryKey: ["evaluations-scope", classId, gradingPeriodId] })
+  const invalidateScope = () => invalidateAcademicReportScope(queryClient, classId, gradingPeriodId)
 
   const createMutation = useMutation({
     mutationFn: () => createEvaluation({
@@ -129,20 +132,16 @@ export default function NotesPage() {
 
   const scheduledEvaluations = scopeQuery.data?.evaluations.filter((item) => item.type === "scheduled") ?? []
   const hasEnteredScheduledGrade = scheduledEvaluations.some((evaluation) => evaluation.grades.length > 0)
-  const activeStudents = studentsQuery.data?.data ?? []
   const scheduledCountBySubject = new Map<string, number>()
   for (const evaluation of scheduledEvaluations) {
     if (evaluation.subjectId) scheduledCountBySubject.set(evaluation.subjectId, (scheduledCountBySubject.get(evaluation.subjectId) ?? 0) + 1)
   }
   const completionBySubject = new Map((scopeQuery.data?.completion ?? []).map((item) => [item.subjectId, item]))
+  const correctionBySubject = new Map((scopeQuery.data?.correctionStatuses ?? []).map((item) => [item.subjectId, item.status]))
   const isSubjectClosed = (subjectId: string | null | undefined) =>
-    isPeriodReadOnly || completionBySubject.get(subjectId ?? "")?.calculationStarted === true
-  const isSubjectReadyForCalculation = (subjectId: string) => {
-    const evaluations = scheduledEvaluations.filter((evaluation) => evaluation.subjectId === subjectId)
-    return evaluations.length > 0 && evaluations.every((evaluation) =>
-      activeStudents.every((student) => evaluation.grades.some((grade) => grade.studentId === student.id)),
-    )
-  }
+    isPeriodReadOnly || completionBySubject.get(subjectId ?? "")?.status === "completed"
+  const isSubjectReadyForCalculation = (subjectId: string) =>
+    scheduledEvaluations.some((evaluation) => evaluation.subjectId === subjectId)
   const selectedDraftSlot = scopeQuery.data?.lessonSlots.find((item) => item.id === draft.lessonSlotId)
   const availableDraftSubjects = selectedDraftSlot?.subjectId
     ? (scopeQuery.data?.subjects ?? []).filter((item) => item.id === selectedDraftSlot.subjectId)
@@ -150,7 +149,7 @@ export default function NotesPage() {
   const nextPeriod = periods
     .filter((period) => activePeriod && period.startDate > activePeriod.startDate)
     .sort((left, right) => left.startDate.localeCompare(right.startDate))[0]
-  const draftSubjectIsLocked = completionBySubject.get(draft.subjectId)?.calculationStarted === true
+  const draftSubjectIsLocked = completionBySubject.get(draft.subjectId)?.status === "completed"
   const canCreate = draft.label.trim() !== "" && draft.subjectId !== "" && draft.evaluationDate !== ""
     && !isPeriodReadOnly && !draftSubjectIsLocked
     && Boolean(activePeriod && draft.evaluationDate >= activePeriod.startDate && draft.evaluationDate <= activePeriod.endDate)
@@ -292,9 +291,7 @@ export default function NotesPage() {
           <>
             {isPeriodReadOnly ? (
               <div className="rounded-lg border border-muted-foreground/20 bg-muted/40 p-4 text-sm text-muted-foreground">
-                Cette période reste consultable, mais elle est verrouillée car les
-                bulletins ont déjà été générés ou parce qu’elle n’est pas encore
-                la période courante.
+                Cette classe et cette période sont clôturées. Les notes restent consultables.
               </div>
             ) : null}
             <section
@@ -355,8 +352,8 @@ export default function NotesPage() {
                       Calculer et valider par matière
                     </h2>
                     <p className="text-xs text-muted-foreground">
-                      Une fois toutes les notes saisies, calculez les moyennes,
-                      puis validez-les lorsque vous ne souhaitez plus les modifier.
+                      Calculez les moyennes dès qu’une évaluation existe. Les notes
+                      restent modifiables jusqu’à la validation définitive.
                     </p>
                   </div>
                 </div>
@@ -398,11 +395,12 @@ export default function NotesPage() {
                                 ) : (
                                   <Badge variant="secondary">
                                     {subject.calculationStarted
-                                      ? "Calcul en cours"
+                                      ? "Moyennes calculées, modifiables"
                                       : "Saisie en cours"}
                                   </Badge>
                                 )}
                               </span>
+                              {correctionBySubject.has(subject.subjectId) ? <Badge variant="outline">Réclamation : {correctionBySubject.get(subject.subjectId) === "approved" ? "correction ouverte" : correctionBySubject.get(subject.subjectId) === "corrected" ? "matière revalidée" : "en traitement"}</Badge> : null}
                             </div>
                             <div className="flex flex-col gap-2 sm:items-end">
 
@@ -430,9 +428,7 @@ export default function NotesPage() {
                               </Button>
                               {!subject.calculationStarted && !readyForCalculation ? (
                                 <p className="text-right text-xs text-muted-foreground">
-                                  {count === 0
-                                    ? "Ajoutez au moins une évaluation."
-                                    : "Saisissez toutes les notes avant le calcul."}
+                                  Ajoutez au moins une évaluation.
                                 </p>
                               ) : null}
                             </div>
@@ -456,7 +452,7 @@ export default function NotesPage() {
               <AlertDialogTitle>Passer au calcul des moyennes ?</AlertDialogTitle>
               <AlertDialogDescription className="space-y-2">
                 <span className="block">
-                  Les notes d’évaluation déjà saisies en {pendingCalculationSubject?.subjectName ?? "cette matière"} pour {activePeriod?.label ?? "cette période"} ne pourront plus être modifiées.
+                  Les moyennes de {pendingCalculationSubject?.subjectName ?? "cette matière"} seront calculées pour {activePeriod?.label ?? "cette période"}. Vous pourrez encore modifier les notes jusqu’à la validation définitive.
                 </span>
                 <span className="block">
                   {nextPeriod
@@ -478,7 +474,7 @@ export default function NotesPage() {
                   setPendingCalculationSubjectId(null)
                 }}
               >
-                {completionMutation.isPending ? "Verrouillage…" : "Verrouiller et calculer"}
+                {completionMutation.isPending ? "Calcul…" : "Calculer les moyennes"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -619,6 +615,8 @@ export default function NotesPage() {
 
         <EvaluationGradesDialog
           evaluation={selectedEvaluation}
+          classId={classId}
+          gradingPeriodId={gradingPeriodId}
           students={studentsQuery.data?.data ?? []}
           readOnly={
             selectedEvaluation
@@ -649,17 +647,17 @@ function EvaluationGradeEditor({ evaluation, students, readOnly, onOpen }: { eva
   </div>
 }
 
-function EvaluationGradesDialog({ evaluation, students, readOnly, onOpenChange }: { evaluation: EvaluationWithGrades | null; students: StudentItem[]; readOnly: boolean; onOpenChange: (open: boolean) => void }) {
+function EvaluationGradesDialog({ evaluation, classId, gradingPeriodId, students, readOnly, onOpenChange }: { evaluation: EvaluationWithGrades | null; classId: string; gradingPeriodId: string; students: StudentItem[]; readOnly: boolean; onOpenChange: (open: boolean) => void }) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const gradeMutation = useMutation({
-    mutationFn: (input: { studentId: string; score: number }) => {
+    mutationFn: (input: { studentId: string; score: number | null }) => {
       if (!evaluation) throw new Error("Évaluation introuvable")
       return upsertEvaluationGrade(evaluation.id, { studentId: input.studentId, score: input.score, maxScore: GRADE_MAX })
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["evaluations-scope"] })
-      toast({ title: "Note enregistrée" })
+    onSuccess: async (_result, input) => {
+      if (evaluation) await invalidateAcademicReportScope(queryClient, classId, gradingPeriodId)
+      toast({ title: input.score === null ? "Note effacée" : "Note enregistrée" })
     },
     onError: (error) => toast({ title: "Enregistrement impossible", description: error instanceof Error ? error.message : undefined, variant: "destructive" }),
   })
@@ -678,9 +676,9 @@ function EvaluationGradesDialog({ evaluation, students, readOnly, onOpenChange }
   </Dialog>
 }
 
-function GradeRow({ fullName, initialScore, onSave, readOnly }: { fullName: string; initialScore: string; onSave: (score: number) => Promise<unknown>; readOnly: boolean }) {
+function GradeRow({ fullName, initialScore, onSave, readOnly }: { fullName: string; initialScore: string; onSave: (score: number | null) => Promise<unknown>; readOnly: boolean }) {
   const [score, setScore] = useState(initialScore)
   const parsed = Number(score.replace(",", "."))
   const valid = score !== "" && Number.isFinite(parsed) && parsed >= 0 && parsed <= GRADE_MAX
-  return <div className="flex flex-wrap items-center gap-1 p-3 sm:flex-nowrap sm:px-4"><p className="min-w-0 flex-1 font-medium">{fullName}</p><div className="flex w-full items-center gap-2 sm:w-auto"><div className="flex-1 sm:w-28"><Label className="sr-only" htmlFor={`grade-${fullName}`}>Note de {fullName}</Label><Input id={`grade-${fullName}`} aria-label={`Note de ${fullName}`} disabled={readOnly} type="number" min={0} max={GRADE_MAX} step={0.25} className="min-h-6" value={score} onChange={(event) => setScore(event.target.value)} /></div><span className="text-sm text-muted-foreground">/ {GRADE_MAX}</span><Button type="button" variant="outline" className="min-h-6" disabled={readOnly || !valid} onClick={() => void onSave(parsed)}>Enregistrer</Button></div></div>
+  return <div className="flex flex-wrap items-center gap-1 p-3 sm:flex-nowrap sm:px-4"><p className="min-w-0 flex-1 font-medium">{fullName}</p><div className="flex w-full items-center gap-2 sm:w-auto"><div className="flex-1 sm:w-28"><Label className="sr-only" htmlFor={`grade-${fullName}`}>Note de {fullName}</Label><Input id={`grade-${fullName}`} aria-label={`Note de ${fullName}`} disabled={readOnly} type="number" min={0} max={GRADE_MAX} step={0.25} className="min-h-12" value={score} onChange={(event) => setScore(event.target.value)} /></div><span className="text-sm text-muted-foreground">/ {GRADE_MAX}</span><Button type="button" variant="outline" className="min-h-12" disabled={readOnly || !valid} onClick={() => void onSave(parsed)}>Enregistrer</Button>{initialScore !== "" ? <Button type="button" variant="ghost" className="min-h-12" disabled={readOnly} onClick={() => void onSave(null)}>Effacer</Button> : null}</div></div>
 }

@@ -198,11 +198,11 @@ export type ParentReportCardSummary = {
   publishedAt: string
 }
 
-export const listParentReportCards = async (studentId: string): Promise<ParentReportCardSummary[]> => {
-  const response = await apiClient.get<{ reportCards: ParentReportCardSummary[] }>(
+export const listParentReportCards = async (studentId: string): Promise<{ reportCards: ParentReportCardSummary[]; inRevision: boolean }> => {
+  const response = await apiClient.get<{ reportCards: ParentReportCardSummary[]; inRevision: boolean }>(
     `/parent/students/${studentId}/report-cards`,
   )
-  return response.data.reportCards
+  return response.data
 }
 
 export const requestParentReportCardPdf = async (

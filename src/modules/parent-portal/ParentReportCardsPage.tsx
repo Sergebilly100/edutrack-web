@@ -34,6 +34,7 @@ export default function ParentReportCardsPage() {
     queryFn: () => listParentReportCards(studentId),
     // A publication can occur in another session while this empty list is cached.
     staleTime: 0,
+    refetchInterval: 15000,
     enabled: Boolean(studentId),
   })
 
@@ -106,14 +107,16 @@ export default function ParentReportCardsPage() {
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Chargement…
             </p>
-          ) : (cardsQuery.data?.length ?? 0) === 0 ? (
+          ) : (cardsQuery.data?.reportCards?.length ?? 0) === 0 ? (
             <EmptyState
-              title="Aucun bulletin publié"
-              description="Les bulletins apparaîtront ici dès que l'école les aura publiés."
+              title={cardsQuery.data?.inRevision ? "Bulletin en révision" : "Aucun bulletin publié"}
+              description={cardsQuery.data?.inRevision ? "L’école prépare une version corrigée. Elle apparaîtra ici après sa publication." : "Les bulletins apparaîtront ici dès que l'école les aura publiés."}
             />
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {(cardsQuery.data ?? []).map((card) => (
+            <div className="space-y-3">
+              {cardsQuery.data?.inRevision ? <p role="status" className="rounded-lg border bg-muted p-3 text-sm">Un bulletin est en révision. Il sera visible après publication.</p> : null}
+              <div className="grid gap-4 sm:grid-cols-2">
+              {(cardsQuery.data?.reportCards ?? []).map((card) => (
                 <Card key={card.id} className="shadow-sm">
                   <CardHeader className="pb-2">
                     <CardDescription>{card.periodLabel} · {card.schoolYearLabel}</CardDescription>
@@ -138,6 +141,7 @@ export default function ParentReportCardsPage() {
                   </CardContent>
                 </Card>
               ))}
+              </div>
             </div>
           )
         ) : null}

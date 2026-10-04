@@ -67,6 +67,7 @@ export type PermissionKey =
   | "report_cards.view"
   | "evaluations.view"
   | "report_cards.publish"
+  | "report_cards.published_correction"
   | "enrollments.view"
   | "enrollments.create"
   | "enrollments.edit"

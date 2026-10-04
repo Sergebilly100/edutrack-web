@@ -160,7 +160,7 @@ export default function SchoolYearsPage() {
           <CardHeader className="border-none">
             <CardTitle className="text-lg">Périodes d’évaluation</CardTitle>
             <CardDescription>
-              Début de période : premier jour couvert par la période. Début de revue : arrêt des notes de cette période, ouverture de sa conduite et de la saisie de la suivante. Fin de période : borne finale du calendrier, égale ou postérieure au début de revue. Les dates des périodes successives doivent se chevaucher.
+              Début de période : premier jour couvert par la période. Début de revue : ouverture du travail de conduite et de préparation des bulletins. Les notes restent modifiables jusqu’à la validation définitive de chaque matière. Fin de période : borne finale du calendrier, égale ou postérieure au début de revue. Les dates des périodes successives doivent se chevaucher.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">

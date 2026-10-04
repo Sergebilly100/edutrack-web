@@ -15,6 +15,7 @@ import {
 import type { ScheduleSlot } from "@/modules/attendance/attendance.api"
 import { listStudents } from "@/modules/students/students.api"
 import { useToast } from "@/components/ui/use-toast"
+import { invalidateAcademicReportScope } from "@/modules/academic/academic-report-cache"
 
 type SpontaneousGradeDialogProps = {
   open: boolean
@@ -38,9 +39,11 @@ export function SpontaneousGradeDialog({ open, slot, onOpenChange }: Spontaneous
     enabled: open && Boolean(slot),
   })
   const schoolYearId = contextQuery.data?.classes.find((item) => item.id === classId)?.schoolYearId
-  const gradingPeriod = contextQuery.data?.gradingPeriods.find(
-    (item) => item.schoolYearId === schoolYearId && item.notesEntryOpen,
-  )
+  const evaluationDate = slot ? toEvaluationDate(slot) : ""
+  const gradingPeriod = contextQuery.data?.gradingPeriods
+    .filter((item) => item.schoolYearId === schoolYearId && item.notesEntryOpen
+      && evaluationDate >= item.startDate && evaluationDate <= item.endDate)
+    .sort((left, right) => right.startDate.localeCompare(left.startDate))[0]
   const scopeQuery = useQuery({
     queryKey: ["evaluations-scope", classId, gradingPeriod?.id],
     queryFn: () => fetchEvaluationsScope(classId, gradingPeriod!.id),
@@ -54,7 +57,7 @@ export function SpontaneousGradeDialog({ open, slot, onOpenChange }: Spontaneous
   const lessonSlot = scopeQuery.data?.lessonSlots.find((item) => item.id === slot?.id)
   const subjectId = lessonSlot?.subjectId ?? ""
   const subjectClosed = Boolean(subjectId && scopeQuery.data?.completion.some(
-    (item) => item.subjectId === subjectId && item.calculationStarted,
+    (item) => item.subjectId === subjectId && item.status === "completed",
   ))
   const parsedAdjustment = Number(adjustment.replace(",", "."))
   const canSave = Boolean(slot && gradingPeriod && subjectId && studentId && comment.trim())
@@ -85,7 +88,7 @@ export function SpontaneousGradeDialog({ open, slot, onOpenChange }: Spontaneous
       })
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["evaluations-scope", classId] })
+      if (gradingPeriod) await invalidateAcademicReportScope(queryClient, classId, gradingPeriod.id)
       setStudentId("")
       setAdjustment("0")
       setComment("")

@@ -96,6 +96,7 @@ const PERMISSION_KEYS: PermissionKey[] = [
   'report_cards.view',
   'evaluations.view',
   'report_cards.publish',
+  'report_cards.published_correction',
   'conduct.finalize',
   'class_decisions.view',
   'class_decisions.validate',

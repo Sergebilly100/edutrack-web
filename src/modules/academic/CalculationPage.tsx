@@ -34,6 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
+import { invalidateAcademicReportScope } from "./academic-report-cache";
 import {
   listStudents,
   type StudentItem,
@@ -170,9 +171,7 @@ export default function CalculationPage() {
         status: "completed",
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ["evaluations-scope", classId, gradingPeriodId],
-      });
+      await invalidateAcademicReportScope(queryClient, classId, gradingPeriodId);
       setCurrentStep(3);
       toast({ title: "Moyennes validées et transmises à l’administration" });
     },
@@ -228,7 +227,7 @@ export default function CalculationPage() {
     );
 
   const editable =
-    completion.status !== "completed" && period?.notesEntryOpen !== false && !period?.closedClassIds?.includes(classId);
+    completion.status !== "completed" && !period?.isCompleted && !period?.closedClassIds?.includes(classId);
   return (
     <>
       <OfflineIndicator />
@@ -266,7 +265,7 @@ export default function CalculationPage() {
         </header>
         <ol className="grid grid-cols-3 gap-2 text-center text-xs" aria-label="Étapes de calcul" >
           <li className="rounded-lg border p-2 text-muted-foreground">
-            1. Notes terminées
+            1. Notes saisies
           </li>
           <li
             className={
@@ -286,12 +285,12 @@ export default function CalculationPage() {
             3. Moyennes
           </li>
         </ol>
-        {completion.status === "completed" || period?.notesEntryOpen === false ? (
+        {completion.status === "completed" || period?.isCompleted || period?.closedClassIds?.includes(classId) ? (
           <Card className="shadow-sm !mt-3">
             <CardContent className="flex gap-3 p-4 text-xs">
               <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
-              {period?.notesEntryOpen === false
-                ? "Cette période est consultable uniquement. Les données ne redeviennent jamais modifiables après la génération des bulletins."
+              {period?.isCompleted || period?.closedClassIds?.includes(classId)
+                ? "Cette classe et cette période sont clôturées. Une correction approuvée par la direction peut les rouvrir."
                 : "Cette matière est validée. Les moyennes et le détail des notes restent consultables."}
             </CardContent>
           </Card>
