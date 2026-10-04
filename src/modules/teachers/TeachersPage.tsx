@@ -180,7 +180,7 @@ function TeacherRowActions({
 // TeacherRankingPanel affiche le classement de conformité des professeurs pour un mois donné, avec la possibilité de filtrer par matière. 
 // Il utilise les données de conformité et les informations des professeurs pour calculer les taux et afficher un classement clair et informatif, avec des indicateurs visuels 
 // pour les différentes métriques de conformité.
-function TeacherRankingPanel({
+export function TeacherRankingPanel({
   teachers,
 }: {
   teachers: TeacherListItem[]
@@ -325,6 +325,7 @@ function TeacherRankingPanel({
           rankedRows.map((teacher) => (
             <div
               key={teacher.teacherId}
+              data-testid={`ranking-row-${teacher.teacherId}`}
               className="w-full rounded-lg border border-border bg-card p-4"
             >
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -349,20 +350,23 @@ function TeacherRankingPanel({
                     <span className="font-semibold">{Math.round(teacher.complianceRate)}%</span>
                   </div>
                   <Progress value={Math.max(0, Math.min(100, teacher.complianceRate))} />
+                  {!teacher.hasScheduledLessons ? (
+                    <p className="mt-2 text-xs text-muted-foreground">Aucun cours programmé ce mois</p>
+                  ) : null}
                 </div>
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
-                <Badge title="Taux de présence: 20% du Total" variant="outline" className={teacher.attendanceRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.attendanceRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-900" : "border-red-200 bg-red-50 text-red-700"}>
+                <Badge title="Taux de présence: 20% du Total" variant="outline" className={!teacher.hasScheduledLessons ? "border-border bg-muted text-muted-foreground" : teacher.attendanceRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.attendanceRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-900" : "border-red-200 bg-red-50 text-red-700"}>
                   {/* // teacher.attendanceRate représente le taux de présence du professeur, calculé à partir des données de pointage et de présence, et est un indicateur clé de la régularité du professeur dans ses cours. */}
                   Présence {Math.round(teacher.attendanceRate)}%
                 </Badge>
-                <Badge title="Taux de scan de fin: 30% du Total" variant="outline" className={teacher.scanEndRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.scanEndRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-900" : "border-red-200 bg-red-50 text-red-700"}>
+                <Badge title="Taux de scan de fin: 30% du Total" variant="outline" className={!teacher.hasScheduledLessons ? "border-border bg-muted text-muted-foreground" : teacher.scanEndRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.scanEndRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-900" : "border-red-200 bg-red-50 text-red-700"}>
                   Scan fin {Math.round(teacher.scanEndRate)}%
                 </Badge>
-                <Badge title="Taux de salle correcte: 25% du Total" variant="outline" className={teacher.roomCorrectRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.roomCorrectRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-900" : "border-red-200 bg-red-50 text-red-700"}>
+                <Badge title="Taux de salle correcte: 25% du Total" variant="outline" className={!teacher.hasScheduledLessons ? "border-border bg-muted text-muted-foreground" : teacher.roomCorrectRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.roomCorrectRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-900" : "border-red-200 bg-red-50 text-red-700"}>
                   Salle correcte {Math.round(teacher.roomCorrectRate)}%
                 </Badge>
-                <Badge title={`Taux de pointage des ${studentLabels.pluralLower}: 25% du Total`} variant="outline" className={teacher.rollcallRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.rollcallRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-900" : "border-red-200 bg-red-50 text-red-700"}>
+                <Badge title={`Taux de pointage des ${studentLabels.pluralLower}: 25% du Total`} variant="outline" className={!teacher.hasScheduledLessons ? "border-border bg-muted text-muted-foreground" : teacher.rollcallRate > 80 ? "border-green-200 bg-green-50 text-green-700" : teacher.rollcallRate >= 50 ? "border-amber-200 bg-amber-50 text-amber-900" : "border-red-200 bg-red-50 text-red-700"}>
                   Pointage {studentLabels.singularLower} {Math.round(teacher.rollcallRate)}%
                 </Badge>
               </div>

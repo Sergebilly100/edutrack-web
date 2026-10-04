@@ -256,6 +256,9 @@ export default function TeacherSchedulePage() {
                 </Badge>
               </div>
               <Progress value={complianceQuery.data?.complianceRate ?? 0} />
+              {complianceQuery.data && !complianceQuery.data.hasScheduledLessons ? (
+                <p className="mt-2 text-xs text-muted-foreground">Aucun cours programmé ce mois</p>
+              ) : null}
             </>
           )}
       </header>

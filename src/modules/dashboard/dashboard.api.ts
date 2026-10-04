@@ -148,6 +148,8 @@ export type DashboardSalarySummary = {
 export type DashboardTeacherComplianceItem = {
   teacherId: string
   teacherName: string
+  totalScheduled: number
+  hasScheduledLessons: boolean
   totalCheckins: number
   totalCheckouts: number
   complianceRate: number
@@ -646,6 +648,11 @@ export const getTeacherCompliance = async (
     return {
       teacherId: asString(row.teacherId ?? row.teacher_id),
       teacherName: asString(row.teacherName ?? row.teacher_name),
+      totalScheduled: asNumber(row.totalScheduled ?? row.total_scheduled),
+      hasScheduledLessons: typeof (row.hasScheduledLessons ?? row.has_scheduled_lessons) === "boolean"
+        ? (row.hasScheduledLessons ?? row.has_scheduled_lessons) === true
+        : (row.totalScheduled ?? row.total_scheduled) == null ||
+          asNumber(row.totalScheduled ?? row.total_scheduled) > 0,
       totalCheckins: asNumber(row.totalCheckins ?? row.total_checkins),
       totalCheckouts: asNumber(row.totalCheckouts ?? row.total_checkouts),
       complianceRate: asNumber(row.complianceRate ?? row.compliance_rate),

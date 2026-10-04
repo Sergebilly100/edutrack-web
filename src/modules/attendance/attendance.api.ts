@@ -45,6 +45,8 @@ export type TeacherAttendancePolicy = {
 export type TeacherComplianceItem = {
   teacherId: string
   teacherName: string
+  totalScheduled: number
+  hasScheduledLessons: boolean
   totalCheckins: number
   totalCheckouts: number
   complianceRate: number
@@ -109,6 +111,12 @@ const toComplianceItem = (row: unknown): TeacherComplianceItem => {
   return {
     teacherId: toString(item.teacherId ?? item.teacher_id),
     teacherName: toString(item.teacherName ?? item.teacher_name),
+    totalScheduled: toNumber(item.totalScheduled ?? item.total_scheduled),
+    hasScheduledLessons: toBoolean(
+      item.hasScheduledLessons ?? item.has_scheduled_lessons,
+      (item.totalScheduled ?? item.total_scheduled) == null ||
+        toNumber(item.totalScheduled ?? item.total_scheduled) > 0
+    ),
     totalCheckins: toNumber(item.totalCheckins ?? item.total_checkins),
     totalCheckouts: toNumber(item.totalCheckouts ?? item.total_checkouts),
     complianceRate: toNumber(item.complianceRate ?? item.compliance_rate),

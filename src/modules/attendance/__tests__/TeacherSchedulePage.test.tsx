@@ -54,6 +54,7 @@ describe("TeacherSchedulePage", () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
+    vi.clearAllMocks()
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -63,6 +64,30 @@ describe("TeacherSchedulePage", () => {
     vi.mocked(teacherScheduleApi.getMyScheduleWeek).mockResolvedValue([])
     vi.mocked(teacherScheduleApi.getMyAttendanceForDate).mockResolvedValue([])
     vi.mocked(teacherScheduleApi.getMyCompliance).mockResolvedValue(null)
+  })
+
+  it("explique le taux de 100 % lorsqu'aucun cours n'est programmé", async () => {
+    vi.mocked(teacherScheduleApi.getMyCompliance).mockResolvedValue({
+      teacherId: "teacher-123",
+      teacherName: "Diallo Ibrahim",
+      totalScheduled: 0,
+      hasScheduledLessons: false,
+      totalCheckins: 0,
+      totalCheckouts: 0,
+      complianceRate: 100,
+      rank: 1,
+    })
+
+    render(
+      <BrowserRouter>
+        <QueryClientProvider client={queryClient}>
+          <TeacherSchedulePage />
+        </QueryClientProvider>
+      </BrowserRouter>
+    )
+
+    expect(await screen.findByText("Aucun cours programmé ce mois")).toBeInTheDocument()
+    expect(screen.getByText("100%")).toBeInTheDocument()
   })
 
   it("should refetch schedules when selectedDate changes", async () => {

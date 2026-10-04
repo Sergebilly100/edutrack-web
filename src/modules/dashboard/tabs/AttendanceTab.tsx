@@ -278,13 +278,17 @@ export function AttendanceTab({
                           {teacher.rank}. {teacher.teacherName}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {teacher.totalCheckouts}/{teacher.totalCheckins} cours
+                          {teacher.hasScheduledLessons
+                            ? `${teacher.totalCheckouts}/${teacher.totalCheckins} cours`
+                            : "Aucun cours programmé ce mois"}
                         </p>
                       </div>
                       <Badge
                         variant="outline"
                         className={
-                          teacher.complianceRate >= 80
+                          !teacher.hasScheduledLessons
+                            ? statusToneBadge.neutral
+                            : teacher.complianceRate >= 80
                             ? statusToneBadge.success
                             : teacher.complianceRate < 30
                               ? statusToneBadge.warning

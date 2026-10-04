@@ -137,6 +137,35 @@ test.describe("Gestion profs", () => {
     await expect(page.getByTestId("teacher-mobile-card").first()).toBeVisible()
   })
 
+  test("le classement mobile explique le 100 % sans cours", async ({ page }) => {
+    await page.route("**/api/v1/attendance/teacher-compliance?*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([{
+          teacherId: TEACHER_ID,
+          teacherName: "M. Koné",
+          totalScheduled: 0,
+          hasScheduledLessons: false,
+          totalCheckins: 0,
+          totalCheckouts: 0,
+          complianceRate: 100,
+          scanEndRate: 100,
+          roomCorrectRate: 100,
+          rollcallRate: 100,
+          attendanceRate: 100,
+          rank: 1,
+        }]),
+      })
+    })
+
+    await page.getByRole("tab", { name: "Classement" }).click()
+    const row = page.getByTestId(`ranking-row-${TEACHER_ID}`)
+    await expect(row).toContainText("Aucun cours programmé ce mois")
+    await expect(row).toContainText("100%")
+    await expect(row.getByText("Présence 100%")).toHaveClass(/bg-muted/)
+  })
+
   test("la recherche filtre les résultats", async ({ page }) => {
     const cards = page.getByTestId("teacher-mobile-card")
     await expect(cards.first()).toBeVisible()
