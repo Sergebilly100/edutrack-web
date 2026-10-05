@@ -19,6 +19,7 @@ type DayViewItem = {
   slots: Array<{
     time: string
     subject: string
+    subjectDisplay?: string
     teacher: string
     room: string
     status: "present" | "absent" | "upcoming" | "unknown"
@@ -232,7 +233,7 @@ export default function ParentSchedulePage() {
                   <p className="text-xs font-semibold leading-tight text-muted-foreground">{slot.time}</p>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold">{slot.subject}</p>
+                  <p className="truncate text-sm font-semibold">{slot.subjectDisplay || slot.subject}</p>
                   <p className="truncate text-xs text-muted-foreground">{slot.teacher} · {slot.room}</p>
                 </div>
                 <div className="flex-shrink-0">

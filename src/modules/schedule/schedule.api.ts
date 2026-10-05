@@ -47,6 +47,7 @@ export type ScheduleRow = {
   schedulePeriodId: string
   dayOfWeek: number
   subject: string
+  subjectDisplay: string
   startDate: string | null
   endDate: string | null
   pastAttendanceCount: number
@@ -155,6 +156,7 @@ const ScheduleRowSchema = z.object({
   schedulePeriodId: z.string(),
   dayOfWeek: z.number(),
   subject: z.string(),
+  subjectDisplay: z.string().optional(),
   startDate: z.string().nullable().optional().default(null),
   endDate: z.string().nullable().optional().default(null),
   pastAttendanceCount: z.number().optional().default(0),
@@ -180,6 +182,9 @@ const ScheduleRowSchema = z.object({
     endTime: z.string(),
     sortOrder: z.number(),
   }),
+  attendance: z.object({
+    status: z.enum(["present", "absent", "late"]).nullable(),
+  }).optional(),
 })
 
 const WeeklyScheduleResponseSchema = z.object({
@@ -221,6 +226,11 @@ const ActiveScheduleResponseSchema = z.object({
   schedules: z.array(ScheduleRowSchema),
 })
 
+const TeacherScheduleResponseSchema = z.union([
+  z.object({ date: z.string(), schedules: z.array(ScheduleRowSchema) }),
+  z.array(ScheduleRowSchema),
+])
+
 const SchedulePeriodsResponseSchema = z.object({
   periods: z
     .array(z.object({ valid_from: z.string(), valid_to: z.string(), is_active: z.boolean() }))
@@ -254,25 +264,15 @@ const getDateParam = (value: unknown): string | undefined =>
 
 export const fetchTeacherSchedule = async (): Promise<TeacherSchedule[]> => {
   const response = await api.get("/schedule/teacher/me")
-  const payload = response.data as
-    | { date?: string; schedules?: ScheduleRow[] }
-    | ScheduleRow[]
-
-  const date =
-    typeof payload === "object" &&
-    payload !== null &&
-    !Array.isArray(payload) &&
-    typeof payload.date === "string"
-      ? payload.date
-      : new Date().toISOString().slice(0, 10)
-
-  const schedules = Array.isArray(payload) ? payload : (payload.schedules ?? [])
+  const payload = TeacherScheduleResponseSchema.parse(response.data)
+  const date = Array.isArray(payload) ? new Date().toISOString().slice(0, 10) : payload.date
+  const schedules = Array.isArray(payload) ? payload : payload.schedules
 
   return schedules.map((item) => ({
     id: item.id,
     class_id: item.class.id,
     class_name: item.class.name,
-    subject_name: item.subject,
+    subject_name: item.subjectDisplay || item.subject,
     room_id: item.room.id,
     room_name: item.room.name,
     start_at: toIsoDateTime(date, item.timeSlot.startTime),
@@ -303,6 +303,7 @@ export const fetchActiveSchedules = async (date?: unknown): Promise<ActiveSchedu
     // Normaliser les heures des schedules de la vue active aussi
     schedules: parsed.schedules.map((s) => ({
       ...s,
+      subjectDisplay: s.subjectDisplay || s.subject,
       pastAttendanceCount: s.pastAttendanceCount ?? 0,
       hasPastAttendance: s.hasPastAttendance ?? (s.pastAttendanceCount ?? 0) > 0,
       timeSlot: {
@@ -332,6 +333,7 @@ export const fetchWeeklySchedule = async (date?: unknown): Promise<WeeklySchedul
 
   const normalizedSchedules: ScheduleRow[] = parsed.schedules.map((s) => ({
     ...s,
+    subjectDisplay: s.subjectDisplay || s.subject,
     pastAttendanceCount: s.pastAttendanceCount ?? 0,
     hasPastAttendance: s.hasPastAttendance ?? (s.pastAttendanceCount ?? 0) > 0,
     timeSlot: {

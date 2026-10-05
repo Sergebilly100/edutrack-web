@@ -103,6 +103,7 @@ export default function SubjectsPage() {
           {row.original.subjects.map((subject) => (
             <Badge key={subject.id} variant="outline" className="font-normal">
               {subject.levelName} <span className="ml-1 text-muted-foreground">Coef. {subject.coefficient}</span>
+              {subject.abbreviation ? <span className="ml-1 text-muted-foreground">· EDT : {subject.abbreviation}</span> : null}
             </Badge>
           ))}
         </div>
@@ -179,6 +180,7 @@ export default function SubjectsPage() {
                 {group.subjects.map((subject) => (
                   <Badge key={subject.id} variant="outline" className="font-normal">
                     {subject.levelName} <span className="ml-1 text-muted-foreground">Coef. {subject.coefficient}</span>
+                    {subject.abbreviation ? <span className="ml-1 text-muted-foreground">· EDT : {subject.abbreviation}</span> : null}
                   </Badge>
                 ))}
               </div>

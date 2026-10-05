@@ -144,7 +144,7 @@ const toScheduleSlot = (row: unknown): ScheduleSlot => {
     id: toString(item.id),
     class_id: toString(item.class_id || item.classId || classRecord.id),
     class_name: toString(item.class_name || item.className || classRecord.name),
-    subject_name: toString(item.subject_name || item.subjectName || item.subject),
+    subject_name: toString(item.subjectDisplay || item.subject_display || item.subject_name || item.subjectName || item.subject),
     room_id: toString(item.room_id || item.roomId || roomRecord.id),
     room_name: toString(item.room_name || item.roomName || roomRecord.name),
     day_of_week: toNumber(item.day_of_week ?? item.dayOfWeek),

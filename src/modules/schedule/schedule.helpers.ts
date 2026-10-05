@@ -225,6 +225,7 @@ export const createOptimisticSchedule = (
     schedulePeriodId: payload.schedulePeriodId,
     dayOfWeek: payload.dayOfWeek,
     subject: payload.subject,
+    subjectDisplay: payload.subject,
     startDate: payload.effectiveFrom ?? null,
     endDate: null,
     pastAttendanceCount: 0,

@@ -323,7 +323,7 @@ export default function ParentDashboardPage() {
                     </div>
 
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold leading-tight sm:text-base">{slot.subject}</p>
+                      <p className="truncate text-sm font-semibold leading-tight sm:text-base">{slot.subjectDisplay || slot.subject}</p>
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">{slot.teacher} <span className="mx-1">·</span> {slot.room}</p>
                     </div>
                     <span className={cn("inline-flex items-center justify-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium", meta.pillClassName)}>

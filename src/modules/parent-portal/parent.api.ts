@@ -1,4 +1,5 @@
 import axios from "axios"
+import { z } from "zod"
 import { apiClient } from "@/shared/api/client"
 import { buildTenantContextHeaders } from "@/shared/tenancy/tenant-host"
 
@@ -38,6 +39,7 @@ export type ParentNotification = {
 export type ParentScheduleSlot = {
   time: string
   subject: string
+  subjectDisplay: string
   teacher: string
   room: string
   status: "present" | "absent" | "upcoming" | "unknown"
@@ -52,6 +54,21 @@ export type ParentScheduleResponse = {
   week_label: string
   days: ParentScheduleDay[]
 }
+
+const ParentScheduleResponseSchema = z.object({
+  week_label: z.string(),
+  days: z.array(z.object({
+    day: z.string(),
+    slots: z.array(z.object({
+      time: z.string(),
+      subject: z.string(),
+      subjectDisplay: z.string().optional(),
+      teacher: z.string(),
+      room: z.string(),
+      status: z.enum(["present", "absent", "upcoming", "unknown"]),
+    })),
+  })),
+})
 
 export type ParentAbsenceRow = {
   date: string
@@ -140,10 +157,17 @@ export const markAllParentNotificationsRead = async (): Promise<void> => {
 }
 
 export const getParentSchedule = async (studentId: string, week: string): Promise<ParentScheduleResponse> => {
-  const response = await apiClient.get<ParentScheduleResponse>(`/parent/students/${studentId}/schedule`, {
+  const response = await apiClient.get(`/parent/students/${studentId}/schedule`, {
     params: { week },
   })
-  return response.data
+  const parsed = ParentScheduleResponseSchema.parse(response.data)
+  return {
+    week_label: parsed.week_label,
+    days: parsed.days.map((day) => ({
+      day: day.day,
+      slots: day.slots.map((slot) => ({ ...slot, subjectDisplay: slot.subjectDisplay || slot.subject })),
+    })),
+  }
 }
 
 export const getParentAbsences = async (studentId: string, month: string): Promise<ParentAbsenceRow[]> => {

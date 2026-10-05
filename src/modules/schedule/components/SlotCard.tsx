@@ -64,7 +64,7 @@ export default function SlotCard({
         <WarningIcon className="absolute right-1 top-1 h-3 w-3 text-red-600" />
       ) : null}
 
-      <p className="truncate font-semibold leading-tight">{slot.subject}</p>
+      <p className="truncate font-semibold leading-tight">{slot.subjectDisplay || slot.subject}</p>
 
       {showClass ? <p className="truncate opacity-75">{slot.class.name}</p> : null}
 

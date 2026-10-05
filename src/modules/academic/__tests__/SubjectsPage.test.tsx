@@ -98,6 +98,7 @@ describe("SubjectsPage", () => {
 
     await waitFor(() => expect(updateSubjectsBulkMock).toHaveBeenCalledWith({
       name: "Mathématiques",
+      abbreviation: null,
       assignments: [
         { subjectId: "subject-1", levelId: "level-1", coefficient: 4 },
         { subjectId: "subject-2", levelId: "level-2", coefficient: 5 },
@@ -119,6 +120,7 @@ describe("SubjectsPage", () => {
 
     await waitFor(() => expect(updateSubjectsBulkMock).toHaveBeenCalledWith({
       name: "Mathématiques",
+      abbreviation: null,
       assignments: [
         { subjectId: "subject-1", levelId: "level-1", coefficient: 4 },
         { levelId: "level-2", coefficient: 2 },
@@ -140,10 +142,48 @@ describe("SubjectsPage", () => {
 
     await waitFor(() => expect(createSubjectsBulkMock).toHaveBeenCalledWith({
       name: "Français",
+      abbreviation: null,
       assignments: [
         { levelId: "level-1", coefficient: 1 },
         { levelId: "level-2", coefficient: 1 },
       ],
     }))
+  })
+
+  it("affiche et applique une même abréviation aux niveaux du groupe", async () => {
+    const secondLevel = { ...level, id: "level-2", name: "5ème" }
+    listLevelsMock.mockResolvedValueOnce([level, secondLevel])
+    listSubjectsMock.mockResolvedValueOnce([
+      { id: "subject-1", levelId: level.id, levelName: level.name, name: "Mathématiques", abbreviation: "Maths", coefficient: 4 },
+      { id: "subject-2", levelId: secondLevel.id, levelName: secondLevel.name, name: "Mathématiques", abbreviation: "Maths", coefficient: 3 },
+    ])
+    renderPage()
+
+    expect((await screen.findAllByText(/EDT : Maths/)).length).toBeGreaterThan(0)
+    fireEvent.click(screen.getAllByRole("button", { name: /modifier/i })[0]!)
+    const abbreviation = screen.getByLabelText("Abréviation pour l’EDT")
+    expect(abbreviation).toHaveValue("Maths")
+    fireEvent.change(abbreviation, { target: { value: " Math. " } })
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }))
+
+    await waitFor(() => expect(updateSubjectsBulkMock).toHaveBeenCalledWith(expect.objectContaining({
+      abbreviation: "Math.",
+      assignments: expect.arrayContaining([
+        expect.objectContaining({ subjectId: "subject-1" }),
+        expect.objectContaining({ subjectId: "subject-2" }),
+      ]),
+    })))
+  })
+
+  it("envoie l’abréviation lors de la création groupée", async () => {
+    renderPage()
+    await screen.findAllByText("Mathématiques")
+    fireEvent.click(screen.getByRole("button", { name: "Ajouter une matière" }))
+    fireEvent.change(screen.getByPlaceholderText("Mathématiques"), { target: { value: "Français" } })
+    fireEvent.change(screen.getByLabelText("Abréviation pour l’EDT"), { target: { value: "Fr" } })
+    fireEvent.click(screen.getByLabelText("6ème"))
+    fireEvent.click(screen.getByRole("button", { name: "Ajouter aux niveaux" }))
+
+    await waitFor(() => expect(createSubjectsBulkMock).toHaveBeenCalledWith(expect.objectContaining({ abbreviation: "Fr" })))
   })
 })

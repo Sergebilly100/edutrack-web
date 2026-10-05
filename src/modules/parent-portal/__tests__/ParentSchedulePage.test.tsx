@@ -54,4 +54,17 @@ describe("ParentSchedulePage", () => {
     expect(getScheduleMock).toHaveBeenCalledWith("student-1", expect.any(String))
     expect(getSubscriptionStatusMock).not.toHaveBeenCalled()
   })
+
+  it("affiche l’abréviation du créneau quand elle est fournie", async () => {
+    getScheduleMock.mockResolvedValueOnce({
+      week_label: "Semaine courante",
+      days: [{ day: "2026-08-17", slots: [{
+        time: "08:00 - 09:00", subject: "Mathématiques", subjectDisplay: "Maths",
+        teacher: "Mme Koné", room: "A1", status: "upcoming",
+      }] }],
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={queryClient}><ParentSchedulePage /></QueryClientProvider>)
+    expect(await screen.findByText("Maths")).toBeInTheDocument()
+  })
 })

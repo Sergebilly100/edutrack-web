@@ -968,7 +968,7 @@ export default function SchedulePage() {
                                     <div className="flex w-full flex-col items-start">
                                       <p className="font-semibold leading-tight">{item.teacher.name}</p>
                                       <p className="text-muted-foreground">{item.class.name}</p>
-                                      <p className="text-muted-foreground">{item.subject}</p>
+                                      <p className="text-muted-foreground">{item.subjectDisplay || item.subject}</p>
                                       {item.timeSlot.startTime !== row.startTime && (
                                         <p className="mt-0.5 text-[10px] text-amber-600">
                                           {item.timeSlot.startTime} – {item.timeSlot.endTime}
@@ -1024,7 +1024,7 @@ export default function SchedulePage() {
                     >
                       <div className="flex w-full flex-col items-start">
                         <p className="text-xs font-semibold">{item.timeSlot.label}</p>
-                        <p className="text-sm font-medium">{item.subject}</p>
+                        <p className="text-sm font-medium">{item.subjectDisplay || item.subject}</p>
                         <p className="text-xs text-muted-foreground">{item.teacher.name} · {item.class.name}</p>
                         {blockedTeachers.has(item.teacher.id) ? (
                           <Badge variant="destructive" className="mt-1">Prof bloqué</Badge>
@@ -1065,7 +1065,7 @@ export default function SchedulePage() {
             <div className="grid gap-3 text-sm sm:grid-cols-2">
               <div className="rounded-lg border bg-muted/20 p-3">
                 <p className="text-xs font-medium text-muted-foreground">Matière</p>
-                <p className="mt-1 font-semibold">{selectedSchedule.subject}</p>
+                <p className="mt-1 font-semibold">{selectedSchedule.subjectDisplay || selectedSchedule.subject}</p>
               </div>
               <div className="rounded-lg border bg-muted/20 p-3">
                 <p className="text-xs font-medium text-muted-foreground">Horaire</p>

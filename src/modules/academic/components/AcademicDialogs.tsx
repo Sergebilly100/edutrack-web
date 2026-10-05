@@ -151,6 +151,7 @@ export function LevelDialog({
 
 const subjectGroupSchema = z.object({
   name: z.string().trim().min(1, "Le nom est requis").max(100),
+  abbreviation: z.string().trim().max(30, "30 caractères maximum"),
   newLevelIds: z.array(z.string()),
   coefficients: z.record(z.string(), z.string().trim().refine(
     (value) => Number.isFinite(Number(value)) && Number(value) > 0,
@@ -174,7 +175,7 @@ export function SubjectGroupDialog({
 }) {
   const form = useForm<SubjectGroupFormValues>({
     resolver: zodResolver(subjectGroupSchema),
-    defaultValues: { name: "", newLevelIds: [], coefficients: {} },
+    defaultValues: { name: "", abbreviation: "", newLevelIds: [], coefficients: {} },
   })
   const newLevelIds = useWatch({ control: form.control, name: "newLevelIds" })
   const existingLevelIds = useMemo(() => new Set(subjects.map((subject) => subject.levelId)), [subjects])
@@ -187,6 +188,7 @@ export function SubjectGroupDialog({
     if (!open) return
     form.reset({
       name: subjects[0]?.name ?? "",
+      abbreviation: subjects[0]?.abbreviation ?? "",
       newLevelIds: [],
       coefficients: Object.fromEntries(subjects.map((subject) => [subject.id, String(subject.coefficient)])),
     })
@@ -216,6 +218,7 @@ export function SubjectGroupDialog({
             className="space-y-5"
             onSubmit={form.handleSubmit((values) => void onSubmit({
               name: values.name.trim(),
+              abbreviation: values.abbreviation.trim() || null,
               assignments: [
                 ...subjects.map((subject) => ({
                   subjectId: subject.id,
@@ -236,6 +239,19 @@ export function SubjectGroupDialog({
                 <FormItem>
                   <FormLabel>Matière</FormLabel>
                   <FormControl><Input placeholder="Mathématiques" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="abbreviation"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Abréviation pour l’EDT</FormLabel>
+                  <FormControl><Input placeholder="Maths" maxLength={30} {...field} /></FormControl>
+                  <p className="text-xs text-muted-foreground">Affichée sur les plannings. Le nom officiel reste utilisé dans les formulaires et les imports.</p>
                   <FormMessage />
                 </FormItem>
               )}
@@ -336,6 +352,7 @@ export function SubjectGroupDialog({
 
 const bulkSubjectSchema = z.object({
   name: z.string().trim().min(1, "Le nom est requis").max(100),
+  abbreviation: z.string().trim().max(30, "30 caractères maximum"),
   defaultCoefficient: z.string().trim().refine(
     (value) => Number.isFinite(Number(value)) && Number(value) > 0,
     "Le coefficient doit être un nombre positif"
@@ -360,7 +377,7 @@ export function SubjectBulkDialog({
 }) {
   const form = useForm<BulkSubjectFormValues>({
     resolver: zodResolver(bulkSubjectSchema),
-    defaultValues: { name: "", defaultCoefficient: "1", levelIds: [], coefficients: {} },
+    defaultValues: { name: "", abbreviation: "", defaultCoefficient: "1", levelIds: [], coefficients: {} },
   })
   const selectedLevelIds = useWatch({ control: form.control, name: "levelIds" })
   const defaultCoefficient = useWatch({ control: form.control, name: "defaultCoefficient" })
@@ -371,7 +388,7 @@ export function SubjectBulkDialog({
 
   useEffect(() => {
     if (!open) return
-    form.reset({ name: "", defaultCoefficient: "1", levelIds: [], coefficients: {} })
+    form.reset({ name: "", abbreviation: "", defaultCoefficient: "1", levelIds: [], coefficients: {} })
   }, [form, open])
 
   const toggleLevel = (levelId: string, checked: boolean) => {
@@ -404,6 +421,7 @@ export function SubjectBulkDialog({
             className="space-y-5"
             onSubmit={form.handleSubmit((values) => void onSubmit({
               name: values.name.trim(),
+              abbreviation: values.abbreviation.trim() || null,
               assignments: values.levelIds.map((levelId) => ({
                 levelId,
                 coefficient: Number(values.coefficients[levelId] ?? values.defaultCoefficient),
@@ -434,6 +452,19 @@ export function SubjectBulkDialog({
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="abbreviation"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Abréviation pour l’EDT</FormLabel>
+                  <FormControl><Input placeholder="Maths" maxLength={30} {...field} /></FormControl>
+                  <p className="text-xs text-muted-foreground">Même abréviation pour tous les niveaux sélectionnés.</p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

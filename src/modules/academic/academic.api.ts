@@ -57,17 +57,20 @@ export type Subject = {
   levelId: string
   levelName: string
   name: string
+  abbreviation: string | null
   coefficient: number
 }
 
 export type SubjectPayload = {
   levelId: string
   name: string
+  abbreviation?: string | null
   coefficient: number
 }
 
 export type SubjectBulkPayload = {
   name: string
+  abbreviation?: string | null
   assignments: Array<{
     levelId: string
     coefficient: number
@@ -76,6 +79,7 @@ export type SubjectBulkPayload = {
 
 export type SubjectBulkUpdatePayload = {
   name: string
+  abbreviation?: string | null
   assignments: Array<{
     subjectId?: string
     levelId: string
@@ -83,7 +87,7 @@ export type SubjectBulkUpdatePayload = {
   }>
 }
 
-export type SubjectUpdatePayload = Pick<SubjectPayload, "name" | "coefficient">
+export type SubjectUpdatePayload = Pick<SubjectPayload, "name" | "coefficient" | "abbreviation">
 
 export type ClassesResponse = {
   schoolYear: SchoolYear | null
@@ -159,6 +163,7 @@ const parseSubject = (value: unknown): Subject => {
     levelId: asString(row.levelId ?? row.level_id),
     levelName: asString(row.levelName ?? row.level_name),
     name: asString(row.name),
+    abbreviation: typeof row.abbreviation === "string" ? row.abbreviation : null,
     coefficient: asNumber(row.coefficient),
   }
 }
