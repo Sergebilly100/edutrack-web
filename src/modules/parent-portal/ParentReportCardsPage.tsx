@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query"
 import { FileDown, GraduationCap, Loader2 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -23,19 +24,32 @@ import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 export default function ParentReportCardsPage() {
   const { toast } = useToast()
   const [studentId, setStudentId] = useState("")
+  const [selectedSchoolYearId, setSelectedSchoolYearId] = useState<string | null>(null)
 
   const studentsQuery = useQuery({
     queryKey: ["parent", "students"],
     queryFn: listParentStudents,
   })
 
-  const cardsQuery = useQuery({
-    queryKey: ["parent", "report-cards", studentId],
+  const yearsQuery = useQuery({
+    queryKey: ["parent", "report-cards", studentId, "years"],
     queryFn: () => listParentReportCards(studentId),
-    // A publication can occur in another session while this empty list is cached.
     staleTime: 0,
     refetchInterval: 15000,
     enabled: Boolean(studentId),
+  })
+  const availableSchoolYears = yearsQuery.data?.availableSchoolYears ?? []
+  const schoolYearId = availableSchoolYears.some((year) => year.id === selectedSchoolYearId)
+    ? selectedSchoolYearId ?? ""
+    : availableSchoolYears[0]?.id ?? ""
+
+  const cardsQuery = useQuery({
+    queryKey: ["parent", "report-cards", studentId, schoolYearId],
+    queryFn: () => listParentReportCards(studentId, schoolYearId),
+    // A publication can occur in another session while this empty list is cached.
+    staleTime: 0,
+    refetchInterval: 15000,
+    enabled: Boolean(studentId && schoolYearId),
   })
 
   const downloadMutation = useMutation({
@@ -79,16 +93,41 @@ export default function ParentReportCardsPage() {
           </div>
         </div>
 
+        {studentsQuery.isLoading ? (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Chargement des enfants…</p>
+        ) : studentsQuery.isError ? (
+          <Alert variant="destructive" role="alert"><AlertDescription>Impossible de charger les enfants. Réessayez plus tard.</AlertDescription></Alert>
+        ) : students.length === 0 ? (
+          <EmptyState title="Aucun enfant rattaché" description="Contactez l'école pour accéder aux bulletins." />
+        ) : null}
+
         {(studentsQuery.data?.length ?? 0) > 1 ? (
           <div className="space-y-2">
-            <Label>Enfant</Label>
-            <Select value={studentId || "none"} onValueChange={(value) => setStudentId(value === "none" ? "" : value)}>
-              <SelectTrigger className="min-h-6"><SelectValue placeholder="Choisir un enfant" /></SelectTrigger>
+            <Label htmlFor="parent-report-student">Enfant</Label>
+            <Select value={studentId || "none"} onValueChange={(value) => {
+              setStudentId(value === "none" ? "" : value)
+              setSelectedSchoolYearId(null)
+            }}>
+              <SelectTrigger id="parent-report-student" className="min-h-12"><SelectValue placeholder="Choisir un enfant" /></SelectTrigger>
               <SelectContent>
                 {(studentsQuery.data ?? []).map((student) => (
                   <SelectItem key={student.id} value={student.id}>
                     {student.first_name} {student.last_name} · {student.class_name}
                   </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
+
+        {studentId && availableSchoolYears.length > 0 ? (
+          <div className="space-y-2">
+            <Label htmlFor="parent-report-year">Année scolaire</Label>
+            <Select value={schoolYearId} onValueChange={setSelectedSchoolYearId}>
+              <SelectTrigger id="parent-report-year" className="min-h-12"><SelectValue placeholder="Choisir une année" /></SelectTrigger>
+              <SelectContent>
+                {availableSchoolYears.map((year) => (
+                  <SelectItem key={year.id} value={year.id}>{year.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -103,14 +142,16 @@ export default function ParentReportCardsPage() {
         ) : null}
 
         {studentId ? (
-          cardsQuery.isLoading ? (
+          yearsQuery.isLoading || (schoolYearId && cardsQuery.isLoading) ? (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Chargement…
             </p>
+          ) : yearsQuery.isError || cardsQuery.isError ? (
+            <Alert variant="destructive" role="alert"><AlertDescription>Impossible de charger les bulletins. Réessayez plus tard.</AlertDescription></Alert>
           ) : (cardsQuery.data?.reportCards?.length ?? 0) === 0 ? (
             <EmptyState
-              title={cardsQuery.data?.inRevision ? "Bulletin en révision" : "Aucun bulletin publié"}
-              description={cardsQuery.data?.inRevision ? "L’école prépare une version corrigée. Elle apparaîtra ici après sa publication." : "Les bulletins apparaîtront ici dès que l'école les aura publiés."}
+              title={(cardsQuery.data?.inRevision ?? yearsQuery.data?.inRevision) ? "Bulletin en révision" : "Aucun bulletin publié"}
+              description={(cardsQuery.data?.inRevision ?? yearsQuery.data?.inRevision) ? "L’école prépare une version corrigée. Elle apparaîtra ici après sa publication." : schoolYearId ? "Aucun bulletin publié pour cette année." : "Les bulletins apparaîtront ici dès que l'école les aura publiés."}
             />
           ) : (
             <div className="space-y-3">

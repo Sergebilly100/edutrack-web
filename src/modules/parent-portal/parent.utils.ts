@@ -52,6 +52,9 @@ export const monthLabelFr = (month: string): string => {
   )
 }
 
+export const clampPercentage = (value: number | null | undefined): number =>
+  typeof value === "number" && Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0
+
 export const formatFcfa = (value: number): string =>
   `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} FCFA`
 

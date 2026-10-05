@@ -33,7 +33,7 @@ import {
   getParentSubscriptionStatus,
   listParentStudents,
 } from "@/modules/parent-portal/parent.api"
-import { currentIsoWeek, formatDateFr, formatShortDate } from "@/modules/parent-portal/parent.utils"
+import { clampPercentage, currentIsoWeek, formatDateFr, formatShortDate } from "@/modules/parent-portal/parent.utils"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { monthKeyInBusinessTimezone, todayInBusinessTimezone } from "@/shared/lib/business-date"
 
@@ -183,7 +183,7 @@ export default function ParentDashboardPage() {
     () => (scheduleQuery.data?.days ?? []).reduce((acc, day) => acc + day.slots.length, 0),
     [scheduleQuery.data]
   )
-  const absenceRateMonth = Math.max(0, 100 - (statsQuery.data?.attendance_rate_month ?? 100))
+  const absenceRateMonth = clampPercentage(statsQuery.data?.absence_rate_month)
   const latestAbsence = absencesQuery.data?.[0] ?? null
   const todayLabel = useMemo(() => {
     const date = new Date(`${today}T00:00:00.000Z`)

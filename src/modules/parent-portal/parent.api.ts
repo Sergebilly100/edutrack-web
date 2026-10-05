@@ -81,7 +81,10 @@ export type ParentAbsenceRow = {
 export type ParentStats = {
   absences_this_week: number
   absences_this_month: number
+  /** Présent ou excusé / séances renseignées ; 100 sans séance (compatibilité). */
   attendance_rate_month: number
+  /** Absences / séances renseignées (present, excused, late, absent), 0 sans donnée. */
+  absence_rate_month: number
   total_absences_year: number
 }
 
@@ -215,6 +218,7 @@ export const fetchParentSchoolConfig = async (): Promise<{ activeSchoolYear: str
 export type ParentReportCardSummary = {
   id: string
   periodLabel: string
+  schoolYearId: string
   schoolYearLabel: string
   generalAverage: number
   rank: number
@@ -222,9 +226,16 @@ export type ParentReportCardSummary = {
   publishedAt: string
 }
 
-export const listParentReportCards = async (studentId: string): Promise<{ reportCards: ParentReportCardSummary[]; inRevision: boolean }> => {
-  const response = await apiClient.get<{ reportCards: ParentReportCardSummary[]; inRevision: boolean }>(
+export type ParentReportCardsResponse = {
+  reportCards: ParentReportCardSummary[]
+  availableSchoolYears: Array<{ id: string; label: string }>
+  inRevision: boolean
+}
+
+export const listParentReportCards = async (studentId: string, schoolYearId?: string): Promise<ParentReportCardsResponse> => {
+  const response = await apiClient.get<ParentReportCardsResponse>(
     `/parent/students/${studentId}/report-cards`,
+    { params: schoolYearId ? { schoolYearId } : undefined },
   )
   return response.data
 }
