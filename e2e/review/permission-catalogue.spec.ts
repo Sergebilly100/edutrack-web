@@ -117,3 +117,50 @@ test("le refus du catalogue est visible et empêche une sauvegarde", async ({ pa
   await expect(dialog.getByRole("button", { name: "Créer le poste" })).toBeDisabled()
   expect(attempted).toEqual([])
 })
+
+test("l’onglet SMS explique une personnalisation désactivée sans demander le modèle", async ({ page }) => {
+  await mockSettings(page)
+  await page.route("**/api/v1/permissions/me*", (route) => route.fulfill({ json: {
+    permissions: ["settings.school", "settings.positions"],
+  } }))
+  const attempted: string[] = []
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/v1/notifications/templates/student-absence") attempted.push(request.url())
+  })
+  await page.goto("/settings?tab=communication")
+  await expect(page.getByRole("tab", { name: "Communication" })).toHaveAttribute("aria-selected", "true")
+  await expect(page.getByText("Activation requise", { exact: true })).toBeVisible()
+  await expect(page.getByText(/La personnalisation des modèles SMS n’est pas activée/)).toBeVisible()
+  expect(attempted).toEqual([])
+})
+
+test("sans modèle SMS enregistré, le directeur peut créer son message", async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 850 })
+  await mockSettings(page)
+  let savedMessage: string | null = null
+  await page.route("**/api/v1/notifications/templates/student-absence", async (route) => {
+    if (route.request().method() === "PUT") {
+      savedMessage = (route.request().postDataJSON() as { message_template: string }).message_template
+      await route.fulfill({ json: { success: true } })
+      return
+    }
+    await route.fulfill({ json: {
+      enabledBySuperAdmin: true,
+      source: savedMessage ? "school" : "default",
+      messageTemplate: savedMessage ?? "Message système utilisé par défaut",
+      variables: [], updatedAt: null,
+    } })
+  })
+  await page.goto("/settings?tab=communication")
+  await expect(page.getByText("Aucun modèle SMS personnalisé")).toBeVisible()
+  await expect(page.getByText(/Impossible de charger le modèle SMS/)).toHaveCount(0)
+  await page.getByRole("button", { name: "Ajouter un message" }).click()
+  const message = page.getByRole("textbox", { name: /Texte du SMS d’absence/ })
+  await expect(message).toBeFocused()
+  await message.fill("Votre enfant est absent aujourd’hui.")
+  await page.getByRole("button", { name: "Créer le modèle SMS" }).click()
+  await expect.poll(() => savedMessage).toBe("Votre enfant est absent aujourd’hui.")
+  await expect(page.getByText("Aucun modèle SMS personnalisé")).toHaveCount(0)
+  await expect(page.getByText("Modèle SMS créé", { exact: true })).toBeVisible()
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(393)
+})

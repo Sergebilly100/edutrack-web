@@ -263,7 +263,8 @@ const permissionCatalogueSchema = z.object({
   }
   for (const permission of catalogue.permissions) {
     if (permission.requiredPermissions.some((key) => !keys.has(key)) ||
-        permission.available !== permission.activationDependencies.every((dependency) => dependency.enabled) ||
+        (permission.available && permission.activationDependencies.some((dependency) => !dependency.enabled)) ||
+        (permission.available && permission.unavailableReason !== null) ||
         (!permission.available && !permission.unavailableReason)) {
       ctx.addIssue({ code: "custom", message: "Les dépendances du catalogue sont incohérentes." })
     }

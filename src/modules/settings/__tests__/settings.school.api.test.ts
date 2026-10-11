@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { apiClient } from "@/shared/api/client"
 import { fetchAdministrationConfig, fetchSchoolConfig, fetchPermissionCatalogue, updateSchoolInfo } from "../settings.api"
+import { buildPermissionCatalogue } from "../../../../../edutrack-api/src/modules/permissions/permissions.catalogue"
 
 vi.mock("@/shared/api/client", () => ({ apiClient: { patch: vi.fn(), get: vi.fn() } }))
 beforeEach(() => { vi.resetAllMocks() })
@@ -55,5 +56,25 @@ describe("lectures école et administration séparées", () => {
   it("refuse une version de contrat inconnue", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ data: { version: 2, permissions: [] } })
     await expect(fetchPermissionCatalogue()).rejects.toThrow()
+  })
+
+  it("accepte le catalogue réel avec un droit réservé à la direction", async () => {
+    const catalogue = buildPermissionCatalogue({ canEditSmsTemplate: true, smsEnabled: true, monetizeParentAlerts: true })
+    vi.mocked(apiClient.get).mockResolvedValue({ data: catalogue })
+    await expect(fetchPermissionCatalogue()).resolves.toEqual(catalogue)
+    expect(catalogue.permissions.find((entry) => entry.key === "report_cards.published_correction")).toMatchObject({
+      available: false, activationDependencies: [],
+    })
+  })
+
+  it("refuse un droit indiqué disponible alors qu’une activation manque", async () => {
+    const catalogue = buildPermissionCatalogue({ canEditSmsTemplate: false, smsEnabled: true, monetizeParentAlerts: true })
+    const sms = catalogue.permissions.find((entry) => entry.key === "settings.sms_templates")!
+    vi.mocked(apiClient.get).mockResolvedValue({ data: {
+      ...catalogue,
+      permissions: catalogue.permissions.map((entry) => entry.key === sms.key
+        ? { ...sms, available: true, unavailableReason: null } : entry),
+    } })
+    await expect(fetchPermissionCatalogue()).rejects.toThrow("Les dépendances du catalogue sont incohérentes")
   })
 })

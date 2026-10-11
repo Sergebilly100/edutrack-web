@@ -68,7 +68,10 @@ export default function SettingsPage() {
   const canViewConductSettings = canManagePositions || canEditConductPolicy
   const canManageSchoolSettings = user?.role === "director" || hasPermission("settings.school")
   const tour = useTourGuide("settings", user?.role === "director")
-  const canAccessSmsTemplate = user?.role === "director" || hasPermission("settings.sms_templates")
+  const canEditSmsTemplate = hasPermission("settings.sms_templates")
+  const canAccessSmsTemplate = user?.role === "director" || canEditSmsTemplate
+  const smsTemplateAccessLabel = !canAccessSmsTemplate ? "Lecture restreinte"
+    : canEditSmsTemplate ? "Modifiables" : "Activation requise"
   const canViewRequiredDocuments = user?.role === "director" || hasPermission("enrollments.view")
   const canEditRequiredDocuments = user?.role === "director" || hasPermission("enrollments.edit")
   const canViewTuition = user?.role === "director" || hasPermission("tuition.view") || canEditTuition
@@ -254,7 +257,7 @@ export default function SettingsPage() {
           <div className="bg-background px-4 py-3">
             <p className="text-[11px] font-medium uppercase text-muted-foreground">Templates</p>
             <p className="mt-1 truncate text-sm font-medium">
-              {canAccessSmsTemplate ? "Modifiables" : "Lecture restreinte"}
+              {smsTemplateAccessLabel}
             </p>
           </div>
         </div>
@@ -387,7 +390,7 @@ export default function SettingsPage() {
       {canAccessSmsTemplate ? (
         <TabsContent value="communication" data-tour="settings-sms-templates-panel">
         <OfflineDisabledFieldset notice="Templates SMS indisponibles hors ligne.">
-          <SmsTemplatePanel />
+          <SmsTemplatePanel canReadTemplate={canEditSmsTemplate} />
         </OfflineDisabledFieldset>
         </TabsContent>
       ) : null}
