@@ -57,7 +57,8 @@ vi.mock("@/modules/teachers/teachers.api", () => ({
 }))
 
 vi.mock("@/modules/schedule/components/WeekGrid", () => ({
-  default: () => <div data-testid="week-grid">WeekGrid</div>,
+  default: ({ slots }: { slots: Array<{ id: string }> }) =>
+    <div data-testid="week-grid">{slots.map((slot) => slot.id).join(",")}</div>,
 }))
 
 vi.mock("@/shared/components/OfflineIndicator", () => ({
@@ -172,10 +173,106 @@ describe("SchedulePeriods", () => {
     const addButton = view.container.querySelector<HTMLButtonElement>('[data-tour="schedule-add-btn"]')
     expect(addButton).not.toBeNull()
     fireEvent.click(addButton!)
-    const comboboxes = screen.getAllByRole("combobox")
-    fireEvent.click(comboboxes[1]!)
+    fireEvent.click(screen.getAllByRole("combobox")[1]!)
 
     const option = await screen.findByRole("option", { name: "Mme Kouamé (bloqué)" })
     expect(option).toHaveAttribute("data-disabled")
+  })
+})
+
+describe("filtres de consultation EDT", () => {
+  const period = { id: "p1", name: "Trimestre 1", validFrom: "2026-01-01", validTo: "2026-12-31", isActive: true }
+  const makeSlot = (id: string, levelId: string | null, classId: string, teacherId: string) => ({
+    id, schedulePeriodId: "p1", dayOfWeek: 1, subject: "Mathématiques", subjectDisplay: "Mathématiques",
+    startDate: null, endDate: null, pastAttendanceCount: 0, hasPastAttendance: false,
+    teacher: { id: teacherId, name: teacherId, username: teacherId },
+    class: { id: classId, name: classId, levelId, levelName: levelId },
+    room: { id: "r1", name: "Salle 1", qrToken: "qr" },
+    timeSlot: { id: "ts1", label: "08:00", startTime: "08:00", endTime: "09:00", sortOrder: 1 },
+  })
+
+  beforeEach(() => {
+    window.localStorage.setItem("schedule-view-mode", "grid")
+    fetchWeeklyScheduleMock.mockResolvedValue({
+      ...makeScheduleData(period),
+      schedules: [
+        makeSlot("cours-6a", "level-6", "6A", "prof-a"),
+        makeSlot("cours-5a", "level-5", "5A", "prof-a"),
+        makeSlot("cours-sans-niveau", null, "NA", "prof-b"),
+      ],
+      catalog: {
+        teachers: [
+          { id: "prof-a", name: "Prof A", username: "a", subjects: [], teachingAssignments: [] },
+          { id: "prof-b", name: "Prof B", username: "b", subjects: [], teachingAssignments: [] },
+        ],
+        classes: [
+          { id: "6A", name: "6A", levelId: "level-6", levelName: "6ème" },
+          { id: "5A", name: "5A", levelId: "level-5", levelName: "5ème" },
+          { id: "NA", name: "NA", levelId: null, levelName: null },
+        ],
+        rooms: [], timeSlots: [makeSlot("unused", "level-6", "6A", "prof-a").timeSlot],
+      },
+    })
+  })
+
+  it("combine niveau, professeur et classe dans la grille et conserve Tous les niveaux", async () => {
+    renderSchedulePage()
+    await screen.findByText("cours-6a,cours-5a,cours-sans-niveau")
+    fireEvent.click(screen.getByRole("combobox", { name: "Filtrer par niveau" }))
+    fireEvent.click(await screen.findByRole("option", { name: "6ème" }))
+    expect(screen.getByTestId("week-grid")).toHaveTextContent("cours-6a")
+    expect(screen.getByTestId("week-grid")).not.toHaveTextContent("cours-5a")
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Filtrer par professeur" }))
+    fireEvent.click(await screen.findByRole("option", { name: "Prof A" }))
+    fireEvent.click(screen.getByRole("combobox", { name: "Filtrer par classe" }))
+    expect(screen.queryByRole("option", { name: "5A" })).not.toBeInTheDocument()
+    fireEvent.click(await screen.findByRole("option", { name: "6A" }))
+    expect(screen.getByTestId("week-grid")).toHaveTextContent("cours-6a")
+
+    fireEvent.click(screen.getByRole("button", { name: /effacer le filtre niveau/i }))
+    expect(screen.getByTestId("week-grid")).toHaveTextContent("cours-6a")
+    fireEvent.click(screen.getByRole("button", { name: /effacer le filtre classe/i }))
+    expect(screen.getByTestId("week-grid")).toHaveTextContent("cours-5a")
+    fireEvent.click(screen.getByRole("button", { name: /effacer le filtre professeur/i }))
+    expect(screen.getByTestId("week-grid")).toHaveTextContent("cours-sans-niveau")
+  })
+
+  it("réinitialise la classe incompatible et affiche un état vide en liste et sur mobile", async () => {
+    renderSchedulePage()
+    await screen.findByText("cours-6a,cours-5a,cours-sans-niveau")
+    fireEvent.click(screen.getByRole("combobox", { name: "Filtrer par classe" }))
+    fireEvent.click(await screen.findByRole("option", { name: "5A" }))
+    fireEvent.click(screen.getByRole("combobox", { name: "Filtrer par niveau" }))
+    fireEvent.click(await screen.findByRole("option", { name: "6ème" }))
+    expect(screen.getByRole("combobox", { name: "Filtrer par classe" })).toHaveTextContent("Toutes les classes")
+    expect(screen.getByTestId("week-grid")).toHaveTextContent("cours-6a")
+    expect(fetchWeeklyScheduleMock).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Filtrer par professeur" }))
+    fireEvent.click(await screen.findByRole("option", { name: "Prof B" }))
+    expect(screen.getByText("Aucun cours pour ces filtres")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Liste" }))
+    expect(screen.queryByText("cours-6a")).not.toBeInTheDocument()
+    expect(screen.getByText("Aucun cours ce jour")).toBeInTheDocument()
+  })
+
+  it("applique le niveau à la liste desktop et aux cours mobiles", async () => {
+    window.localStorage.setItem("schedule-view-mode", "list")
+    const view = renderSchedulePage()
+    await screen.findByRole("combobox", { name: "Filtrer par niveau" })
+    await waitFor(() => expect(fetchWeeklyScheduleMock).toHaveBeenCalled())
+    fireEvent.click(screen.getByRole("combobox", { name: "Filtrer par niveau" }))
+    fireEvent.click(await screen.findByRole("option", { name: "6ème" }))
+
+    const desktopTable = view.container.querySelector("table")
+    expect(desktopTable).not.toBeNull()
+    expect(desktopTable).toHaveTextContent("6A")
+    expect(desktopTable).not.toHaveTextContent("5A")
+    expect(desktopTable).not.toHaveTextContent("NA")
+    const mobileCard = [...view.container.querySelectorAll(".md\\:hidden")]
+      .find((element) => element.textContent?.includes("Créneaux par jour"))
+    expect(mobileCard).toHaveTextContent("6A")
+    expect(mobileCard).not.toHaveTextContent("5A")
   })
 })

@@ -37,4 +37,28 @@ describe("schedule API subject display", () => {
     expect((await fetchTeacherSchedule())[0]?.subject_name).toBe("Maths")
     expect((await fetchTeacherSchedule())[0]?.subject_name).toBe("Mathématiques")
   })
+
+  it("normalise les niveaux du catalogue et des créneaux, y compris une classe sans niveau", async () => {
+    getMock.mockResolvedValueOnce({ data: {
+      date: "2026-10-05", period: null,
+      schedules: [
+        { ...schedule, class: { ...schedule.class, levelId: "l6", levelName: "6ème" } },
+        { ...schedule, id: "slot-2", class: { id: "class-2", name: "Ancienne classe", levelId: null, levelName: null } },
+      ],
+      teachers: [],
+      classes: [
+        { id: "class-1", name: "6ème A", levelId: "l6", levelName: "6ème" },
+        { id: "class-2", name: "Ancienne classe", levelId: null, levelName: null },
+      ],
+      rooms: [], time_slots: [],
+    } })
+
+    const weekly = await fetchWeeklySchedule("2026-10-05")
+    expect(weekly.catalog.classes.map((item) => [item.levelId, item.levelName])).toEqual([
+      ["l6", "6ème"], [null, null],
+    ])
+    expect(weekly.schedules.map((item) => [item.class.levelId, item.class.levelName])).toEqual([
+      ["l6", "6ème"], [null, null],
+    ])
+  })
 })

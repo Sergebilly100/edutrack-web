@@ -18,6 +18,8 @@ export type TeacherCatalogItem = {
 export type ClassCatalogItem = {
   id: string
   name: string
+  levelId: string | null
+  levelName: string | null
 }
 
 export type RoomCatalogItem = {
@@ -61,6 +63,8 @@ export type ScheduleRow = {
   class: {
     id: string
     name: string
+    levelId: string | null
+    levelName: string | null
   }
   room: {
     id: string
@@ -169,6 +173,8 @@ const ScheduleRowSchema = z.object({
   class: z.object({
     id: z.string(),
     name: z.string(),
+    levelId: z.string().nullable().optional().default(null),
+    levelName: z.string().nullable().optional().default(null),
   }),
   room: z.object({
     id: z.string(),
@@ -203,7 +209,12 @@ const WeeklyScheduleResponseSchema = z.object({
       teaching_assignments: z.array(z.object({ subjectId: z.string(), subjectName: z.string(), classId: z.string(), className: z.string() })).default([]),
     })
   ),
-  classes: z.array(z.object({ id: z.string(), name: z.string() })),
+  classes: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    levelId: z.string().nullable().optional().default(null),
+    levelName: z.string().nullable().optional().default(null),
+  })),
   rooms: z.array(z.object({ id: z.string(), name: z.string(), qrToken: z.string() })),
   time_slots: z.array(
     z.object({

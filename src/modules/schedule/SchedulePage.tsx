@@ -231,6 +231,7 @@ export default function SchedulePage() {
   const tour = useTourGuide("schedule", !!user)
 
   const [teacherFilter, setTeacherFilter] = useState("all")
+  const [levelFilter, setLevelFilter] = useState("all")
   const [classFilter, setClassFilter] = useState("all")
   const [mobileDay, setMobileDay] = useState("1")
   const [viewMode, setViewMode] = useState<ViewMode>(() => getInitialViewMode())
@@ -357,16 +358,43 @@ export default function SchedulePage() {
     }
   }, [formState.classId, selectedTeacherClasses])
 
+  const levelOptions = useMemo(() => {
+    const levels = new Map<string, string>()
+    for (const schoolClass of data?.catalog.classes ?? []) {
+      if (schoolClass.levelId && schoolClass.levelName) {
+        levels.set(schoolClass.levelId, schoolClass.levelName)
+      }
+    }
+    return [...levels].map(([id, name]) => ({ id, name }))
+  }, [data?.catalog.classes])
+
+  const visibleClassOptions = useMemo(
+    () => (data?.catalog.classes ?? []).filter(
+      (schoolClass) => levelFilter === "all" || schoolClass.levelId === levelFilter
+    ),
+    [data?.catalog.classes, levelFilter]
+  )
+
+  const changeLevelFilter = (levelId: string) => {
+    setLevelFilter(levelId)
+    if (classFilter !== "all" && !(data?.catalog.classes ?? []).some(
+      (schoolClass) => schoolClass.id === classFilter && (levelId === "all" || schoolClass.levelId === levelId)
+    )) {
+      setClassFilter("all")
+    }
+  }
+
   const filteredSchedules = useMemo(() => {
     if (!data?.period) return []
     return sortSchedules(
       data.schedules.filter((item) => {
         const teacherOk = teacherFilter === "all" || item.teacher.id === teacherFilter
+        const levelOk = levelFilter === "all" || item.class.levelId === levelFilter
         const classOk = classFilter === "all" || item.class.id === classFilter
-        return teacherOk && classOk
+        return teacherOk && levelOk && classOk
       })
     )
-  }, [classFilter, data, teacherFilter])
+  }, [classFilter, data, levelFilter, teacherFilter])
 
   // Vue liste : lignes + index d'affectation par plage horaire
   const { rows: listRows, assign: listAssign } = useMemo(
@@ -824,9 +852,22 @@ export default function SchedulePage() {
           {/* Séparateur visuel */}
           <div className="h-7 w-px bg-border" aria-hidden="true" />
 
+          {/* Filtre niveau */}
+          <Select value={levelFilter} onValueChange={changeLevelFilter} disabled={!data}>
+            <SelectTrigger aria-label="Filtrer par niveau" className="min-h-[48px] w-full min-w-0 text-xs sm:w-auto sm:min-w-[150px]">
+              <SelectValue placeholder="Tous les niveaux" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les niveaux</SelectItem>
+              {levelOptions.map((level) => (
+                <SelectItem key={level.id} value={level.id}>{level.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           {/* Filtre professeur */}
           <Select value={teacherFilter} onValueChange={setTeacherFilter} disabled={!data}>
-            <SelectTrigger className="min-h-10 w-auto min-w-[160px] text-xs">
+            <SelectTrigger aria-label="Filtrer par professeur" className="min-h-[48px] w-full min-w-0 text-xs sm:w-auto sm:min-w-[160px]">
               <SelectValue placeholder="Tous les professeurs" />
             </SelectTrigger>
             <SelectContent>
@@ -839,37 +880,45 @@ export default function SchedulePage() {
 
           {/* Filtre classe */}
           <Select value={classFilter} onValueChange={setClassFilter} disabled={!data}>
-            <SelectTrigger className="min-h-10 w-auto min-w-[140px] text-xs">
+            <SelectTrigger aria-label="Filtrer par classe" className="min-h-[48px] w-full min-w-0 text-xs sm:w-auto sm:min-w-[140px]">
               <SelectValue placeholder="Toutes les classes" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Toutes les classes</SelectItem>
-              {(data?.catalog.classes ?? []).map((c) => (
+              {visibleClassOptions.map((c) => (
                 <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
 
           {/* Badges de filtres actifs */}
+          {levelFilter !== "all" && (
+            <Button type="button" variant="secondary" size="sm" className="min-h-[48px] gap-1 text-xs"
+              onClick={() => changeLevelFilter("all")}
+              aria-label={`Effacer le filtre niveau ${levelOptions.find((level) => level.id === levelFilter)?.name ?? ""}`}>
+              Niveau : {levelOptions.find((level) => level.id === levelFilter)?.name ?? "Niveau"}
+              <span aria-hidden="true" className="opacity-60">✕</span>
+            </Button>
+          )}
           {teacherFilter !== "all" && (
-            <Badge
-              variant="secondary"
-              className="cursor-pointer gap-1 text-xs"
+            <Button type="button" variant="secondary" size="sm"
+              className="min-h-[48px] gap-1 text-xs"
               onClick={() => setTeacherFilter("all")}
+              aria-label="Effacer le filtre professeur"
             >
               {data?.catalog.teachers.find((t) => t.id === teacherFilter)?.name ?? "Prof"}
               <span aria-hidden="true" className="opacity-60">✕</span>
-            </Badge>
+            </Button>
           )}
           {classFilter !== "all" && (
-            <Badge
-              variant="secondary"
-              className="cursor-pointer gap-1 text-xs"
+            <Button type="button" variant="secondary" size="sm"
+              className="min-h-[48px] gap-1 text-xs"
               onClick={() => setClassFilter("all")}
+              aria-label="Effacer le filtre classe"
             >
               {data?.catalog.classes.find((c) => c.id === classFilter)?.name ?? "Classe"}
               <span aria-hidden="true" className="opacity-60">✕</span>
-            </Badge>
+            </Button>
           )}
         </div>
       </header>
@@ -888,6 +937,14 @@ export default function SchedulePage() {
         <Alert>
           <AlertDescription>Aucune période active. Importez l'emploi du temps avec ses dates d&apos;application avant d&apos;ajouter ou modifier des créneaux.</AlertDescription>
         </Alert>
+      ) : null}
+      {!scheduleQuery.isLoading && data?.period && filteredSchedules.length === 0 &&
+        (levelFilter !== "all" || teacherFilter !== "all" || classFilter !== "all") ? (
+        <EmptyState
+          icon={ScheduleIcon}
+          title="Aucun cours pour ces filtres"
+          message="Essayez un autre niveau, professeur ou classe."
+        />
       ) : null}
 
       {!scheduleQuery.isLoading && data && viewMode === "grid" ? (

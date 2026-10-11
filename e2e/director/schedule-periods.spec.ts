@@ -102,9 +102,10 @@ test.describe("Périodes EDT - directeur", () => {
     await loginAsDirectorUI(page)
 
     await page.goto("/schedule")
-    await expect(
-      page.getByText(/aucune période active pour cette semaine/i)
-    ).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole("alert")).toContainText(
+      "Aucune période active. Importez l'emploi du temps",
+      { timeout: 10000 }
+    )
   })
 
   test("affiche le nom de la période active dans l'en-tête", async ({ page }) => {
@@ -120,4 +121,49 @@ test.describe("Périodes EDT - directeur", () => {
 
   // Duplication is API-only in the current product, covered with persistence
   // by qa.school-workflows.routes.test.ts; no conditionally skipped UI promise.
+})
+
+test("filtre Niveau utilisable au clavier sur petits écrans", async ({ page }) => {
+  await mockDirectorAuth(page)
+  await page.route("**/api/v1/auth/login/teacher", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+      accessToken: "director-e2e-token", tokenType: "Bearer", expiresIn: "15m",
+      user: { id: "director-e2e-user", role: "director", name: "Directeur E2E", phone: null, email: null, profilePhotoUrl: null },
+    }) })
+  })
+  await mockScheduleApis(page)
+  await page.route("**/api/v1/schedule/weekly*", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+      date: "2026-06-02",
+      period: { id: PERIOD_ID, name: "Trimestre 1", valid_from: "2026-01-01", valid_to: "2026-12-31", is_active: true },
+      schedules: [], teachers: [], rooms: [], time_slots: [],
+      classes: [{ id: "class-6", name: "6A", levelId: "level-6", levelName: "6ème" }],
+    }) })
+  })
+  await page.addInitScript(() => localStorage.setItem("schedule-view-mode", "list"))
+  await loginAsDirectorUI(page)
+
+  for (const width of [320, 360, 393]) {
+    await page.setViewportSize({ width, height: 740 })
+    await page.goto("/schedule")
+    const level = page.getByRole("combobox", { name: "Filtrer par niveau" })
+    await expect(level).toBeVisible()
+    for (const name of ["Filtrer par niveau", "Filtrer par professeur", "Filtrer par classe"]) {
+      const box = await page.getByRole("combobox", { name }).boundingBox()
+      expect(box).not.toBeNull()
+      expect(box!.x).toBeGreaterThanOrEqual(0)
+      expect(box!.x + box!.width).toBeLessThanOrEqual(width)
+      expect(box!.height).toBeGreaterThanOrEqual(48)
+    }
+    await level.focus()
+    await page.keyboard.press("Enter")
+    const levelOption = page.getByRole("option", { name: "6ème" })
+    await expect(levelOption).toBeVisible()
+    await levelOption.focus()
+    await page.keyboard.press("Enter")
+    await expect(level).toContainText("6ème")
+    await expect(page.getByRole("button", { name: /effacer le filtre niveau/i })).toBeVisible()
+    await page.getByRole("button", { name: /effacer le filtre niveau/i }).click()
+    await expect(level).toContainText("Tous les niveaux")
+  }
 })
