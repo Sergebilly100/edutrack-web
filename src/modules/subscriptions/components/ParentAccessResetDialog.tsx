@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { CheckCircle2, Copy, Mail, MessageSquare } from "lucide-react"
+import { CheckCircle2, Copy, Hand, Mail, MessageSquare } from "lucide-react"
 import { z } from "zod"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -25,6 +25,7 @@ export function ParentAccessResetDialog({ parent, onClose }: { parent: Subscript
   const emailAvailable = usableEmail(parent.email)
   const [sms, setSms] = useState(phoneAvailable)
   const [email, setEmail] = useState(false)
+  const [physicalDelivery, setPhysicalDelivery] = useState(!phoneAvailable && !emailAvailable)
   const [result, setResult] = useState<ParentAccessResetResult | null>(null)
   const [pending, setPending] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -37,7 +38,7 @@ export function ParentAccessResetDialog({ parent, onClose }: { parent: Subscript
 
   const selected: Channel[] = [sms && phoneAvailable ? "sms" : null, email && emailAvailable ? "email" : null]
     .filter((channel): channel is Channel => channel !== null)
-  const manualOnly = selected.length === 0 && !phoneAvailable && !emailAvailable
+  const manualOnly = physicalDelivery
 
   const statusQuery = useQuery({
     queryKey: ["subscriptions", "access-status", parent.parent_id, result?.rotation_id],
@@ -106,7 +107,7 @@ export function ParentAccessResetDialog({ parent, onClose }: { parent: Subscript
               ))}
               {!phoneAvailable ? <p className="text-sm text-muted-foreground">SMS : indisponible, numéro absent ou invalide</p> : null}
               {!emailAvailable ? <p className="text-sm text-muted-foreground">E-mail : indisponible, adresse absente ou invalide</p> : null}
-              {!states.length ? <p className="text-sm text-amber-700">Aucun canal disponible. Copiez l’accès et remettez-le au parent de façon sûre.</p> : null}
+              {!states.length ? <p className="text-sm text-amber-700">Aucune notification demandée. Copiez l’accès et remettez-le au parent en main propre.</p> : null}
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" className="min-h-12" onClick={copy}><Copy className="mr-2 h-4 w-4" />{copied ? "Copié" : "Copier l’accès"}</Button>
@@ -118,22 +119,27 @@ export function ParentAccessResetDialog({ parent, onClose }: { parent: Subscript
           </div>
         ) : (
           <div className="space-y-4">
-            <p className="text-sm">Choisissez les canaux avant de créer le nouveau mot de passe.</p>
+            <p className="text-sm">Choisissez les canaux ou la remise en main propre avant de créer le nouveau mot de passe.</p>
             <label className="flex min-h-12 items-center gap-3 rounded-lg border p-3">
-              <Checkbox checked={sms} onCheckedChange={(checked) => setSms(checked === true)} disabled={!phoneAvailable || pending} aria-label="Envoyer par SMS" />
+              <Checkbox checked={sms} onCheckedChange={(checked) => { setSms(checked === true); if (checked === true) setPhysicalDelivery(false) }} disabled={!phoneAvailable || pending} aria-label="Envoyer par SMS" />
               <MessageSquare className="h-4 w-4 shrink-0" aria-hidden="true" />
               <span className="min-w-0 text-sm">SMS <span className="block break-all text-muted-foreground">{phoneAvailable ? parent.phone : "Numéro absent ou invalide"}</span></span>
             </label>
             <label className="flex min-h-12 items-center gap-3 rounded-lg border p-3">
-              <Checkbox checked={email} onCheckedChange={(checked) => setEmail(checked === true)} disabled={!emailAvailable || pending} aria-label="Envoyer par e-mail" />
+              <Checkbox checked={email} onCheckedChange={(checked) => { setEmail(checked === true); if (checked === true) setPhysicalDelivery(false) }} disabled={!emailAvailable || pending} aria-label="Envoyer par e-mail" />
               <Mail className="h-4 w-4 shrink-0" aria-hidden="true" />
               <span className="min-w-0 text-sm">E-mail <span className="block break-all text-muted-foreground">{emailAvailable ? parent.email : "Adresse absente ou invalide"}</span></span>
             </label>
-            {manualOnly ? <Alert><AlertDescription>Aucune coordonnée utilisable. Générez l’accès pour le copier et le remettre au parent de façon sûre.</AlertDescription></Alert> : null}
+            <label className="flex min-h-12 items-center gap-3 rounded-lg border p-3">
+              <Checkbox checked={physicalDelivery} onCheckedChange={(checked) => { setPhysicalDelivery(checked === true); if (checked === true) { setSms(false); setEmail(false) } }} disabled={pending} aria-label="Ne pas envoyer de notification, transmission physique" />
+              <Hand className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 text-sm">Ne pas envoyer de notification <span className="block text-muted-foreground">Transmission physique au parent</span></span>
+            </label>
+            {manualOnly ? <Alert><AlertDescription>Aucun SMS ni e-mail ne sera envoyé. Copiez l’accès après la réinitialisation et remettez-le au parent en main propre.</AlertDescription></Alert> : null}
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" className="min-h-12" onClick={onClose} disabled={pending}>Annuler</Button>
               <Button type="button" className="min-h-12" onClick={submit} disabled={pending || (!selected.length && !manualOnly)}>
-                {pending ? "Réinitialisation en cours…" : manualOnly ? "Réinitialiser pour copier" : "Réinitialiser et envoyer"}
+                {pending ? "Réinitialisation en cours…" : manualOnly ? "Réinitialiser pour remise en main propre" : "Réinitialiser et envoyer"}
               </Button>
             </div>
           </div>

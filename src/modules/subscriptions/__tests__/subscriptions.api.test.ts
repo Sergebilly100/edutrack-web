@@ -86,6 +86,16 @@ describe("subscriptions.api", () => {
     expect(result.new_temp_password).toBe("SAFE234567")
   })
 
+  it("transmet la remise physique sans canal de notification", async () => {
+    postMock.mockResolvedValueOnce({ data: { new_temp_password: "SAFE234567", channels: [] } })
+    await resetParentSubscriptionPassword("parent-1", [], true)
+    expect(postMock).toHaveBeenCalledWith(
+      "/subscriptions/parents/parent-1/reset-password",
+      { channels: [], manual_only: true },
+      { signal: undefined }
+    )
+  })
+
   it("requests revenue stats for the selected month and normalizes missing fields", async () => {
     getMock.mockResolvedValueOnce({
       data: {

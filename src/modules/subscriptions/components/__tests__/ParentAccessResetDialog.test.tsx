@@ -76,7 +76,32 @@ describe("ParentAccessResetDialog", () => {
     renderDialog({ ...parent, phone: "", email: null })
     expect(screen.getByRole("checkbox", { name: "Envoyer par SMS" })).toBeDisabled()
     expect(screen.getByRole("checkbox", { name: "Envoyer par e-mail" })).toBeDisabled()
-    fireEvent.click(screen.getByRole("button", { name: "Réinitialiser pour copier" }))
+    expect(screen.getByRole("checkbox", { name: "Ne pas envoyer de notification, transmission physique" })).toBeChecked()
+    fireEvent.click(screen.getByRole("button", { name: "Réinitialiser pour remise en main propre" }))
     await waitFor(() => expect(resetMock).toHaveBeenCalledWith(parent.parent_id, [], true, expect.any(AbortSignal)))
+  })
+
+  it("permet la transmission physique même quand les coordonnées sont utilisables", async () => {
+    resetMock.mockResolvedValueOnce({
+      parent_id: parent.parent_id, login: parent.phone, new_temp_password: "SAFE234567",
+      rotation_id: "22222222-2222-4222-8222-222222222222", channels: [],
+    })
+    renderDialog()
+    const physical = screen.getByRole("checkbox", { name: "Ne pas envoyer de notification, transmission physique" })
+    const sms = screen.getByRole("checkbox", { name: "Envoyer par SMS" })
+    const email = screen.getByRole("checkbox", { name: "Envoyer par e-mail" })
+    expect(sms).toBeChecked()
+    fireEvent.click(physical)
+    expect(sms).not.toBeChecked()
+    expect(email).not.toBeChecked()
+    fireEvent.click(email)
+    expect(physical).not.toBeChecked()
+    fireEvent.click(physical)
+    expect(email).not.toBeChecked()
+    fireEvent.click(screen.getByRole("button", { name: "Réinitialiser pour remise en main propre" }))
+    await screen.findByText("SAFE234567")
+    expect(resetMock).toHaveBeenCalledWith(parent.parent_id, [], true, expect.any(AbortSignal))
+    expect(screen.getByText(/Aucune notification demandée/)).toBeInTheDocument()
+    expect(statusMock).not.toHaveBeenCalled()
   })
 })
