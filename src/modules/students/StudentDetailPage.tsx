@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
-import { Archive, BookOpen, CircleAlert, CircleCheck, Clock3, GraduationCap, Landmark, MessageSquare, Phone, UserCheck } from "lucide-react"
+import { Archive, CircleAlert, CircleCheck, GraduationCap, MessageSquare, Phone } from "lucide-react"
 import { useDebounce } from "@/shared/hooks/useDebounce"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { ApiError } from "@/shared/api/client"
@@ -153,6 +153,13 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
   const selectedYear = selectedYearId === "all"
     ? null
     : academicYears.find((year) => year.schoolYearId === selectedYearId) ?? null
+  const selectHistoricalYear = (value: string) => {
+    setSelectedSchoolYearId(value)
+    setRecentAbsencesPage(1)
+    setAbsenceFilterMonth("all")
+    setAbsenceFilterSubject("all")
+    setAbsenceFilterStatus("all")
+  }
   const absenceRange = historical && selectedYear?.startDate && selectedYear?.endDate
     ? { from: selectedYear.startDate, to: selectedYear.endDate }
     : ABSENCE_HISTORY_RANGE
@@ -502,95 +509,81 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
               ) : null}
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={historical ? "outline" : student.isActive ? "secondary" : "destructive"} className="gap-1.5 rounded-md px-2.5 py-1">
-              {historical ? <Archive className="h-3.5 w-3.5" aria-hidden="true" /> : null}
-              {historical ? "Dossier historique" : student.isActive ? "Actif" : "Inactif"}
-            </Badge>
-            {!historical ? <Badge variant={student.absenceSummary.thisMonth > 3 ? "destructive" : "outline"} className="gap-1.5 rounded-md px-2.5 py-1">
-              {absenceRiskLabel}
-            </Badge> : null}
-          </div>
+          {historical ? (
+            <div className="w-full space-y-2 md:w-auto md:min-w-[18rem]">
+              <div className="flex justify-end"><Badge variant="outline" className="gap-1.5 rounded-md px-2.5 py-1"><Archive className="h-3.5 w-3.5" aria-hidden="true" />Dossier historique</Badge></div>
+              <Label htmlFor="student-school-year">Année scolaire consultée</Label>
+              <Select value={selectedYearId} onValueChange={selectHistoricalYear}>
+                <SelectTrigger id="student-school-year" className="min-h-12 w-full bg-background">
+                  <SelectValue placeholder="Choisir une année scolaire" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes les années</SelectItem>
+                  {academicYears.map((year) => <SelectItem key={year.schoolYearId} value={year.schoolYearId}>{year.schoolYearLabel} · {year.className}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="grid w-full gap-3 border-t pt-4 text-sm sm:grid-cols-2 md:w-auto md:min-w-[22rem] md:border-l md:border-t-0 md:pl-5 md:pt-0">
+              <div>
+                <p className="text-muted-foreground">Contact parent</p>
+                <p className="mt-1 font-semibold">{hasParentContact ? "Renseigné" : "Manquant"}</p>
+              </div>
+              <div className="sm:border-l sm:pl-4">
+                <p className="text-muted-foreground">Statut</p>
+                <div className="mt-1 flex items-center gap-2 font-semibold"><span className={`h-2 w-2 rounded-full ${student.isActive ? "bg-green-600" : "bg-red-600"}`} aria-hidden="true" />{student.isActive ? "Actif" : "Inactif"}</div>
+              </div>
+            </div>
+          )}
         </div>
-        <div className="grid border-t bg-muted/20 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="border-b px-4 py-3.5 sm:border-r lg:border-b-0">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{historical ? "Absences de la sélection" : "Absences ce mois"}</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums">{historical ? canViewAttendance ? absenceRows.length : "-" : student.absenceSummary.thisMonth}</p>
-          </div>
-          <div className="border-b px-4 py-3.5 lg:border-b-0 lg:border-r">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{historical ? "Année consultée" : "Absences cette semaine"}</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums">{historical ? selectedYear?.schoolYearLabel ?? "Toutes" : student.absenceSummary.thisWeek}</p>
-          </div>
-          <div className="border-b px-4 py-3.5 sm:border-r lg:border-b-0">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Contact parent</p>
-            <p className="mt-1 truncate text-sm font-semibold">{hasParentContact ? "Renseigné" : "Manquant"}</p>
-          </div>
-          <div className="px-4 py-3.5">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Alertes envoyées</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums">{sentSmsCount}</p>
-          </div>
-        </div>
+        {historical ? <div className="grid border-t bg-muted/20 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="border-b px-4 py-3.5 sm:border-r lg:border-b-0"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Absences de la sélection</p><p className="mt-1 text-xl font-semibold tabular-nums">{canViewAttendance ? absenceRows.length : "-"}</p></div>
+          <div className="border-b px-4 py-3.5 lg:border-b-0 lg:border-r"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Année consultée</p><p className="mt-1 text-xl font-semibold tabular-nums">{selectedYear?.schoolYearLabel ?? "Toutes"}</p></div>
+          <div className="border-b px-4 py-3.5 sm:border-r lg:border-b-0"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Contact parent</p><p className="mt-1 truncate text-sm font-semibold">{hasParentContact ? "Renseigné" : "Manquant"}</p></div>
+          <div className="px-4 py-3.5"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Alertes envoyées</p><p className="mt-1 text-xl font-semibold tabular-nums">{sentSmsCount}</p></div>
+        </div> : null}
       </section>
 
-      {historical ? <section className="mt-4 grid gap-4 rounded-lg border bg-card p-4 sm:grid-cols-[minmax(0,1fr)_minmax(15rem,24rem)] sm:items-end sm:p-5">
+      {student.historicalSources?.length ? <section className="mt-4 grid gap-4 rounded-lg border border-dashed bg-muted/20 p-4 sm:grid-cols-[minmax(0,1fr)_minmax(15rem,24rem)] sm:p-5" aria-label="Références historiques importées">
         <div>
-          <Label htmlFor="student-school-year">Année scolaire consultée</Label>
-          <Select value={selectedYearId} onValueChange={(value) => {
-            setSelectedSchoolYearId(value)
-            setRecentAbsencesPage(1)
-            setAbsenceFilterMonth("all")
-            setAbsenceFilterSubject("all")
-            setAbsenceFilterStatus("all")
-          }}>
-            <SelectTrigger id="student-school-year" className="mt-2 min-h-12 w-full sm:max-w-sm">
-              <SelectValue placeholder="Choisir une année scolaire" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Toutes les années</SelectItem>
-              {academicYears.map((year) => <SelectItem key={year.schoolYearId} value={year.schoolYearId}>{year.schoolYearLabel} · {year.className}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <h2 className="text-sm font-semibold">Références importées</h2>
+          <ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">{student.historicalSources.map((source) => <li key={source.schoolYearLabel}><span className="font-medium text-foreground">{source.schoolYearLabel}</span> · Ancienne classe : {source.oldClassName ?? "non renseignée"}</li>)}</ul>
         </div>
-        <div className="border-t pt-3 text-sm text-muted-foreground sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
-          Les absences, bulletins, documents datés, événements et notifications suivent cette sélection. Les contacts parents restent les coordonnées actuelles du dossier.
+        <div className="flex gap-3 border-t pt-3 text-sm text-muted-foreground sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
+          <Archive className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" aria-hidden="true" />
+          <p>Ces références complètent le dossier, mais ne constituent pas des inscriptions.</p>
         </div>
       </section> : null}
 
-      {student.historicalSources?.length ? <section className="mt-4 flex flex-col gap-3 rounded-lg border border-dashed bg-muted/20 p-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-sm font-semibold">Historique importé</h2>
-          <ul className="mt-1 space-y-1 text-sm text-muted-foreground">{student.historicalSources.map((source) => <li key={source.schoolYearLabel}>{source.schoolYearLabel} · Ancienne classe : {source.oldClassName ?? "non renseignée"}</li>)}</ul>
-        </div>
-        <p className="max-w-sm text-sm text-muted-foreground">Ces références historiques ne constituent pas des inscriptions.</p>
-      </section> : null}
-
-      {historical ? <Card className="mt-4" aria-label="Parcours scolaire et situation financière">
-        <CardHeader className="pb-3">
+      {historical ? <section className="mt-4 overflow-hidden rounded-lg border bg-card" aria-label="Parcours scolaire et situation financière">
+        <header className="border-b bg-muted/20 px-4 py-4 sm:px-5">
           <div className="flex items-center gap-2">
             <GraduationCap className="h-5 w-5 text-blue-700" aria-hidden="true" />
             <CardTitle className="text-base">Parcours scolaire et situation financière</CardTitle>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
+          <p className="mt-1 text-sm text-muted-foreground">Les données affichées correspondent à l’année sélectionnée dans le dossier historique.</p>
+        </header>
+        <div className="space-y-3 p-4 sm:p-5">
           {academicSummaryQuery.isLoading ? <Skeleton className="h-24 w-full" /> : null}
           {academicSummaryQuery.isError ? <QueryErrorState title="Historique indisponible" message="Impossible de charger les années scolaires et leurs finances." onRetry={() => void academicSummaryQuery.refetch()} /> : null}
           {academicSummaryQuery.data && academicYears.length === 0 ? <EmptyState title="Aucune année scolaire" description="Ce dossier ne contient pas encore d’année scolaire à consulter." /> : null}
           {academicYears.filter((year) => !selectedYear || year.schoolYearId === selectedYear.schoolYearId).map((year) => {
             const hasFinancialData = [year.totalDue, year.confirmedPaid, year.waivedAmount, year.remainingDue].some((value) => value !== null)
 
-            return <div key={year.schoolYearId} className="border-t pt-4 first:border-t-0 first:pt-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <strong>{year.schoolYearLabel}</strong>
-                <span className="text-muted-foreground">· {year.className}</span>
-                <Badge variant="outline">{year.enrollmentStatus ? enrollmentStatusLabel[year.enrollmentStatus] : "Classe historique"}</Badge>
+            return <article key={year.schoolYearId} className="border-t pt-4 first:border-t-0 first:pt-0">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2"><strong className="text-base">{year.schoolYearLabel}</strong><span className="text-muted-foreground">· {year.className}</span><Badge variant="outline">{year.enrollmentStatus ? enrollmentStatusLabel[year.enrollmentStatus] : "Classe historique"}</Badge></div>
+                  <p className="mt-1 text-sm text-muted-foreground">Décision : {year.decision}</p>
+                </div>
+                <p className="text-sm text-muted-foreground">{year.schoolYearId === selectedYear?.schoolYearId ? "Année consultée" : "Historique"}</p>
               </div>
-              <p className="mt-1 text-sm text-muted-foreground">Décision : {year.decision}</p>
               {hasFinancialData ? (
-                <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                  <div><dt className="text-muted-foreground">Total dû</dt><dd className="mt-1 font-semibold tabular-nums">{year.totalDue === null ? "Non disponible" : formatFcfa(year.totalDue)}</dd></div>
-                  <div><dt className="text-muted-foreground">Paiements confirmés</dt><dd className="mt-1 font-semibold tabular-nums">{year.confirmedPaid === null ? "Non disponible" : formatFcfa(year.confirmedPaid)}</dd></div>
-                  <div><dt className="text-muted-foreground">Remises accordées</dt><dd className="mt-1 font-semibold tabular-nums">{year.waivedAmount === null ? "Non disponible" : formatFcfa(year.waivedAmount)}</dd></div>
-                  <div><dt className="text-muted-foreground">Reste à régler</dt><dd className="mt-1 font-semibold tabular-nums">{year.remainingDue === null ? "Non disponible" : formatFcfa(year.remainingDue)}</dd></div>
+                <dl className="mt-4 grid divide-y rounded-md border bg-muted/20 text-sm sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4">
+                  <div className="p-3"><dt className="text-muted-foreground">Total dû</dt><dd className="mt-1 font-semibold tabular-nums">{year.totalDue === null ? "Non disponible" : formatFcfa(year.totalDue)}</dd></div>
+                  <div className="p-3"><dt className="text-muted-foreground">Paiements confirmés</dt><dd className="mt-1 font-semibold tabular-nums">{year.confirmedPaid === null ? "Non disponible" : formatFcfa(year.confirmedPaid)}</dd></div>
+                  <div className="p-3"><dt className="text-muted-foreground">Remises accordées</dt><dd className="mt-1 font-semibold tabular-nums">{year.waivedAmount === null ? "Non disponible" : formatFcfa(year.waivedAmount)}</dd></div>
+                  <div className="p-3"><dt className="text-muted-foreground">Reste à régler</dt><dd className="mt-1 font-semibold tabular-nums">{year.remainingDue === null ? "Non disponible" : formatFcfa(year.remainingDue)}</dd></div>
                 </dl>
               ) : (
                 <div className="mt-4 flex gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm">
@@ -598,36 +591,35 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
                   <p><span className="font-medium text-foreground">Données financières non consolidées pour cette archive.</span> Les paiements n’ont pas été importés.</p>
                 </div>
               )}
-            </div>
+            </article>
           })}
-        </CardContent>
-      </Card> : canViewFinance ? <Card className="mt-4" aria-label="Situation financière de l’élève">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <Landmark className="h-5 w-5 text-blue-700" aria-hidden="true" />
-            <CardTitle className="text-base">Situation financière · {student.activeSchoolYear?.label}</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        </div>
+      </section> : canViewFinance ? <section className="mt-4 overflow-hidden rounded-lg border" aria-label="Situation financière de l’élève">
           {financialQuery.isLoading ? <Skeleton className="h-20 w-full" aria-label="Chargement de la situation financière" /> : null}
           {financialQuery.isError ? <QueryErrorState title="Situation financière indisponible" message={financialQuery.error instanceof ApiError && financialQuery.error.code === "TUITION_PLAN_REQUIRED" ? "Les frais scolaires ne sont pas encore configurés pour cette année." : "Impossible de charger la situation financière."} onRetry={() => void financialQuery.refetch()} isRetrying={financialQuery.isFetching} /> : null}
-          {financialQuery.data ? <div className="space-y-3">
-            <div className={`flex items-start gap-3 rounded-md border p-3 text-sm ${financialQuery.data.standing === "late" ? "border-red-200 bg-red-50" : "border-green-200 bg-green-50"}`}>
-              {financialQuery.data.standing === "late" ? <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-red-700" aria-hidden="true" /> : <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-green-700" aria-hidden="true" />}
+          {financialQuery.data ? <div className="grid lg:grid-cols-[minmax(0,1.55fr)_minmax(10rem,0.72fr)_minmax(10rem,0.72fr)]">
+            <div className={`flex gap-3 p-4 sm:p-5 ${financialQuery.data.standing === "late" ? "bg-red-50" : "bg-green-50"}`}>
+              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${financialQuery.data.standing === "late" ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>
+                {financialQuery.data.standing === "late" ? <CircleAlert className="h-5 w-5" aria-hidden="true" /> : <CircleCheck className="h-5 w-5" aria-hidden="true" />}
+              </div>
               <div>
-                <p className="font-semibold">{financialQuery.data.standing === "late" ? "Échéances en retard" : "Échéances à jour"}</p>
-                <p className="mt-0.5 text-muted-foreground">{financialQuery.data.standing === "late" ? "Des échéances restent à régulariser." : "Aucune échéance en attente de règlement."}</p>
+                <p className="text-sm text-muted-foreground">Situation financière · {student.activeSchoolYear?.label}</p>
+                <p className="mt-0.5 text-base font-semibold">{financialQuery.data.standing === "late" ? "Échéances en retard" : "Échéances à jour"}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{financialQuery.data.standing === "late" ? "Une régularisation est attendue." : "Aucune échéance en attente de règlement."}</p>
               </div>
             </div>
-            <dl className="grid gap-4 border-t pt-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div><dt className="text-sm text-muted-foreground">Total dû</dt><dd className="mt-1 font-semibold tabular-nums">{formatFcfa(financialQuery.data.totalDue)}</dd></div>
-              <div><dt className="text-sm text-muted-foreground">Paiements confirmés</dt><dd className="mt-1 font-semibold tabular-nums">{formatFcfa(financialQuery.data.confirmedPaid)}</dd></div>
-              <div><dt className="text-sm text-muted-foreground">Remises accordées</dt><dd className="mt-1 font-semibold tabular-nums">{formatFcfa(financialQuery.data.waivedAmount)}</dd></div>
-              <div><dt className="text-sm text-muted-foreground">Reste total à régler</dt><dd className="mt-1 font-semibold tabular-nums">{formatFcfa(financialQuery.data.remainingDue)}</dd></div>
-            </dl>
+            <div className="border-t px-4 py-4 sm:px-5 lg:border-l lg:border-t-0">
+              <p className="text-sm text-muted-foreground">Reste total à régler</p>
+              <p className="mt-1 text-xl font-semibold tabular-nums">{formatFcfa(financialQuery.data.remainingDue)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Sur {formatFcfa(financialQuery.data.totalDue)} dûs</p>
+            </div>
+            <div className="border-t px-4 py-4 sm:px-5 lg:border-l lg:border-t-0">
+              <p className="text-sm text-muted-foreground">Paiements confirmés</p>
+              <p className="mt-1 text-xl font-semibold tabular-nums">{formatFcfa(financialQuery.data.confirmedPaid)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Remises : {formatFcfa(financialQuery.data.waivedAmount)}</p>
+            </div>
           </div> : null}
-        </CardContent>
-      </Card> : null}
+      </section> : null}
 
       <Tabs defaultValue="absences" className="mt-6 space-y-4">
         <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-lg border bg-muted/60 p-1">
@@ -646,23 +638,14 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
         </TabsList>
 
         <TabsContent value="absences" className="space-y-4">
-          {!historical ? <section className="overflow-hidden rounded-lg border bg-card" data-tour="student-detail-absences" aria-label="Synthèse des absences">
+          {!historical ? <section className="overflow-hidden rounded-lg border bg-card" data-tour="student-detail-absences" aria-label="Synthèse et estimation de présence">
             <div className="grid divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-              <div className="flex items-start gap-3 px-4 py-4">
-                <div className="rounded-md bg-red-50 p-2 text-red-700"><BookOpen className="h-4 w-4" aria-hidden="true" /></div>
-                <div><p className="text-sm text-muted-foreground">Total absences</p><p className="mt-0.5 text-2xl font-semibold tabular-nums">{student.absenceSummary.total}</p></div>
-              </div>
-              <div className="flex items-start gap-3 px-4 py-4">
-                <div className="rounded-md bg-amber-50 p-2 text-amber-700"><Clock3 className="h-4 w-4" aria-hidden="true" /></div>
-                <div><p className="text-sm text-muted-foreground">Ce mois</p><p className="mt-0.5 text-2xl font-semibold tabular-nums">{student.absenceSummary.thisMonth}</p></div>
-              </div>
-              <div className="flex items-start gap-3 px-4 py-4">
-                <div className="rounded-md bg-blue-50 p-2 text-blue-700"><UserCheck className="h-4 w-4" aria-hidden="true" /></div>
-                <div><p className="text-sm text-muted-foreground">Cette semaine</p><p className="mt-0.5 text-2xl font-semibold tabular-nums">{student.absenceSummary.thisWeek}</p></div>
-              </div>
+              <div className="px-4 py-4"><p className="text-sm text-muted-foreground">Total annuel</p><p className="mt-1 text-2xl font-semibold tabular-nums">{student.absenceSummary.total}</p></div>
+              <div className="px-4 py-4"><p className="text-sm text-muted-foreground">Ce mois</p><p className="mt-1 text-2xl font-semibold tabular-nums">{student.absenceSummary.thisMonth}</p></div>
+              <div className="px-4 py-4"><p className="text-sm text-muted-foreground">Cette semaine</p><p className="mt-1 text-2xl font-semibold tabular-nums">{student.absenceSummary.thisWeek}</p></div>
             </div>
-            <div className="flex flex-col gap-4 border-t bg-muted/20 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-              <div><h3 className="text-sm font-semibold">Présence estimée, mois en cours</h3><p className="mt-1 text-sm text-muted-foreground">Estimation sur 22 jours d'école : {estimatedPresentDays} jours présents, {student.absenceSummary.thisMonth} absences.</p></div>
+            <div className="flex flex-col gap-4 border-t bg-muted/20 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <div><h3 className="text-sm font-semibold">Présence estimée, mois en cours</h3><p className="mt-1 max-w-xl text-sm text-muted-foreground">Estimation sur 22 jours d'école : {estimatedPresentDays} jours présents, {student.absenceSummary.thisMonth} absences. Le détail est disponible ci-dessous.</p></div>
               <PresenceDonut present={estimatedPresentDays} absent={student.absenceSummary.thisMonth} late={0} size="sm" />
             </div>
           </section> : <section className="flex items-center gap-3 rounded-lg border bg-muted/20 p-4 text-sm" aria-label="Synthèse des absences archivées"><Archive className="h-5 w-5 shrink-0 text-blue-700" aria-hidden="true" /><p>Absences pour {selectedYear?.schoolYearLabel ?? "toutes les années"} : <strong>{canViewAttendance ? absenceRows.length : "consultation non autorisée"}</strong></p></section>}
