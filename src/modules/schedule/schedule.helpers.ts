@@ -16,20 +16,26 @@ export const DAYS = [
   { value: 6, label: "Sam" },
 ] as const
 
-export const generateTimeOptions = (): { label: string; value: string }[] => {
-  const options: { label: string; value: string }[] = []
-  for (let h = 6; h <= 22; h++) {
-    for (const m of [0, 30]) {
-      if (h === 22 && m === 30) continue
-      const hStr = String(h).padStart(2, "0")
-      const mStr = String(m).padStart(2, "0")
-      options.push({ label: `${hStr}:${mStr}`, value: `${hStr}:${mStr}` })
-    }
-  }
-  return options
+export const parseScheduleTime = (value: string): number | null => {
+  const match = /^(\d{2}):(\d{2})$/.exec(value)
+  if (!match) return null
+  const hours = Number(match[1])
+  const minutes = Number(match[2])
+  return hours < 24 && minutes < 60 ? hours * 60 + minutes : null
 }
 
-export const TIME_OPTIONS = generateTimeOptions()
+export const getScheduleTimeErrors = (startTime: string, endTime: string) => {
+  const start = parseScheduleTime(startTime)
+  const end = parseScheduleTime(endTime)
+  return {
+    startTime: start === null ? "Saisissez une heure valide au format HH:MM (00:00 à 23:59)." : null,
+    endTime: end === null
+      ? "Saisissez une heure valide au format HH:MM (00:00 à 23:59)."
+      : start !== null && end <= start
+        ? "La fin doit être strictement après le début."
+        : null,
+  }
+}
 
 export type ViewMode = "grid" | "list"
 

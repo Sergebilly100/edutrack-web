@@ -87,7 +87,7 @@ export default function DayColumn({
         {slots.map((slot) => {
           const startMinutes = toMinutes(slot.timeSlot.startTime)
           const endMinutes = toMinutes(slot.timeSlot.endTime)
-          const durationMinutes = Math.max(15, endMinutes - startMinutes)
+          const durationMinutes = endMinutes - startMinutes
           const top = ((startMinutes - gridStartMinutes) / 60) * hourHeight
           const height = (durationMinutes / 60) * hourHeight
 

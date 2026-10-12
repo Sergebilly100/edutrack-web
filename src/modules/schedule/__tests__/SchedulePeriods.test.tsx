@@ -98,6 +98,54 @@ beforeEach(() => {
 })
 
 describe("SchedulePeriods", () => {
+  it("saisit des minutes libres et signale une heure invalide près du champ", async () => {
+    fetchWeeklyScheduleMock.mockResolvedValue(makeScheduleData({
+      id: "p1", name: "Trimestre 1", validFrom: "2026-01-01", validTo: "2026-12-31", isActive: true,
+    }))
+    const view = renderSchedulePage()
+    await screen.findByText(/trimestre 1/i)
+    const addButton = view.container.querySelector<HTMLButtonElement>('[data-tour="schedule-add-btn"]')
+    fireEvent.click(addButton!)
+    const start = await screen.findByLabelText("Début")
+    const end = screen.getByLabelText("Fin")
+    fireEvent.change(start, { target: { value: "07:15" } })
+    fireEvent.change(end, { target: { value: "08:05" } })
+    expect(start).toHaveValue("07:15")
+    expect(end).toHaveValue("08:05")
+    expect(screen.getByRole("button", { name: "Ajouter le créneau" })).not.toBeDisabled()
+    fireEvent.change(end, { target: { value: "12:60" } })
+    expect(screen.getByText(/Saisissez une heure valide au format HH:MM/)).toBeInTheDocument()
+    expect(end).toHaveAttribute("aria-invalid", "true")
+    expect(screen.getByRole("button", { name: "Ajouter le créneau" })).toBeDisabled()
+  })
+
+  it("conserve la plage exacte en liste desktop et sur mobile", async () => {
+    window.localStorage.setItem("schedule-view-mode", "list")
+    const period = { id: "p1", name: "Trimestre 1", validFrom: "2026-01-01", validTo: "2026-12-31", isActive: true }
+    const timeSlot = { id: "ts-flex", label: "07:15 – 08:05", startTime: "07:15", endTime: "08:05", sortOrder: 435 }
+    fetchWeeklyScheduleMock.mockResolvedValue({
+      ...makeScheduleData(period),
+      schedules: [{
+        id: "course-flex", schedulePeriodId: "p1", dayOfWeek: 1,
+        subject: "Mathématiques", subjectDisplay: "Mathématiques", startDate: null, endDate: null,
+        pastAttendanceCount: 0, hasPastAttendance: false,
+        teacher: { id: "t1", name: "Prof Test", username: "test" },
+        class: { id: "c1", name: "6A", levelId: null, levelName: null },
+        room: { id: "r1", name: "Salle A", qrToken: "qr" }, timeSlot,
+      }],
+      catalog: {
+        teachers: [], classes: [], rooms: [], timeSlots: [timeSlot],
+      },
+    })
+    const view = renderSchedulePage()
+    await screen.findAllByText("Prof Test")
+    fireEvent.click(screen.getByRole("tab", { name: /Lun/ }))
+    const desktopTable = view.container.querySelector("table")
+    expect(desktopTable).toHaveTextContent("07:15 – 08:05")
+    const mobileCard = [...view.container.querySelectorAll(".md\\:hidden")]
+      .find((element) => element.textContent?.includes("Créneaux par jour"))
+    expect(mobileCard).toHaveTextContent("07:15 – 08:05")
+  })
   it("affiche l'alerte quand aucune période n'est active", async () => {
     fetchWeeklyScheduleMock.mockResolvedValue(makeScheduleData(null))
 

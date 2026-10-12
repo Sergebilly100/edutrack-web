@@ -96,7 +96,7 @@ const toGridHourRange = (slots: ScheduleRow[]): { startHour: number; endHour: nu
   const minStart = Math.min(...starts)
   const maxEnd = Math.max(...ends)
   const startHour = Math.max(0, Math.floor(minStart / 60))
-  const endHour = Math.min(23, Math.ceil(maxEnd / 60))
+  const endHour = Math.min(24, Math.ceil(maxEnd / 60))
 
   return {
     startHour: Math.min(startHour, DEFAULT_GRID_START_HOUR),

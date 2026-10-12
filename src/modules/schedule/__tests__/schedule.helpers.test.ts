@@ -1,6 +1,20 @@
 import { describe, expect, it } from "vitest"
 
-import { occurrenceDateFromWeek, weekMondayAndDayFromDate } from "../schedule.helpers"
+import { getScheduleTimeErrors, occurrenceDateFromWeek, parseScheduleTime, weekMondayAndDayFromDate } from "../schedule.helpers"
+
+describe("horaires EDT", () => {
+  it.each(["00:00", "23:59", "07:15", "12:20"])("accepte %s", (time) => {
+    expect(parseScheduleTime(time)).not.toBeNull()
+  })
+  it.each(["", "24:00", "12:60", "07:1", "07:15x"])("rejette %s", (time) => {
+    expect(parseScheduleTime(time)).toBeNull()
+  })
+  it("signale la fin égale ou antérieure près du champ fin", () => {
+    expect(getScheduleTimeErrors("07:15", "07:15").endTime).toMatch(/strictement/)
+    expect(getScheduleTimeErrors("08:05", "07:45").endTime).toMatch(/strictement/)
+    expect(getScheduleTimeErrors("07:15", "08:05")).toEqual({ startTime: null, endTime: null })
+  })
+})
 
 describe("weekMondayAndDayFromDate", () => {
   it("dérive le lundi de la semaine et le jour ISO d'une date en milieu de semaine", () => {

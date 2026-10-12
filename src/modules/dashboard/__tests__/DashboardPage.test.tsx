@@ -157,6 +157,19 @@ function setAuth(role: "director" | "staff", permissions: PermissionKey[] = []) 
 const VALIDATIONS_PRIORITY = "Validations en attente"
 
 describe("DashboardPage", () => {
+  it("affiche les horaires exacts sans secondes dans les présences professeurs", async () => {
+    getTodayAttendanceMock.mockResolvedValue({
+      date: "2026-05-12", presentCount: 0,
+      courses: [{
+        id: "course-1", startTime: "07:30:00", endTime: "08:30:00",
+        teacherName: "Professeur Test", subject: "Mathématiques", className: "6A",
+        roomName: "Salle A1", status: null,
+      }],
+    })
+    renderWithQueryClient(<DashboardPage />)
+    expect(await screen.findByText("07:30 – 08:30")).toBeInTheDocument()
+    expect(screen.queryByText("07:30:00 – 08:30:00")).not.toBeInTheDocument()
+  })
   beforeEach(() => {
     vi.clearAllMocks()
 

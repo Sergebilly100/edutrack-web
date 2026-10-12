@@ -58,13 +58,16 @@ export default function SlotCard({
         isBlockedTeacher && "ring-1 ring-red-300",
         className
       )}
-      aria-label={`${slot.subject} ${slot.class.name} ${slot.teacher.name}`}
+      aria-label={`${slot.timeSlot.startTime} à ${slot.timeSlot.endTime}, ${slot.subject} ${slot.class.name} ${slot.teacher.name}`}
+      title={`${slot.timeSlot.startTime} – ${slot.timeSlot.endTime}`}
     >
       {isBlockedTeacher ? (
         <WarningIcon className="absolute right-1 top-1 h-3 w-3 text-red-600" />
       ) : null}
 
       <p className="truncate font-semibold leading-tight">{slot.subjectDisplay || slot.subject}</p>
+
+      {height >= 36 ? <p className="truncate opacity-75">{slot.timeSlot.startTime}–{slot.timeSlot.endTime}</p> : null}
 
       {showClass ? <p className="truncate opacity-75">{slot.class.name}</p> : null}
 

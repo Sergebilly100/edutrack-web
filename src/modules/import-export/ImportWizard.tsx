@@ -251,7 +251,7 @@ function ImportTypeTabs({
             <p className="text-sm text-muted-foreground">
               Téléchargez le modèle {tabConfig[type].label.toLowerCase()} conforme au format IvoirEdu puis importez votre fichier. <br /> 
               {type === "teachers" ? <span>Profils et contrats uniquement. Après les inscriptions, définissez les affectations dans la fiche de chaque professeur. Le réimport conserve les affectations existantes.</span> : null}
-              {type === "schedule" ? <span className="text-xs font-bold">NB : Les professeurs et les classes de votre fichier doivent être ajoutés au préalable dans le système</span> : ""}
+              {type === "schedule" ? <span className="text-xs font-bold">NB : Les professeurs et les classes de votre fichier doivent être ajoutés au préalable dans le système. Créneau : début et fin au format HH:MM, par exemple 07:15 - 08:05. Toute minute valide est acceptée.</span> : ""}
             </p>
             <Button
               type="button"

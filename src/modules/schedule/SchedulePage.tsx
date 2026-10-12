@@ -82,7 +82,7 @@ import {
 } from "./schedule.api"
 import {
   DAYS,
-  TIME_OPTIONS,
+  getScheduleTimeErrors,
   createOptimisticSchedule,
   defaultFormStateFromData,
   emptyFormState,
@@ -108,27 +108,10 @@ import {
 
 // ─── Logique de regroupement vue liste ────────────────────────────────────────
 
-/**
- * Construit les lignes de la vue liste et associe chaque créneau à sa ligne.
- *
- * PROBLÈME RÉSOLU :
- * La vue liste itère sur les time_slots du catalog (ex : 07h30, 09h15, 11h00,
- * 13h00). Les créneaux ajoutés avec horaires libres ont un startTime différent
- * (ex : 08:00, 12:00). Avec une clé par égalité exacte de startTime, ces
- * créneaux ne matchaient aucune ligne et créaient des lignes orphelines en bas.
- *
- * SOLUTION : algorithme d'affectation par plage horaire.
- * Un créneau est affecté à la ligne dont le startTime est le plus proche
- * par en-dessous (≤ startTime du créneau) ET dont le endTime est le plus
- * proche par en-dessus (≥ startTime du créneau).
- *
- * Si aucune ligne du catalog ne contient le créneau, on crée une nouvelle
- * ligne pour lui (tri par startTime → elle apparaît à la bonne position).
- *
- * Retourne :
- * - `rows`   : time_slots ordonnés à afficher comme lignes du tableau
- * - `assign` : Map<rowKey, Map<dayOfWeek, ScheduleRow[]>>
- */
+/** Each exact interval gets its own row, even when two slots start together. */
+const slotKey = (slot: { startTime: string; endTime: string }) =>
+  `${slot.startTime.slice(0, 5)}-${slot.endTime.slice(0, 5)}`
+
 const buildListStructure = (
   catalogSlots: TimeSlotCatalogItem[],
   schedules: ScheduleRow[]
@@ -136,79 +119,27 @@ const buildListStructure = (
   rows: TimeSlotCatalogItem[]
   assign: Map<string, Map<number, ScheduleRow[]>>
 } => {
-  // Trier le catalog par startTime
   const sortedCatalog = [...catalogSlots].sort(
     (a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
+      || timeToMinutes(a.endTime) - timeToMinutes(b.endTime)
   )
-
-  // Pour chaque créneau, trouver la ligne catalog qui le contient.
-  //
-  // Stratégie en deux passes pour éviter tout faux positif :
-  //
-  // Passe 1 - correspondance exacte :
-  //   Si schedule.startTime === slot.startTime, c'est la bonne ligne sans ambiguïté.
-  //   Ex : créneau "17:00" → ligne "17:00–17:30" ✓
-  //   Cela évite qu'un créneau dont le startTime coïncide avec le endTime d'une
-  //   ligne précédente (ex : "17:00" dans "16:30–17:00") soit mal affecté.
-  //
-  // Passe 2 - containment par plage stricte :
-  //   slot.startTime < schedule.startTime < slot.endTime
-  //   (les deux bornes sont STRICTES pour ne pas capturer les égalités
-  //    qui appartiennent à la passe 1)
-  //   Ex : créneau "08:00" → ligne "07:30–09:00" ✓
-  const findContainingRow = (schedule: ScheduleRow): TimeSlotCatalogItem | null => {
-    const schedStart = timeToMinutes(schedule.timeSlot.startTime)
-
-    // Passe 1 : correspondance exacte sur startTime
-    for (const slot of sortedCatalog) {
-      if (timeToMinutes(slot.startTime) === schedStart) {
-        return slot
-      }
-    }
-
-    // Passe 2 : containment strict (startTime du créneau est ENTRE les bornes)
-    for (const slot of sortedCatalog) {
-      const slotStart = timeToMinutes(slot.startTime)
-      const slotEnd = timeToMinutes(slot.endTime)
-      if (schedStart > slotStart && schedStart < slotEnd) {
-        return slot
-      }
-    }
-
-    return null
-  }
-
-  // Construire les lignes : catalog + lignes synthétiques pour les créneaux
-  // qui ne sont contenus dans aucune ligne catalog
   const rowMap = new Map<string, TimeSlotCatalogItem>()
   for (const slot of sortedCatalog) {
-    rowMap.set(slot.startTime, slot)
+    rowMap.set(slotKey(slot), slot)
   }
-
   for (const schedule of schedules) {
-    const containing = findContainingRow(schedule)
-    if (!containing) {
-      // Pas de ligne catalog correspondante → créer une ligne synthétique
-      const key = schedule.timeSlot.startTime
-      if (!rowMap.has(key)) {
-        rowMap.set(key, schedule.timeSlot)
-      }
+    const key = slotKey(schedule.timeSlot)
+    if (!rowMap.has(key)) {
+      rowMap.set(key, schedule.timeSlot)
     }
   }
-
-  // Trier les lignes par startTime
   const rows = [...rowMap.values()].sort(
     (a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
+      || timeToMinutes(a.endTime) - timeToMinutes(b.endTime)
   )
-
-  // Construire l'index d'affectation : rowKey → dayOfWeek → créneaux
   const assign = new Map<string, Map<number, ScheduleRow[]>>()
-
   for (const schedule of schedules) {
-    const containing = findContainingRow(schedule)
-    // Utiliser la ligne catalog si trouvée, sinon la ligne synthétique
-    const rowKey = containing ? containing.startTime : schedule.timeSlot.startTime
-
+    const rowKey = slotKey(schedule.timeSlot)
     if (!assign.has(rowKey)) {
       assign.set(rowKey, new Map())
     }
@@ -246,6 +177,7 @@ export default function SchedulePage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingSchedule, setEditingSchedule] = useState<ScheduleRow | null>(null)
   const [formState, setFormState] = useState<SlotFormState>(emptyFormState)
+  const formTimeErrors = getScheduleTimeErrors(formState.startTime, formState.endTime)
   const [scopeChoiceOpen, setScopeChoiceOpen] = useState(false)
   const [editScope, setEditScope] = useState<"this" | "this_and_following" | "all" | null>(null)
 
@@ -570,8 +502,8 @@ export default function SchedulePage() {
       })
       return
     }
-    if (formState.startTime >= formState.endTime) {
-      toast({ variant: "destructive", title: "Horaire invalide", description: "La fin doit être après le début." })
+    if (formTimeErrors.startTime || formTimeErrors.endTime) {
+      toast({ variant: "destructive", title: "Horaire invalide", description: formTimeErrors.startTime ?? formTimeErrors.endTime ?? "" })
       return
     }
     const payload = toPayload(formState)
@@ -1000,17 +932,17 @@ export default function SchedulePage() {
                   </thead>
                   <tbody>
                     {listRows.map((row) => (
-                    <tr key={row.startTime} className="align-top transition-colors hover:bg-muted/20">
+                    <tr key={slotKey(row)} className="align-top transition-colors hover:bg-muted/20">
                         {/* Label de la ligne */}
                         <td className="border p-2 text-xs font-medium text-muted-foreground whitespace-nowrap">
-                          {row.label}
+                          {row.startTime.slice(0, 5)} – {row.endTime.slice(0, 5)}
                         </td>
                         {DAYS.map((day) => {
                           const cellItems =
-                            listAssign.get(row.startTime)?.get(day.value) ?? []
+                            listAssign.get(slotKey(row))?.get(day.value) ?? []
                           return (
                             <td
-                              key={`${day.value}-${row.startTime}`}
+                              key={`${day.value}-${slotKey(row)}`}
                               className="w-[14.66%] min-h-[80px] border p-1.5 align-top"
                             >
                               <div className="space-y-1">
@@ -1026,11 +958,9 @@ export default function SchedulePage() {
                                       <p className="font-semibold leading-tight">{item.teacher.name}</p>
                                       <p className="text-muted-foreground">{item.class.name}</p>
                                       <p className="text-muted-foreground">{item.subjectDisplay || item.subject}</p>
-                                      {item.timeSlot.startTime !== row.startTime && (
-                                        <p className="mt-0.5 text-[10px] text-amber-600">
-                                          {item.timeSlot.startTime} – {item.timeSlot.endTime}
-                                        </p>
-                                      )}
+                                      <p className="mt-0.5 text-[10px] text-muted-foreground">
+                                        {item.timeSlot.startTime} – {item.timeSlot.endTime}
+                                      </p>
                                       {blockedTeachers.has(item.teacher.id) ? (
                                         <Badge variant="destructive" className="mt-1 text-[10px]">
                                           Prof bloqué
@@ -1587,28 +1517,26 @@ export default function SchedulePage() {
                 )}
               </div>
               <div className="space-y-1">
-                <Label>Début</Label>
-                <Select value={formState.startTime}
-                  onValueChange={(v) => setFormState((p) => ({ ...p, startTime: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {TIME_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="schedule-start-time">Début</Label>
+                <Input id="schedule-start-time" type="text" inputMode="numeric" placeholder="07:15"
+                  className="min-h-[48px]" value={formState.startTime} maxLength={5}
+                  aria-invalid={!!formTimeErrors.startTime}
+                  aria-describedby="schedule-start-time-error"
+                  onChange={(event) => setFormState((p) => ({ ...p, startTime: event.target.value }))} />
+                <p id="schedule-start-time-error" role="alert" className="text-xs text-destructive">
+                  {formTimeErrors.startTime}
+                </p>
               </div>
               <div className="space-y-1">
-                <Label>Fin</Label>
-                <Select value={formState.endTime}
-                  onValueChange={(v) => setFormState((p) => ({ ...p, endTime: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {TIME_OPTIONS.filter((opt) => opt.value > formState.startTime).map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="schedule-end-time">Fin</Label>
+                <Input id="schedule-end-time" type="text" inputMode="numeric" placeholder="08:05"
+                  className="min-h-[48px]" value={formState.endTime} maxLength={5}
+                  aria-invalid={!!formTimeErrors.endTime}
+                  aria-describedby="schedule-end-time-error"
+                  onChange={(event) => setFormState((p) => ({ ...p, endTime: event.target.value }))} />
+                <p id="schedule-end-time-error" role="alert" className="text-xs text-destructive">
+                  {formTimeErrors.endTime}
+                </p>
               </div>
             </div>
 
@@ -1629,7 +1557,7 @@ export default function SchedulePage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setFormOpen(false)}>Annuler</Button>
             <Button onClick={() => void handleSubmit()}
-              disabled={upsertMutation.isPending || !formState.schedulePeriodId || isTeacherBlocked(formState.teacherId)}>
+              disabled={upsertMutation.isPending || !formState.schedulePeriodId || isTeacherBlocked(formState.teacherId) || !!formTimeErrors.startTime || !!formTimeErrors.endTime}>
               {upsertMutation.isPending ? "Enregistrement..." : editingSchedule ? "Enregistrer les modifications" : "Ajouter le créneau"}
             </Button>
           </DialogFooter>
