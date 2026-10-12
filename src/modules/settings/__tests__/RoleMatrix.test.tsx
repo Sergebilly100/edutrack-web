@@ -101,6 +101,17 @@ describe("RoleMatrix issue du contrat backend", () => {
     expect(onChange).toHaveBeenLastCalledWith(["payments.cancel", "payments.record", "payments.view"])
   })
 
+  it("permet de déléguer la correction publiée avec les droits de lecture et publication", async () => {
+    const { onChange } = renderMatrix()
+    await openDomain("Bulletins")
+    const correction = screen.getByRole("checkbox", { name: "Autoriser une correction exceptionnelle après publication" })
+    expect(correction).toBeEnabled()
+    fireEvent.click(correction)
+    expect(onChange).toHaveBeenLastCalledWith([
+      "report_cards.publish", "report_cards.published_correction", "report_cards.view",
+    ])
+  })
+
   it("affiche automatiquement une nouvelle entrée du catalogue reçu", async () => {
     const data = catalogue()
     vi.mocked(apiClient.get).mockResolvedValue({ data: {

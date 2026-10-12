@@ -49,7 +49,7 @@ La dernière exécution a obtenu **582 tests frontend**, **216 tests API ciblés
 - Cinq parcours Chromium : 360, 393 et 1280 px, accordéons initialement repliés, ouverture complète des 66 lignes sans doublon, maintien des sélections après repli, navigation par Entrée/Espace, dernière ligne atteignable, cases de 16 × 16 px avec zones cliquables de 48 px minimum, absence de débordement global ; modification école avec `settings.school` seul sans requête administrative ; refus du catalogue sans sauvegarde.
 - Lint des fichiers concernés, typage et builds API/web réussis.
 
-La suite unitaire backend globale a obtenu **752 succès et un échec hors C14** dans `tests/unit/demo.config.test.ts` : `DEMO_MIGRATION_REVIEW_REQUIRED`. Les migrations existantes `0077_risk_schema_declarations.sql` et `0078_teacher_lateness.sql` sont absentes du manifeste `src/shared/database/demo/migrations.manifest.json`. C14 ne modifie ni les migrations ni ce manifeste ; cet échec est indépendant des permissions. La réussite globale de cette suite n’est pas revendiquée.
+Lors de la première validation C14, la suite unitaire backend globale avait un échec de manifeste de démo hors C14. La validation globale ultérieure a passé **840 tests unitaires API**, **517 tests d’intégration API**, **695 tests frontend**, **33 parcours Chromium de revue** et **201 parcours Playwright QA sur 201** dans une seule exécution. Le manifeste de démo a été complété pour la migration existante `0085_subjects_abbreviation.sql` après contrôle de son contenu et de son empreinte ; la création de démo est aussi couverte par les intégrations. Les scénarios de tests qui attendaient d’anciens états de saisie, d’import ou de navigation ont été alignés sur les règles et contrats actuels. La suite Playwright QA utilise une API réelle et des comptes préparés dans une base jetable ; les vérifications couvrent notamment la matrice C14, les paramètres et SMS, l’inscription, les paiements, la conduite, les bulletins et les abonnements.
 
 Les contrôles Chromium mobiles ne remplacent pas une recette sur un Tecno/Itel physique, non disponible dans cette session.
 
@@ -68,3 +68,9 @@ Aucun nouvel écran n’est créé. La matrice est accessible depuis **Administr
 `fix(permissions): générer la matrice depuis le catalogue backend et séparer les paramètres école`
 
 Pour l’affinement visuel : `ui(settings): regrouper les permissions en accordéons compacts`
+
+## Évolution : délégation des corrections publiées
+
+`report_cards.published_correction` est désormais disponible dans le catalogue et peut être attribué à un poste, par exemple « Censeur délégué ». La matrice sélectionne avec lui `report_cards.view` et `report_cards.publish`. L'API conserve le contrôle de `report_cards.publish` pour décider d'une réclamation et exige en plus `report_cards.published_correction` pour approuver celle d'un bulletin déjà publié. Le rôle du compte ne constitue plus une restriction supplémentaire. Le même droit ouvre les versions et l'audit ; son retrait au poste révoque ces accès. Aucun poste existant n'est modifié automatiquement.
+
+Le parcours d'intégration couvre une réclamation publiée créée par le staff, son refus sans délégation, son approbation après attribution du droit, l'archivage du bulletin, l'audit et la révocation. Les tests unitaires vérifient la résolution des droits et le contrôle métier ; les tests de matrice et de réclamations couvrent l'interface. Le contrat de catalogue reste exhaustif sur `PERMISSION_KEYS`.

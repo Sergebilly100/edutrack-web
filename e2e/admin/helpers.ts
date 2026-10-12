@@ -87,6 +87,7 @@ export const createSchoolViaApi = async (
     name: schoolName,
     subdomain: `e2e-admin-${uniq}`,
     city: "Abidjan",
+    address: "Rue de la recette QA",
     teaching_type: "secondaire",
     plan,
     max_admin_positions: 5,

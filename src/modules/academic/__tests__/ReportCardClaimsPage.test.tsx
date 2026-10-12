@@ -4,7 +4,6 @@ import { MemoryRouter } from "react-router-dom"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
-  role: "staff",
   permissions: ["report_cards.view", "report_cards.publish"] as string[],
   listClaims: vi.fn(), createClaim: vi.fn(), decideClaim: vi.fn(),
   listVersions: vi.fn(), listAudit: vi.fn(), listStudents: vi.fn(),
@@ -12,9 +11,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/shared/hooks/usePermissions", () => ({
   usePermissions: () => ({ hasPermission: (key: string) => mocks.permissions.includes(key) }),
-}))
-vi.mock("@/shared/store/auth.store", () => ({
-  useAuthStore: (selector: (state: { user: { role: string } }) => unknown) => selector({ user: { role: mocks.role } }),
 }))
 vi.mock("@/components/ui/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
 vi.mock("@/modules/academic/academic.api", () => ({
@@ -56,7 +52,6 @@ describe("ReportCardClaimsPage", () => {
   })
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.role = "staff"
     mocks.permissions = ["report_cards.view", "report_cards.publish"]
     mocks.listClaims.mockResolvedValue([claim])
     mocks.createClaim.mockResolvedValue({ id: "claim-2" })
@@ -76,8 +71,7 @@ describe("ReportCardClaimsPage", () => {
     expect(mocks.listVersions).not.toHaveBeenCalled()
   })
 
-  it("permet au directeur autorisé d'approuver avec un motif", async () => {
-    mocks.role = "director"
+  it("permet au censeur délégué d'approuver avec un motif", async () => {
     mocks.permissions.push("report_cards.published_correction")
     renderPage()
     expect(await screen.findByText("Autorisation exceptionnelle requise")).toBeInTheDocument()

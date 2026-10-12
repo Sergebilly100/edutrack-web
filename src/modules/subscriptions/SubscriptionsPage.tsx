@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CheckCircle2, Info, MoreHorizontal, Search } from "lucide-react"
+import { Info, MoreHorizontal, Search } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
@@ -49,12 +49,12 @@ import {
   listSubscriptionCreators,
   listSubscriptionParents,
   renewSubscriptionParent,
-  resetParentSubscriptionPassword,
   updateParentSubscriptionContact,
   type SubscriptionListItem,
   type SubscriptionStatus,
 } from "@/modules/subscriptions/subscriptions.api"
 import { ContextualHelp, EmptyState, MonthPicker, OfflineGuard, PageLayout } from "@/shared/components"
+import { ParentAccessResetDialog } from "@/modules/subscriptions/components/ParentAccessResetDialog"
 import { useSchoolYearMonths } from "@/shared/hooks/useSchoolYearMonths"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
@@ -94,7 +94,6 @@ type SubscriptionActionsProps = {
   canRenew: boolean
   canCancel: boolean
   canResetPassword: boolean
-  resetPasswordPending: boolean
   onDetails: (item: SubscriptionListItem) => void
   onRenew: (item: SubscriptionListItem) => void
   onEditContact: (item: SubscriptionListItem) => void
@@ -109,7 +108,6 @@ function SubscriptionActions({
   canRenew,
   canCancel,
   canResetPassword,
-  resetPasswordPending,
   onDetails,
   onRenew,
   onEditContact,
@@ -163,9 +161,8 @@ function SubscriptionActions({
               <OfflineGuard>
                 <DropdownMenuItem
                   onClick={() => onResetPassword(item)}
-                  disabled={resetPasswordPending}
                 >
-                  Réinitialiser le mot de passe
+                  Réinitialiser l’accès
                 </DropdownMenuItem>
               </OfflineGuard>
             ) : null}
@@ -229,9 +226,7 @@ export default function SubscriptionsPage() {
   const [cancelTarget, setCancelTarget] = useState<SubscriptionListItem | null>(null)
   const [cancelReason, setCancelReason] = useState("")
   const [detailsTarget, setDetailsTarget] = useState<SubscriptionListItem | null>(null)
-  const [resetCredentials, setResetCredentials] = useState<{ phone: string; password: string } | null>(null)
   const [passwordResetTarget, setPasswordResetTarget] = useState<SubscriptionListItem | null>(null)
-  const [credentialsCopied, setCredentialsCopied] = useState(false)
 
   const canCreate = hasPermission("subscriptions.create")
   const canEdit = hasPermission("subscriptions.edit")
@@ -317,14 +312,6 @@ export default function SubscriptionsPage() {
         description: error instanceof Error ? error.message : "Une erreur est survenue.",
         variant: "destructive",
       })
-    },
-  })
-
-  const resetPasswordMutation = useMutation({
-    mutationFn: resetParentSubscriptionPassword,
-    onSuccess: (result) => {
-      setResetCredentials({ phone: result.phone, password: result.new_temp_password })
-      setCredentialsCopied(false)
     },
   })
 
@@ -524,7 +511,6 @@ export default function SubscriptionsPage() {
                   canRenew={canRenew}
                   canCancel={canCancel}
                   canResetPassword={canResetPassword}
-                  resetPasswordPending={resetPasswordMutation.isPending}
                   onDetails={setDetailsTarget}
                   onRenew={setRenewTarget}
                   onEditContact={openContactEditor}
@@ -589,7 +575,6 @@ export default function SubscriptionsPage() {
                       canRenew={canRenew}
                       canCancel={canCancel}
                       canResetPassword={canResetPassword}
-                      resetPasswordPending={resetPasswordMutation.isPending}
                       onDetails={setDetailsTarget}
                       onRenew={setRenewTarget}
                       onEditContact={openContactEditor}
@@ -643,47 +628,6 @@ export default function SubscriptionsPage() {
             Changez le mois ou l'état de l'accès, puis relancez la recherche. Si la liste reste vide, créez un abonnement parent depuis le bouton en haut de page.
           </ContextualHelp>
         </div>
-      ) : null}
-
-      {resetCredentials ? (
-        <Alert>
-          <AlertDescription className="space-y-3">
-            <p className="flex items-center gap-2 text-sm font-medium">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              Identifiants parent prêts à envoyer
-            </p>
-            <div className="rounded-md border bg-background p-3 text-sm">
-              <p>
-                Téléphone: <strong>{resetCredentials.phone}</strong>
-              </p>
-              <p>
-                Mot de passe temporaire: <strong>{resetCredentials.password}</strong>
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Le parent devra utiliser ce mot de passe temporaire sur le portail parent.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={async () => {
-                  await navigator.clipboard.writeText(
-                    `Téléphone: ${resetCredentials.phone}\nMot de passe: ${resetCredentials.password}`
-                  )
-                  setCredentialsCopied(true)
-                  toast({ title: "Identifiants copiés", description: "Vous pouvez les transmettre au parent." })
-                }}
-              >
-                {credentialsCopied ? "Copié" : "Copier les identifiants"}
-              </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setResetCredentials(null)}>
-                Fermer
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
       ) : null}
 
       <CreateSubscriptionModal
@@ -842,28 +786,9 @@ export default function SubscriptionsPage() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={Boolean(passwordResetTarget)} onOpenChange={(open) => !open && setPasswordResetTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Créer un nouveau mot de passe pour {passwordResetTarget?.full_name ?? "ce parent"} ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              L'ancien mot de passe ne fonctionnera plus. Copiez le nouveau mot de passe après confirmation pour le transmettre au parent.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Ne rien changer</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (!passwordResetTarget) return
-                resetPasswordMutation.mutate(passwordResetTarget.parent_id)
-                setPasswordResetTarget(null)
-              }}
-            >
-              Créer le mot de passe
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {passwordResetTarget ? (
+        <ParentAccessResetDialog parent={passwordResetTarget} onClose={() => setPasswordResetTarget(null)} />
+      ) : null}
 
       <Dialog open={Boolean(detailsTarget)} onOpenChange={(open) => !open && setDetailsTarget(null)}>
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">

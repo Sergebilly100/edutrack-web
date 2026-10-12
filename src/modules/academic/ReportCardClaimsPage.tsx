@@ -13,7 +13,6 @@ import { useToast } from "@/components/ui/use-toast"
 import { PageLayout } from "@/shared/components/PageLayout"
 import { EmptyState } from "@/shared/components/EmptyState"
 import { usePermissions } from "@/shared/hooks/usePermissions"
-import { useAuthStore } from "@/shared/store/auth.store"
 import { invalidateAcademicReportScope } from "./academic-report-cache"
 import {
   createReportCardClaim, decideReportCardClaim, listClasses, listReportCardClasses, listGradingPeriods, listGradingPeriodsForYear,
@@ -54,7 +53,7 @@ function ClaimRow({ claim, canDecide, canCorrectPublished, onDecide, pending }: 
     </div>
     <p className="max-w-prose whitespace-pre-wrap text-sm">{claim.reason}</p>
     {claim.phase === "published" ? <Alert><AlertDescription>
-      Une approbation retirera tous les bulletins publiés de cette classe et de cette période du portail parent. La direction devra régénérer puis republier une nouvelle version.
+      Une approbation retirera tous les bulletins publiés de cette classe et de cette période du portail parent. Une nouvelle version devra ensuite être régénérée et republiée.
     </AlertDescription></Alert> : null}
     {claim.phase === "generated" ? <p className="text-sm text-muted-foreground">Une approbation invalidera tous les bulletins générés de cette classe et de cette période.</p> : null}
     {claim.decision_reason ? <p className="text-sm text-muted-foreground">Décision : {claim.decision_reason}</p> : null}
@@ -69,7 +68,7 @@ function ClaimRow({ claim, canDecide, canCorrectPublished, onDecide, pending }: 
         <Button variant="outline" className="min-h-12" disabled={decisionReason.trim().length < 10 || pending}
           onClick={() => onDecide(claim.id, "refused", decisionReason.trim())}>Refuser</Button>
       </div>
-      {!canApprove && claim.phase === "published" ? <p className="text-sm text-muted-foreground">Seul un directeur ou un super administrateur délégué peut autoriser la correction après publication.</p> : null}
+      {!canApprove && claim.phase === "published" ? <p className="text-sm text-muted-foreground">Le droit « Autoriser une correction exceptionnelle après publication » est requis pour approuver cette réclamation.</p> : null}
     </div> : null}
   </article>
 }
@@ -78,7 +77,6 @@ export default function ReportCardClaimsPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const { hasPermission } = usePermissions()
-  const role = useAuthStore((state) => state.user?.role)
   const [params] = useSearchParams()
   const [schoolYearId, setSchoolYearId] = useState(params.get("schoolYearId") ?? "")
   const [gradingPeriodId, setGradingPeriodId] = useState(params.get("gradingPeriodId") ?? "")
@@ -107,12 +105,12 @@ export default function ReportCardClaimsPage() {
   const versionsQuery = useQuery({
     queryKey: ["report-card-versions", classId, gradingPeriodId],
     queryFn: () => listReportCardVersions(classId, gradingPeriodId),
-    enabled: Boolean(classId && gradingPeriodId && hasPermission("report_cards.published_correction") && (role === "director" || role === "super_admin")),
+    enabled: Boolean(classId && gradingPeriodId && hasPermission("report_cards.published_correction")),
   })
   const auditQuery = useQuery({
     queryKey: ["report-card-academic-audit", classId, gradingPeriodId],
     queryFn: () => listReportCardAcademicAudit(classId, gradingPeriodId),
-    enabled: Boolean(classId && gradingPeriodId && hasPermission("report_cards.published_correction") && (role === "director" || role === "super_admin")),
+    enabled: Boolean(classId && gradingPeriodId && hasPermission("report_cards.published_correction")),
   })
 
   const invalidate = async () => {
@@ -148,7 +146,7 @@ export default function ReportCardClaimsPage() {
     }
   }, [classId, selectedClass, selectedPeriod])
   const visibleSubjects = subjectsQuery.data?.filter((item) => !selectedClass || item.levelId === selectedClass.level.id) ?? []
-  const canCorrectPublished = hasPermission("report_cards.published_correction") && (role === "director" || role === "super_admin")
+  const canCorrectPublished = hasPermission("report_cards.published_correction")
 
   return <PageLayout title="Réclamations de bulletins" subtitle="Suivez les corrections et leurs nouvelles versions par classe et période.">
     <div className="mb-4"><Button asChild variant="outline" className="min-h-12"><Link to="/academic/report-cards">Retour aux bulletins</Link></Button></div>

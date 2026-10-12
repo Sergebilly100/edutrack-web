@@ -28,7 +28,7 @@ const mockFinanceApis = async (page: Page) => {
     contentType: "application/json",
     body: JSON.stringify({ tuitionPlans: [] }),
   }))
-  await page.route("**/api/v1/students?*", (route) => route.fulfill({
+  await page.route("**/api/v1/students/cashier-candidates?*", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({

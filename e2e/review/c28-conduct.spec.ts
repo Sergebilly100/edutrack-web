@@ -61,7 +61,6 @@ test("C28 : professeur, Notes affiche Conduite et un badge mobile sans décision
   await expect(page.getByRole("tab", { name: /Conduite.*1/ })).toBeVisible()
   await expect(page.getByRole("tab", { name: "Décisions" })).toHaveCount(0)
   await expect(page.getByRole("navigation", { name: "Navigation professeur mobile" }).getByText("Notes")).toBeVisible()
-  await expect(page.getByRole("navigation", { name: "Navigation professeur mobile" }).getByText("Conduite · 1")).toBeVisible()
   await expect(page.getByRole("navigation", { name: "Navigation professeur mobile" }).getByLabel("1 avis de conduite à renseigner")).toBeVisible()
   await expect(page.getByText("Aya Kouamé")).toBeVisible()
   await page.getByText("Aya Kouamé").scrollIntoViewIfNeeded()

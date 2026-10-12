@@ -84,7 +84,7 @@ describe("ConductPage professeur", () => {
     fireEvent.click(screen.getByRole("combobox", { name: /période/i }))
     fireEvent.click(await screen.findByRole("option", { name: "1er trimestre" }))
 
-    fireEvent.click(await screen.findByRole("button", { name: "Sélectionner tous" }))
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Sélectionner tous les élèves" }))
     fireEvent.change(screen.getByLabelText("Note / 20"), { target: { value: "16" } })
     fireEvent.click(screen.getByRole("button", { name: "Appliquer à la sélection" }))
 

@@ -14,9 +14,10 @@ test("le parent voit la révision puis une seule nouvelle version du bulletin", 
   await page.route("**/api/v1/parent/notifications*", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ notifications: [], unreadCount: 0 }) }))
   await page.route("**/api/v1/parent/students", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: [{ id: "student-c30", first_name: "Aya", last_name: "Test", class_name: "6ème A" }] }) }))
   await page.route("**/api/v1/parent/students/student-c30/overview", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ latestPublishedReportCard: null }) }))
-  await page.route("**/api/v1/parent/students/student-c30/report-cards", (route) => route.fulfill({
+  await page.route("**/api/v1/parent/students/student-c30/report-cards*", (route) => route.fulfill({
     status: 200, contentType: "application/json", body: JSON.stringify({
       reportCards: inRevision ? [] : [{ id: "card-revision-2", periodLabel: "Trimestre 1", schoolYearLabel: "2026-2027", generalAverage: 14, rank: 1, classHeadcount: 2 }],
+      availableSchoolYears: [{ id: "year-c30", label: "2026-2027" }],
       inRevision,
     }),
   }))

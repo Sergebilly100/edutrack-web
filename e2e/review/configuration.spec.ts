@@ -47,13 +47,12 @@ for (const width of [320, 360, 393]) {
   })
 }
 
-test("l’import contextualisé autorise ensuite un changement d’onglet", async ({ page }) => {
+test("l’import contextualisé n’affiche que les onglets disponibles", async ({ page }) => {
   await page.goto("/import?type=schedule")
   const tabs = page.getByRole("tab")
   await expect(tabs.filter({ hasText: "Emploi du temps" })).toHaveAttribute("aria-selected", "true")
-  await tabs.filter({ hasText: "Professeurs" }).click()
-  await expect(tabs.filter({ hasText: "Professeurs" })).toHaveAttribute("aria-selected", "true")
-  await expect(tabs.filter({ hasText: "Emploi du temps" })).toHaveAttribute("aria-selected", "false")
+  await expect(tabs).toHaveCount(1)
+  await expect(tabs.filter({ hasText: "Professeurs" })).toHaveCount(0)
 })
 
 test("le lien de configuration des frais ouvre l’onglet Finance", async ({ page }) => {

@@ -60,6 +60,9 @@ const mockNavigationApis = async (page: import("@playwright/test").Page) => {
       }),
     })
   })
+  await page.route("**/api/v1/permissions/config/school*", async (route) => {
+    await route.fulfill({ json: { school: { name: "École Sainte-Marie", city: "Abidjan", plan: "premium", canEditSmsTemplate: true } } })
+  })
   await page.route("**/api/v1/settings/sms-price*", async (route) => {
     await route.fulfill({
       status: 200,
@@ -74,6 +77,7 @@ const mockNavigationApis = async (page: import("@playwright/test").Page) => {
   })
 
   // Page import - historique
+  await page.route("**/api/v1/import/context*", (route) => route.fulfill({ json: { initialConfiguration: false, canImportProfiles: false } }))
   await page.route("**/api/v1/import/history*", async (route) => {
     await route.fulfill({
       status: 200,

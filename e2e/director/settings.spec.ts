@@ -31,6 +31,15 @@ const mockSettingsApis = async (page: import("@playwright/test").Page) => {
       }),
     })
   })
+  await page.route("**/api/v1/permissions/config/school*", (route) => route.fulfill({
+    json: { school: { name: "École Sainte-Marie", city: "Abidjan", plan: "premium", canEditSmsTemplate: true } },
+  }))
+  await page.route("**/api/v1/permissions/catalogue*", (route) => route.fulfill({
+    json: { version: 1, permissions: [{
+      key: "students.view", domain: "students", domainLabel: "Élèves", label: "Consulter les élèves",
+      requiredPermissions: [], activationDependencies: [], available: true, unavailableReason: null,
+    }] },
+  }))
   await page.route("**/api/v1/permissions/positions*", async (route) => {
     await route.fulfill({
       status: 200,
@@ -190,6 +199,7 @@ test.describe("Directeur - module paramètres", () => {
   test("affiche la section 'Utilisateurs administratifs'", async ({ page }) => {
     await loginAsDirectorUI(page)
     await page.goto("/settings")
+    await page.getByRole("tab", { name: "Personnel" }).click()
     await expect(page.getByText("Utilisateurs administratifs").first()).toBeVisible()
   })
 
@@ -198,7 +208,7 @@ test.describe("Directeur - module paramètres", () => {
     await page.goto("/settings")
     await page.getByRole("tab", { name: "Risques" }).click()
     await expect(page.getByText("Règles de risque")).toBeVisible()
-    await expect(page.getByText("Situation financière en retard")).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Situation financière en retard" })).toBeVisible()
   })
 
   test("la page /settings utilise l'animation fade-in du conteneur principal", async ({ page }) => {

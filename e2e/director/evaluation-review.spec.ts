@@ -58,7 +58,7 @@ test("la direction consulte les évaluations et notes depuis le menu Académique
   await page.getByLabel("Mot de passe", { exact: true }).fill(process.env.E2E_DIRECTOR_PASSWORD ?? "Test1234!")
   await page.getByRole("button", { name: "Se connecter" }).click()
   await expect(page).toHaveURL(/\/dashboard/)
-  await navigateMenu(page, "Académique", "Suivi des évaluations et notes")
+  await navigateMenu(page, "Académique", "Évaluations et notes")
   await expect(page).toHaveURL(/\/academic\/evaluations$/)
   await expect(page.getByRole("heading", { name: "Suivi des évaluations et notes" })).toBeVisible()
   await expect(page.getByRole("note")).toContainText("Utilisez les filtres")

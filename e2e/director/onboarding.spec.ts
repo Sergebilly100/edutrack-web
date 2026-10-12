@@ -225,5 +225,5 @@ test("C7 : les imports de profils restent fermés sur la page normale après fin
   await expect(page.getByRole("tab", { name: /Emploi du temps/ })).toBeVisible()
   await expect(page.getByRole("tab", { name: /Élèves|Professeurs/ })).toHaveCount(0)
   await expect(page.getByRole("heading", { name: "Profils élèves historiques" })).toHaveCount(0)
-  await expect(page.getByText(/Les imports élèves et professeurs sont réservés/)).toBeVisible()
+  await expect(page.getByText(/Importez l’emploi du temps et consultez les opérations déjà effectuées/)).toBeVisible()
 })

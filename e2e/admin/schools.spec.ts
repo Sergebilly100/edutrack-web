@@ -35,6 +35,7 @@ test.describe("Console Super Admin - Écoles", () => {
     await dialog.getByLabel("Nom", { exact: true }).fill(schoolName)
     await dialog.getByLabel("Sous-domaine").fill(`e2e-admin-${uniq}`)
     await dialog.getByLabel("Ville").fill("Abidjan")
+    await dialog.getByLabel("Adresse").fill("Rue de la recette QA")
 
     await dialog.getByRole("combobox").nth(0).click()
     await page.getByRole("option", { name: "Secondaire" }).click()
@@ -71,6 +72,7 @@ test.describe("Console Super Admin - Écoles", () => {
     await dialog.getByLabel("Nom", { exact: true }).fill(`E2E Admin School ${uniq}`)
     await dialog.getByLabel("Sous-domaine").fill(`e2e-admin-${uniq}`)
     await dialog.getByLabel("Ville").fill("Abidjan")
+    await dialog.getByLabel("Adresse").fill("Rue de la recette QA")
     await dialog.getByRole("combobox").nth(0).click()
     await page.getByRole("option", { name: "Secondaire" }).click()
     await dialog.getByLabel("Nom complet").fill(directorName)

@@ -53,8 +53,7 @@ const toDayOfWeek = (date: Date): number => {
 
 const toTime = (date: Date): string => `${pad(date.getHours())}:${pad(date.getMinutes())}`
 
-export const createCurrentSlot = (): Slot => {
-  const now = new Date()
+export const createCurrentSlot = (now = new Date()): Slot => {
   const start = new Date(now)
   start.setMinutes(start.getMinutes() - 5)
 
@@ -85,9 +84,15 @@ export const mockTeacherFlowApis = async (
   options: TeacherFlowMockOptions = {}
 ): Promise<{ slot: Slot; todayKey: string }> => {
   await returningUser(page)
-  const baseSlot = createCurrentSlot()
+  const fixtureTime = new Date()
+  if (fixtureTime.getDay() === 0) {
+    fixtureTime.setDate(fixtureTime.getDate() + 1)
+    fixtureTime.setHours(10, 0, 0, 0)
+  }
+  await page.clock.install({ time: fixtureTime })
+  const baseSlot = createCurrentSlot(fixtureTime)
   const slot: Slot = { ...baseSlot, ...(options.slot ?? {}) }
-  const todayKey = toDateKey(new Date())
+  const todayKey = toDateKey(fixtureTime)
 
   await page.route("**/api/v1/auth/refresh*", async (route) => {
     await route.fulfill({

@@ -19,6 +19,7 @@ import {
   listSubscriptionCreators,
   listSubscriptionParents,
   sendPendingParentAccess,
+  resetParentSubscriptionPassword,
 } from "@/modules/subscriptions/subscriptions.api"
 
 describe("subscriptions.api", () => {
@@ -72,6 +73,17 @@ describe("subscriptions.api", () => {
       parent_ids: ["parent-1"],
     })
     expect(result.queued).toBe(1)
+  })
+
+  it("transmet les canaux choisis pour une seule rotation", async () => {
+    postMock.mockResolvedValueOnce({ data: { new_temp_password: "SAFE234567", channels: [] } })
+    const result = await resetParentSubscriptionPassword("parent-1", ["sms", "email"])
+    expect(postMock).toHaveBeenCalledWith(
+      "/subscriptions/parents/parent-1/reset-password",
+      { channels: ["sms", "email"], manual_only: false },
+      { signal: undefined }
+    )
+    expect(result.new_temp_password).toBe("SAFE234567")
   })
 
   it("requests revenue stats for the selected month and normalizes missing fields", async () => {

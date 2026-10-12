@@ -63,7 +63,7 @@ describe("SchoolYearsPage", () => {
   it("modifie uniquement la date d’ouverture des décisions de fin d’année", async () => {
     renderPage()
     const input = await screen.findByLabelText(/Ouverture des décisions de fin d’année/)
-    expect(screen.getByText(/La saisie des notes s’arrête à la date de début de revue de chaque période/)).toBeInTheDocument()
+    expect(screen.getByText(/Cette date ouvre le menu "Fin d’année" et la validation des décisions de passage/)).toBeInTheDocument()
     fireEvent.change(input, { target: { value: "2027-05-15" } })
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer la date" }))
 

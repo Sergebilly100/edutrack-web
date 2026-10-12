@@ -58,12 +58,12 @@ describe("lectures école et administration séparées", () => {
     await expect(fetchPermissionCatalogue()).rejects.toThrow()
   })
 
-  it("accepte le catalogue réel avec un droit réservé à la direction", async () => {
+  it("accepte le catalogue réel avec le droit de correction publié déléguable", async () => {
     const catalogue = buildPermissionCatalogue({ canEditSmsTemplate: true, smsEnabled: true, monetizeParentAlerts: true })
     vi.mocked(apiClient.get).mockResolvedValue({ data: catalogue })
     await expect(fetchPermissionCatalogue()).resolves.toEqual(catalogue)
     expect(catalogue.permissions.find((entry) => entry.key === "report_cards.published_correction")).toMatchObject({
-      available: false, activationDependencies: [],
+      available: true, activationDependencies: [],
     })
   })
 

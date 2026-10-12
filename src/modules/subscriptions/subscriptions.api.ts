@@ -289,16 +289,36 @@ export const cancelSubscription = async (
 }
 
 export const resetParentSubscriptionPassword = async (
-  parentId: string
-): Promise<{ phone: string; new_temp_password: string }> => {
+  parentId: string,
+  channels: Array<"sms" | "email">,
+  manualOnly = false,
+  signal?: AbortSignal
+): Promise<ParentAccessResetResult> => {
   try {
-    const response = await apiClient.post<{ phone: string; new_temp_password: string }>(
-      `/subscriptions/parents/${parentId}/reset-password`
+    const response = await apiClient.post<ParentAccessResetResult>(
+      `/subscriptions/parents/${parentId}/reset-password`,
+      { channels, manual_only: manualOnly },
+      { signal }
     )
     return response.data
   } catch (error) {
     throw new Error(parseApiError(error, "Impossible de réinitialiser le mot de passe."))
   }
+}
+
+export type ParentAccessResetResult = {
+  parent_id: string
+  login: string
+  new_temp_password: string
+  rotation_id: string
+  channels: Array<{ channel: "sms" | "email"; status: "queued" | "failed" }>
+}
+
+export const getParentAccessStatuses = async (parentId: string, rotationId: string) => {
+  const response = await apiClient.get<{ channels: Array<{ channel: "sms" | "email"; status: "queued" | "sent" | "delivered" | "failed" }> }>(
+    `/subscriptions/parents/${parentId}/access/${rotationId}/status`
+  )
+  return response.data.channels
 }
 
 export const sendPendingParentAccess = async (

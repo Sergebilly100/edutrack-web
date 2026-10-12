@@ -73,9 +73,8 @@ for (const device of [{ name: 'Android', width: 393, height: 851, mobile: true }
       await page.getByRole('link', { name: 'Nouvelle inscription' }).click();
       await page.getByLabel('Prénom *', { exact: true }).fill('Aya C10');
       await page.getByLabel('Nom *', { exact: true }).fill(suffix);
-      await page.getByLabel('Matricule', { exact: true }).fill(`E-${suffix}`);
-      await page.getByRole('combobox', { name: 'Année scolaire *' }).click();
-      await page.getByRole('option', { name: /QA \d{4}/ }).click();
+      await page.getByLabel('Matricule (facultatif)').fill(`E-${suffix}`);
+      await expect(page.getByText(/Année scolaire active QA \d{4}/)).toBeVisible();
       await page.getByRole('combobox', { name: 'Niveau visé' }).click();
       await page.getByRole('option', { name: 'Niveau QA', exact: true }).click();
       await page.getByRole('button', { name: 'Créer une classe', exact: true }).click();
