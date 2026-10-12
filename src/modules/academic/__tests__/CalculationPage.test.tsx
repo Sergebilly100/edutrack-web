@@ -8,6 +8,8 @@ const scopeInProgress = {
   subjects: [{ id: "s1", name: "Mathématiques", coefficient: 4 }],
   evaluations: [{ id: "e1", label: "Devoir 1", type: "scheduled", coefficient: 1, subjectId: "s1", subjectName: "Mathématiques", grades: [{ studentId: "student-1", score: 16, maxScore: 20, comment: null }] }],
   completion: [{ subjectId: "s1", subjectName: "Mathématiques", subjectCoefficient: 4, status: "in_progress", completedAt: null, calculationStarted: true, teacher: null }],
+  periodState: { isClosed: false, notesEntryOpen: true, reviewOpen: false, reason: null },
+  preparation: [{ subjectId: "s1", subjectName: "Mathématiques", status: "in_progress", calculationStarted: true, correctionStatus: null, evaluationCount: 1, expectedGrades: 1, enteredGrades: 1, missingGrades: 0, reasons: [], canStartCalculation: false, canRecalculate: true, canFinalize: true }],
 }
 const fetchScope = vi.fn()
 const fetchContext = vi.fn()
@@ -62,7 +64,7 @@ describe("CalculationPage", () => {
   })
 
   it("ouvre directement les moyennes validées et conserve le détail des notes", async () => {
-    fetchScope.mockResolvedValue({ ...scopeInProgress, completion: [{ ...scopeInProgress.completion[0], status: "completed" }] })
+    fetchScope.mockResolvedValue({ ...scopeInProgress, completion: [{ ...scopeInProgress.completion[0], status: "completed" }], preparation: [{ ...scopeInProgress.preparation[0], status: "completed", canRecalculate: false, canFinalize: false, reasons: ["SUBJECT_COMPLETED"] }] })
     renderWithClient(<CalculationPage />)
 
     expect(await screen.findByText("Moyenne / 20")).toBeInTheDocument()

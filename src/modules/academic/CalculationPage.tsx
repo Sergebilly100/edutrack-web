@@ -131,6 +131,8 @@ export default function CalculationPage() {
   const completion = scopeQuery.data?.completion.find(
     (item) => item.subjectId === subjectId,
   );
+  const preparation = scopeQuery.data?.preparation?.find((item) => item.subjectId === subjectId);
+  const averagesUrl = `/academic/notes?tab=moyennes&classId=${encodeURIComponent(classId)}&gradingPeriodId=${encodeURIComponent(gradingPeriodId)}`;
   const selectedClass = contextQuery.data?.classes.find(
     (item) => item.id === classId,
   );
@@ -145,16 +147,6 @@ export default function CalculationPage() {
     [scopeQuery.data?.evaluations, subjectId],
   );
   const students = studentsQuery.data?.data ?? [];
-  const scheduledEvaluations = evaluations.filter(
-    (evaluation) => evaluation.type === "scheduled",
-  );
-  const isReadyForValidation =
-    scheduledEvaluations.length > 0 &&
-    scheduledEvaluations.every((evaluation) =>
-      students.every((student) =>
-        evaluation.grades.some((grade) => grade.studentId === student.id),
-      ),
-    );
   const detailsStudent =
     students.find((student) => student.id === detailsStudentId) ?? null;
 
@@ -182,15 +174,23 @@ export default function CalculationPage() {
         variant: "destructive",
       }),
   });
+  const recalculateMutation = useMutation({
+    mutationFn: () => markSubjectCompleted({ classId, subjectId, gradingPeriodId, status: "in_progress" }),
+    onSuccess: async () => {
+      await invalidateAcademicReportScope(queryClient, classId, gradingPeriodId);
+      toast({ title: "Moyennes recalculées" });
+    },
+    onError: (error) => toast({ title: "Recalcul impossible", description: error instanceof Error ? error.message : undefined, variant: "destructive" }),
+  });
 
   if (!classId || !gradingPeriodId || !subjectId)
     return (
       <EmptyState
         title="Calcul non défini"
-        description="Revenez à Évaluations & notes puis choisissez une matière à calculer."
+        description="Choisissez une classe, une période et une matière depuis Moyennes."
         action={{
-          label: "Retour aux évaluations",
-          onClick: () => navigate("/academic/notes"),
+          label: "Retour aux moyennes",
+          onClick: () => navigate(averagesUrl),
         }}
       />
     );
@@ -200,14 +200,14 @@ export default function CalculationPage() {
         <Loader2 className="h-4 w-4 animate-spin" /> Chargement du calcul…
       </p>
     );
-  if (scopeQuery.isError || studentsQuery.isError || !subject || !completion)
+  if (scopeQuery.isError || studentsQuery.isError || !subject || !completion || !preparation)
     return (
       <EmptyState
         title="Calcul indisponible"
-        description="Vérifiez la classe, la matière et la période choisies depuis Évaluations & notes."
+        description="Vérifiez la classe, la matière et la période choisies depuis Moyennes."
         action={{
-          label: "Retour aux évaluations",
-          onClick: () => navigate("/academic/notes"),
+          label: "Retour aux moyennes",
+          onClick: () => navigate(averagesUrl),
         }}
       />
     );
@@ -215,19 +215,15 @@ export default function CalculationPage() {
     return (
       <EmptyState
         title="Saisie encore ouverte"
-        description="Calculez d’abord les moyennes de cette matière depuis Évaluations & notes."
+        description={preparation.reasons.includes("SCHOOL_YEAR_CLOSED") ? "Cette année scolaire est clôturée." : preparation.reasons.includes("CLASS_INACTIVE") ? "Cette classe est inactive." : preparation.reasons.includes("PERIOD_CLOSED") ? "Cette classe et cette période sont clôturées." : preparation.reasons.includes("NO_EVALUATIONS") ? "Programmez au moins une évaluation depuis Évaluations." : preparation.missingGrades > 0 ? `${preparation.missingGrades} note(s) manquante(s) avant le calcul.` : "Démarrez le calcul de cette matière depuis Moyennes."}
         action={{
-          label: "Retour aux évaluations",
-          onClick: () =>
-            navigate(
-              `/academic/notes?classId=${encodeURIComponent(classId)}&gradingPeriodId=${encodeURIComponent(gradingPeriodId)}`,
-            ),
+          label: "Retour aux moyennes",
+          onClick: () => navigate(averagesUrl),
         }}
       />
     );
 
-  const editable =
-    completion.status !== "completed" && !period?.isCompleted && !period?.closedClassIds?.includes(classId);
+  const editable = completion.status !== "completed" && !scopeQuery.data?.periodState?.isClosed;
   return (
     <>
       <OfflineIndicator />
@@ -240,9 +236,9 @@ export default function CalculationPage() {
         <header className="space-y-3">
           <Button variant="ghost" className="min-h-6 px-0 py-0" asChild>
             <Link
-              to={`/academic/notes?classId=${encodeURIComponent(classId)}&gradingPeriodId=${encodeURIComponent(gradingPeriodId)}`}>
+              to={averagesUrl}>
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Retour aux évaluations
+              Retour aux moyennes
             </Link>
           </Button>
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -285,11 +281,11 @@ export default function CalculationPage() {
             3. Moyennes
           </li>
         </ol>
-        {completion.status === "completed" || period?.isCompleted || period?.closedClassIds?.includes(classId) ? (
+        {completion.status === "completed" || scopeQuery.data?.periodState?.isClosed ? (
           <Card className="shadow-sm !mt-3">
             <CardContent className="flex gap-3 p-4 text-xs">
               <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
-              {period?.isCompleted || period?.closedClassIds?.includes(classId)
+              {scopeQuery.data?.periodState?.isClosed
                 ? "Cette classe et cette période sont clôturées. Une correction approuvée par la direction peut les rouvrir."
                 : "Cette matière est validée. Les moyennes et le détail des notes restent consultables."}
             </CardContent>
@@ -401,10 +397,11 @@ export default function CalculationPage() {
             >
               Revenir aux notes par élève
             </Button>
+            {preparation.canRecalculate ? <Button type="button" variant="outline" className="min-h-12 w-full" disabled={recalculateMutation.isPending} onClick={() => recalculateMutation.mutate()}>{recalculateMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Recalculer les moyennes</Button> : null}
             <Button
               type="button"
               className="min-h-6 w-full"
-              disabled={validateMutation.isPending || !isReadyForValidation}
+              disabled={validateMutation.isPending || !preparation.canFinalize}
               onClick={() => validateMutation.mutate()}
             >
               {validateMutation.isPending ? (
@@ -412,9 +409,9 @@ export default function CalculationPage() {
               ) : null}
               Valider mes moyennes de {subject.name}
             </Button>
-            {!isReadyForValidation ? (
+            {!preparation.canFinalize ? (
               <p className="text-center text-xs text-muted-foreground">
-                Ajoutez au moins une évaluation et terminez toutes les notes avant la validation.
+                {preparation.missingGrades > 0 ? `${preparation.missingGrades} note(s) manquante(s) avant la validation.` : preparation.reasons.includes("NO_EVALUATIONS") ? "Programmez au moins une évaluation depuis Évaluations." : preparation.reasons.includes("SCHOOL_YEAR_CLOSED") ? "Cette année scolaire est clôturée." : preparation.reasons.includes("CLASS_INACTIVE") ? "Cette classe est inactive." : preparation.reasons.includes("PERIOD_CLOSED") ? "Cette classe et cette période sont clôturées." : "La validation est indisponible pour cette matière."}
               </p>
             ) : null}
             <p className="text-center text-xs text-muted-foreground">

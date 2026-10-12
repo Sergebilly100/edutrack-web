@@ -98,7 +98,8 @@ describe("NotesPage", () => {
     expect(screen.getByLabelText("Date de l’évaluation")).toBeRequired()
     fireEvent.click(screen.getByRole("button", { name: "Close" }))
     expect(screen.getByText("Évaluations programmées")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Ouvrir le calcul" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Aller aux moyennes/ })).toHaveAttribute("href", "/academic/notes?tab=moyennes&classId=c1&gradingPeriodId=p1")
+    expect(screen.queryByRole("heading", { name: "Calculer et valider par matière" })).not.toBeInTheDocument()
     expect(fetchScope).toHaveBeenCalledWith("c1", "p1")
   })
 
@@ -174,7 +175,7 @@ describe("NotesPage", () => {
     expect(screen.getByRole("button", { name: "Enregistrer" })).toBeEnabled()
   })
 
-  it("annonce que le calcul laisse les notes modifiables", async () => {
+  it("renvoie vers Moyennes sans mutation de calcul", async () => {
     fetchContext.mockResolvedValueOnce({
       classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2026-2027" }],
       gradingPeriods: [
@@ -190,18 +191,10 @@ describe("NotesPage", () => {
     })
     renderAcademicPage()
 
-    fireEvent.click(await screen.findByRole("button", { name: "Calculer les moyennes" }))
-    expect(screen.getByRole("alertdialog", { name: "Passer au calcul des moyennes ?" })).toBeInTheDocument()
-    expect(screen.getByText(/pourrez encore modifier les notes/)).toBeInTheDocument()
+    const link = await screen.findByRole("link", { name: /Aller aux moyennes/ })
+    expect(link).toHaveAttribute("href", "/academic/notes?tab=moyennes&classId=c1&gradingPeriodId=p1")
     expect(markSubjectCompleted).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole("button", { name: "Calculer les moyennes" }))
-    await waitFor(() => expect(markSubjectCompleted).toHaveBeenCalledWith({
-      classId: "c1",
-      subjectId: "s1",
-      gradingPeriodId: "p1",
-      status: "in_progress",
-    }))
+    expect(screen.queryByRole("alertdialog", { name: "Passer au calcul des moyennes ?" })).not.toBeInTheDocument()
   })
 
   it("permet de programmer une évaluation sans créneau lorsque l’EDT n’est pas configuré", async () => {

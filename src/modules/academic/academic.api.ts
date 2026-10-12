@@ -303,6 +303,24 @@ export type EvaluationsScope = {
   evaluations: EvaluationWithGrades[]
   completion: CompletionSubject[]
   correctionStatuses?: Array<{ subjectId: string; status: string }>
+  periodState: { isClosed: boolean; schoolYearStatus: "draft" | "active" | "closed" | null; classActive: boolean; notesEntryOpen: boolean; reviewOpen: boolean; reason: "PERIOD_CLOSED" | "SCHOOL_YEAR_CLOSED" | "CLASS_INACTIVE" | null }
+  preparation: SubjectPreparation[]
+}
+
+export type SubjectPreparation = {
+  subjectId: string
+  subjectName: string
+  status: "in_progress" | "completed"
+  calculationStarted: boolean
+  correctionStatus: string | null
+  evaluationCount: number
+  expectedGrades: number
+  enteredGrades: number
+  missingGrades: number
+  reasons: Array<"PERIOD_CLOSED" | "SCHOOL_YEAR_CLOSED" | "CLASS_INACTIVE" | "NO_EVALUATIONS" | "GRADES_INCOMPLETE" | "SUBJECT_COMPLETED">
+  canStartCalculation: boolean
+  canRecalculate: boolean
+  canFinalize: boolean
 }
 
 export type TeacherAcademicContext = {
