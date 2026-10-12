@@ -1,3 +1,4 @@
+import { birthDateIssue, yesterdayInBusinessTimezone } from "@/shared/lib/date-validation"
 import { useEffect, useMemo, useState } from "react"
 import type { Column, ColumnDef } from "@tanstack/react-table"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -94,6 +95,7 @@ export default function StudentsPage() {
   const returnTo = `${window.location.pathname}${window.location.search}`
   const canCreateStudent = hasPermission("students.create")
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [birthInputError, setBirthInputError] = useState<string | null>(null)
   const [newStudent, setNewStudent] = useState({
     classId: "",
     firstName: "",
@@ -108,6 +110,7 @@ export default function StudentsPage() {
   })
 
   const resetCreateStudentForm = () => {
+    setBirthInputError(null)
     setNewStudent({
       classId: "",
       firstName: "",
@@ -268,7 +271,9 @@ export default function StudentsPage() {
   const absenceWatchCount = canViewAttendance ? tableData.filter((student) => student.monthlyAbsences > 3).length : 0
   const visibleClassesCount = new Set(students.map((student) => student.classId).filter(Boolean)).size
 
+  const birthDateError = birthDateIssue(newStudent.birthDate) ?? birthInputError
   const isCreateStudentValid =
+    !birthDateError &&
     newStudent.classId.length > 0 &&
     newStudent.firstName.trim().length > 0 &&
     newStudent.lastName.trim().length > 0 &&
@@ -678,11 +683,17 @@ export default function StudentsPage() {
                 <Input
                   id="student-birth-date"
                   type="date"
+                  max={yesterdayInBusinessTimezone()}
+                  aria-invalid={Boolean(birthDateError)}
+                  aria-describedby={birthDateError ? "student-birth-date-error" : undefined}
                   value={newStudent.birthDate}
-                  onChange={(event) =>
+                  onInput={(event) => setBirthInputError(event.currentTarget.validity.badInput ? "Date de naissance invalide : indiquez une date réelle." : null)}
+                  onChange={(event) => {
+                    setBirthInputError(null)
                     setNewStudent((current) => ({ ...current, birthDate: event.target.value }))
-                  }
+                  }}
                 />
+                {birthDateError ? <p id="student-birth-date-error" role="alert" className="text-sm text-destructive">{birthDateError}</p> : null}
               </div>
             </div>
 

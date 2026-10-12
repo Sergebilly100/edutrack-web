@@ -1,3 +1,4 @@
+import { dateRangeIssue, updateDateRange } from "@/shared/lib/date-validation"
 import { useEffect, useMemo, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { AlertTriangle, CheckCircle2, Clock3, DoorOpen, ListChecks } from "lucide-react"
@@ -51,6 +52,13 @@ export default function TeacherAnalysisPanel() {
   const location = useLocation()
   const studentLabels = useStudentLabels()
   const [statsPage, setStatsPage] = useState(1)
+  const [dateMessage, setDateMessage] = useState<string | null>(null)
+  const rangeError = dateRangeIssue(formValues.from, formValues.to)
+  const changeDate = (side: "from" | "to", value: string) => {
+    const next = updateDateRange(formValues.from, formValues.to, side, value)
+    setFormValues((current) => ({ ...current, from: next.from, to: next.to }))
+    setDateMessage(next.message)
+  }
 
   const statsRows = statsQuery.data ?? []
   const statsTotalPages = Math.max(1, Math.ceil(statsRows.length / STATS_PAGE_SIZE))
@@ -109,9 +117,10 @@ export default function TeacherAnalysisPanel() {
               <DateInput
                 className="min-h-12"
                 value={formValues.from}
-                onChange={(value) =>
-                  setFormValues((current) => ({ ...current, from: value }))
-                }
+                max={formValues.to}
+                aria-invalid={Boolean(rangeError)}
+                aria-describedby={rangeError || dateMessage ? "date-range-message" : undefined}
+                onChange={(value) => changeDate("from", value)}
               />
             </div>
             <div className="min-w-[180px] space-y-2">
@@ -119,11 +128,13 @@ export default function TeacherAnalysisPanel() {
               <DateInput
                 className="min-h-12"
                 value={formValues.to}
-                onChange={(value) =>
-                  setFormValues((current) => ({ ...current, to: value }))
-                }
+                min={formValues.from}
+                aria-invalid={Boolean(rangeError)}
+                aria-describedby={rangeError || dateMessage ? "date-range-message" : undefined}
+                onChange={(value) => changeDate("to", value)}
               />
             </div>
+            {rangeError || dateMessage ? <p id="date-range-message" role="alert" className="w-full text-sm text-destructive">{rangeError ?? dateMessage}</p> : null}
             <div className="min-w-[200px] space-y-2">
               <p className="text-sm font-medium">Statut</p>
               <Select
@@ -212,7 +223,7 @@ export default function TeacherAnalysisPanel() {
                 </SelectContent>
               </Select>
             </div>
-            <Button className="min-h-12" size="lg" onClick={handleApply}>
+            <Button className="min-h-12" size="lg" onClick={handleApply} disabled={Boolean(rangeError || !formValues.from || !formValues.to)}>
               Analyser
             </Button>
             <Button className="min-h-12" variant="outline" onClick={handleReset}>

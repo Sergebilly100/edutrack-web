@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { isCivilDate } from "@/shared/lib/date-validation"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Navigate, useNavigate } from "react-router-dom"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -1484,6 +1485,10 @@ export default function SchedulePage() {
                           onChange={(event) => {
                             const picked = event.target.value
                             if (!picked) return
+                            if (!isCivilDate(picked) || picked < minDate || Boolean(maxDate && picked > maxDate)) {
+                              toast({ variant: "destructive", title: "Date invalide", description: "Choisissez une date réelle dans la période autorisée." })
+                              return
+                            }
                             const { weekMonday, dayOfWeek } = weekMondayAndDayFromDate(picked)
                             // Le modèle ne couvre que lundi→samedi (pas de cours le dimanche).
                             if (dayOfWeek === 7) {

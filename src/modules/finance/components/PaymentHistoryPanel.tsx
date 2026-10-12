@@ -1,3 +1,4 @@
+import { dateRangeIssue, updateDateRange } from "@/shared/lib/date-validation"
 import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { AlertTriangle, Ban, ChevronLeft, ChevronRight, Download, Loader2, ReceiptText } from "lucide-react"
@@ -43,12 +44,20 @@ function PaymentHistoryTable({ schoolYearId }: { schoolYearId: string }) {
   const navigate = useNavigate()
   const [from, setFrom] = useState(firstDayOfMonth())
   const [to, setTo] = useState(isoToday())
+  const [dateMessage, setDateMessage] = useState<string | null>(null)
+  const rangeError = dateRangeIssue(from, to)
+  const changeDate = (side: "from" | "to", value: string) => {
+    const next = updateDateRange(from, to, side, value)
+    setFrom(next.from)
+    setTo(next.to)
+    setDateMessage(next.message)
+  }
   const [levelId, setLevelId] = useState("all")
   const [classId, setClassId] = useState("all")
   const [status, setStatus] = useState<FinancialCacheStatus | "all">("all")
   const [page, setPage] = useState(1)
   const filter = { schoolYearId, from, to, levelId: levelId === "all" ? undefined : levelId, classId: classId === "all" ? undefined : classId, status: status === "all" ? undefined : status }
-  const historyQuery = useQuery({ queryKey: ["finance", "payment-history", filter, page], queryFn: () => getPaymentHistory({ ...filter, page, limit: HISTORY_PAGE_SIZE }), enabled: Boolean(schoolYearId && from && to) })
+  const historyQuery = useQuery({ queryKey: ["finance", "payment-history", filter, page], queryFn: () => getPaymentHistory({ ...filter, page, limit: HISTORY_PAGE_SIZE }), enabled: Boolean(schoolYearId && from && to && !rangeError) })
   const levelsQuery = useQuery({ queryKey: ["academic", "levels"], queryFn: listLevels })
   const classesQuery = useQuery({ queryKey: ["academic", "classes", schoolYearId], queryFn: () => listClasses(schoolYearId), enabled: Boolean(schoolYearId) })
   const classes = (classesQuery.data?.classes ?? []).filter((schoolClass) => levelId === "all" || schoolClass.level.id === levelId)
@@ -62,8 +71,9 @@ function PaymentHistoryTable({ schoolYearId }: { schoolYearId: string }) {
 
   return <section className="space-y-5">
     <div className="grid gap-4 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2 xl:grid-cols-5">
-      <FilterDate label="Du" id="history-from" value={from} max={to} onChange={setFrom} />
-      <FilterDate label="Au" id="history-to" value={to} min={from} onChange={setTo} />
+      <FilterDate label="Du" id="history-from" value={from} max={to} invalid={Boolean(rangeError)} describedBy={rangeError || dateMessage ? "history-date-message" : undefined} onChange={(value) => changeDate("from", value)} />
+      <FilterDate label="Au" id="history-to" value={to} min={from} invalid={Boolean(rangeError)} describedBy={rangeError || dateMessage ? "history-date-message" : undefined} onChange={(value) => changeDate("to", value)} />
+      {rangeError || dateMessage ? <p id="history-date-message" role="alert" className="text-sm text-destructive sm:col-span-2">{rangeError ?? dateMessage}</p> : null}
       <FilterSelect label="Niveau" value={levelId} onValueChange={setLevelId} allLabel="Tous les niveaux" items={(levelsQuery.data ?? []).map((level) => ({ value: level.id, label: level.name }))} />
       <FilterSelect label="Classe" value={classId} onValueChange={setClassId} allLabel="Toutes les classes" items={classes.map((schoolClass) => ({ value: schoolClass.id, label: schoolClass.name }))} />
       <FilterSelect label="Statut" value={status} onValueChange={(value) => setStatus(value as FinancialCacheStatus | "all")} allLabel="Tous les statuts" items={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} />
@@ -78,8 +88,8 @@ function PaymentHistoryTable({ schoolYearId }: { schoolYearId: string }) {
   </section>
 }
 
-function FilterDate({ label, id, value, min, max, onChange }: { label: string; id: string; value: string; min?: string; max?: string; onChange: (value: string) => void }) {
-  return <div className="space-y-2"><Label htmlFor={id}>{label}</Label><Input id={id} type="date" className="min-h-12" value={value} min={min} max={max} onChange={(event) => onChange(event.target.value)} /></div>
+function FilterDate({ label, id, value, min, max, invalid, describedBy, onChange }: { label: string; id: string; value: string; min?: string; max?: string; invalid?: boolean; describedBy?: string; onChange: (value: string) => void }) {
+  return <div className="space-y-2"><Label htmlFor={id}>{label}</Label><Input id={id} type="date" className="min-h-12" value={value} min={min} max={max} aria-invalid={invalid} aria-describedby={describedBy} onChange={(event) => onChange(event.target.value)} /></div>
 }
 
 function FilterSelect({ label, value, onValueChange, allLabel, items }: { label: string; value: string; onValueChange: (value: string) => void; allLabel: string; items: Array<{ value: string; label: string }> }) {

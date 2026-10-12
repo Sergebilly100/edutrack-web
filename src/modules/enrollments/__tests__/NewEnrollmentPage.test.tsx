@@ -117,6 +117,25 @@ describe("NewEnrollmentPage historical edit", () => {
     expect(await screen.findByText("Historique des inscriptions")).toBeInTheDocument()
   })
 
+  it("préserve une ancienne naissance invalide lors d'une modification sans toucher ce champ", async () => {
+    mocks.getStudent.mockResolvedValue({ id: "student-1", firstName: "Awa", lastName: "Koné", birthDate: "9999-12-31",
+      matricule: "MAT-001", classId: "class-1", className: "CP1 A", parentName: null, parentPhone: null,
+      parentEmail: null, parentName2: null, parentPhone2: null })
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/enrollments/enrollment-1/edit"]}>
+          <Routes><Route path="/enrollments/:enrollmentId/edit" element={<NewEnrollmentPage />} /></Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+    expect(await screen.findByText(/Date existante à corriger/)).toBeInTheDocument()
+    const save = screen.getByRole("button", { name: "Enregistrer et continuer" })
+    await waitFor(() => expect(save).toBeEnabled())
+    fireEvent.click(save)
+    await waitFor(() => expect(mocks.updateStudent).toHaveBeenCalled())
+    expect(mocks.updateStudent.mock.calls[0][1]).not.toHaveProperty("birthDate")
+  })
+
   it("n’affiche aucun profil existant et sélectionne l’année active", async () => {
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>

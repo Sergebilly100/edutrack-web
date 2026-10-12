@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
+import { isCivilDate } from "@/shared/lib/date-validation"
 import { listStudents, type StudentItem } from "@/modules/students/students.api"
 import { EmptyState } from "@/shared/components/EmptyState"
 import {
@@ -113,7 +114,10 @@ export default function NotesPage() {
     .filter((period) => activePeriod && period.startDate > activePeriod.startDate)
     .sort((left, right) => left.startDate.localeCompare(right.startDate))[0]
   const draftSubjectIsLocked = completionBySubject.get(draft.subjectId)?.status === "completed"
-  const canCreate = draft.label.trim() !== "" && draft.subjectId !== "" && draft.evaluationDate !== ""
+  const evaluationDateError = draft.evaluationDate && (!isCivilDate(draft.evaluationDate)
+    || Boolean(activePeriod && (draft.evaluationDate < activePeriod.startDate || draft.evaluationDate > activePeriod.endDate)))
+    ? "Choisissez une date réelle dans la période d’évaluation." : null
+  const canCreate = draft.label.trim() !== "" && draft.subjectId !== "" && draft.evaluationDate !== "" && !evaluationDateError
     && !isPeriodReadOnly && !draftSubjectIsLocked
     && Boolean(activePeriod && draft.evaluationDate >= activePeriod.startDate && draft.evaluationDate <= activePeriod.endDate)
     && Number.isFinite(Number(draft.coefficient)) && Number(draft.coefficient) > 0
@@ -378,6 +382,8 @@ export default function NotesPage() {
                   required
                   min={activePeriod?.startDate}
                   max={activePeriod?.endDate}
+                  aria-invalid={Boolean(evaluationDateError)}
+                  aria-describedby={evaluationDateError ? "evaluation-date-error" : undefined}
                   value={draft.evaluationDate}
                   onChange={(event) =>
                     setDraft((previous) => ({
@@ -386,6 +392,7 @@ export default function NotesPage() {
                     }))
                   }
                 />
+                {evaluationDateError ? <p id="evaluation-date-error" role="alert" className="text-sm text-destructive">{evaluationDateError}</p> : null}
                 {draftSubjectIsLocked ? (
                   <p className="text-xs text-muted-foreground">
                     {nextPeriod

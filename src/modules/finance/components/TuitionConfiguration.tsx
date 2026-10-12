@@ -15,6 +15,8 @@ import { listLevels } from "@/modules/academic/academic.api"
 import type { StudentItem } from "@/modules/students/students.api"
 import { formatFcfa } from "@/shared/utils/formatting"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { addDaysIso } from "@/shared/lib/business-date"
+import { isCivilDate } from "@/shared/lib/date-validation"
 import { getStudentTuitionSchedule, grantTuitionOverride, listTuitionPlans, resetStudentTuitionSchedule, saveStudentTuitionSchedule, upsertTuitionPlan, type TuitionPlan, type TuitionScheduleStep } from "../finance.api"
 import type { TuitionRecovery } from "../tuition-recovery"
 import { StudentSearch } from "./StudentSearch"
@@ -28,6 +30,19 @@ type TuitionConfigurationProps = {
 }
 
 const blankStep = (): TuitionScheduleStep => ({ dueDate: "", cumulativeAmountExpected: 0 })
+
+const changeStepDate = (steps: TuitionScheduleStep[], index: number, value: string) => {
+  let cleared = false
+  const next = steps.map((step, stepIndex) => {
+    if (stepIndex === index) return { ...step, dueDate: value }
+    if (isCivilDate(value) && step.dueDate && ((stepIndex < index && step.dueDate >= value) || (stepIndex > index && step.dueDate <= value))) {
+      cleared = true
+      return { ...step, dueDate: "" }
+    }
+    return step
+  })
+  return { next, cleared }
+}
 
 export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, recovery, onPlanSaved }: TuitionConfigurationProps) {
   const queryClient = useQueryClient()
@@ -48,6 +63,13 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
   const [overrideReason, setOverrideReason] = useState("")
   const [scheduleStudent, setScheduleStudent] = useState<StudentItem | null>(null)
   const [studentScheduleSteps, setStudentScheduleSteps] = useState<TuitionScheduleStep[]>([blankStep()])
+  const [stepDateMessage, setStepDateMessage] = useState<string | null>(null)
+  const updateStepDate = (student: boolean, index: number, value: string) => {
+    const result = changeStepDate(student ? studentScheduleSteps : steps, index, value)
+    if (student) setStudentScheduleSteps(result.next)
+    else setSteps(result.next)
+    setStepDateMessage(result.cleared ? "Les dates de seuil incompatibles ont été effacées. Renseignez-les à nouveau." : null)
+  }
   const [isResetScheduleDialogOpen, setIsResetScheduleDialogOpen] = useState(false)
   const levels = !canReadLevels && recovery ? [{ id: recovery.levelId, name: recovery.levelName }] : levelsQuery.data ?? []
   const selectedPlan = useMemo(() => plansQuery.data?.find((plan) => plan.levelId === levelId), [plansQuery.data, levelId])
@@ -146,11 +168,11 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
   const total = Number(totalAmount)
   const stepsValid = steps.every((step, index) => {
     const previous = steps[index - 1]
-    return Boolean(step.dueDate) && step.cumulativeAmountExpected >= 0 && step.cumulativeAmountExpected <= total && (!previous || (step.dueDate > previous.dueDate && step.cumulativeAmountExpected >= previous.cumulativeAmountExpected))
+    return isCivilDate(step.dueDate) && step.cumulativeAmountExpected >= 0 && step.cumulativeAmountExpected <= total && (!previous || (step.dueDate > previous.dueDate && step.cumulativeAmountExpected >= previous.cumulativeAmountExpected))
   })
   const studentScheduleValid = studentScheduleSteps.every((step, index) => {
     const previous = studentScheduleSteps[index - 1]
-    return Boolean(step.dueDate) && step.cumulativeAmountExpected >= 0 && (!previous || (step.dueDate > previous.dueDate && step.cumulativeAmountExpected >= previous.cumulativeAmountExpected))
+    return isCivilDate(step.dueDate) && step.cumulativeAmountExpected >= 0 && (!previous || (step.dueDate > previous.dueDate && step.cumulativeAmountExpected >= previous.cumulativeAmountExpected))
   })
 
   return (
@@ -173,7 +195,7 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
               {steps.map((step, index) => (
                 <div key={step.id ?? index} className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[2rem_1fr_1fr_3rem] sm:items-end">
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{index + 1}</span>
-                  <div className="space-y-1.5"><Label htmlFor={`step-date-${index}`}>Date seuil</Label><Input id={`step-date-${index}`} type="date" disabled={!canEdit} value={step.dueDate} onChange={(event) => setSteps((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, dueDate: event.target.value } : item))} /></div>
+                  <div className="space-y-1.5"><Label htmlFor={`step-date-${index}`}>Date seuil</Label><Input id={`step-date-${index}`} type="date" disabled={!canEdit} value={step.dueDate} aria-describedby={stepDateMessage ? "plan-step-date-message" : undefined} min={isCivilDate(steps[index - 1]?.dueDate ?? "") ? addDaysIso(steps[index - 1]!.dueDate, 1) : undefined} max={isCivilDate(steps[index + 1]?.dueDate ?? "") ? addDaysIso(steps[index + 1]!.dueDate, -1) : undefined} onChange={(event) => updateStepDate(false, index, event.target.value)} /></div>
                   <div className="space-y-1.5"><Label htmlFor={`step-amount-${index}`}>Cumul attendu</Label><Input id={`step-amount-${index}`} inputMode="numeric" disabled={!canEdit} value={step.cumulativeAmountExpected || ""} onChange={(event) => setSteps((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, cumulativeAmountExpected: Number(event.target.value.replace(/\D/g, "")) } : item))} /></div>
                   {canEdit ? <Button type="button" variant="ghost" size="icon" className="min-h-12 min-w-12 text-muted-foreground hover:text-red-700" aria-label={`Supprimer le seuil ${index + 1}`} disabled={steps.length === 1} onClick={() => setSteps((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 className="h-4 w-4" /></Button> : null}
                 </div>
@@ -181,6 +203,7 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
             </div>
           </div>
 
+          {stepDateMessage ? <p id="plan-step-date-message" role="alert" className="text-sm text-destructive">{stepDateMessage}</p> : null}
           {!stepsValid && total > 0 ? <Alert variant="destructive"><AlertDescription>Chaque seuil doit avoir une date croissante et un cumul compris entre 0 et {formatFcfa(total)}.</AlertDescription></Alert> : null}
           {canEdit ? <div className="flex justify-end"><Button type="button" className="min-h-12" disabled={!levelId || total <= 0 || !stepsValid || planMutation.isPending || (canReadLevels && (levelsQuery.isLoading || levelsQuery.isError)) || (canReadPlans && (plansQuery.isLoading || plansQuery.isError))} onClick={() => planMutation.mutate()}>{planMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}{planMutation.isPending ? "Enregistrement…" : "Enregistrer le plan"}</Button></div> : null}
         
@@ -201,12 +224,13 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
                         {studentScheduleSteps.map((step, index) => (
                           <div key={`${scheduleStudent.id}-${step.id ?? index}`} className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[2rem_1fr_1fr_3rem] sm:items-end">
                             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{index + 1}</span>
-                            <div className="space-y-1.5"><Label htmlFor={`student-step-date-${index}`}>Date seuil</Label><Input id={`student-step-date-${index}`} type="date" disabled={studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending} value={step.dueDate} onChange={(event) => setStudentScheduleSteps((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, dueDate: event.target.value } : item))} /></div>
+                            <div className="space-y-1.5"><Label htmlFor={`student-step-date-${index}`}>Date seuil</Label><Input id={`student-step-date-${index}`} type="date" disabled={studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending} value={step.dueDate} aria-describedby={stepDateMessage ? "student-step-date-message" : undefined} min={isCivilDate(studentScheduleSteps[index - 1]?.dueDate ?? "") ? addDaysIso(studentScheduleSteps[index - 1]!.dueDate, 1) : undefined} max={isCivilDate(studentScheduleSteps[index + 1]?.dueDate ?? "") ? addDaysIso(studentScheduleSteps[index + 1]!.dueDate, -1) : undefined} onChange={(event) => updateStepDate(true, index, event.target.value)} /></div>
                             <div className="space-y-1.5"><Label htmlFor={`student-step-amount-${index}`}>Cumul attendu</Label><Input id={`student-step-amount-${index}`} inputMode="numeric" disabled={studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending} value={step.cumulativeAmountExpected || ""} onChange={(event) => setStudentScheduleSteps((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, cumulativeAmountExpected: Number(event.target.value.replace(/\D/g, "")) } : item))} /></div>
                             <Button type="button" variant="ghost" size="icon" className="min-h-12 min-w-12 text-muted-foreground hover:text-red-700" aria-label={`Supprimer le seuil individuel ${index + 1}`} disabled={studentScheduleSteps.length === 1 || studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending} onClick={() => setStudentScheduleSteps((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 className="h-4 w-4" /></Button>
                           </div>
                         ))}
                       </div>
+                      {stepDateMessage ? <p id="student-step-date-message" role="alert" className="text-sm text-destructive">{stepDateMessage}</p> : null}
                       {!studentScheduleValid ? <Alert variant="destructive"><AlertDescription>Chaque seuil doit avoir une date croissante et un cumul au moins égal au précédent.</AlertDescription></Alert> : null}
                       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                         <Button type="button" variant="outline" className="min-h-12" disabled={studentScheduleMutation.isPending || resetStudentScheduleMutation.isPending || studentScheduleQuery.data?.length === 0} onClick={() => setIsResetScheduleDialogOpen(true)}>{resetStudentScheduleMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}Revenir au plan du niveau</Button>

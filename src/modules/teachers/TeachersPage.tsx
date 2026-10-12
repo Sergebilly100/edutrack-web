@@ -1,3 +1,4 @@
+import { dateRangeIssue, updateDateRange } from "@/shared/lib/date-validation"
 import { useMemo, useState } from "react"
 import type { ColumnDef, Column } from "@tanstack/react-table"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -403,6 +404,13 @@ export default function TeachersPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [sendCredentialsConfirmOpen, setSendCredentialsConfirmOpen] = useState(false)
   const [exportPeriod, setExportPeriod] = useState(getDefaultExportPeriod)
+  const [exportDateMessage, setExportDateMessage] = useState<string | null>(null)
+  const exportRangeError = dateRangeIssue(exportPeriod.dateFrom, exportPeriod.dateTo)
+  const changeExportDate = (side: "from" | "to", value: string) => {
+    const next = updateDateRange(exportPeriod.dateFrom, exportPeriod.dateTo, side, value)
+    setExportPeriod({ dateFrom: next.from, dateTo: next.to })
+    setExportDateMessage(next.message)
+  }
   const rawTab = searchParams.get("tab")
   const activeTab =
     rawTab === "analyse" && canViewTeacherAnalysis
@@ -413,7 +421,7 @@ export default function TeachersPage() {
   const isExportPeriodValid =
     exportPeriod.dateFrom.length > 0 &&
     exportPeriod.dateTo.length > 0 &&
-    exportPeriod.dateFrom <= exportPeriod.dateTo
+    !exportRangeError
 
   const last30Days = useMemo(() => getLast30DaysPeriod(), [])
 
@@ -1009,9 +1017,9 @@ export default function TeachersPage() {
                 id="teacher-export-from"
                 type="date"
                 value={exportPeriod.dateFrom}
-                onChange={(event) =>
-                  setExportPeriod((current) => ({ ...current, dateFrom: event.target.value }))
-                }
+                max={exportPeriod.dateTo}
+                aria-invalid={Boolean(exportRangeError)}
+                onChange={(event) => changeExportDate("from", event.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -1020,13 +1028,14 @@ export default function TeachersPage() {
                 id="teacher-export-to"
                 type="date"
                 value={exportPeriod.dateTo}
-                onChange={(event) =>
-                  setExportPeriod((current) => ({ ...current, dateTo: event.target.value }))
-                }
+                min={exportPeriod.dateFrom}
+                aria-invalid={Boolean(exportRangeError)}
+                onChange={(event) => changeExportDate("to", event.target.value)}
               />
             </div>
           </div>
 
+          {exportDateMessage ? <p role="alert" className="text-sm text-destructive">{exportDateMessage}</p> : null}
           {!isExportPeriodValid ? (
             <Alert variant="destructive">
               <AlertDescription>La date de début doit être antérieure ou égale à la date de fin.</AlertDescription>

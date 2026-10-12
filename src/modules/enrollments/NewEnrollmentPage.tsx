@@ -1,3 +1,4 @@
+import { birthDateIssue, yesterdayInBusinessTimezone } from "@/shared/lib/date-validation"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react"
@@ -52,6 +53,7 @@ function EnrollmentForm() {
   const [levelId, setLevelId] = useState(returnDraft?.context.levelId ?? "")
   const [classId, setClassId] = useState("")
   const [form, setForm] = useState<EnrollmentIdentityDraft>(returnDraft?.form ?? EMPTY_FORM)
+  const [birthInputError, setBirthInputError] = useState<string | null>(null)
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
   const initializedEnrollmentId = useRef<string | null>(null)
   const historicalEnrollmentQuery = useQuery({
@@ -148,7 +150,8 @@ function EnrollmentForm() {
       const studentPayload = {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
-        birthDate: form.birthDate || null,
+        ...(enrollment && form.birthDate === (historicalStudentQuery.data?.birthDate?.slice(0, 10) ?? "")
+          ? {} : { birthDate: form.birthDate || null }),
         matricule: form.matricule.trim() || null,
         parentName: form.parentName.trim() || null,
         parentPhone: form.parentPhone.trim() || null,
@@ -192,6 +195,9 @@ function EnrollmentForm() {
     onError: (error) => toast({ title: "Vérification impossible", description: getError(error), variant: "destructive" }),
   })
 
+  const birthDateUnchanged = Boolean(enrollment) && form.birthDate === (historicalStudentQuery.data?.birthDate?.slice(0, 10) ?? "")
+  const existingBirthDateIssue = birthDateUnchanged ? birthDateIssue(form.birthDate) : null
+  const birthDateError = (birthDateUnchanged ? null : birthDateIssue(form.birthDate)) ?? birthInputError
   const parentPairValid = (form.parentName.trim().length === 0 && form.parentPhone.trim().length === 0)
     || (form.parentName.trim().length >= 2 && form.parentPhone.trim().length > 0)
   const parentPhoneValid = isValidOptionalPhone(form.parentPhone)
@@ -199,7 +205,7 @@ function EnrollmentForm() {
   const parentEmailValid = !form.parentEmail.trim() || /.+@.+\..+/.test(form.parentEmail.trim())
   const formValid = Boolean(
     schoolYearId && classId && form.firstName.trim() && form.lastName.trim()
-    && parentPhoneValid && secondPhoneValid && parentPairValid && parentEmailValid,
+    && !birthDateError && parentPhoneValid && secondPhoneValid && parentPairValid && parentEmailValid,
   )
   const yearLabel = yearsQuery.data?.find((year) => year.id === schoolYearId)?.label
     ?? (enrollmentId && historicalEnrollmentQuery.data?.schoolYearId === schoolYearId ? historicalEnrollmentQuery.data.schoolYearLabel : null)
@@ -207,6 +213,7 @@ function EnrollmentForm() {
     : referencesError ? "Les classes sont indisponibles. Réessayez après le chargement."
     : !schoolYearId || ((!enrollment || returnDraft) && !selectedYearActive) ? "Aucune année scolaire active n’est disponible pour cette inscription."
     : !form.firstName.trim() || !form.lastName.trim() ? "Renseignez le prénom et le nom de l’élève."
+    : birthDateError ? birthDateError
     : !classId || !selectedClass ? "Choisissez une classe pour continuer."
     : !parentPairValid ? "Renseignez ensemble le nom et le téléphone du parent, ou laissez les deux champs vides."
     : !parentPhoneValid || !secondPhoneValid ? "Vérifiez le format du numéro de téléphone."
@@ -247,7 +254,7 @@ function EnrollmentForm() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2"><Label htmlFor="first-name">Prénom *</Label><Input id="first-name" value={form.firstName} onChange={(event) => setForm((current) => ({ ...current, firstName: event.target.value }))} /></div>
                   <div className="space-y-2"><Label htmlFor="last-name">Nom *</Label><Input id="last-name" value={form.lastName} onChange={(event) => setForm((current) => ({ ...current, lastName: event.target.value }))} /></div>
-                  <div className="space-y-2"><Label htmlFor="birth-date">Date de naissance</Label><Input id="birth-date" type="date" value={form.birthDate} onChange={(event) => setForm((current) => ({ ...current, birthDate: event.target.value }))} /></div>
+                  <div className="space-y-2"><Label htmlFor="birth-date">Date de naissance</Label><Input id="birth-date" type="date" max={yesterdayInBusinessTimezone()} aria-invalid={Boolean(birthDateError || existingBirthDateIssue)} aria-describedby={birthDateError ? "birth-date-error" : existingBirthDateIssue ? "existing-birth-date-error" : undefined} value={form.birthDate} onInput={(event) => setBirthInputError(event.currentTarget.validity.badInput ? "Date de naissance invalide : indiquez une date réelle." : null)} onChange={(event) => { setBirthInputError(null); setForm((current) => ({ ...current, birthDate: event.target.value })) }} />{birthDateError ? <p id="birth-date-error" role="alert" className="text-sm text-destructive">{birthDateError}</p> : null}{existingBirthDateIssue ? <p id="existing-birth-date-error" className="text-sm text-destructive">Date existante à corriger. Vous pouvez enregistrer les autres informations sans la modifier.</p> : null}</div>
                   <div className="space-y-2"><Label htmlFor="matricule">Matricule (facultatif)</Label><Input id="matricule" aria-describedby="matricule-help" value={form.matricule} onChange={(event) => setForm((current) => ({ ...current, matricule: event.target.value }))} /><p id="matricule-help" className="text-xs text-muted-foreground">Chaque matricule renseigné doit être unique parmi les élèves.</p></div>
                 </div>
               </section>

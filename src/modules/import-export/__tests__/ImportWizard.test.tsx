@@ -890,8 +890,8 @@ describe("C11 weekly period validation and preview", () => {
     fireEvent.change(end, { target: { value: "2026-06-07" } })
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
     fireEvent.change(start, { target: { value: "2026-06-08" } })
-    expect(end).toHaveValue("2026-06-07")
-    expect(end).toHaveAccessibleDescription("La date de fin doit être postérieure ou égale à la date de début.")
+    expect(end).toHaveValue("")
+    expect(screen.getByRole("alert")).toHaveTextContent("La date de fin précédente était avant le nouveau début. Elle a été effacée.")
   })
 
   it("refuses invalid dates before requesting a preview", async () => {

@@ -1,3 +1,4 @@
+import { dateRangeIssue, updateDateRange } from "@/shared/lib/date-validation"
 import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { ChevronLeft, ChevronRight, Download, FileSpreadsheet, Loader2, ReceiptText } from "lucide-react"
@@ -26,12 +27,20 @@ const JOURNAL_PAGE_SIZE = 20
 export function CashJournalPanel({ schoolYearId }: { schoolYearId: string }) {
   const [from, setFrom] = useState(firstDayOfMonth())
   const [to, setTo] = useState(isoToday())
+  const [dateMessage, setDateMessage] = useState<string | null>(null)
+  const rangeError = dateRangeIssue(from, to)
+  const changeDate = (side: "from" | "to", value: string) => {
+    const next = updateDateRange(from, to, side, value)
+    setFrom(next.from)
+    setTo(next.to)
+    setDateMessage(next.message)
+  }
   const [classId, setClassId] = useState("all")
   const [method, setMethod] = useState<PaymentMethod | "all">("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [isExcelRunning, setIsExcelRunning] = useState(false)
   const filter: CashJournalFilter = { schoolYearId, from, to, classId: classId === "all" ? undefined : classId, method: method === "all" ? undefined : method }
-  const journalQuery = useQuery({ queryKey: ["finance", "cash-journal", filter, currentPage], queryFn: () => getCashJournal({ ...filter, page: currentPage, limit: JOURNAL_PAGE_SIZE }), enabled: Boolean(schoolYearId && from && to) })
+  const journalQuery = useQuery({ queryKey: ["finance", "cash-journal", filter, currentPage], queryFn: () => getCashJournal({ ...filter, page: currentPage, limit: JOURNAL_PAGE_SIZE }), enabled: Boolean(schoolYearId && from && to && !rangeError) })
   const classesQuery = useQuery({ queryKey: ["academic", "classes", schoolYearId], queryFn: () => listClasses(schoolYearId), enabled: Boolean(schoolYearId) })
   const pdf = usePdfExportJob({ fallbackFileName: "journal-caisse.pdf", startedMessage: "Le journal PDF est en préparation.", successMessage: "Journal PDF téléchargé" })
   const journal = journalQuery.data
@@ -65,7 +74,9 @@ export function CashJournalPanel({ schoolYearId }: { schoolYearId: string }) {
             className="min-h-12"
             value={from}
             max={to}
-            onChange={(event) => setFrom(event.target.value)}
+            aria-invalid={Boolean(rangeError)}
+            aria-describedby={rangeError || dateMessage ? "journal-date-message" : undefined}
+            onChange={(event) => changeDate("from", event.target.value)}
           />
         </div>
         <div className="space-y-2">
@@ -76,9 +87,12 @@ export function CashJournalPanel({ schoolYearId }: { schoolYearId: string }) {
             className="min-h-12"
             value={to}
             min={from}
-            onChange={(event) => setTo(event.target.value)}
+            aria-invalid={Boolean(rangeError)}
+            aria-describedby={rangeError || dateMessage ? "journal-date-message" : undefined}
+            onChange={(event) => changeDate("to", event.target.value)}
           />
         </div>
+        {rangeError || dateMessage ? <p id="journal-date-message" role="alert" className="text-sm text-destructive sm:col-span-2">{rangeError ?? dateMessage}</p> : null}
         <div className="space-y-2">
           <Label>Classe</Label>
           <Select value={classId} onValueChange={setClassId}>

@@ -1,3 +1,4 @@
+import { updateDateRange } from "@/shared/lib/date-validation"
 import { useEffect, useMemo, useState } from "react"
 import { isAxiosError } from "axios"
 import {
@@ -303,6 +304,7 @@ export default function ImportWizard({
   const [importMode, setImportMode] = useState<ImportMode>("merge")
   const [weekStart, setWeekStart] = useState("")
   const [weekEnd, setWeekEnd] = useState("")
+  const [weekRangeMessage, setWeekRangeMessage] = useState<string | null>(null)
   const [showRequiredPeriodErrors, setShowRequiredPeriodErrors] = useState(false)
   const periodSummary = getSchedulePeriodSummary(weekStart, weekEnd)
   const startPeriodError = weekStart || showRequiredPeriodErrors ? periodSummary.startError : undefined
@@ -903,6 +905,7 @@ export default function ImportWizard({
             {importType === "schedule" ? (
               <div className="space-y-3 rounded-lg border p-4" data-tour="import-periode-edt">
                 <p className="text-sm font-medium">Période de validité de l&apos;emploi du temps</p>
+                {weekRangeMessage ? <p role="alert" className="text-sm text-destructive">{weekRangeMessage}</p> : null}
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="week-start">Du lundi</Label>
@@ -913,9 +916,13 @@ export default function ImportWizard({
                       aria-describedby={startPeriodError ? "week-start-error" : "schedule-period-hint"}
                       className="min-h-[48px]"
                       value={weekStart}
+                      max={weekEnd || undefined}
                       onChange={(newStart) => {
-                        setWeekStart(newStart)
-                        const nextPeriod = newStart && weekEnd ? { weekStart: newStart, weekEnd } : null
+                        const next = updateDateRange(weekStart, weekEnd, "from", newStart)
+                        setWeekStart(next.from)
+                        setWeekEnd(next.to)
+                        setWeekRangeMessage(next.message)
+                        const nextPeriod = next.from && next.to ? { weekStart: next.from, weekEnd: next.to } : null
                         void persistDraftOptions({ schedulePeriod: nextPeriod })
                       }}
                     />
@@ -934,9 +941,12 @@ export default function ImportWizard({
                       min={weekStart || undefined}
                       disabled={!weekStart}
                       onChange={(value) => {
-                        setWeekEnd(value)
+                        const next = updateDateRange(weekStart, weekEnd, "to", value)
+                        setWeekStart(next.from)
+                        setWeekEnd(next.to)
+                        setWeekRangeMessage(next.message)
                         void persistDraftOptions({
-                          schedulePeriod: weekStart && value ? { weekStart, weekEnd: value } : null,
+                          schedulePeriod: next.from && next.to ? { weekStart: next.from, weekEnd: next.to } : null,
                         })
                       }}
                     />

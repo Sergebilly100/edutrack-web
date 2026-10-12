@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import type { FormEvent } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -18,6 +18,7 @@ import { AcademicNavigation } from "@/modules/academic/components/AcademicNaviga
 import { DataTable, EmptyState, PageLayout, QueryErrorState, Spinner } from "@/shared/components"
 import { CalendarIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { isCivilDate } from "@/shared/lib/date-validation"
 
 const SCHOOL_YEARS_KEY = ["academic", "school-years"] as const
 const GRADING_PERIODS_KEY = ["academic", "grading-periods"] as const
@@ -37,6 +38,54 @@ const apiErrorMessage = (error: unknown, fallback = "La date doit être strictem
   axios.isAxiosError(error) && typeof error.response?.data?.error === "string"
     ? error.response.data.error
     : fallback
+
+function GradingPeriodFields({ id, initial, disabled, pending, actionLabel }: {
+  id: string
+  initial?: { startDate: string; reviewStartDate: string; endDate: string }
+  disabled: boolean
+  pending: boolean
+  actionLabel: string
+}) {
+  const [dates, setDates] = useState({
+    startDate: initial?.startDate ?? "",
+    reviewStartDate: initial?.reviewStartDate ?? "",
+    endDate: initial?.endDate ?? "",
+  })
+  const [message, setMessage] = useState<string | null>(null)
+  const changeDate = (key: keyof typeof dates, value: string) => {
+    const next = { ...dates, [key]: value }
+    const cleared: Array<keyof typeof dates> = []
+    if (next.startDate && next.endDate && next.startDate > next.endDate) {
+      const field = key === "startDate" ? "endDate" : "startDate"
+      next[field] = ""
+      cleared.push(field)
+    }
+    if (next.reviewStartDate && next.startDate && next.reviewStartDate < next.startDate) {
+      const field = key === "reviewStartDate" ? "startDate" : "reviewStartDate"
+      next[field] = ""
+      cleared.push(field)
+    }
+    if (next.reviewStartDate && next.endDate && next.reviewStartDate > next.endDate) {
+      const field = key === "reviewStartDate" ? "endDate" : "reviewStartDate"
+      next[field] = ""
+      cleared.push(field)
+    }
+    setDates(next)
+    const labels = cleared.map((field) => field === "startDate" ? "début de période" : field === "endDate" ? "fin de période" : "début de revue")
+    setMessage(labels.length ? `Dates précédentes incompatibles effacées : ${labels.join(", ")}.` : null)
+  }
+  const valid = Object.values(dates).every((value) => isCivilDate(value))
+    && dates.startDate <= dates.reviewStartDate && dates.reviewStartDate <= dates.endDate
+  return <>
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto]">
+      <label className="space-y-1 text-sm">Début de période<Input name="startDate" type="date" value={dates.startDate} max={dates.endDate || undefined} aria-describedby={message ? `grading-date-error-${id}` : undefined} onChange={(event) => changeDate("startDate", event.target.value)} disabled={disabled} required /></label>
+      <label className="space-y-1 text-sm">Début de revue<Input name="reviewStartDate" type="date" value={dates.reviewStartDate} min={dates.startDate || undefined} max={dates.endDate || undefined} aria-describedby={message ? `grading-date-error-${id}` : undefined} onChange={(event) => changeDate("reviewStartDate", event.target.value)} disabled={disabled} required /></label>
+      <label className="space-y-1 text-sm">Fin de période<Input name="endDate" type="date" value={dates.endDate} min={dates.startDate || undefined} aria-describedby={message ? `grading-date-error-${id}` : undefined} onChange={(event) => changeDate("endDate", event.target.value)} disabled={disabled} required /></label>
+      {!disabled ? <Button type="submit" className="min-h-12 lg:self-end lg:whitespace-nowrap" disabled={pending || !valid}>{pending ? <Spinner size="sm" className="mr-2" /> : null}{actionLabel}</Button> : null}
+    </div>
+    {message ? <p id={`grading-date-error-${id}`} role="alert" className="text-sm text-destructive">{message}</p> : null}
+  </>
+}
 
 export default function SchoolYearsPage() {
   const queryClient = useQueryClient()
@@ -189,25 +238,17 @@ export default function SchoolYearsPage() {
                     {period.isClosed ? <Badge variant="outline">Clôturée</Badge> : null}
                     {period.hasGeneratedCards && !period.isClosed ? <Badge variant="outline">Bulletins déjà générés</Badge> : null}
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto]">
-                    <label className="space-y-1 text-sm">Début de période<Input name="startDate" type="date" defaultValue={period.startDate} disabled={!canEdit || period.hasGeneratedCards} required /></label>
-                    <label className="space-y-1 text-sm">Début de revue<Input name="reviewStartDate" type="date" defaultValue={period.reviewStartDate} disabled={!canEdit || period.hasGeneratedCards} required /></label>
-                    <label className="space-y-1 text-sm">Fin de période<Input name="endDate" type="date" defaultValue={period.endDate} disabled={!canEdit || period.hasGeneratedCards} required /></label>
-                    {canEdit && !period.hasGeneratedCards ? <Button type="submit" className="min-h-10 lg:self-end lg:whitespace-nowrap" disabled={periodMutation.isPending}>{periodMutation.isPending ? <Spinner size="sm" className="mr-2" /> : null}Enregistrer {period.label}</Button> : null}
-                  </div>
+                  <GradingPeriodFields id={period.id} initial={period} disabled={!canEdit || period.hasGeneratedCards} pending={periodMutation.isPending} actionLabel={`Enregistrer ${period.label}`} />
                 </form>
               )
             }) : null}
             {periodsQuery.isSuccess && canEdit && periods.length < (activeYear.gradingPeriodType === "semester" ? 2 : 3) ? (
               <form className="space-y-3 rounded-lg border p-4" onSubmit={(event) => savePeriod(event, null)}>
                 <strong>Ajouter la période {periods.length + 1}</strong>
-                <div className="grid gap-3 sm:grid-cols-4">
+                <div>
                   <label className="space-y-1 text-sm">Nom<Input name="label" required /></label>
-                  <label className="space-y-1 text-sm">Début de période<Input name="startDate" type="date" required /></label>
-                  <label className="space-y-1 text-sm">Début de revue<Input name="reviewStartDate" type="date" required /></label>
-                  <label className="space-y-1 text-sm">Fin de période<Input name="endDate" type="date" required /></label>
                 </div>
-                <Button type="submit" className="min-h-12" disabled={periodMutation.isPending}>{periodMutation.isPending ? <Spinner size="sm" className="mr-2" /> : null}Ajouter la période</Button>
+                <GradingPeriodFields id="new" disabled={false} pending={periodMutation.isPending} actionLabel="Ajouter la période" />
               </form>
             ) : null}
           </CardContent>

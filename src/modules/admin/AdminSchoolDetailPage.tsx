@@ -1,3 +1,5 @@
+import { isCivilDate } from "@/shared/lib/date-validation"
+import { addDaysIso } from "@/shared/lib/business-date"
 import { useEffect, useState } from "react"
 import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -259,6 +261,22 @@ export default function AdminSchoolDetailPage() {
     reviewDate: "",
     periodType: "trimester" as "trimester" | "semester",
   })
+  const [yearDateMessage, setYearDateMessage] = useState<string | null>(null)
+  const changeYearDate = (field: "startDate" | "endDate" | "reviewDate", value: string) => {
+      const next = { ...openYearForm, [field]: value }
+      let message: string | null = null
+      if (next.startDate && next.endDate && next.startDate >= next.endDate) {
+        const cleared = field === "startDate" ? "endDate" : "startDate"
+        next[cleared] = ""
+        message = cleared === "endDate" ? "La fin précédente était avant le nouveau début. Elle a été effacée." : "Le début précédent était après la nouvelle fin. Il a été effacé."
+      }
+      if (next.reviewDate && next.endDate && next.reviewDate >= next.endDate) {
+        next.reviewDate = ""
+        message = "Le début de revue précédent était après la nouvelle fin. Il a été effacé."
+      }
+      setYearDateMessage(message)
+      setOpenYearForm(next)
+  }
   const [confirmOpenYearOpen, setConfirmOpenYearOpen] = useState(false)
   const [reversementPeriodMonth, setReversementPeriodMonth] = useState("")
   const [reversementAmount, setReversementAmount] = useState("")
@@ -515,9 +533,9 @@ export default function AdminSchoolDetailPage() {
   // ── Helpers ───────────────────────────────────────────────────────────────
   const isYearFormValid =
     openYearForm.label.trim().length > 0 &&
-    /^\d{4}-\d{2}-\d{2}$/.test(openYearForm.startDate) &&
-    /^\d{4}-\d{2}-\d{2}$/.test(openYearForm.endDate) &&
-    (openYearForm.reviewDate === "" || /^\d{4}-\d{2}-\d{2}$/.test(openYearForm.reviewDate)) &&
+    isCivilDate(openYearForm.startDate) &&
+    isCivilDate(openYearForm.endDate) &&
+    (openYearForm.reviewDate === "" || isCivilDate(openYearForm.reviewDate)) &&
     openYearForm.startDate < openYearForm.endDate &&
     (openYearForm.reviewDate === "" || openYearForm.reviewDate < openYearForm.endDate)
 
@@ -603,7 +621,7 @@ export default function AdminSchoolDetailPage() {
 
   const canSubmitPayment =
     Number(payment.amount) > 0 &&
-    payment.date.length > 0 &&
+    isCivilDate(payment.date) &&
     payment.periodFrom.length > 0 &&
     payment.periodTo.length > 0 &&
     payment.periodFrom <= payment.periodTo
@@ -1375,7 +1393,8 @@ export default function AdminSchoolDetailPage() {
                         id="open-year-start"
                         type="date"
                         value={openYearForm.startDate}
-                        onChange={(e) => setOpenYearForm((p) => ({ ...p, startDate: e.target.value }))}
+                        max={isCivilDate(openYearForm.endDate) ? addDaysIso(openYearForm.endDate, -1) : undefined}
+                        onChange={(e) => changeYearDate("startDate", e.target.value)}
                       />
                     </div>
                     <div className="space-y-2">
@@ -1384,7 +1403,8 @@ export default function AdminSchoolDetailPage() {
                         id="open-year-end"
                         type="date"
                         value={openYearForm.endDate}
-                        onChange={(e) => setOpenYearForm((p) => ({ ...p, endDate: e.target.value }))}
+                        min={isCivilDate(openYearForm.startDate) ? addDaysIso(openYearForm.startDate, 1) : undefined}
+                        onChange={(e) => changeYearDate("endDate", e.target.value)}
                       />
                     </div>
                     <div className="space-y-2">
@@ -1404,11 +1424,13 @@ export default function AdminSchoolDetailPage() {
                         id="open-year-review"
                         type="date"
                         value={openYearForm.reviewDate}
-                        onChange={(e) => setOpenYearForm((p) => ({ ...p, reviewDate: e.target.value }))}
+                        max={isCivilDate(openYearForm.endDate) ? addDaysIso(openYearForm.endDate, -1) : undefined}
+                        onChange={(e) => changeYearDate("reviewDate", e.target.value)}
                       />
                       <p className="text-xs text-muted-foreground">Vide = 30 jours avant la date de fin.</p>
                     </div>
                   </div>
+                  {yearDateMessage ? <p role="alert" className="text-sm text-destructive">{yearDateMessage}</p> : null}
                   {!isYearFormValid ? (
                     <p className="text-xs text-muted-foreground">
                       Libellé requis, début strictement antérieure à la fin, revue avant la fin si renseignée.
@@ -1718,8 +1740,9 @@ export default function AdminSchoolDetailPage() {
                         <div className="grid gap-4 md:grid-cols-2">
                           <div className="space-y-2">
                             <Label>Date de paiement</Label>
-                            <Input type="date" value={payment.date}
+                            <Input type="date" value={payment.date} aria-invalid={Boolean(payment.date && !isCivilDate(payment.date))}
                               onChange={(e) => setPayment((p) => ({ ...p, date: e.target.value }))} />
+                            {payment.date && !isCivilDate(payment.date) ? <p role="alert" className="text-sm text-destructive">Indiquez une date de paiement réelle.</p> : null}
                           </div>
                           <div className="space-y-2">
                             <Label>

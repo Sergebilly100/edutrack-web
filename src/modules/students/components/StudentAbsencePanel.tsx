@@ -1,3 +1,4 @@
+import { dateRangeIssue, updateDateRange } from "@/shared/lib/date-validation"
 import { useEffect, useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { AlertTriangle, Eye, MessageCircle, Phone, UserRound } from "lucide-react"
@@ -78,6 +79,13 @@ export default function StudentAbsencePanel() {
 
   const [selectedStudent, setSelectedStudent] = useState<StudentAbsenceStat | null>(null)
   const [statsPage, setStatsPage] = useState(1)
+  const [dateMessage, setDateMessage] = useState<string | null>(null)
+  const rangeError = dateRangeIssue(formValues.from, formValues.to)
+  const changeDate = (side: "from" | "to", value: string) => {
+    const next = updateDateRange(formValues.from, formValues.to, side, value)
+    setFormValues((current) => ({ ...current, from: next.from, to: next.to }))
+    setDateMessage(next.message)
+  }
 
   const statsRows = statsQuery.data ?? []
   const hasRows = statsRows.length > 0
@@ -136,9 +144,10 @@ export default function StudentAbsencePanel() {
               <DateInput
                 className="min-h-12"
                 value={formValues.from}
-                onChange={(value) =>
-                  setFormValues((current) => ({ ...current, from: value }))
-                }
+                max={formValues.to}
+                aria-invalid={Boolean(rangeError)}
+                aria-describedby={rangeError || dateMessage ? "date-range-message" : undefined}
+                onChange={(value) => changeDate("from", value)}
               />
             </div>
             <div className="min-w-0 space-y-2">
@@ -146,11 +155,13 @@ export default function StudentAbsencePanel() {
               <DateInput
                 className="min-h-12"
                 value={formValues.to}
-                onChange={(value) =>
-                  setFormValues((current) => ({ ...current, to: value }))
-                }
+                min={formValues.from}
+                aria-invalid={Boolean(rangeError)}
+                aria-describedby={rangeError || dateMessage ? "date-range-message" : undefined}
+                onChange={(value) => changeDate("to", value)}
               />
             </div>
+            {rangeError || dateMessage ? <p id="date-range-message" role="alert" className="w-full text-sm text-destructive">{rangeError ?? dateMessage}</p> : null}
             <div className="min-w-0 space-y-2">
               <p className="text-sm font-medium">Niveau</p>
               <Select value={formValues.level_id} onValueChange={(value) =>
@@ -250,7 +261,7 @@ export default function StudentAbsencePanel() {
               <Button
                 className="min-h-12 w-full sm:w-auto sm:min-w-40"
                 size="lg"
-                onClick={handleApply}
+                onClick={handleApply} disabled={Boolean(rangeError || !formValues.from || !formValues.to)}
               >
                 Analyser
               </Button>

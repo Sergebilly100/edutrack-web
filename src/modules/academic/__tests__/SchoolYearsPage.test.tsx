@@ -93,8 +93,24 @@ describe("SchoolYearsPage", () => {
     expect(await screen.findByText("Chevauchement avec T1")).toBeInTheDocument()
     const form = screen.getByRole("button", { name: "Enregistrer T1" }).closest("form")!
     fireEvent.change(form.querySelector<HTMLInputElement>('input[name="reviewStartDate"]')!, { target: { value: "2026-11-10" } })
+    expect(form.querySelector<HTMLInputElement>('input[name="reviewStartDate"]')!.value).toBe("2026-11-10")
+    expect(screen.getByRole("button", { name: "Enregistrer T1" })).toBeEnabled()
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer T1" }))
     await waitFor(() => expect(updateGradingPeriodMock).toHaveBeenCalledWith("p1", expect.objectContaining({ reviewStartDate: "2026-11-10" })))
+  })
+
+  it("efface une fin devenue incompatible et explique la correction", async () => {
+    listGradingPeriodsMock.mockResolvedValue([
+      { id: "p1", schoolYearId: "year-1", label: "T1", orderIndex: 1, startDate: "2026-09-01", reviewStartDate: "2026-11-15", endDate: "2026-12-20", notesEntryOpen: false, conductReviewOpen: false, isClosed: false },
+    ])
+    renderPage()
+    const button = await screen.findByRole("button", { name: "Enregistrer T1" })
+    const form = button.closest("form")!
+    fireEvent.change(form.querySelector<HTMLInputElement>('input[name="startDate"]')!, { target: { value: "2027-01-01" } })
+    expect(form.querySelector<HTMLInputElement>('input[name="endDate"]')!.value).toBe("")
+    expect(screen.getByRole("alert")).toHaveTextContent("fin de période")
+    expect(button).toBeDisabled()
+    expect(updateGradingPeriodMock).not.toHaveBeenCalled()
   })
 
   it("limite une année semestrielle à deux périodes et crée le second semestre", async () => {
