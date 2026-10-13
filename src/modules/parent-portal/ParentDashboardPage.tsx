@@ -36,6 +36,7 @@ import {
 import { clampPercentage, currentIsoWeek, formatDateFr, formatShortDate } from "@/modules/parent-portal/parent.utils"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { monthKeyInBusinessTimezone, todayInBusinessTimezone } from "@/shared/lib/business-date"
+import { formatStudentRank, formatStudentRankWithHeadcount } from "@/shared/lib/format-student-rank"
 
 const SELECTED_STUDENT_STORAGE_KEY = "parent_selected_student_id"
 const SUBSCRIPTION_ALERT_SEEN_KEY = "parent_subscription_alert_seen"
@@ -363,9 +364,9 @@ export default function ParentDashboardPage() {
                 <span className="block text-sm font-semibold text-blue-900 dark:text-blue-100">
                   Bulletin du {overviewQuery.data.latestPublishedReportCard.periodLabel} disponible
                 </span>
-                <span className="block truncate text-xs text-blue-800/80 dark:text-blue-200/80">
+                <span className="block truncate text-xs text-blue-800/80 dark:text-blue-200/80" aria-label={`Moyenne ${overviewQuery.data.latestPublishedReportCard.generalAverage.toFixed(2)} sur 20, rang ${formatStudentRank(overviewQuery.data.latestPublishedReportCard.rank) ?? "non renseigné"} sur ${overviewQuery.data.latestPublishedReportCard.classHeadcount}`}>
                   Moyenne {overviewQuery.data.latestPublishedReportCard.generalAverage.toFixed(2)}/20 · rang{" "}
-                  {overviewQuery.data.latestPublishedReportCard.rank}/{overviewQuery.data.latestPublishedReportCard.classHeadcount}
+                  {formatStudentRankWithHeadcount(overviewQuery.data.latestPublishedReportCard.rank, overviewQuery.data.latestPublishedReportCard.classHeadcount) ?? "-"}
                 </span>
               </span>
               <ChevronRight className="h-4 w-4 shrink-0 text-blue-700" />

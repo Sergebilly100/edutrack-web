@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/components/ui/use-toast"
 import { EmptyState } from "@/shared/components/EmptyState"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { formatStudentRank } from "@/shared/lib/format-student-rank"
 import {
   getPdfExportJobStatus,
   triggerPdfExportDownload,
@@ -420,7 +421,9 @@ export default function ReportCardsPage() {
                   <TableBody>
                     {(cardsQuery.data ?? []).map((card) => (
                       <TableRow key={card.id}>
-                        <TableCell>{card.rank}</TableCell>
+                        <TableCell aria-label={`Rang : ${formatStudentRank(card.rank) ?? "non renseigné"}`}>
+                          {formatStudentRank(card.rank) ?? "-"}
+                        </TableCell>
                         <TableCell className="font-medium">{card.studentName}</TableCell>
                         <TableCell>{card.generalAverage.toFixed(2)}/20</TableCell>
                         <TableCell>

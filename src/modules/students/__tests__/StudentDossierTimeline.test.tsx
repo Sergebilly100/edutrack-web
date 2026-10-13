@@ -20,7 +20,7 @@ describe("StudentDossierTimeline", () => {
           student: { id: "student-1", firstName: "Mariam", lastName: "Bamba", className: "3e A", matricule: "MAT-01" },
           events: [
             { type: "document", date: "2026-08-21", label: "Certificat médical", detail: "fourni" },
-            { type: "report_card", date: "2026-07-18", label: "Bulletin publié · Trimestre 3", detail: "Moyenne 14/20" },
+            { type: "report_card", date: "2026-07-18", label: "Bulletin publié · Trimestre 3", detail: "Moyenne 14/20, rang 1er / 30" },
           ],
         })
       )
@@ -29,6 +29,7 @@ describe("StudentDossierTimeline", () => {
     render(<StudentDossierTimeline studentId="student-1" />, { wrapper })
 
     expect(await screen.findByText("Bulletin publié · Trimestre 3")).toBeInTheDocument()
+    expect(screen.getByText("Moyenne 14/20, rang 1er / 30")).toBeInTheDocument()
     expect(screen.getByText("Certificat médical")).toBeInTheDocument()
     expect(screen.queryByText(/Paiement/)).not.toBeInTheDocument()
   })

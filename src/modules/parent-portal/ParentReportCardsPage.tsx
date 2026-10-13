@@ -20,6 +20,7 @@ import {
   requestParentReportCardPdf,
 } from "./parent.api"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
+import { formatStudentRank, formatStudentRankWithHeadcount } from "@/shared/lib/format-student-rank"
 
 export default function ParentReportCardsPage() {
   const { toast } = useToast()
@@ -164,7 +165,7 @@ export default function ParentReportCardsPage() {
                     <CardTitle className="text-2xl font-bold">{card.generalAverage.toFixed(2)}/20</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <Badge variant="outline">Rang {card.rank} / {card.classHeadcount}</Badge>
+                    <Badge variant="outline" aria-label={`Rang : ${formatStudentRank(card.rank) ?? "non renseigné"} sur ${card.classHeadcount}`}>Rang {formatStudentRankWithHeadcount(card.rank, card.classHeadcount) ?? "-"}</Badge>
                     <Button
                       type="button"
                       variant="outline"

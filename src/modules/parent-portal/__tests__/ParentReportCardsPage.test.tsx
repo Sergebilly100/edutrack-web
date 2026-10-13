@@ -49,6 +49,7 @@ it("reconsulte les bulletins publiés à l'ouverture même si le cache récent �
   const view = render(<QueryClientProvider client={queryClient}><ParentReportCardsPage /></QueryClientProvider>)
   try {
     expect(await screen.findByText("16.40/20")).toBeInTheDocument()
+    expect(screen.getByText("Rang 1er / 2")).toHaveAttribute("aria-label", "Rang : 1er sur 2")
     expect(api.cards).toHaveBeenCalledWith("aya", "recent")
     expect(screen.queryByText("Aucun bulletin publié")).not.toBeInTheDocument()
   } finally {

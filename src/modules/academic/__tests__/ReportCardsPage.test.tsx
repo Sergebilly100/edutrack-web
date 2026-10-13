@@ -221,6 +221,18 @@ describe("ReportCardsPage", () => {
     await waitFor(() => expect(mocks.publishBulkReportCards).toHaveBeenCalledWith({ class_id: "class-1", grading_period_id: "period-1" }))
   })
 
+  it("affiche les rangs élèves en français dans la liste direction", async () => {
+    mocks.fetchClassReportCards.mockResolvedValue([
+      { id: "card-1", rank: 1, studentName: "Aya", generalAverage: 16, status: "published" },
+      { id: "card-2", rank: 2, studentName: "Yao", generalAverage: 14, status: "published" },
+    ])
+    renderPage()
+    await selectOption(/classe/i, "6ème A")
+
+    expect(await screen.findByRole("cell", { name: "Rang : 1er" })).toHaveTextContent("1er")
+    expect(screen.getByRole("cell", { name: "Rang : 2ème" })).toHaveTextContent("2ème")
+  })
+
   it("sélectionne l’année active puis lit une classe archivée d’une année clôturée sans action d’écriture", async () => {
     mocks.listSchoolYears.mockResolvedValue([
       { id: "year-old", label: "2024-2025", status: "closed" },

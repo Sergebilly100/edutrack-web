@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { EmptyState } from "@/shared/components/EmptyState"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
+import { formatStudentRank, formatStudentRankWithHeadcount } from "@/shared/lib/format-student-rank"
 import {
   getStudentReportCard,
   listStudentReportCards,
@@ -61,7 +62,7 @@ export function StudentReportCards({ studentId, schoolYearId }: { studentId: str
             <p className="text-sm text-muted-foreground">{card.className}</p>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm">Moyenne : <strong>{averageLabel(card.generalAverage)}/20</strong> · Rang : <strong>{card.rank}/{card.classHeadcount}</strong></p>
+            <p className="text-sm">Moyenne : <strong>{averageLabel(card.generalAverage)}/20</strong> · Rang : <strong aria-label={`Rang : ${formatStudentRank(card.rank) ?? "non renseigné"} sur ${card.classHeadcount}`}>{formatStudentRankWithHeadcount(card.rank, card.classHeadcount) ?? "-"}</strong></p>
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" className="min-h-12" onClick={() => setSelectedCardId(card.id)}>
                 <FileText className="mr-2 h-4 w-4" />Consulter
@@ -82,7 +83,7 @@ export function StudentReportCards({ studentId, schoolYearId }: { studentId: str
           {detailQuery.isLoading ? <Skeleton className="h-40 w-full" /> : null}
           {detailQuery.isError ? <QueryErrorState title="Bulletin indisponible" message="Impossible de lire ce bulletin." onRetry={() => void detailQuery.refetch()} /> : null}
           {detailQuery.data ? <div className="space-y-4">
-            <p className="text-sm">Moyenne générale : <strong>{averageLabel(detailQuery.data.generalAverage)}/20</strong> · Rang : <strong>{detailQuery.data.rank}/{detailQuery.data.classHeadcount}</strong></p>
+            <p className="text-sm">Moyenne générale : <strong>{averageLabel(detailQuery.data.generalAverage)}/20</strong> · Rang : <strong aria-label={`Rang : ${formatStudentRank(detailQuery.data.rank) ?? "non renseigné"} sur ${detailQuery.data.classHeadcount}`}>{formatStudentRankWithHeadcount(detailQuery.data.rank, detailQuery.data.classHeadcount) ?? "-"}</strong></p>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader><TableRow><TableHead>Matière</TableHead><TableHead>Moyenne</TableHead><TableHead>Coefficient</TableHead><TableHead>Rang</TableHead></TableRow></TableHeader>
@@ -90,7 +91,7 @@ export function StudentReportCards({ studentId, schoolYearId }: { studentId: str
                   <TableCell>{line.lineType === "conduct" ? "Conduite" : line.subjectName ?? "Matière"}</TableCell>
                   <TableCell>{averageLabel(line.average)}/20</TableCell>
                   <TableCell>{line.coefficient}</TableCell>
-                  <TableCell>{line.rank ?? "-"}</TableCell>
+                  <TableCell aria-label={`Rang : ${formatStudentRank(line.rank) ?? "non renseigné"}`}>{formatStudentRank(line.rank) ?? "-"}</TableCell>
                 </TableRow>)}</TableBody>
               </Table>
             </div>
