@@ -58,6 +58,7 @@ export type ScheduleSlot = {
   class_id: string
   class_name: string
   subject_name: string
+  subject_id?: string
   room_id: string
   room_name: string
   day_of_week: number
@@ -70,6 +71,8 @@ export type TeacherAttendance = {
   id?: string
   schedule_id: string
   status: "present" | "absent" | "late"
+  checked_in_at?: string | null
+  validation_status?: "not_required" | "pending" | "approved" | "rejected" | null
   late_minutes?: number | null
   date?: string
   room_scan_start_at?: string | null
@@ -82,6 +85,13 @@ export type TeacherAttendance = {
   student_absent_count?: number
   student_total_count?: number
 }
+
+export const hasValidatedTeacherPresence = (attendance?: TeacherAttendance): boolean =>
+  Boolean(
+    attendance?.checked_in_at &&
+    (attendance.status === "present" || attendance.status === "late") &&
+    (attendance.validation_status === "not_required" || attendance.validation_status === "approved"),
+  )
 
 const toRecord = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {}
@@ -145,6 +155,7 @@ const toScheduleSlot = (row: unknown): ScheduleSlot => {
     class_id: toString(item.class_id || item.classId || classRecord.id),
     class_name: toString(item.class_name || item.className || classRecord.name),
     subject_name: toString(item.subjectDisplay || item.subject_display || item.subject_name || item.subjectName || item.subject),
+    subject_id: toString(item.subjectId || item.subject_id),
     room_id: toString(item.room_id || item.roomId || roomRecord.id),
     room_name: toString(item.room_name || item.roomName || roomRecord.name),
     day_of_week: toNumber(item.day_of_week ?? item.dayOfWeek),
@@ -157,6 +168,7 @@ const toScheduleSlot = (row: unknown): ScheduleSlot => {
     end_time: toString(
       item.end_time || item.endTime || timeSlotRecord.end_time || timeSlotRecord.endTime
     ),
+    date: toString(item.date) || undefined,
   }
 }
 
@@ -167,6 +179,12 @@ const toTeacherAttendance = (row: unknown): TeacherAttendance => {
     id: toString(item.id),
     schedule_id: toString(item.schedule_id || item.scheduleId),
     status: toAttendanceStatus(item.status || item.attendance_status),
+    checked_in_at: toString(item.checked_in_at || item.checkedInAt) || null,
+    validation_status:
+      item.validation_status === "not_required" || item.validation_status === "pending" ||
+      item.validation_status === "approved" || item.validation_status === "rejected"
+        ? item.validation_status
+        : null,
     late_minutes:
       typeof item.late_minutes === "number"
         ? item.late_minutes

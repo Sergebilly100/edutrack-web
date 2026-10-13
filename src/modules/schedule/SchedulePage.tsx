@@ -74,6 +74,7 @@ import {
   fetchActiveSchedulePeriods,
   fetchNextWeekCoverage,
   fetchWeeklySchedule,
+  repairScheduleSlotSubject,
   type ScheduleCreatePayload,
   type ScheduleRow,
   type SchedulePeriodSummary,
@@ -173,6 +174,8 @@ export default function SchedulePage() {
   const [selectedWeekMonday, setSelectedWeekMonday] = useState(currentWeekMonday)
 
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleRow | null>(null)
+  const [repairSubjectId, setRepairSubjectId] = useState("")
+  useEffect(() => setRepairSubjectId(""), [selectedSchedule?.id])
   const [detailOpen, setDetailOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
@@ -223,6 +226,11 @@ export default function SchedulePage() {
   const data = scheduleQuery.data
   const canEditSchedule = hasPermission("schedule.edit")
   const canImportSchedule = hasPermission("import.schedule")
+  const schoolYearFinished = Boolean(data?.schoolYear && (data.schoolYear.status === "closed" || toISODate(new Date()) > data.schoolYear.endDate))
+  const schoolYearNotStarted = Boolean(data?.schoolYear && toISODate(new Date()) < data.schoolYear.startDate)
+  const selectedWeekAfterSchoolYear = Boolean(data?.schoolYear && selectedWeekMonday > data.schoolYear.endDate)
+  const schoolYearEndMessage = data?.schoolYear ? `Année scolaire ${data.schoolYear.label} terminée.` : "Année scolaire terminée."
+  const schoolYearUnavailableMessage = schoolYearNotStarted ? `L’année scolaire ${data?.schoolYear?.label} n’a pas encore commencé.` : schoolYearEndMessage
 
   const blockedTeachers = useMemo(
     () =>
@@ -259,30 +267,29 @@ export default function SchedulePage() {
     () => data?.catalog.teachers.find((teacher) => teacher.id === formState.teacherId),
     [data?.catalog.teachers, formState.teacherId]
   )
-  const selectedTeacherSubjects = useMemo<string[]>(() => {
-    const assignedSubjects = [...new Set((selectedTeacher?.teachingAssignments ?? []).map((assignment) => assignment.subjectName))]
-    return assignedSubjects.length > 0 ? assignedSubjects : selectedTeacher?.subjects ?? []
-  }, [selectedTeacher])
+  const repairAssignments = (data?.catalog.teachers.find((teacher) => teacher.id === selectedSchedule?.teacher.id)?.teachingAssignments ?? [])
+    .filter((assignment) => assignment.classId === selectedSchedule?.class.id)
+  const selectedTeacherSubjects = useMemo(() =>
+    (selectedTeacher?.teachingAssignments ?? [])
+      .filter((assignment) => assignment.classId === formState.classId),
+  [formState.classId, selectedTeacher])
   const selectedTeacherClasses = useMemo(() => {
     const assignments = selectedTeacher?.teachingAssignments ?? []
-    if (assignments.length === 0) return data?.catalog.classes ?? []
     const classIds = new Set(
       assignments
-        .filter((assignment) => !formState.subject || assignment.subjectName === formState.subject)
         .map((assignment) => assignment.classId)
     )
     return (data?.catalog.classes ?? []).filter((schoolClass) => classIds.has(schoolClass.id))
-  }, [data?.catalog.classes, formState.subject, selectedTeacher])
+  }, [data?.catalog.classes, selectedTeacher])
 
   useEffect(() => {
-    if (!formState.subject) return
+    if (!formState.subjectId) return
     if (
-      selectedTeacherSubjects.length > 0 &&
-      !selectedTeacherSubjects.includes(formState.subject)
+      !selectedTeacherSubjects.some((item) => item.subjectId === formState.subjectId)
     ) {
-      setFormState((prev) => ({ ...prev, subject: "" }))
+      setFormState((prev) => ({ ...prev, subject: "", subjectId: "" }))
     }
-  }, [formState.subject, selectedTeacherSubjects])
+  }, [formState.subjectId, selectedTeacherSubjects])
 
   useEffect(() => {
     if (!formState.classId) return
@@ -341,6 +348,10 @@ export default function SchedulePage() {
 
   const openCreateModal = (prefill?: SlotCreatePrefill) => {
     if (!data) return
+    if (schoolYearFinished || schoolYearNotStarted || selectedWeekAfterSchoolYear) {
+      toast({ variant: "destructive", title: "Créneau indisponible", description: schoolYearUnavailableMessage })
+      return
+    }
     setEditingSchedule(null)
     setDetailOpen(false)
     const startHour = prefill?.hour ?? 8
@@ -366,6 +377,7 @@ export default function SchedulePage() {
       endTime: schedule.timeSlot.endTime,
       roomId: schedule.room.id,
       subject: schedule.subject,
+      subjectId: schedule.subjectId ?? "",
       schedulePeriodId: schedule.schedulePeriodId,
       // En édition, on ne change pas le type de récurrence (le backend conserve end_date)
       recurrence: null,
@@ -457,6 +469,23 @@ export default function SchedulePage() {
     onSettled: async () => { await queryClient.invalidateQueries({ queryKey: weeklyQueryKey }) },
   })
 
+  const repairSubjectMutation = useMutation({
+    mutationFn: () => {
+      if (!selectedSchedule || !repairSubjectId) throw new Error("Choisissez une matière officielle")
+      return repairScheduleSlotSubject(selectedSchedule.id, repairSubjectId)
+    },
+    onSuccess: async () => {
+      toast({ title: "Matière officielle renseignée", description: "Le libellé historique du créneau est conservé." })
+      setDetailOpen(false)
+      setRepairSubjectId("")
+      await queryClient.invalidateQueries({ queryKey: weeklyQueryKey })
+    },
+    onError: (error) => toast({
+      variant: "destructive", title: "Correction impossible",
+      description: error instanceof Error ? error.message : "Vérifiez l’affectation du professeur.",
+    }),
+  })
+
   const deleteMutation = useMutation({
     mutationFn: (values: { id: string; effectiveFrom: string; deleteScope?: "this" | "this_and_following" }) =>
       deleteScheduleSlotFromDate(values.id, values.effectiveFrom, values.deleteScope),
@@ -491,6 +520,10 @@ export default function SchedulePage() {
   })
 
   const handleSubmit = async () => {
+    if (schoolYearFinished || schoolYearNotStarted || selectedWeekAfterSchoolYear) {
+      toast({ variant: "destructive", title: "Créneau indisponible", description: schoolYearUnavailableMessage })
+      return
+    }
     if (!formState.schedulePeriodId) {
       toast({ variant: "destructive", title: "Aucune période", description: "Sélectionnez une période." })
       return
@@ -508,7 +541,7 @@ export default function SchedulePage() {
       return
     }
     const payload = toPayload(formState)
-    if (!payload.teacherId || !payload.classId || !payload.roomId || !payload.subject) {
+    if (!payload.teacherId || !payload.classId || !payload.roomId || !payload.subjectId) {
       toast({ variant: "destructive", title: "Formulaire incomplet", description: "Renseignez tous les champs." })
       return
     }
@@ -524,6 +557,10 @@ export default function SchedulePage() {
     // Pour un créneau unique (rattrapage), on prend la date de l'occurrence dans la semaine sélectionnée.
     // Pour un récurrent, on conserve l'ancien comportement (propagation à partir de cette occurrence).
     const occurrenceDate = occurrenceDateFromWeek(selectedWeekMonday, payload.dayOfWeek)
+    if (data?.schoolYear && occurrenceDate > data.schoolYear.endDate) {
+      toast({ variant: "destructive", title: "Créneau indisponible", description: schoolYearEndMessage })
+      return
+    }
 
     if (isPastScheduleSelection(selectedWeekMonday, payload.dayOfWeek, payload.startTime ?? "", new Date())) {
       toast({
@@ -690,7 +727,7 @@ export default function SchedulePage() {
               <InfoIcon className="mr-1.5 h-4 w-4" />
               Guide
             </Button>
-            {canImportSchedule && data && !data.period ? (
+            {canImportSchedule && data && !data.period && !schoolYearFinished && !schoolYearNotStarted && !selectedWeekAfterSchoolYear ? (
               <Button onClick={() => navigate("/import?type=schedule")} className="w-full sm:w-auto">
                 Importer l&apos;EDT
               </Button>
@@ -700,8 +737,8 @@ export default function SchedulePage() {
                 // Pas de période active sur la semaine affichée = impossible de
                 // poser un créneau cohérent (il n'apparaîtrait pas). On bloque ici
                 // comme le font déjà la vue liste et l'EmptyState mobile.
-                disabled={!data || !data.period}
-                title={data && !data.period ? "Aucune période active pour cette semaine" : undefined}
+                disabled={!data || !data.period || schoolYearFinished || schoolYearNotStarted || selectedWeekAfterSchoolYear}
+                title={schoolYearFinished || schoolYearNotStarted || selectedWeekAfterSchoolYear ? schoolYearUnavailableMessage : data && !data.period ? "Aucune période active pour cette semaine" : undefined}
                 className="w-full sm:w-auto"
                 data-tour="schedule-add-btn"
               >
@@ -714,11 +751,17 @@ export default function SchedulePage() {
 
 
         </div>
-        <WeekCoverageAlert
+        {schoolYearFinished ? (
+          <Alert><AlertDescription>{schoolYearEndMessage}</AlertDescription></Alert>
+        ) : null}
+        {schoolYearNotStarted ? (
+          <Alert><AlertDescription>{schoolYearUnavailableMessage}</AlertDescription></Alert>
+        ) : null}
+        {!schoolYearFinished && !schoolYearNotStarted && (!data?.schoolYear || nextWeekMonday <= data.schoolYear.endDate) ? <WeekCoverageAlert
           nextWeekHasCoverage={nextWeekCoverageQuery.data ?? true}
           btnText="Procéder à l'importation"
           onNavigateToSchedule={() => navigate("/import?type=schedule")}
-        />
+        /> : null}
 
         {/* ── Barre de contrôles ─────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-2 shadow-sm" data-tour="schedule-periods">
@@ -1025,7 +1068,7 @@ export default function SchedulePage() {
                     icon={ScheduleIcon}
                     title="Aucun cours ce jour"
                     message="Ce jour n'a pas encore de créneau dans la période sélectionnée."
-                    action={canEditSchedule && data.period ? {
+                    action={canEditSchedule && data.period && !schoolYearFinished && !schoolYearNotStarted && !selectedWeekAfterSchoolYear ? {
                       label: "Ajouter un créneau",
                       onClick: () => openCreateModal({ dayOfWeek: Number(mobileDay), hour: 8 }),
                       icon: AddIcon,
@@ -1067,6 +1110,23 @@ export default function SchedulePage() {
                 <p className="text-xs font-medium text-muted-foreground">Classe et salle</p>
                 <p className="mt-1 font-semibold">{selectedSchedule.class.name} · {selectedSchedule.room.name}</p>
               </div>
+            </div>
+          ) : null}
+          {canEditSchedule && selectedSchedule && !selectedSchedule.subjectId ? (
+            <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+              <p className="font-medium text-amber-900">Matière officielle à vérifier</p>
+              <p className="text-amber-800">Le libellé historique « {selectedSchedule.subject} » restera inchangé.</p>
+              {repairAssignments.length === 0 ? <EmptyState title="Aucune matière affectée" description="Affectez d’abord ce professeur à une matière de cette classe." /> : null}
+              <Select value={repairSubjectId} onValueChange={setRepairSubjectId} disabled={repairAssignments.length === 0}>
+                <SelectTrigger className="min-h-12" aria-label="Matière officielle"><SelectValue placeholder="Choisir la matière officielle" /></SelectTrigger>
+                <SelectContent>
+                  {repairAssignments.map((assignment) => <SelectItem key={assignment.subjectId} value={assignment.subjectId}>{assignment.subjectName}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button type="button" className="min-h-12" disabled={!repairSubjectId || repairSubjectMutation.isPending}
+                onClick={() => repairSubjectMutation.mutate()}>
+                {repairSubjectMutation.isPending ? "Enregistrement…" : "Confirmer la matière"}
+              </Button>
             </div>
           ) : null}
           {canEditSchedule && selectedSchedule ? (
@@ -1403,7 +1463,7 @@ export default function SchedulePage() {
             <div className="space-y-1">
               <Label>Professeur</Label>
               <Select value={formState.teacherId}
-                onValueChange={(v) => setFormState((p) => ({ ...p, teacherId: v, subject: "", classId: "" }))}>
+                onValueChange={(v) => setFormState((p) => ({ ...p, teacherId: v, subject: "", subjectId: "", classId: "" }))}>
                 <SelectTrigger><SelectValue placeholder="Choisir un professeur" /></SelectTrigger>
                 <SelectContent>
                   {(data?.catalog.teachers ?? []).map((t) => (
@@ -1416,40 +1476,9 @@ export default function SchedulePage() {
             </div>
 
             <div className="space-y-1">
-              <Label>Matière</Label>
-              {!formState.teacherId ? (
-                <Select disabled>
-                  <SelectTrigger><SelectValue placeholder="Sélectionnez d'abord un professeur" /></SelectTrigger>
-                  <SelectContent />
-                </Select>
-              ) : selectedTeacherSubjects.length > 0 ? (
-                <Select value={formState.subject}
-                  onValueChange={(v) => setFormState((p) => ({ ...p, subject: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Choisir une matière" /></SelectTrigger>
-                  <SelectContent>
-                    {selectedTeacherSubjects.map((s) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <div className="space-y-1">
-                  <Input
-                    value={formState.subject}
-                    onChange={(e) => setFormState((p) => ({ ...p, subject: e.target.value }))}
-                    placeholder="Ex: Mathématiques"
-                  />
-                  <p className="text-[11px] text-amber-600">
-                    Ce professeur n'a pas encore de matière configurée dans son profil.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-1">
               <Label>Classe</Label>
               <Select value={formState.classId}
-                onValueChange={(v) => setFormState((p) => ({ ...p, classId: v }))}>
+                onValueChange={(v) => setFormState((p) => ({ ...p, classId: v, subject: "", subjectId: "" }))}>
                 <SelectTrigger><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
                 <SelectContent>
                   {selectedTeacherClasses.map((c) => (
@@ -1457,6 +1486,31 @@ export default function SchedulePage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label>Matière</Label>
+              {!formState.teacherId || !formState.classId ? (
+                <Select disabled>
+                  <SelectTrigger><SelectValue placeholder="Sélectionnez un professeur et une classe" /></SelectTrigger>
+                  <SelectContent />
+                </Select>
+              ) : selectedTeacherSubjects.length > 0 ? (
+                <Select value={formState.subjectId}
+                  onValueChange={(v) => setFormState((p) => ({
+                    ...p, subjectId: v,
+                    subject: selectedTeacherSubjects.find((item) => item.subjectId === v)?.subjectName ?? "",
+                  }))}>
+                  <SelectTrigger><SelectValue placeholder="Choisir une matière" /></SelectTrigger>
+                  <SelectContent>
+                    {selectedTeacherSubjects.map((s) => (
+                      <SelectItem key={s.subjectId} value={s.subjectId}>{s.subjectName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-sm text-amber-700">Aucune matière affectée pour cette classe. Configurez l’affectation du professeur.</p>
+              )}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
@@ -1562,7 +1616,7 @@ export default function SchedulePage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setFormOpen(false)}>Annuler</Button>
             <Button onClick={() => void handleSubmit()}
-              disabled={upsertMutation.isPending || !formState.schedulePeriodId || isTeacherBlocked(formState.teacherId) || !!formTimeErrors.startTime || !!formTimeErrors.endTime}>
+              disabled={schoolYearFinished || schoolYearNotStarted || selectedWeekAfterSchoolYear || upsertMutation.isPending || !formState.schedulePeriodId || isTeacherBlocked(formState.teacherId) || !!formTimeErrors.startTime || !!formTimeErrors.endTime}>
               {upsertMutation.isPending ? "Enregistrement..." : editingSchedule ? "Enregistrer les modifications" : "Ajouter le créneau"}
             </Button>
           </DialogFooter>

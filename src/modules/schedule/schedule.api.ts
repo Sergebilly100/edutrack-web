@@ -49,6 +49,7 @@ export type ScheduleRow = {
   schedulePeriodId: string
   dayOfWeek: number
   subject: string
+  subjectId?: string | null
   subjectDisplay: string
   startDate: string | null
   endDate: string | null
@@ -92,6 +93,7 @@ export type ScheduleCatalog = {
 
 export type WeeklyScheduleData = {
   date: string
+  schoolYear: { id: string; label: string; startDate: string; endDate: string; status: "active" | "closed" } | null
   period: SchedulePeriod | null
   schedules: ScheduleRow[]
   catalog: ScheduleCatalog
@@ -118,6 +120,7 @@ export type ScheduleCreatePayload = {
   endTime?: string
   dayOfWeek: number
   subject: string
+  subjectId: string
   effectiveFrom?: string
   recurrence?: ScheduleRecurrence
   updateScope?: ScheduleUpdateScope
@@ -160,6 +163,7 @@ const ScheduleRowSchema = z.object({
   schedulePeriodId: z.string(),
   dayOfWeek: z.number(),
   subject: z.string(),
+  subjectId: z.string().nullable().optional(),
   subjectDisplay: z.string().optional(),
   startDate: z.string().nullable().optional().default(null),
   endDate: z.string().nullable().optional().default(null),
@@ -195,6 +199,9 @@ const ScheduleRowSchema = z.object({
 
 const WeeklyScheduleResponseSchema = z.object({
   date: z.string(),
+  schoolYear: z.object({
+    id: z.string(), label: z.string(), startDate: z.string(), endDate: z.string(), status: z.enum(["active", "closed"]),
+  }).nullable().optional(),
   period: SchedulePeriodSchema.nullable(),
   schedules: z.array(ScheduleRowSchema),
   teachers: z.array(
@@ -260,6 +267,7 @@ const toSchedulePayload = (payload: ScheduleCreatePayload) => ({
   ...(payload.endTime ? { end_time: payload.endTime } : {}),
   day_of_week: payload.dayOfWeek,
   subject: payload.subject,
+  subject_id: payload.subjectId,
   ...(payload.effectiveFrom ? { effective_from: payload.effectiveFrom } : {}),
   ...(payload.recurrence ? { recurrence: payload.recurrence } : {}),
   ...(payload.updateScope ? { update_scope: payload.updateScope } : {}),
@@ -356,6 +364,7 @@ export const fetchWeeklySchedule = async (date?: unknown): Promise<WeeklySchedul
 
   return {
     date: parsed.date,
+    schoolYear: parsed.schoolYear ?? null,
     period: parsed.period
       ? {
           id: parsed.period.id,
@@ -425,6 +434,10 @@ export const createScheduleSlot = async (
   )
   return response.data.schedule
 }
+
+export const repairScheduleSlotSubject = (scheduleId: string, subjectId: string) =>
+  api.patch(`/schedule/${scheduleId}/subject`, { subject_id: subjectId })
+    .then((response) => response.data)
 
 export const updateScheduleSlot = async (
   scheduleId: string,

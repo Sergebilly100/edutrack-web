@@ -17,6 +17,7 @@ import { EmptyState } from "@/shared/components/EmptyState"
 import {
   createEvaluation,
   dayLabel,
+  fetchEntryPeriod,
   fetchEvaluationsScope,
   fetchTeacherAcademicContext,
   upsertEvaluationGrade,
@@ -70,26 +71,38 @@ export default function NotesPage() {
     enabled: scopeEnabled,
   })
   const isPeriodReadOnly = isPeriodClosedFromContext || Boolean(scopeQuery.data?.periodState?.isClosed)
+  const entryPeriodQuery = useQuery({
+    queryKey: ["evaluations", "entry-period", classId, draft.evaluationDate],
+    queryFn: () => fetchEntryPeriod(classId, draft.evaluationDate),
+    enabled: createOpen && Boolean(classId && draft.evaluationDate && isCivilDate(draft.evaluationDate)),
+  })
+  const creationPeriodId = entryPeriodQuery.data?.period?.id ?? ""
+  const creationScopeQuery = useQuery({
+    queryKey: ["evaluations-scope", classId, creationPeriodId, draft.evaluationDate],
+    queryFn: () => fetchEvaluationsScope(classId, creationPeriodId, draft.evaluationDate),
+    enabled: createOpen && Boolean(creationPeriodId && draft.evaluationDate),
+  })
+  const creationScope = creationScopeQuery.data
   const studentsQuery = useQuery({
     queryKey: ["students-list", classId],
     queryFn: () => listStudents({ classId, isActive: true, limit: 100 }),
     enabled: Boolean(classId),
   })
-  const invalidateScope = () => invalidateAcademicReportScope(queryClient, classId, gradingPeriodId)
+  const invalidateScope = (periodId = gradingPeriodId) => invalidateAcademicReportScope(queryClient, classId, periodId)
 
   const createMutation = useMutation({
     mutationFn: () => createEvaluation({
       ...(draft.lessonSlotId ? { lessonSlotId: draft.lessonSlotId } : {}),
       subjectId: draft.subjectId,
       classId,
-      gradingPeriodId,
+      gradingPeriodId: creationPeriodId,
       type: "scheduled",
       coefficient: Number(draft.coefficient),
       label: draft.label.trim(),
       evaluationDate: draft.evaluationDate,
     }),
     onSuccess: async () => {
-      await invalidateScope()
+      await invalidateScope(creationPeriodId)
       setCreateOpen(false)
       setDraft({ label: "", lessonSlotId: "", subjectId: "", coefficient: "1", evaluationDate: "" })
       toast({ title: "Évaluation programmée" })
@@ -106,20 +119,21 @@ export default function NotesPage() {
   const correctionBySubject = new Map((scopeQuery.data?.correctionStatuses ?? []).map((item) => [item.subjectId, item.status]))
   const isSubjectClosed = (subjectId: string | null | undefined) =>
     isPeriodReadOnly || completionBySubject.get(subjectId ?? "")?.status === "completed"
-  const selectedDraftSlot = scopeQuery.data?.lessonSlots.find((item) => item.id === draft.lessonSlotId)
+  const selectedDraftSlot = creationScope?.lessonSlots.find((item) => item.id === draft.lessonSlotId)
   const availableDraftSubjects = selectedDraftSlot?.subjectId
-    ? (scopeQuery.data?.subjects ?? []).filter((item) => item.id === selectedDraftSlot.subjectId)
-    : (scopeQuery.data?.subjects ?? [])
-  const nextPeriod = periods
-    .filter((period) => activePeriod && period.startDate > activePeriod.startDate)
-    .sort((left, right) => left.startDate.localeCompare(right.startDate))[0]
-  const draftSubjectIsLocked = completionBySubject.get(draft.subjectId)?.status === "completed"
-  const evaluationDateError = draft.evaluationDate && (!isCivilDate(draft.evaluationDate)
-    || Boolean(activePeriod && (draft.evaluationDate < activePeriod.startDate || draft.evaluationDate > activePeriod.endDate)))
-    ? "Choisissez une date réelle dans la période d’évaluation." : null
+    ? (creationScope?.subjects ?? []).filter((item) => item.id === selectedDraftSlot.subjectId)
+    : (creationScope?.subjects ?? [])
+  const draftSubjectIsLocked = creationScope?.completion.some((item) => item.subjectId === draft.subjectId && item.status === "completed") ?? false
+  const evaluationDateError = draft.evaluationDate && !isCivilDate(draft.evaluationDate)
+    ? "Choisissez une date réelle." : entryPeriodQuery.data && !entryPeriodQuery.data.period
+      ? entryPeriodQuery.data.code === "FINAL_PERIOD_CALCULATION_STARTED"
+        ? "Le calcul des moyennes de la dernière période a commencé : aucune nouvelle évaluation ne peut être programmée pour cette année."
+        : "Aucune période de saisie n’est ouverte pour cette date. Demandez à la direction de vérifier le calendrier."
+      : entryPeriodQuery.isError ? "Impossible de vérifier le calendrier. Réessayez." : null
   const canCreate = draft.label.trim() !== "" && draft.subjectId !== "" && draft.evaluationDate !== "" && !evaluationDateError
-    && !isPeriodReadOnly && !draftSubjectIsLocked
-    && Boolean(activePeriod && draft.evaluationDate >= activePeriod.startDate && draft.evaluationDate <= activePeriod.endDate)
+    && Boolean(creationPeriodId && creationScope) && !creationScope?.periodState.isClosed && !draftSubjectIsLocked
+    && (!selectedDraftSlot || Boolean(selectedDraftSlot.subjectId))
+    && availableDraftSubjects.some((subject) => subject.id === draft.subjectId)
     && Number.isFinite(Number(draft.coefficient)) && Number(draft.coefficient) > 0
   const selectedEvaluation = scheduledEvaluations.find((evaluation) => evaluation.id === selectedEvaluationId) ?? null
   return (
@@ -342,7 +356,7 @@ export default function NotesPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Aucun créneau - EDT non configuré</SelectItem>
-                    {(scopeQuery.data?.lessonSlots ?? []).map((slot) => (
+                    {(creationScope?.lessonSlots ?? []).map((slot) => (
                       <SelectItem key={slot.id} value={slot.id}>
                         {dayLabel(slot.dayOfWeek)} · {slot.startTime}-
                         {slot.endTime} · {slot.roomName}
@@ -353,6 +367,9 @@ export default function NotesPage() {
               </div>
               <div className="space-y-2">
                 <Label>Matière</Label>
+                {selectedDraftSlot && !selectedDraftSlot.subjectId ? (
+                  <p className="text-sm text-amber-800">La direction doit corriger la matière officielle de ce créneau dans l’emploi du temps.</p>
+                ) : null}
                 <Select
                   value={draft.subjectId || "none"}
                   onValueChange={(value) =>
@@ -380,8 +397,6 @@ export default function NotesPage() {
                   id="evaluation-date"
                   type="date"
                   required
-                  min={activePeriod?.startDate}
-                  max={activePeriod?.endDate}
                   aria-invalid={Boolean(evaluationDateError)}
                   aria-describedby={evaluationDateError ? "evaluation-date-error" : undefined}
                   value={draft.evaluationDate}
@@ -393,11 +408,11 @@ export default function NotesPage() {
                   }
                 />
                 {evaluationDateError ? <p id="evaluation-date-error" role="alert" className="text-sm text-destructive">{evaluationDateError}</p> : null}
+                {entryPeriodQuery.isLoading || creationScopeQuery.isLoading ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Vérification de la période…</p> : null}
+                {entryPeriodQuery.data?.period ? <p className="text-sm text-muted-foreground">Période de saisie : {entryPeriodQuery.data.period.label}</p> : null}
                 {draftSubjectIsLocked ? (
                   <p className="text-xs text-muted-foreground">
-                    {nextPeriod
-                      ? `Le calcul est déjà lancé pour cette matière. Sélectionnez ${nextPeriod.label} pour y programmer l’évaluation lorsqu’elle sera ouverte.`
-                      : "Le calcul est déjà lancé et aucune période suivante n’est configurée."}
+                    La saisie est clôturée pour cette matière dans la période indiquée.
                   </p>
                 ) : null}
               </div>

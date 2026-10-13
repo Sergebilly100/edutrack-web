@@ -98,6 +98,20 @@ beforeEach(() => {
 })
 
 describe("SchedulePeriods", () => {
+  it.each(["active", "closed"] as const)("affiche l'année scolaire %s terminée et bloque l'ajout de créneau", async (status) => {
+    fetchWeeklyScheduleMock.mockResolvedValue({
+      ...makeScheduleData({
+        id: "p1", name: "Ancienne période", validFrom: "2020-01-01", validTo: "2026-12-31", isActive: true,
+      }),
+      schoolYear: { id: "year-1", label: "2025-2026", startDate: "2025-09-01", endDate: "2026-06-30", status },
+    })
+
+    const view = renderSchedulePage()
+    expect(await screen.findByText("Année scolaire 2025-2026 terminée.")).toBeInTheDocument()
+    expect(view.container.querySelector<HTMLButtonElement>('[data-tour="schedule-add-btn"]')).toBeDisabled()
+    expect(screen.queryByRole("button", { name: "Importer l'EDT" })).not.toBeInTheDocument()
+  })
+
   it("saisit des minutes libres et signale une heure invalide près du champ", async () => {
     fetchWeeklyScheduleMock.mockResolvedValue(makeScheduleData({
       id: "p1", name: "Trimestre 1", validFrom: "2026-01-01", validTo: "2026-12-31", isActive: true,

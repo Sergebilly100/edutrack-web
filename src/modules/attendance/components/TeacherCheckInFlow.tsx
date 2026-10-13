@@ -49,12 +49,6 @@ interface TeacherCheckInFlowProps {
 
 type StudentRollCallStatus = "unmarked" | "present" | "absent"
 
-const toDateKey = (date: Date) => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
-}
 
 const formatTime = (time: string) => {
   const [hours, minutes] = time.split(":")
@@ -115,7 +109,7 @@ export const shouldMarkCheckinQrDoneOnSheetClose = ({
 export default function TeacherCheckInFlow({ open, onClose, slot, editRollCall = false }: TeacherCheckInFlowProps) {
   const studentLabels = useStudentLabels()
   const motivationalByStep = useMemo(() => buildMotivationalByStep(studentLabels), [studentLabels])
-  const attendanceDate = slot.date ?? toDateKey(new Date())
+  const attendanceDate = slot.date ?? ""
 
   const rollCallStore = useRollCallStore()
   const flowState = rollCallStore.getFlowState(slot.id, attendanceDate)
@@ -349,6 +343,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot, editRollCall =
 
       setQrWarning(qrResult?.room_mismatch ? "Vous n'êtes pas dans la bonne salle." : null)
       setQrValidated(true)
+      await queryClient.invalidateQueries({ queryKey: ["teacher-attendance", attendanceDate] })
 
       const lateMsg =
         resolvedLateMinutes && resolvedLateMinutes > 0
@@ -422,6 +417,7 @@ export default function TeacherCheckInFlow({ open, onClose, slot, editRollCall =
       })
       setQrWarning(null)
       setQrValidated(true)
+      await queryClient.invalidateQueries({ queryKey: ["teacher-attendance", attendanceDate] })
     } catch (error) {
       if (isOfflineQueued(error)) {
         rollCallStore.setStartScanContext(slot.id, attendanceDate, {

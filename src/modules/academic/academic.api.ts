@@ -389,13 +389,23 @@ export const updateGradingPeriod = (id: string, input: Pick<GradingPeriod, "star
 export const fetchTeacherAcademicContext = () =>
   api.get<TeacherAcademicContext>("/academic/teacher-context").then((response) => response.data)
 
+export type EntryPeriodResult = {
+  period: GradingPeriod | null
+  state: "open" | "unavailable"
+  code: string | null
+}
+
+export const fetchEntryPeriod = (classId: string, date: string) =>
+  api.get<EntryPeriodResult>("/evaluations/entry-period", { params: { classId, date } })
+    .then((response) => response.data)
+
 const DAY_LABELS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
 
 export const dayLabel = (day: number): string => DAY_LABELS[day] ?? `Jour ${day}`
 
-export const fetchEvaluationsScope = (classId: string, gradingPeriodId: string) =>
+export const fetchEvaluationsScope = (classId: string, gradingPeriodId: string, date?: string) =>
   api
-    .get<EvaluationsScope>("/evaluations/scope", { params: { classId, gradingPeriodId } })
+    .get<EvaluationsScope>("/evaluations/scope", { params: { classId, gradingPeriodId, date } })
     .then((response) => response.data)
 
 export type CreateEvaluationResponse = {

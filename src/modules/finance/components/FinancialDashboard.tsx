@@ -48,33 +48,69 @@ export function FinancialDashboard({ schoolYearId }: { schoolYearId: string }) {
   const remainingToCollect = Number(school?.remaining_to_collect ?? 0)
   const levels = summaryQuery.data?.levels ?? []
 
-  return <div className="space-y-6">
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(20rem,0.75fr)]">
-      <Card className="rounded-lg border-0 bg-blue-500 text-blue-50 shadow-sm">
-        <CardContent className="p-5 sm:p-6">
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-blue-100">Recouvrement de la période</p>
-              <p className="text-4xl font-semibold tracking-tight sm:text-5xl">{percent(school?.recovery_rate ?? 0)}%</p>
-              <p className="max-w-xl text-sm text-blue-100">{fcfa(totalPaid)} encaissés sur {fcfa(expectedToDate)} attendus.</p>
-              <Progress value={percent(school?.recovery_rate ?? 0)} className="mt-4 h-2 bg-blue-700  border border-secondary-foreground" />
+  return (
+    <div className="space-y-6">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(20rem,0.75fr)]">
+        <Card className="rounded-lg border-0 bg-blue-500 text-blue-50 shadow-sm">
+          <CardContent className="p-5 sm:p-6">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-blue-100">
+                  Recouvrement de la période
+                </p>
+                <p className="text-4xl font-semibold tracking-tight sm:text-5xl">
+                  {percent(school?.recovery_rate ?? 0)}%
+                </p>
+                <p className="max-w-xl text-sm text-blue-100">
+                  {fcfa(totalPaid)} encaissés sur {fcfa(expectedToDate)}{" "}
+                  attendus.
+                </p>
+                <Progress
+                  value={percent(school?.recovery_rate ?? 0)}
+                  className="mt-4 h-2 bg-blue-700  border border-secondary-foreground"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm sm:min-w-80">
+                <div className="border-l border-blue-400 pl-4">
+                  <p className="text-xs text-blue-100">Attendu</p>
+                  <p className="mt-1 font-semibold tabular-nums">
+                    {fcfa(expectedToDate)}
+                  </p>
+                </div>
+                <div className="border-l border-blue-400 pl-4">
+                  <p className="text-xs text-blue-100">Reste à recouvrer</p>
+                  <p className="mt-1 font-semibold tabular-nums">
+                    {fcfa(remainingToCollect)}
+                  </p>
+                  <p className="text-xs text-blue-100">
+                    Après {fcfa(school?.total_waived ?? 0)} tolérés
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-4 text-sm sm:min-w-80">
-              <div className="border-l border-blue-400 pl-4"><p className="text-xs text-blue-100">Attendu</p><p className="mt-1 font-semibold tabular-nums">{fcfa(expectedToDate)}</p></div>
-              <div className="border-l border-blue-400 pl-4"><p className="text-xs text-blue-100">Reste à recouvrer</p><p className="mt-1 font-semibold tabular-nums">{fcfa(remainingToCollect)}</p><p className="text-xs text-blue-100">Après {fcfa(school?.total_waived ?? 0)} tolérés</p></div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <UpcomingInstallments rows={summaryQuery.data?.upcomingInstallments ?? []} />
-    </section>
+        <UpcomingInstallments
+          rows={summaryQuery.data?.upcomingInstallments ?? []}
+        />
+      </section>
 
-    <FinancialVisuals collections={summaryQuery.data?.collections ?? []} paymentMethods={summaryQuery.data?.paymentMethods ?? []} />
-
-    <section className="space-y-3"><div className="flex justify-end"><Button asChild variant="link" className="min-h-12"><Link to={FINANCE_PATHS.recovery}>Voir le recouvrement détaillé</Link></Button></div><div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)]"><LevelRecovery levels={levels} classes={summaryQuery.data?.classes ?? []} /><RecentPayments rows={summaryQuery.data?.recentPayments ?? []} /></div></section>
-
-  </div>
+      <FinancialVisuals
+        collections={summaryQuery.data?.collections ?? []}
+        paymentMethods={summaryQuery.data?.paymentMethods ?? []}
+      />
+      <section className="space-y-3"> 
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)]">
+          <LevelRecovery
+            levels={levels}
+            classes={summaryQuery.data?.classes ?? []}
+          />
+          <RecentPayments rows={summaryQuery.data?.recentPayments ?? []} />
+        </div>
+      </section>
+    </div>
+  );
 }
 
 const methodLabels: Record<PaymentMethod, string> = { cash: "Espèces", mobile_money: "Mobile Money", bank_transfer: "Virement" }
@@ -107,10 +143,10 @@ function LevelRecovery({ levels, classes }: { levels: LevelFinancialSummaryRow[]
   return <Card className="rounded-lg shadow-sm">
     <CardHeader className="flex flex-col gap-2 pb-3 sm:flex-row sm:items-start sm:justify-between border-none">
       <div>
-        <CardTitle>Recouvrement de scolarité par niveau</CardTitle>
+        <CardTitle>Recouvrement de scolarité par niveau <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50 text-blue-800">{rankedLevels.length} niveau{rankedLevels.length > 1 ? "x" : ""}</Badge></CardTitle>
         <CardDescription>Une lecture par niveau, puis par classe seulement lorsque vous ouvrez le détail.</CardDescription>
       </div>
-      <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50 text-blue-800">{rankedLevels.length} niveau{rankedLevels.length > 1 ? "x" : ""}</Badge>
+      <Button asChild type="button" variant="ghost" size="sm" className="min-h-10 text-blue-700"><Link to={FINANCE_PATHS.recovery}>Voir le recouvrement détaillé</Link></Button>
     </CardHeader>
     <CardContent className="space-y-2">
       {rankedLevels.map((level) => {

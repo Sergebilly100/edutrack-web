@@ -43,6 +43,8 @@ const attendance: TeacherAttendance = {
   schedule_id: "schedule-1",
   status: "present",
   date: "2026-06-09",
+  checked_in_at: "2026-06-09T08:00:00.000Z",
+  validation_status: "not_required",
 }
 
 const renderCard = (overrides?: Partial<TeacherAttendance>, onEditRollCall?: (slot: ScheduleSlot) => void) =>
@@ -138,6 +140,51 @@ describe("CourseCard rollcall windows", () => {
       </MemoryRouter>
     )
 
+    expect(screen.queryByRole("button", { name: "Note spontanée" })).not.toBeInTheDocument()
+    expect(screen.getByText(/fenêtre de note spontanée est expirée/)).toBeInTheDocument()
+  })
+
+  it.each([
+    ["non pointé", null, undefined, false],
+    ["professeur absent", null, { ...attendance, status: "absent" as const, checked_in_at: null }, false],
+    ["validation en attente", null, { ...attendance, validation_status: "pending" as const }, false],
+    ["validation rejetée", null, { ...attendance, validation_status: "rejected" as const }, false],
+    ["présence validée automatiquement", null, attendance, true],
+    ["présence validée manuellement", null, { ...attendance, validation_status: "approved" as const }, true],
+    ["appel reporté", "rollcall_pending", attendance, true],
+    ["appel achevé", "ready_to_finish", { ...attendance, student_rollcall_done: true }, true],
+    ["cours clôturé", null, { ...attendance, checked_out_at: "2026-06-09T09:00:00.000Z" }, true],
+  ])("montre la note spontanée sur un cours %s", (_label, state, teacherAttendance, enabled) => {
+    flowState = state
+    vi.setSystemTime(new Date("2026-06-09T08:30:00"))
+    render(<MemoryRouter><CourseCard slot={slot} attendance={teacherAttendance} onStartCourse={vi.fn()} onAddSpontaneousGrade={vi.fn()} /></MemoryRouter>)
+    if (enabled) expect(screen.getByRole("button", { name: "Note spontanée" })).toBeEnabled()
+    else expect(screen.queryByRole("button", { name: "Note spontanée" })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Présence du professeur à confirmer et valider/)).not.toBeInTheDocument()
+  })
+
+  it("ne propose aucune note après un cours passé avec professeur absent", () => {
+    flowState = null
+    vi.setSystemTime(new Date("2026-06-09T09:10:00"))
+    render(<MemoryRouter><CourseCard slot={slot} attendance={{ ...attendance, status: "absent", checked_in_at: null }} onStartCourse={vi.fn()} onAddSpontaneousGrade={vi.fn()} /></MemoryRouter>)
+    expect(screen.queryByRole("button", { name: "Note spontanée" })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Présence du professeur à confirmer/)).not.toBeInTheDocument()
+  })
+
+  it("respecte exactement le début et fin + 24 h, et la date sélectionnée", () => {
+    flowState = null
+    vi.setSystemTime(new Date("2026-06-09T07:59:59"))
+    const { rerender } = render(<MemoryRouter><CourseCard slot={slot} attendance={attendance} onStartCourse={vi.fn()} onAddSpontaneousGrade={vi.fn()} /></MemoryRouter>)
+    expect(screen.queryByRole("button", { name: "Note spontanée" })).not.toBeInTheDocument()
+    vi.setSystemTime(new Date("2026-06-09T08:00:00"))
+    rerender(<MemoryRouter><CourseCard slot={slot} attendance={attendance} onStartCourse={vi.fn()} onAddSpontaneousGrade={vi.fn()} /></MemoryRouter>)
+    expect(screen.getByRole("button", { name: "Note spontanée" })).toBeEnabled()
+    vi.setSystemTime(new Date("2026-06-10T09:00:00"))
+    rerender(<MemoryRouter><CourseCard slot={slot} attendance={attendance} onStartCourse={vi.fn()} onAddSpontaneousGrade={vi.fn()} /></MemoryRouter>)
+    expect(screen.getByRole("button", { name: "Note spontanée" })).toBeEnabled()
+    rerender(<MemoryRouter><CourseCard slot={{ ...slot, date: "2026-06-08" }} onStartCourse={vi.fn()} onAddSpontaneousGrade={vi.fn()} /></MemoryRouter>)
+    expect(screen.queryByRole("button", { name: "Note spontanée" })).not.toBeInTheDocument()
+    rerender(<MemoryRouter><CourseCard slot={{ ...slot, date: undefined }} onStartCourse={vi.fn()} onAddSpontaneousGrade={vi.fn()} /></MemoryRouter>)
     expect(screen.queryByRole("button", { name: "Note spontanée" })).not.toBeInTheDocument()
   })
 })

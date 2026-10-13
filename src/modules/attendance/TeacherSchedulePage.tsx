@@ -112,6 +112,7 @@ export default function TeacherSchedulePage() {
     queryFn: () => teacherScheduleApi.getMyAttendanceForDate(selectedDateKey),
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
+    refetchInterval: (query) => query.state.data?.some((entry) => entry.validation_status === "pending") ? 30_000 : false,
   })
 
   const complianceQuery = useQuery({
@@ -330,6 +331,7 @@ export default function TeacherSchedulePage() {
       <SpontaneousGradeDialog
         open={Boolean(spontaneousGradeSlot)}
         slot={spontaneousGradeSlot}
+        attendance={spontaneousGradeSlot ? attendanceBySchedule.get(spontaneousGradeSlot.id) : undefined}
         onOpenChange={(open) => { if (!open) setSpontaneousGradeSlot(null) }}
       />
     </div>

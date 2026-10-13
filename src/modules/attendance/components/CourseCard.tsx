@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import type { ScheduleSlot, TeacherAttendance } from "@/modules/attendance/attendance.api"
+import { hasValidatedTeacherPresence, type ScheduleSlot, type TeacherAttendance } from "@/modules/attendance/attendance.api"
 import { AbsentIcon, LateIcon, PresentIcon, RoomIcon } from "@/shared/components/icons"
 import { useRollCallStore } from "@/shared/store/rollCall.store"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
@@ -45,7 +45,8 @@ const getStatus = (
   attendance: TeacherAttendance | undefined,
   now: Date
 ): CourseStatus => {
-  const courseDateKey = slot.date ?? toDateKey(now)
+  const courseDateKey = slot.date
+  if (!courseDateKey) return "upcoming"
   const start = toDateTime(courseDateKey, slot.start_time)
   const end = toDateTime(courseDateKey, slot.end_time)
   const startWindow = new Date(start.getTime() - 5 * 60 * 1000)
@@ -65,8 +66,8 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
   const now = new Date()
   const status = getStatus(slot, attendance, now)
 
-  const courseDateKey = slot.date ?? toDateKey(now)
-  const end = toDateTime(courseDateKey, slot.end_time)
+  const courseDateKey = slot.date ?? ""
+  const end = courseDateKey ? toDateTime(courseDateKey, slot.end_time) : new Date(0)
   const rollCallDeadline = new Date(end.getTime() + ROLLCALL_GRACE_AFTER_END_MS)
   const absenceNotificationsAt = new Date(end.getTime() + ABSENCE_NOTIFICATIONS_AFTER_END_MS)
   const finishWindowEnd = new Date(end.getTime() + FINISH_WINDOW_AFTER_END_MS)
@@ -139,9 +140,12 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
     // finishWindowOpen && // La fenêtre de finish est encore ouverte
     // !attendance?.checked_out_at 
 
+  const presenceValidated = hasValidatedTeacherPresence(attendance)
   const canAddSpontaneousGrade =
-    Boolean(onAddSpontaneousGrade) && now >= toDateTime(courseDateKey, slot.start_time)
+    Boolean(onAddSpontaneousGrade) && presenceValidated && Boolean(courseDateKey) && now >= toDateTime(courseDateKey, slot.start_time)
       && now <= new Date(end.getTime() + SPONTANEOUS_GRADE_WINDOW_AFTER_END_MS)
+  const spontaneousGradeExpired = Boolean(onAddSpontaneousGrade) && presenceValidated && Boolean(courseDateKey)
+    && now > new Date(end.getTime() + SPONTANEOUS_GRADE_WINDOW_AFTER_END_MS)
 
   const handleFinishWithoutRollCall = () => {
     markReadyToFinishWithoutRollCall(slot.id, courseDateKey)
@@ -273,6 +277,38 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
             </Button>
           ) : null}
 
+          {/* Modifier l'appel : appel déjà fait, fenêtre encore ouverte, cours non terminé.
+              Permet de corriger un élève marqué absent qui est finalement arrivé. */}
+          {onEditRollCall && alreadyCheckedIn && rollCallCompleted && !courseClosed && rollCallStillOpen && status !== "done" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="w-full text-muted-foreground sm:w-auto border-muted-foreground hover:bg-muted hover:text-muted-foreground"
+              data-testid={`teacher-edit-rollcall-${slot.id}`}
+              onClick={() => onEditRollCall(slot)}
+            >
+              Modifier l'appel
+            </Button>
+          ) : null}
+
+          {canAddSpontaneousGrade ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="min-h-10 w-full sm:w-auto"
+              data-testid={`teacher-spontaneous-grade-${slot.id}`}
+              onClick={() => onAddSpontaneousGrade?.(slot)}
+            >
+              Note spontanée
+            </Button>
+          ) : null}
+          {spontaneousGradeExpired ? (
+            <p className="text-xs text-muted-foreground">La fenêtre de note spontanée est expirée.</p>
+          ) : null}
+
+
           {/* ── Bouton 2 : Poursuivre le pointage (point 5 : sheet fermé accidentellement) */}
           {canResume ? (
             <Button
@@ -298,34 +334,6 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
               onClick={() => onStartCourse(slot)}
             >
               {`Faire le pointage des ${studentLabels.pluralLower}`}
-            </Button>
-          ) : null}
-
-          {/* Modifier l'appel : appel déjà fait, fenêtre encore ouverte, cours non terminé.
-              Permet de corriger un élève marqué absent qui est finalement arrivé. */}
-          {onEditRollCall && alreadyCheckedIn && rollCallCompleted && !courseClosed && rollCallStillOpen && status !== "done" ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="w-full text-muted-foreground sm:w-auto border-muted-foreground hover:bg-muted hover:text-muted-foreground"
-              data-testid={`teacher-edit-rollcall-${slot.id}`}
-              onClick={() => onEditRollCall(slot)}
-            >
-              Modifier l'appel
-            </Button>
-          ) : null}
-
-          {canAddSpontaneousGrade && alreadyCheckedIn && checkinQrDone ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="min-h-12 w-full sm:w-auto"
-              data-testid={`teacher-spontaneous-grade-${slot.id}`}
-              onClick={() => onAddSpontaneousGrade?.(slot)}
-            >
-              Note spontanée
             </Button>
           ) : null}
 

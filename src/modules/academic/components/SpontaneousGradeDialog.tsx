@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Loader2, Minus, Plus } from "lucide-react"
 
@@ -9,10 +9,9 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   createSpontaneousGrade,
-  fetchEvaluationsScope,
-  fetchTeacherAcademicContext,
+  fetchEntryPeriod,
 } from "@/modules/academic/academic.api"
-import type { ScheduleSlot } from "@/modules/attendance/attendance.api"
+import { hasValidatedTeacherPresence, type ScheduleSlot, type TeacherAttendance } from "@/modules/attendance/attendance.api"
 import { listStudents } from "@/modules/students/students.api"
 import { useToast } from "@/components/ui/use-toast"
 import { invalidateAcademicReportScope } from "@/modules/academic/academic-report-cache"
@@ -20,62 +19,56 @@ import { invalidateAcademicReportScope } from "@/modules/academic/academic-repor
 type SpontaneousGradeDialogProps = {
   open: boolean
   slot: ScheduleSlot | null
+  attendance?: TeacherAttendance
   onOpenChange: (open: boolean) => void
 }
 
-const toEvaluationDate = (slot: ScheduleSlot): string =>
-  slot.date ?? new Date().toISOString().slice(0, 10)
+const toEvaluationDate = (slot: ScheduleSlot): string => slot.date ?? ""
 
-export function SpontaneousGradeDialog({ open, slot, onOpenChange }: SpontaneousGradeDialogProps) {
+export function SpontaneousGradeDialog({ open, slot, attendance, onOpenChange }: SpontaneousGradeDialogProps) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const [studentId, setStudentId] = useState("")
   const [adjustment, setAdjustment] = useState("0")
   const [comment, setComment] = useState("")
   const classId = slot?.class_id ?? ""
-  const contextQuery = useQuery({
-    queryKey: ["academic", "teacher-context"],
-    queryFn: fetchTeacherAcademicContext,
-    enabled: open && Boolean(slot),
-  })
-  const schoolYearId = contextQuery.data?.classes.find((item) => item.id === classId)?.schoolYearId
   const evaluationDate = slot ? toEvaluationDate(slot) : ""
-  const gradingPeriod = contextQuery.data?.gradingPeriods
-    .filter((item) => item.schoolYearId === schoolYearId && item.notesEntryOpen
-      && evaluationDate >= item.startDate && evaluationDate <= item.endDate)
-    .sort((left, right) => right.startDate.localeCompare(left.startDate))[0]
-  const scopeQuery = useQuery({
-    queryKey: ["evaluations-scope", classId, gradingPeriod?.id],
-    queryFn: () => fetchEvaluationsScope(classId, gradingPeriod!.id),
-    enabled: open && Boolean(classId) && Boolean(gradingPeriod),
+  const entryPeriodQuery = useQuery({
+    queryKey: ["evaluations", "entry-period", classId, evaluationDate],
+    queryFn: () => fetchEntryPeriod(classId, evaluationDate),
+    enabled: open && Boolean(classId && evaluationDate),
   })
+  const gradingPeriod = entryPeriodQuery.data?.period
   const studentsQuery = useQuery({
     queryKey: ["students-list", classId],
     queryFn: () => listStudents({ classId, isActive: true, limit: 100 }),
     enabled: open && Boolean(classId),
   })
-  const lessonSlot = scopeQuery.data?.lessonSlots.find((item) => item.id === slot?.id)
-  const subjectId = lessonSlot?.subjectId ?? ""
-  const subjectClosed = Boolean(subjectId && scopeQuery.data?.completion.some(
-    (item) => item.subjectId === subjectId && item.status === "completed",
-  ))
+  const subjectId = slot?.subject_id ?? ""
   const parsedAdjustment = Number(adjustment.replace(",", "."))
-  const canSave = Boolean(slot && gradingPeriod && subjectId && studentId && comment.trim())
+  const canSave = Boolean(slot?.date && gradingPeriod && studentsQuery.data && subjectId && studentId && comment.trim())
+    && hasValidatedTeacherPresence(attendance)
     && Number.isFinite(parsedAdjustment)
     && parsedAdjustment !== 0
     && Math.abs(parsedAdjustment) <= 20
-    && !subjectClosed
-  const unavailableReason = useMemo(() => {
-    if (!slot || contextQuery.isLoading || scopeQuery.isLoading) return null
-    if (!gradingPeriod) return "Aucune période de notation en cours n’est disponible pour cette classe."
-    if (!lessonSlot?.subjectId) return "La matière de ce créneau n’est pas configurée pour le niveau de la classe."
-    if (subjectClosed) return "La saisie est clôturée pour cette matière."
+  const unavailableReason = (() => {
+    if (!slot || entryPeriodQuery.isLoading) return null
+    if (!slot.date) return "La date de cette occurrence de cours est indisponible."
+    if (!hasValidatedTeacherPresence(attendance)) return "La présence du professeur à ce cours doit être confirmée et validée avant la saisie."
+    if (entryPeriodQuery.isError) return "Impossible de vérifier la période de saisie. Réessayez."
+    if (!gradingPeriod) return entryPeriodQuery.data?.code === "FINAL_PERIOD_CALCULATION_STARTED"
+      ? "Le calcul des moyennes de la dernière période a commencé : les notes spontanées sont fermées pour cette année."
+      : entryPeriodQuery.data?.code === "SCHOOL_YEAR_NOT_STARTED"
+        ? "Cette année scolaire n’a pas encore commencé."
+      : "Aucune période de saisie n’est ouverte pour cette date. Demandez à la direction de vérifier le calendrier."
+    if (studentsQuery.isError) return "Impossible de charger les élèves de cette classe. Réessayez."
+    if (!subjectId) return "La matière officielle de ce créneau doit être confirmée par la direction."
     return null
-  }, [contextQuery.isLoading, gradingPeriod, lessonSlot?.subjectId, scopeQuery.isLoading, slot, subjectClosed])
+  })()
 
   const mutation = useMutation({
     mutationFn: () => {
-      if (!slot || !gradingPeriod || !subjectId) throw new Error("Créneau de cours indisponible")
+      if (!slot?.date || !gradingPeriod || !subjectId) throw new Error("Créneau de cours indisponible")
       return createSpontaneousGrade({
         lessonSlotId: slot.id,
         subjectId,
@@ -113,7 +106,7 @@ export function SpontaneousGradeDialog({ open, slot, onOpenChange }: Spontaneous
         </DialogHeader>
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">Ajoutez ou retirez des points avec un justificatif obligatoire.</p>
-          {contextQuery.isLoading || scopeQuery.isLoading || studentsQuery.isLoading ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Chargement des informations du cours…</p> : null}
+          {entryPeriodQuery.isLoading || studentsQuery.isLoading ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Chargement des informations du cours…</p> : null}
           {unavailableReason ? <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{unavailableReason}</p> : null}
           <div className="space-y-2">
             <Label>Élève</Label>

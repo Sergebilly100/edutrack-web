@@ -52,7 +52,7 @@ export function StudentReportCards({ studentId, schoolYearId }: { studentId: str
 
   return (
     <>
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid gap-3 lg:grid-cols-3">
         {cards.map((card) => <Card key={card.id}>
           <CardHeader className="pb-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -62,13 +62,13 @@ export function StudentReportCards({ studentId, schoolYearId }: { studentId: str
             <p className="text-sm text-muted-foreground">{card.className}</p>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm">Moyenne : <strong>{averageLabel(card.generalAverage)}/20</strong> · Rang : <strong aria-label={`Rang : ${formatStudentRank(card.rank) ?? "non renseigné"} sur ${card.classHeadcount}`}>{formatStudentRankWithHeadcount(card.rank, card.classHeadcount) ?? "-"}</strong></p>
+            <p className="text-sm  mt-4 mb-4">Moyenne : <strong>{averageLabel(card.generalAverage)}/20</strong> · Rang : <strong aria-label={`Rang : ${formatStudentRank(card.rank) ?? "non renseigné"} sur ${card.classHeadcount}`}>{formatStudentRankWithHeadcount(card.rank, card.classHeadcount) ?? "-"}</strong></p>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" className="min-h-12" onClick={() => setSelectedCardId(card.id)}>
+              <Button type="button" variant="outline" className="min-h-10" onClick={() => setSelectedCardId(card.id)}>
                 <FileText className="mr-2 h-4 w-4" />Consulter
               </Button>
-              <Button type="button" className="min-h-12" disabled={isRunning} onClick={() => void launch(() => requestStudentReportCardPdf(studentId, card.id))}>
-                <Download className="mr-2 h-4 w-4" />Télécharger le PDF
+              <Button type="button" className="min-h-10" disabled={isRunning} onClick={() => void launch(() => requestStudentReportCardPdf(studentId, card.id))}>
+                <Download className="mr-2 h-4 w-4" />Télécharger
               </Button>
             </div>
           </CardContent>

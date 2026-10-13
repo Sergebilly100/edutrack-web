@@ -47,6 +47,7 @@ export type SlotFormState = {
   endTime: string
   roomId: string
   subject: string
+  subjectId: string
   schedulePeriodId: string
   // null = choix non encore fait (radio obligatoire)
   recurrence: ScheduleRecurrence | null
@@ -65,6 +66,7 @@ export const emptyFormState: SlotFormState = {
   endTime: "09:00",
   roomId: "",
   subject: "",
+  subjectId: "",
   schedulePeriodId: "",
   recurrence: null,
 }
@@ -187,6 +189,7 @@ export const toPayload = (formState: SlotFormState): ScheduleCreatePayload => ({
   endTime: formState.endTime,
   roomId: formState.roomId,
   subject: formState.subject.trim(),
+  subjectId: formState.subjectId,
   ...(formState.recurrence ? { recurrence: formState.recurrence } : {}),
 })
 
@@ -198,6 +201,7 @@ export const defaultFormStateFromData = (data: WeeklyScheduleData): SlotFormStat
   endTime: "09:00",
   roomId: data.catalog.rooms[0]?.id ?? "",
   subject: "",
+  subjectId: "",
   schedulePeriodId: data.period?.id ?? "",
   recurrence: null,
 })
@@ -231,6 +235,7 @@ export const createOptimisticSchedule = (
     schedulePeriodId: payload.schedulePeriodId,
     dayOfWeek: payload.dayOfWeek,
     subject: payload.subject,
+    subjectId: payload.subjectId,
     subjectDisplay: payload.subject,
     startDate: payload.effectiveFrom ?? null,
     endDate: null,
