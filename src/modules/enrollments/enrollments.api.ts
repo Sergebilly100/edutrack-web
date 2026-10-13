@@ -87,6 +87,7 @@ export type ReEnrollmentCandidate = {
 export type ReEnrollmentCandidatesResponse = {
   candidates: ReEnrollmentCandidate[]
   pagination: { page: number; limit: number; total: number; totalPages: number }
+  counts: { toProcess: number; awaitingCashier: number; blockedUnpaid: number; confirmed: number; all: number }
 }
 
 export type StudentAcademicSummary = {
@@ -94,6 +95,7 @@ export type StudentAcademicSummary = {
   years: Array<{
     schoolYearId: string
     schoolYearLabel: string
+    schoolYearStatus: "draft" | "active" | "closed"
     startDate: string
     endDate: string
     className: string
@@ -190,6 +192,7 @@ export async function listEnrollments(params: {
   levelId?: string
   classId?: string
   status?: EnrollmentStatus
+  search?: string
 } = {}): Promise<EnrollmentsListResponse> {
   const requestedPage = params.page ?? 1
   const requestedLimit = params.limit ?? 20
@@ -202,6 +205,7 @@ export async function listEnrollments(params: {
       ...(params.levelId ? { level_id: params.levelId } : {}),
       ...(params.classId ? { class_id: params.classId } : {}),
       ...(params.status ? { status: params.status } : {}),
+      ...(params.search?.trim() ? { search: params.search.trim() } : {}),
     },
   })
   return normalizeEnrollmentsListResponse(response.data, requestedPage, requestedLimit)
@@ -235,21 +239,23 @@ const parseReEnrollmentCandidate = (value: unknown): ReEnrollmentCandidate | nul
 }
 
 export async function listReEnrollmentCandidates(params: {
-  schoolYearId?: string
+  schoolYearId: string
+  campaignStatus?: "to_process" | "awaiting_cashier" | "blocked_unpaid" | "confirmed" | "all"
   sourceSchoolYearId?: string
   levelId?: string
   classId?: string
   search?: string
   page?: number
   limit?: number
-} = {}): Promise<ReEnrollmentCandidatesResponse> {
+}): Promise<ReEnrollmentCandidatesResponse> {
   const requestedPage = params.page ?? 1
   const requestedLimit = params.limit ?? 20
   const response = await apiClient.get<unknown>("/enrollments/re-enrollment/candidates", {
     params: {
       page: requestedPage,
       limit: requestedLimit,
-      ...(params.schoolYearId ? { school_year_id: params.schoolYearId } : {}),
+      school_year_id: params.schoolYearId,
+      campaign_status: params.campaignStatus ?? "to_process",
       ...(params.sourceSchoolYearId ? { source_school_year_id: params.sourceSchoolYearId } : {}),
       ...(params.levelId ? { level_id: params.levelId } : {}),
       ...(params.classId ? { class_id: params.classId } : {}),
@@ -258,6 +264,7 @@ export async function listReEnrollmentCandidates(params: {
   })
   const payload = isRecord(response.data) ? response.data : {}
   const pagination = isRecord(payload.pagination) ? payload.pagination : {}
+  const counts = isRecord(payload.counts) ? payload.counts : {}
   return {
     candidates: Array.isArray(payload.candidates) ? payload.candidates.flatMap((item) => {
       const parsed = parseReEnrollmentCandidate(item)
@@ -269,11 +276,18 @@ export async function listReEnrollmentCandidates(params: {
       total: asNumber(pagination.total),
       totalPages: asNumber(pagination.totalPages ?? pagination.total_pages, 1),
     },
+    counts: {
+      toProcess: asNumber(counts.toProcess ?? counts.to_process),
+      awaitingCashier: asNumber(counts.awaitingCashier ?? counts.awaiting_cashier),
+      blockedUnpaid: asNumber(counts.blockedUnpaid ?? counts.blocked_unpaid),
+      confirmed: asNumber(counts.confirmed),
+      all: asNumber(counts.all),
+    },
   }
 }
 
 export async function getStudentAcademicSummary(studentId: string): Promise<StudentAcademicSummary> {
-  const response = await apiClient.get<StudentAcademicSummary>(`/enrollments/re-enrollment/students/${studentId}/summary`)
+  const response = await apiClient.get<StudentAcademicSummary>(`/students/${studentId}/academic-history`)
   return response.data
 }
 

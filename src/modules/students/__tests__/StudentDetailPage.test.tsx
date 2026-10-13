@@ -35,8 +35,8 @@ const renderPage = () => render(
 
 const renderHistoricalPage = () => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <MemoryRouter initialEntries={[`/enrollments/re-enrollment/students/${studentId}`]}>
-      <Routes><Route path="/enrollments/re-enrollment/students/:studentId" element={<StudentDetailPage mode="historical" />} /></Routes>
+    <MemoryRouter initialEntries={[`/students/${studentId}/history`]}>
+      <Routes><Route path="/students/:studentId/history" element={<StudentDetailPage mode="historical" />} /></Routes>
     </MemoryRouter>
   </QueryClientProvider>,
 )
@@ -77,12 +77,12 @@ describe("StudentDetailPage loading errors", () => {
     expect(mocks.getCurrentProfile).not.toHaveBeenCalled()
   })
 
-  it("oriente un ancien dossier vers Réinscriptions sans afficher la fiche scolaire", async () => {
+  it("oriente un ancien dossier vers son historique sans afficher la fiche scolaire", async () => {
     mocks.getCurrentProfile.mockRejectedValue(new ApiError("Student is not enrolled", { status: 404, code: "STUDENT_NOT_CURRENTLY_ENROLLED" }))
     mocks.permissions.add("enrollments.view")
     renderPage()
     expect(await screen.findByText(/ne fait pas partie des élèves scolarisés confirmés dans l’année scolaire active/)).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Ouvrir les réinscriptions" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Historique scolaire" })).toBeInTheDocument()
     expect(screen.queryByText("Profil détaillé élève")).not.toBeInTheDocument()
     expect(mocks.getFinancialStatus).not.toHaveBeenCalled()
   })
@@ -109,8 +109,9 @@ describe("StudentDetailPage loading errors", () => {
     expect(mocks.getFinancialStatus).toHaveBeenCalledWith(studentId, "year-active")
   })
 
-  it("montre un dossier ancien complet et les finances de trois années depuis Réinscriptions", async () => {
-    mocks.permissions.add("enrollments.view")
+  it("montre le dossier ancien et les finances de l’année choisie", async () => {
+    mocks.permissions.add("payments.view")
+    mocks.permissions.add("students.documents")
     mocks.getHistoricalProfile.mockResolvedValue({
       id: studentId, firstName: "Awa", lastName: "Koné", matricule: "MAT-1", birthDate: null,
       className: "6e A", classId: "class-1", isActive: true, parentPhone: "0700000000", parentEmail: null,

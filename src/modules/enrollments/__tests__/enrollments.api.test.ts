@@ -28,6 +28,14 @@ describe("enrollments.api", () => {
     }))
   })
 
+  it("transmet la recherche et les filtres à la liste annuelle des inscriptions", async () => {
+    getMock.mockResolvedValueOnce({ data: { enrollments: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 1 } } })
+    await listEnrollments({ schoolYearId: "year-1", status: "confirmed", search: "  Koné Aya  " })
+    expect(getMock).toHaveBeenCalledWith("/enrollments", { params: expect.objectContaining({
+      school_year_id: "year-1", status: "confirmed", search: "Koné Aya", page: 1, limit: 20,
+    }) })
+  })
+
   it("charge les pièces requises du niveau", async () => {
     getMock.mockResolvedValueOnce({ data: { documentTypes: [{ id: "doc-1", level_id: "level-1", level_name: "CP1", name: "Extrait", is_mandatory: true, is_active: true }] } })
     await expect(listRequiredDocumentTypes("level-1")).resolves.toEqual([{
@@ -55,13 +63,13 @@ describe("enrollments.api", () => {
       years: [],
     } })
 
-    await expect(listReEnrollmentCandidates({ search: "Awa", sourceSchoolYearId: "year-1", levelId: "level-1", classId: "class-1" })).resolves.toMatchObject({
+    await expect(listReEnrollmentCandidates({ schoolYearId: "year-active", search: "Awa", sourceSchoolYearId: "year-1", levelId: "level-1", classId: "class-1" })).resolves.toMatchObject({
       candidates: [expect.objectContaining({ studentId: "student-1", finalDecision: "promoted" })],
       pagination: { total: 1 },
     })
     await expect(getStudentAcademicSummary("student-1")).resolves.toMatchObject({ student: { matricule: "MAT-001" } })
-    expect(getMock).toHaveBeenCalledWith("/enrollments/re-enrollment/candidates", { params: { page: 1, limit: 20, source_school_year_id: "year-1", level_id: "level-1", class_id: "class-1", search: "Awa" } })
-    expect(getMock).toHaveBeenCalledWith("/enrollments/re-enrollment/students/student-1/summary")
+    expect(getMock).toHaveBeenCalledWith("/enrollments/re-enrollment/candidates", { params: { page: 1, limit: 20, school_year_id: "year-active", campaign_status: "to_process", source_school_year_id: "year-1", level_id: "level-1", class_id: "class-1", search: "Awa" } })
+    expect(getMock).toHaveBeenCalledWith("/students/student-1/academic-history")
   })
 
   it("branche la création, la modification et l’archivage des règles documentaires", async () => {

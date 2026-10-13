@@ -25,6 +25,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { listClasses, listLevels } from "@/modules/academic/academic.api"
 import StudentAbsencePanel from "@/modules/students/components/StudentAbsencePanel"
+import { RecordsNavigation } from "@/modules/students/components/RecordsNavigation"
 import { createStudent, getAttendanceHistory, listStudents, type StudentItem } from "@/modules/students/students.api"
 import { DataTable, EmptyState, OfflineGuard, PageLayout } from "@/shared/components"
 import { TourGuide } from "@/shared/components/TourGuide"
@@ -393,6 +394,7 @@ export default function StudentsPage() {
         </div>
       }
     >
+      <RecordsNavigation />
       <Tabs
         value={activeTab}
         onValueChange={(value) => {

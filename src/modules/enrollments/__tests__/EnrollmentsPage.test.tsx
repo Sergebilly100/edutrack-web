@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -81,13 +81,23 @@ describe("EnrollmentsPage", () => {
     )
 
     expect(await screen.findByRole("table")).toBeInTheDocument()
-    expect(screen.getByText("Koné Awa")).toBeInTheDocument()
+    expect(within(screen.getByRole("table")).getByText("Koné Awa")).toBeInTheDocument()
     expect(screen.getByText("Page 1 sur 2, 21 dossiers")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Suivant" }))
 
-    expect(await screen.findByText("Koné Aya")).toBeInTheDocument()
+    await waitFor(() => expect(within(screen.getByRole("table")).getByText("Koné Aya")).toBeInTheDocument())
     await waitFor(() => expect(mocks.listEnrollments).toHaveBeenCalledWith({ page: 2, limit: 20 }))
+  })
+
+  it("recherche une inscription annuelle par nom ou matricule", async () => {
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/enrollments"]}><EnrollmentsPage /></MemoryRouter>
+      </QueryClientProvider>,
+    )
+    fireEvent.change(screen.getByRole("searchbox", { name: "Rechercher une inscription par nom ou matricule" }), { target: { value: "MAT-001" } })
+    await waitFor(() => expect(mocks.listEnrollments).toHaveBeenCalledWith(expect.objectContaining({ search: "MAT-001", page: 1 })))
   })
 
   it("ne plante pas quand une ancienne donnée imbriquée subsiste dans le cache", async () => {
@@ -104,12 +114,12 @@ describe("EnrollmentsPage", () => {
       </QueryClientProvider>,
     )
 
-    expect(await screen.findByText("Koné Adjoua")).toBeInTheDocument()
+    await waitFor(() => expect(within(screen.getByRole("table")).getByText("Koné Adjoua")).toBeInTheDocument())
     expect(screen.getByRole("table")).toBeInTheDocument()
   })
 
-  it("ouvre le dossier complet depuis Réinscriptions avant la sélection de l’année cible", async () => {
-    mocks.listSchoolYears.mockResolvedValue([{ id: "year-active", label: "2027-2028", status: "active" }])
+  it("ouvre l’historique depuis la campagne active sélectionnée automatiquement", async () => {
+    mocks.listSchoolYears.mockResolvedValue([{ id: "year-1", label: "2026-2027", status: "closed", endDate: "2027-06-30" }, { id: "year-active", label: "2027-2028", status: "active", startDate: "2027-09-01" }])
     mocks.getStudentAcademicSummary.mockResolvedValue({
       student: { id: "student-1", firstName: "Awa", lastName: "Koné", matricule: "MAT-001" },
       years: [
@@ -127,24 +137,23 @@ describe("EnrollmentsPage", () => {
     })
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter><Routes>
-          <Route path="/" element={<EnrollmentsPage />} />
-          <Route path="/enrollments/re-enrollment/students/:studentId" element={<p>Dossier complet de l’élève</p>} />
+        <MemoryRouter initialEntries={["/enrollments"]}><Routes>
+          <Route path="/enrollments" element={<EnrollmentsPage />} />
+          <Route path="/students/:studentId/history" element={<p>Dossier complet de l’élève</p>} />
         </Routes></MemoryRouter>
       </QueryClientProvider>,
     )
 
-    // Radix Tabs changes its value on pointer/mouse down, before the native click.
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Réinscriptions" }), { button: 0 })
+    fireEvent.click(screen.getByRole("link", { name: "Réinscriptions" }))
 
-    expect(await screen.findByText("MAT-001")).toBeInTheDocument()
-    expect(screen.getByLabelText("Année scolaire récente")).toBeInTheDocument()
+    expect(await screen.findByText(/Matricule : MAT-001/)).toBeInTheDocument()
+    expect(screen.getByLabelText("Année d’origine clôturée")).toBeInTheDocument()
     expect(screen.getByLabelText("Niveau récent")).toBeInTheDocument()
     expect(screen.getByLabelText("Classe récente")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Voir dossier" }))
     expect(await screen.findByText("Dossier complet de l’élève")).toBeInTheDocument()
     await waitFor(() => expect(mocks.listReEnrollmentCandidates).toHaveBeenCalledWith({
-      schoolYearId: undefined, sourceSchoolYearId: undefined, levelId: undefined, classId: undefined, search: undefined, page: 1, limit: 20,
+      schoolYearId: "year-active", campaignStatus: "to_process", sourceSchoolYearId: undefined, levelId: undefined, classId: undefined, search: undefined, page: 1, limit: 20,
     }))
   })
 })

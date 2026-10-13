@@ -39,13 +39,30 @@ describe("navigation de fin d’année", () => {
 })
 
 describe("navigation des inscriptions", () => {
-  it("utilise la permission de lecture réellement requise par l'écran", () => {
+  it("expose un seul menu aux lecteurs des dossiers élèves ou des inscriptions", () => {
     expect(getNavItemsByRole("staff", ["enrollments.view"]))
-      .toEqual(expect.arrayContaining([expect.objectContaining({ href: "/enrollments" })]))
+      .toEqual(expect.arrayContaining([expect.objectContaining({ href: "/records", label: "Inscriptions & dossiers" })]))
     expect(getNavItemsByRole("staff", ["enrollments.edit"]))
-      .not.toEqual(expect.arrayContaining([expect.objectContaining({ href: "/enrollments" })]))
+      .not.toEqual(expect.arrayContaining([expect.objectContaining({ href: "/records" })]))
     expect(getNavItemsByRole("staff", ["students.view"]))
-      .not.toEqual(expect.arrayContaining([expect.objectContaining({ href: "/enrollments" })]))
+      .toEqual(expect.arrayContaining([expect.objectContaining({ href: "/records" })]))
+    const fullAccessItems = getNavItemsByRole("staff", ["students.view", "enrollments.view"])
+    expect(fullAccessItems.filter((item) => item.href === "/records")).toHaveLength(1)
+    expect(fullAccessItems.map((item) => item.href)).not.toContain("/students")
+    expect(fullAccessItems.map((item) => item.href)).not.toContain("/enrollments")
+  })
+})
+
+describe("navigation de l’historique scolaire", () => {
+  it("garde le menu unique actif sur les anciens liens élèves et inscriptions", () => {
+    const items = getNavItemsByRole("staff", ["students.view"])
+    const item = items.find((entry) => entry.href === "/records")!
+    expect(item.group).toBe("Vie scolaire")
+    expect(isNavItemActive(item, "/records", "")).toBe(true)
+    expect(isNavItemActive(item, "/students/history", "")).toBe(true)
+    expect(isNavItemActive(item, "/students/student-1", "")).toBe(true)
+    expect(isNavItemActive(item, "/enrollments", "?tab=re-enrollment")).toBe(true)
+    expect(items.map((entry) => entry.href)).not.toContain("/students/history")
   })
 })
 

@@ -33,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import {
   listClasses,
@@ -44,6 +44,8 @@ import { EmptyState } from "@/shared/components/EmptyState";
 import { PageLayout } from "@/shared/components/PageLayout";
 import { QueryErrorState } from "@/shared/components/QueryErrorState";
 import { usePermissions } from "@/shared/hooks/usePermissions";
+import { useDebounce } from "@/shared/hooks/useDebounce";
+import { RecordsNavigation } from "@/modules/students/components/RecordsNavigation";
 import {
   createEnrollment,
   listEnrollments,
@@ -69,6 +71,15 @@ const decisionLabel: Record<
   repeat: "Redouble",
   expelled: "Exclu(e)",
 };
+
+const campaignStatusLabels = {
+  to_process: "À traiter",
+  awaiting_cashier: "Dossier créé / en attente de caisse",
+  blocked_unpaid: "Bloqué par impayé",
+  confirmed: "Confirmé",
+  all: "Tous",
+} as const;
+type CampaignStatus = keyof typeof campaignStatusLabels;
 
 function EnrollmentDocumentBadge({ enrollment }: { enrollment: Enrollment }) {
   const label =
@@ -104,7 +115,18 @@ export default function EnrollmentsPage() {
   const [dossierYearId, setDossierYearId] = useState("");
   const [dossierLevelId, setDossierLevelId] = useState("");
   const [dossierClassId, setDossierClassId] = useState("");
+  const [dossierStatus, setDossierStatus] = useState<Enrollment["status"] | "all">("all");
+  const dossierSearch = searchParams.get("search") ?? "";
+  const debouncedDossierSearch = useDebounce(dossierSearch.trim(), 250);
+  const updateDossierSearch = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value.trim()) next.set("search", value);
+    else next.delete("search");
+    setSearchParams(next, { replace: true });
+    setPage(1);
+  };
   const [candidatePage, setCandidatePage] = useState(1);
+  const [campaignStatus, setCampaignStatus] = useState<CampaignStatus>("to_process");
   const [candidateSearch, setCandidateSearch] = useState("");
   const [recentYearId, setRecentYearId] = useState("");
   const [recentLevelId, setRecentLevelId] = useState("");
@@ -112,6 +134,14 @@ export default function EnrollmentsPage() {
   const [classSelections, setClassSelections] = useState<
     Record<string, string>
   >({});
+  const yearsQuery = useQuery({
+    queryKey: ["academic", "school-years", "re-enrollment"],
+    queryFn: listSchoolYears,
+  });
+  const activeYears = (yearsQuery.data ?? []).filter((year) => year.status === "active");
+  const effectiveTargetYearId = targetYearId || (activeYears.length === 1 ? activeYears[0].id : "");
+  const selectedYear = activeYears.find((year) => year.id === effectiveTargetYearId) ?? null;
+  const closedOriginYears = (yearsQuery.data ?? []).filter((year) => year.status === "closed" && selectedYear && year.endDate < selectedYear.startDate);
   const enrollmentsQuery = useQuery({
     queryKey: [
       "enrollments",
@@ -121,6 +151,8 @@ export default function EnrollmentsPage() {
       dossierYearId,
       dossierLevelId,
       dossierClassId,
+      dossierStatus,
+      debouncedDossierSearch,
     ],
     queryFn: () =>
       listEnrollments({
@@ -129,12 +161,10 @@ export default function EnrollmentsPage() {
         schoolYearId: dossierYearId || undefined,
         levelId: dossierLevelId || undefined,
         classId: dossierClassId || undefined,
+        status: dossierStatus === "all" ? undefined : dossierStatus,
+        ...(debouncedDossierSearch ? { search: debouncedDossierSearch } : {}),
       }),
     select: (data) => normalizeEnrollmentsListResponse(data, page, 20),
-  });
-  const yearsQuery = useQuery({
-    queryKey: ["academic", "school-years", "re-enrollment"],
-    queryFn: listSchoolYears,
   });
   const levelsQuery = useQuery({
     queryKey: ["academic", "levels", "enrollment-filters"],
@@ -146,9 +176,9 @@ export default function EnrollmentsPage() {
     enabled: Boolean(dossierYearId),
   });
   const classesQuery = useQuery({
-    queryKey: ["academic", "classes", "re-enrollment", targetYearId],
-    queryFn: () => listClasses(targetYearId),
-    enabled: Boolean(targetYearId),
+    queryKey: ["academic", "classes", "re-enrollment", effectiveTargetYearId],
+    queryFn: () => listClasses(effectiveTargetYearId),
+    enabled: Boolean(effectiveTargetYearId),
   });
   const recentClassesQuery = useQuery({
     queryKey: ["academic", "classes", "re-enrollment-filters", recentYearId],
@@ -160,7 +190,8 @@ export default function EnrollmentsPage() {
       "enrollments",
       "re-enrollment",
       "candidates",
-      targetYearId,
+      effectiveTargetYearId,
+      campaignStatus,
       recentYearId,
       recentLevelId,
       recentClassId,
@@ -169,7 +200,8 @@ export default function EnrollmentsPage() {
     ],
     queryFn: () =>
       listReEnrollmentCandidates({
-        schoolYearId: targetYearId || undefined,
+        schoolYearId: effectiveTargetYearId,
+        campaignStatus,
         sourceSchoolYearId: recentYearId || undefined,
         levelId: recentLevelId || undefined,
         classId: recentClassId || undefined,
@@ -177,20 +209,24 @@ export default function EnrollmentsPage() {
         page: candidatePage,
         limit: 20,
       }),
+    enabled: selectedTab === "re-enrollment" && Boolean(effectiveTargetYearId),
   });
   const candidates = candidatesQuery.data?.candidates ?? [];
+  const campaignCounts = candidatesQuery.data?.counts;
+  const campaignCounters: Array<{ status: CampaignStatus; count: number }> = [
+    { status: "to_process", count: campaignCounts?.toProcess ?? 0 },
+    { status: "awaiting_cashier", count: campaignCounts?.awaitingCashier ?? 0 },
+    { status: "blocked_unpaid", count: campaignCounts?.blockedUnpaid ?? 0 },
+    { status: "confirmed", count: campaignCounts?.confirmed ?? 0 },
+    { status: "all", count: campaignCounts?.all ?? 0 },
+  ];
   const candidatesForbidden = axios.isAxiosError(candidatesQuery.error) && candidatesQuery.error.response?.status === 403;
-  const activeYears = (yearsQuery.data ?? []).filter(
-    (year) => year.status === "active",
-  );
   const dossierFilterClasses = (dossierClassesQuery.data?.classes ?? []).filter(
     (item) => !dossierLevelId || item.level.id === dossierLevelId,
   );
   const recentFilterClasses = (recentClassesQuery.data?.classes ?? []).filter(
     (item) => !recentLevelId || item.level.id === recentLevelId,
   );
-  const selectedYear =
-    yearsQuery.data?.find((year) => year.id === targetYearId) ?? null;
   const reEnrollmentMutation = useMutation({
     mutationFn: ({
       studentId,
@@ -202,7 +238,7 @@ export default function EnrollmentsPage() {
       createEnrollment({
         studentId,
         classId,
-        schoolYearId: targetYearId,
+        schoolYearId: effectiveTargetYearId,
         type: "re_registration",
       }),
     onSuccess: async (result) => {
@@ -238,6 +274,9 @@ export default function EnrollmentsPage() {
   );
   const resetCandidateView = (yearId: string) => {
     setTargetYearId(yearId);
+    setRecentYearId("");
+    setRecentLevelId("");
+    setRecentClassId("");
     setCandidatePage(1);
     setClassSelections({});
   };
@@ -248,6 +287,7 @@ export default function EnrollmentsPage() {
   };
   const updateRecentYear = (yearId: string) => {
     setRecentYearId(yearId);
+    setRecentLevelId("");
     setRecentClassId("");
     setCandidatePage(1);
   };
@@ -256,8 +296,8 @@ export default function EnrollmentsPage() {
   }
   return (
     <PageLayout
-      title="Inscriptions"
-      subtitle="Suivez les nouveaux dossiers, les réinscriptions et les passages en caisse."
+      title="Inscriptions & dossiers"
+      subtitle={selectedTab === "re-enrollment" ? "Campagne de réinscription de l’année active." : "Consultez les inscriptions de toutes les années."}
       actions={
         hasPermission("enrollments.create") ? (
           <Button asChild>
@@ -269,17 +309,17 @@ export default function EnrollmentsPage() {
         ) : undefined
       }
     >
-      <Tabs value={selectedTab} onValueChange={(value) => setSearchParams(value === "re-enrollment" ? { tab: value } : {})} className="space-y-5">
-        <TabsList className="grid h-auto w-full grid-cols-2 sm:w-[420px]">
-          <TabsTrigger className="min-h-12" value="dossiers">
-            Dossiers
-          </TabsTrigger>
-          <TabsTrigger className="min-h-12" value="re-enrollment">
-            Réinscriptions
-          </TabsTrigger>
-        </TabsList>
+      <RecordsNavigation />
+      <Tabs value={selectedTab} className="space-y-5">
         <TabsContent value="dossiers" className="space-y-4">
-          <div className="grid gap-3 rounded-lg border bg-card p-4 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto] lg:items-end">
+          <div className="space-y-2 rounded-lg border bg-card p-4">
+            <Label htmlFor="enrollment-dossier-search">Rechercher une inscription par nom ou matricule</Label>
+            <div className="relative max-w-2xl">
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input id="enrollment-dossier-search" type="search" maxLength={100} className="min-h-12 pl-10" placeholder="Ex. Koné Aya ou MAT-42" value={dossierSearch} onChange={(event) => updateDossierSearch(event.target.value)} />
+            </div>
+          </div>
+          <div className="grid gap-3 rounded-lg border bg-card p-4 sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto] lg:items-end">
             <div className="space-y-2">
               <Label htmlFor="dossier-year-filter">Année scolaire</Label>
               <Select value={dossierYearId} onValueChange={updateDossierYear}>
@@ -345,7 +385,17 @@ export default function EnrollmentsPage() {
                 </SelectContent>
               </Select>
             </div>
-            {dossierYearId || dossierLevelId || dossierClassId ? (
+            <div className="space-y-2">
+              <Label htmlFor="dossier-status-filter">Statut</Label>
+              <Select value={dossierStatus} onValueChange={(value) => { setDossierStatus(value as Enrollment["status"] | "all"); setPage(1) }}>
+                <SelectTrigger id="dossier-status-filter" className="min-h-12"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les statuts</SelectItem>
+                  {Object.keys(statusClassName).map((status) => <SelectItem key={status} value={status}>{enrollmentStatusLabel[status as Enrollment["status"]]}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {dossierYearId || dossierLevelId || dossierClassId || dossierStatus !== "all" || dossierSearch ? (
               <Button
                 type="button"
                 variant="outline"
@@ -354,6 +404,8 @@ export default function EnrollmentsPage() {
                   setDossierYearId("");
                   setDossierLevelId("");
                   setDossierClassId("");
+                  setDossierStatus("all");
+                  updateDossierSearch("");
                   setPage(1);
                 }}
               >
@@ -383,12 +435,36 @@ export default function EnrollmentsPage() {
           namedEnrollments.length === 0 ? (
             <EmptyState
               title="Aucun dossier d’inscription"
-              description="Créez une nouvelle inscription ou ouvrez l’onglet Réinscriptions."
+              description={dossierSearch || dossierYearId || dossierLevelId || dossierClassId || dossierStatus !== "all" ? "Aucune inscription ne correspond à la recherche ou aux filtres. Essayez un autre nom, matricule ou statut." : "Créez une nouvelle inscription ou ouvrez Réinscriptions."}
               icon={FileCheck2}
             />
           ) : null}
           {namedEnrollments.length > 0 ? (
-            <div className="overflow-x-auto rounded-lg border bg-card">
+            <div className="space-y-3 md:hidden">
+              {namedEnrollments.map(({ enrollment }) => (
+                <article key={enrollment.id} className="space-y-3 rounded-lg border bg-card p-4">
+                  <div>
+                    <p className="font-medium">{enrollment.studentLastName} {enrollment.studentFirstName}</p>
+                    <p className="text-sm text-muted-foreground">{enrollment.schoolYearLabel} · {enrollment.className} · {enrollment.type === "re_registration" ? "Réinscription" : "Nouvelle inscription"}</p>
+                  </div>
+                  <Badge className={`w-fit border ${statusClassName[enrollment.status]}`}>{enrollmentStatusLabel[enrollment.status]}</Badge>
+                  <div className="flex flex-wrap gap-2">
+                    {hasPermission("students.view") ? (
+                      <Button asChild variant="outline" className="min-h-12 flex-1">
+                        <Link to={`/students/${enrollment.studentId}/history?year=${enrollment.schoolYearId}&returnTo=${encodeURIComponent(`/enrollments${searchParams.toString() ? `?${searchParams.toString()}` : ""}`)}`}>Voir le dossier</Link>
+                      </Button>
+                    ) : (
+                      <Button asChild variant="outline" className="min-h-12 flex-1"><Link to={`/enrollments/students/${enrollment.studentId}/documents`}>Documents d’inscription</Link></Button>
+                    )}
+                    {canEditDraft && enrollment.status !== "confirmed" ? <Button asChild variant="outline" className="min-h-12"><Link to={`/enrollments/${enrollment.id}/edit`}>Modifier</Link></Button> : null}
+                    {hasPermission("enrollments.confirm_payment") && enrollment.status !== "confirmed" && enrollment.status !== "blocked_unpaid" ? <Button asChild className="min-h-12"><Link to={`/enrollments/${enrollment.id}/payment`}>Caisse</Link></Button> : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : null}
+          {namedEnrollments.length > 0 ? (
+            <div className="hidden overflow-x-auto rounded-lg border bg-card md:block">
               <Table className="min-w-[62rem]">
                 <TableHeader>
                   <TableRow>
@@ -438,13 +514,13 @@ export default function EnrollmentsPage() {
                               </Link>
                             </Button>
                           ) : null}
-                          <Button size="sm" variant="outline" asChild>
+                          {hasPermission("students.view") ? <Button size="sm" variant="outline" asChild>
                             <Link
-                              to={`/enrollments/students/${enrollment.studentId}/documents`}
+                              to={`/students/${enrollment.studentId}/history?year=${enrollment.schoolYearId}&returnTo=${encodeURIComponent(`/enrollments${searchParams.toString() ? `?${searchParams.toString()}` : ""}`)}`}
                             >
-                              Dossier
+                              Voir le dossier
                             </Link>
-                          </Button>
+                          </Button> : <Button size="sm" variant="outline" asChild><Link to={`/enrollments/students/${enrollment.studentId}/documents`}>Documents d’inscription</Link></Button>}
                           {hasPermission("enrollments.confirm_payment") &&
                           enrollment.status !== "confirmed" &&
                           enrollment.status !== "blocked_unpaid" ? (
@@ -503,15 +579,15 @@ export default function EnrollmentsPage() {
           <div className="rounded-lg border bg-card p-4">
             <div className="max-w-sm space-y-2">
               <Label htmlFor="re-enrollment-year">
-                Nouvelle année scolaire
+                Année cible active
               </Label>
-              <Select value={targetYearId} onValueChange={resetCandidateView}>
+              <Select value={effectiveTargetYearId} onValueChange={resetCandidateView}>
                 <SelectTrigger id="re-enrollment-year" className="min-h-12">
                   <SelectValue
                     placeholder={
                       yearsQuery.isLoading
                         ? "Chargement…"
-                        : "Choisir l’année cible"
+                        : "Choisir l’année cible active"
                     }
                   />
                 </SelectTrigger>
@@ -530,15 +606,36 @@ export default function EnrollmentsPage() {
               super-administrateur.
             </p>
           </div>
+          {!yearsQuery.isLoading && activeYears.length === 0 ? (
+            <EmptyState title="Aucune campagne active" description="Ouvrez une année scolaire pour démarrer une campagne de réinscription. Les campagnes clôturées restent consultables dans Dossiers." />
+          ) : null}
+          {selectedYear ? <>
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold">Campagne {selectedYear.label}</h2>
+            <div className="flex flex-wrap gap-2" aria-label={`Compteurs de la campagne ${selectedYear.label}`}>
+              {campaignCounters.map(({ status, count }) => (
+                <Badge key={status} variant="outline">{campaignStatusLabels[status]} : {candidatesQuery.isLoading ? "…" : count}</Badge>
+              ))}
+            </div>
+          </div>
+          <div className="max-w-md space-y-2">
+            <Label htmlFor="campaign-status-filter">État de la campagne</Label>
+            <Select value={campaignStatus} onValueChange={(value) => { setCampaignStatus(value as CampaignStatus); setCandidatePage(1) }}>
+              <SelectTrigger id="campaign-status-filter" className="min-h-12"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(Object.keys(campaignStatusLabels) as CampaignStatus[]).map((status) => <SelectItem key={status} value={status}>{campaignStatusLabels[status]}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid gap-3 rounded-lg border bg-card p-4 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto] lg:items-end">
             <div className="space-y-2">
-              <Label htmlFor="recent-year-filter">Année scolaire récente</Label>
+              <Label htmlFor="recent-year-filter">Année d’origine clôturée</Label>
               <Select value={recentYearId} onValueChange={updateRecentYear}>
                 <SelectTrigger id="recent-year-filter" className="min-h-12">
-                  <SelectValue placeholder="Toutes les années récentes" />
+                  <SelectValue placeholder="Toutes les années d’origine" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(yearsQuery.data ?? []).map((year) => (
+                  {closedOriginYears.map((year) => (
                     <SelectItem key={year.id} value={year.id}>
                       {year.label}
                     </SelectItem>
@@ -612,7 +709,7 @@ export default function EnrollmentsPage() {
               </Button>
             ) : null}
           </div>
-          {/* <div className="relative max-w-xl">
+          <div className="relative max-w-xl">
              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               aria-label="Filtrer les élèves"
@@ -624,7 +721,7 @@ export default function EnrollmentsPage() {
               }}
               placeholder="Filtrer par nom ou matricule"
             />
-          </div> */}
+          </div>
           {candidatesForbidden ? <Alert variant="destructive"><AlertDescription>Vous n’avez pas accès aux candidats à la réinscription.</AlertDescription></Alert> : null}
           {candidatesQuery.isError && !candidatesForbidden ? (
             <QueryErrorState
@@ -645,64 +742,13 @@ export default function EnrollmentsPage() {
           ) : null}
           {!candidatesQuery.isLoading &&
           !candidatesQuery.isError &&
-          !targetYearId &&
           candidates.length === 0 ? (
             <EmptyState
-              title="Aucun élève trouvé"
-              description="Modifiez le filtre pour rechercher un autre élève."
+              title="Aucun élève pour cet état"
+              description="Modifiez l’état, la recherche ou les filtres. Les années clôturées sont consultables dans Dossiers."
             />
           ) : null}
-          {!candidatesQuery.isLoading &&
-          !candidatesQuery.isError &&
-          targetYearId &&
-          candidates.length === 0 ? (
-            <EmptyState
-              title="Aucun élève réinscriptible"
-              description="La nouvelle année doit être active, l’année précédente clôturée et les décisions de fin d’année validées."
-            />
-          ) : null}
-          {!targetYearId && candidates.length > 0 ? (
-            <div className="overflow-x-auto rounded-lg border bg-card">
-              <Table className="min-w-[48rem]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Élève</TableHead>
-                    <TableHead>Matricule</TableHead>
-                    <TableHead>Classe récente</TableHead>
-                    <TableHead>Année scolaire récente</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {candidates.map((candidate) => (
-                    <TableRow key={candidate.studentId}>
-                      <TableCell className="font-medium">
-                        {candidate.studentLastName} {candidate.studentFirstName}
-                      </TableCell>
-                      <TableCell>{candidate.studentMatricule ?? "-"}</TableCell>
-                      <TableCell>{candidate.currentClassName}</TableCell>
-                      <TableCell>{candidate.currentSchoolYearLabel}</TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="min-h-10"
-                          onClick={() =>
-                            navigate(`/enrollments/re-enrollment/students/${candidate.studentId}`)
-                          }
-                        >
-                          <Eye className="mr-2 h-4 w-4" />
-                          Voir dossier
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ) : null}
-          {targetYearId && selectedYear ? (
+          {candidates.length > 0 ? (
             <div className="divide-y rounded-lg border bg-card">
               {candidates.map((candidate) => {
                 const eligibleClasses = (
@@ -717,24 +763,25 @@ export default function EnrollmentsPage() {
                           {candidate.studentLastName}{" "}
                           {candidate.studentFirstName}
                         </p>
+                        {candidate.studentMatricule ? <p className="text-sm text-muted-foreground">Matricule : {candidate.studentMatricule}</p> : null}
                         <p className="text-sm text-muted-foreground">
                           Année clôturée : {candidate.currentSchoolYearLabel} ·
                           Classe : {candidate.currentClassName}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <Button
+                        {hasPermission("students.view") ? <Button
                           type="button"
                           variant="outline"
                           size="sm"
                           className="min-h-10"
                           onClick={() =>
-                            navigate(`/enrollments/re-enrollment/students/${candidate.studentId}`)
+                            navigate(`/students/${candidate.studentId}/history?year=${candidate.currentSchoolYearId}&returnTo=${encodeURIComponent("/enrollments?tab=re-enrollment")}`)
                           }
                         >
                           <Eye className="mr-2 h-4 w-4" />
                           Voir dossier
-                        </Button>
+                        </Button> : null}
                         {existing ? (
                           <Badge
                             className={`w-fit border ${statusClassName[existing.status]}`}
@@ -758,7 +805,7 @@ export default function EnrollmentsPage() {
                       <p className="text-sm text-muted-foreground">
                         Décision : {decisionLabel[candidate.finalDecision]} ·
                         Niveau proposé :{" "}
-                        {candidate.nextLevelName ?? "non défini"}
+                        {candidate.nextLevelName ?? "non défini"} · Classe cible : {existing?.className ?? "à choisir"}
                       </p>
                     ) : null}
                     {existing?.status === "blocked_unpaid" ? (
@@ -870,6 +917,7 @@ export default function EnrollmentsPage() {
               </div>
             </div>
           ) : null}
+          </> : null}
         </TabsContent>
       </Tabs>
     </PageLayout>

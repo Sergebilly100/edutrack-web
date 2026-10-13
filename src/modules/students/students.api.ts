@@ -123,14 +123,25 @@ export type StudentDetail = {
 }
 
 export type CurrentStudentProfile = StudentDetail & {
-  activeSchoolYear: { id: string; label: string }
+  activeSchoolYear: { id: string; label: string; startDate?: string; endDate?: string }
 }
 
 export type HistoricalStudentProfile = StudentDetail & {
-  activeSchoolYear: { id: string; label: string } | null
-  latestConfirmedSchoolYear: { id: string; label: string; className: string }
+  activeSchoolYear: { id: string; label: string; startDate?: string; endDate?: string } | null
+  latestConfirmedSchoolYear: { id: string; label: string; className: string } | null
   confirmedInActiveYear: boolean
 }
+
+export type StudentYearResults = {
+  studentId: string
+  schoolYearId: string
+  evaluations: Array<{ id: string; periodLabel: string; subjectName: string | null; label: string; score: number; maxScore: number; coefficient: number }>
+  averages: Array<{ id: string; periodLabel: string; subjectName: string | null; average: number; rank: number | null }>
+  conduct: Array<{ id: string; periodLabel: string; note: number; coefficient: number }>
+}
+
+export const getStudentYearResults = (studentId: string, schoolYearId: string) =>
+  api.get<StudentYearResults>(`/students/${studentId}/academic-years/${schoolYearId}/results`).then((response) => response.data)
 
 export type StudentDossierEvent = {
   type: "enrollment" | "payment" | "report_card" | "document"
@@ -298,6 +309,7 @@ const fetchStudentList = (path: string, query: StudentsListQuery) =>
     .then((response) => response.data)
 
 export const listStudents = (query: StudentsListQuery = {}) => fetchStudentList("/students", query)
+export const listHistoryProfiles = (query: StudentsListQuery = {}) => fetchStudentList("/students/history-directory", query)
 
 export const listFinancialProfiles = (query: StudentsListQuery = {}) => fetchStudentList("/students/financial-profiles", query)
 
