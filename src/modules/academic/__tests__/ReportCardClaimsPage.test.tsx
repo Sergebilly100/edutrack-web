@@ -15,8 +15,8 @@ vi.mock("@/shared/hooks/usePermissions", () => ({
 vi.mock("@/components/ui/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
 vi.mock("@/modules/academic/academic.api", () => ({
   listSchoolYears: vi.fn().mockResolvedValue([{ id: "year-1", label: "2026–2027", status: "active" }]),
-  listGradingPeriods: vi.fn().mockResolvedValue([{ id: "period-1", schoolYearId: "year-1", label: "Trimestre 1" }]),
-  listGradingPeriodsForYear: vi.fn().mockResolvedValue([{ id: "period-1", schoolYearId: "year-1", label: "Trimestre 1" }]),
+  listGradingPeriods: vi.fn().mockResolvedValue([{ id: "period-1", schoolYearId: "year-1", label: "Trimestre 1", startDate: "2026-09-01", endDate: "2026-12-31" }]),
+  listGradingPeriodsForYear: vi.fn().mockResolvedValue([{ id: "period-1", schoolYearId: "year-1", label: "Trimestre 1", startDate: "2026-09-01", endDate: "2026-12-31" }]),
   listClasses: vi.fn().mockResolvedValue({ classes: [{ id: "class-1", name: "6ème A", schoolYear: { id: "year-1" }, level: { id: "level-1" } }] }),
   listReportCardClasses: vi.fn().mockResolvedValue([{ id: "class-1", name: "6ème A", isActive: true, level: { id: "level-1" } }]),
   listSubjects: vi.fn().mockResolvedValue([{ id: "subject-1", name: "Mathématiques", levelId: "level-1" }]),
@@ -40,7 +40,7 @@ const claim = {
   regenerated_at: null, republished_at: null,
 }
 
-const renderPage = () => render(<MemoryRouter initialEntries={["/academic/report-card-claims?schoolYearId=year-1&gradingPeriodId=period-1&classId=class-1&subjectId=subject-1"]}>
+const renderPage = (entry = "/academic/report-card-claims?schoolYearId=year-1&gradingPeriodId=period-1&classId=class-1&subjectId=subject-1") => render(<MemoryRouter initialEntries={[entry]}>
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
     <ReportCardClaimsPage />
   </QueryClientProvider>
@@ -59,6 +59,16 @@ describe("ReportCardClaimsPage", () => {
     mocks.listVersions.mockResolvedValue([])
     mocks.listAudit.mockResolvedValue([])
     mocks.listStudents.mockResolvedValue([{ id: "student-1", fullName: "Aya Test" }])
+  })
+
+  it("présélectionne l’année active et la période courante sans paramètres d’URL", async () => {
+    renderPage("/academic/report-card-claims")
+    await waitFor(() => expect(mocks.listClaims).toHaveBeenCalledWith(expect.objectContaining({
+      schoolYearId: "year-1", gradingPeriodId: "period-1",
+    })))
+    expect(screen.getByRole("combobox", { name: "Année scolaire" })).toHaveTextContent("2026–2027")
+    expect(screen.getByRole("combobox", { name: "Période" })).toHaveTextContent("Trimestre 1")
+    expect(screen.getByText("Active")).toBeInTheDocument()
   })
 
   it("annonce l'impact publié sans offrir le déverrouillage à un poste ordinaire", async () => {
@@ -88,7 +98,11 @@ describe("ReportCardClaimsPage", () => {
     renderPage()
     expect(await screen.findByText("Aucune réclamation")).toBeInTheDocument()
     const button = screen.getByRole("button", { name: "Ouvrir la réclamation" })
-    expect(button).toBeDisabled()
+    expect(button).toBeEnabled()
+    fireEvent.click(button)
+    expect(screen.getByRole("alert")).toHaveTextContent("Décrivez le motif en au moins 10 caractères.")
+    expect(screen.getByLabelText("Motif détaillé")).toHaveAttribute("aria-invalid", "true")
+    expect(mocks.createClaim).not.toHaveBeenCalled()
     fireEvent.change(screen.getByLabelText("Motif détaillé"), { target: { value: "Erreur sur la note finale" } })
     await waitFor(() => expect(button).toBeEnabled())
     fireEvent.click(button)

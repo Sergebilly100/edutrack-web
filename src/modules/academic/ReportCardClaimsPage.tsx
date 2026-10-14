@@ -12,7 +12,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import { PageLayout } from "@/shared/components/PageLayout"
 import { EmptyState } from "@/shared/components/EmptyState"
+import { AcademicContextFilters } from "@/shared/components/AcademicContextFilters"
+import { DependentSelect } from "@/shared/components/DependentSelect"
+import { FilterBar } from "@/shared/components/FilterBar"
+import { ResetFiltersButton } from "@/shared/components/ResetFiltersButton"
+import { FILTER_HELP } from "@/shared/components/filter-help"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { currentAcademicPeriodId } from "@/shared/lib/academic-context"
 import { invalidateAcademicReportScope } from "./academic-report-cache"
 import {
   createReportCardClaim, decideReportCardClaim, listClasses, listReportCardClasses, listGradingPeriods, listGradingPeriodsForYear,
@@ -78,30 +84,39 @@ export default function ReportCardClaimsPage() {
   const queryClient = useQueryClient()
   const { hasPermission } = usePermissions()
   const [params] = useSearchParams()
-  const [schoolYearId, setSchoolYearId] = useState(params.get("schoolYearId") ?? "")
-  const [gradingPeriodId, setGradingPeriodId] = useState(params.get("gradingPeriodId") ?? "")
+  const [yearChoice, setYearChoice] = useState(params.get("schoolYearId") ?? "")
+  const [periodChoice, setPeriodChoice] = useState(params.get("gradingPeriodId") ?? "")
   const [classId, setClassId] = useState(params.get("classId") ?? "")
+  const [levelId, setLevelId] = useState("")
   const [studentId, setStudentId] = useState("")
   const [subjectId, setSubjectId] = useState(params.get("subjectId") ?? "")
   const [status, setStatus] = useState("")
   const [reason, setReason] = useState("")
+  const [createAttempted, setCreateAttempted] = useState(false)
 
   const yearsQuery = useQuery({ queryKey: ["academic", "school-years"], queryFn: listSchoolYears })
+  const activeYear = yearsQuery.data?.find((year) => year.status === "active")
+  const schoolYearId = yearChoice === "all" ? "" : yearChoice || activeYear?.id || ""
   const periodsQuery = useQuery({
     queryKey: ["academic", "grading-periods", schoolYearId],
     queryFn: () => schoolYearId ? listGradingPeriodsForYear(schoolYearId) : listGradingPeriods(),
+    enabled: yearsQuery.isSuccess,
   })
   const classesQuery = useQuery({
     queryKey: ["report-cards", "claim-classes", schoolYearId],
     queryFn: async () => schoolYearId
       ? (await listReportCardClasses(schoolYearId)).map((item) => ({ ...item, schoolYearId }))
       : (await listClasses()).classes.map((item) => ({ ...item, schoolYearId: item.schoolYear.id })),
+    enabled: yearsQuery.isSuccess,
   })
+  const visiblePeriods = periodsQuery.data?.filter((item) => !schoolYearId || item.schoolYearId === schoolYearId) ?? []
+  const gradingPeriodId = !schoolYearId || periodChoice === "all" ? "" :
+    visiblePeriods.some((item) => item.id === periodChoice) ? periodChoice : currentAcademicPeriodId(visiblePeriods)
   const subjectsQuery = useQuery({ queryKey: ["academic", "claim-subjects"], queryFn: () => listSubjects() })
   const studentsQuery = useQuery({ queryKey: ["report-card-claim-students", classId], queryFn: () => listReportCardClaimStudents(classId), enabled: Boolean(classId) })
   const filters = { schoolYearId: optional(schoolYearId), gradingPeriodId: optional(gradingPeriodId),
     classId: optional(classId), studentId: optional(studentId), subjectId: optional(subjectId), status: optional(status) }
-  const claimsQuery = useQuery({ queryKey: ["report-card-claims", filters], queryFn: () => listReportCardClaims(filters) })
+  const claimsQuery = useQuery({ queryKey: ["report-card-claims", filters], queryFn: () => listReportCardClaims(filters), enabled: yearsQuery.isSuccess && periodsQuery.isSuccess })
   const versionsQuery = useQuery({
     queryKey: ["report-card-versions", classId, gradingPeriodId],
     queryFn: () => listReportCardVersions(classId, gradingPeriodId),
@@ -134,10 +149,11 @@ export default function ReportCardClaimsPage() {
 
   const selectedYear = yearsQuery.data?.find((item) => item.id === schoolYearId)
   const selectedClass = classesQuery.data?.find((item) => item.id === classId)
-  const visiblePeriods = periodsQuery.data?.filter((item) => !schoolYearId || item.schoolYearId === schoolYearId) ?? []
+  const effectiveLevelId = levelId || (classId ? selectedClass?.level.id ?? "" : "")
   const selectedPeriod = visiblePeriods.find((item) => item.id === gradingPeriodId)
   const claimYear = yearsQuery.data?.find((item) => item.id === selectedPeriod?.schoolYearId)
   const visibleClasses = (classesQuery.data ?? []).filter((item) => !selectedPeriod || item.schoolYearId === selectedPeriod.schoolYearId)
+  const visibleLevels = Array.from(new Map(visibleClasses.map((item) => [item.level.id, { id: item.level.id, label: item.level.name }])).values())
   useEffect(() => {
     if (classId && selectedClass && selectedPeriod && selectedClass.schoolYearId !== selectedPeriod.schoolYearId) {
       setClassId("")
@@ -145,26 +161,63 @@ export default function ReportCardClaimsPage() {
       setSubjectId("")
     }
   }, [classId, selectedClass, selectedPeriod])
-  const visibleSubjects = subjectsQuery.data?.filter((item) => !selectedClass || item.levelId === selectedClass.level.id) ?? []
+  const visibleSubjects = subjectsQuery.data?.filter((item) => item.levelId === selectedClass?.level.id) ?? []
   const canCorrectPublished = hasPermission("report_cards.published_correction")
+  const createErrors = [
+    !schoolYearId && FILTER_HELP.year,
+    !gradingPeriodId && "Choisissez une période.",
+    !classId && "Choisissez une classe.",
+    !subjectId && "Choisissez une matière.",
+    Boolean(classId && gradingPeriodId && selectedClass?.schoolYearId !== selectedPeriod?.schoolYearId) && "La classe et la période doivent appartenir à la même année.",
+    Boolean(subjectId && selectedClass && selectedClass.level.id !== subjectsQuery.data?.find((item) => item.id === subjectId)?.levelId) && "La matière doit correspondre au niveau de la classe.",
+    reason.trim().length < 10 && "Décrivez le motif en au moins 10 caractères.",
+  ].filter((error): error is string => typeof error === "string")
 
   return <PageLayout title="Réclamations de bulletins" subtitle="Suivez les corrections et leurs nouvelles versions par classe et période.">
     <div className="mb-4"><Button asChild variant="outline" className="min-h-12"><Link to="/academic/report-cards">Retour aux bulletins</Link></Button></div>
-    <section aria-label="Filtres des réclamations" className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2 lg:grid-cols-3">
-      <div className="space-y-2"><Label>Année</Label><Select value={schoolYearId || "all"} onValueChange={(value) => { setSchoolYearId(value === "all" ? "" : value); setGradingPeriodId(""); setClassId(""); setStudentId(""); setSubjectId("") }}><SelectTrigger className="min-h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Toutes les années</SelectItem>{(yearsQuery.data ?? []).map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent></Select></div>
-      <div className="space-y-2"><Label>Période</Label><Select value={gradingPeriodId || "all"} onValueChange={(value) => { const nextPeriodId = value === "all" ? "" : value; setGradingPeriodId(nextPeriodId); if (classId && nextPeriodId && selectedClass?.schoolYearId !== visiblePeriods.find((item) => item.id === nextPeriodId)?.schoolYearId) { setClassId(""); setStudentId(""); setSubjectId("") } }}><SelectTrigger className="min-h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Toutes les périodes</SelectItem>{visiblePeriods.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent></Select></div>
-      <div className="space-y-2"><Label>Classe</Label><Select value={classId || "all"} onValueChange={(value) => { setClassId(value === "all" ? "" : value); setStudentId(""); setSubjectId("") }}><SelectTrigger className="min-h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Toutes les classes</SelectItem>{visibleClasses.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>
-      <div className="space-y-2"><Label htmlFor="claim-student">Élève concerné</Label><Select value={studentId || "all"} onValueChange={(value) => setStudentId(value === "all" ? "" : value)} disabled={!classId || studentsQuery.isPending}><SelectTrigger id="claim-student" className="min-h-12"><SelectValue placeholder={studentsQuery.isPending && classId ? "Chargement des élèves…" : "Toute la classe"} /></SelectTrigger><SelectContent><SelectItem value="all">Toute la classe</SelectItem>{(studentsQuery.data ?? []).map((student) => <SelectItem key={student.id} value={student.id}>{student.fullName}</SelectItem>)}</SelectContent></Select>{studentsQuery.isError ? <p className="text-xs text-destructive">Impossible de charger les élèves. <Button variant="link" className="h-auto p-0 text-xs" onClick={() => void studentsQuery.refetch()}>Réessayer</Button></p> : null}</div>
-      <div className="space-y-2"><Label>Matière</Label><Select value={subjectId || "all"} onValueChange={(value) => setSubjectId(value === "all" ? "" : value)}><SelectTrigger className="min-h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Toutes les matières</SelectItem>{visibleSubjects.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>
-      <div className="space-y-2"><Label>Statut</Label><Select value={status || "all"} onValueChange={(value) => setStatus(value === "all" ? "" : value)}><SelectTrigger className="min-h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Tous les statuts</SelectItem>{Object.entries(LABELS).map(([key, label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent></Select></div>
+    <section aria-label="Filtres des réclamations" className="space-y-4 rounded-lg border bg-card p-4">
+      <AcademicContextFilters yearIdPrefix="claims" years={yearsQuery.data ?? []} yearId={schoolYearId}
+        activeYear={activeYear} showPeriod allowAllYears allowAllPeriods
+        periods={visiblePeriods} periodId={gradingPeriodId}
+        yearDisabled={yearsQuery.isLoading} periodDisabled={periodsQuery.isFetching || !visiblePeriods.length || !schoolYearId}
+        onYearChange={(value) => { setYearChoice(value || "all"); setPeriodChoice(""); setLevelId(""); setClassId(""); setStudentId(""); setSubjectId("") }}
+        onPeriodChange={(value) => { setPeriodChoice(value || "all"); setLevelId(""); setClassId(""); setStudentId(""); setSubjectId("") }} />
+      <FilterBar>
+      <DependentSelect id="claim-level" label="Niveau" value={effectiveLevelId} options={visibleLevels}
+        dependsOn={{ field: "year", value: schoolYearId }} allLabel="Tous les niveaux"
+        onValueChange={(value) => { setLevelId(value); setClassId(""); setSubjectId(""); setStudentId("") }} />
+      <DependentSelect id="claim-class" label="Classe" value={classId}
+        options={visibleClasses.filter((item) => item.level.id === effectiveLevelId).map((item) => ({ id: item.id, label: item.name }))}
+        dependsOn={{ field: effectiveLevelId ? "year" : schoolYearId ? "level" : "year", value: effectiveLevelId && schoolYearId ? schoolYearId : "" }}
+        allLabel="Toutes les classes" invalid={createAttempted && !classId} onValueChange={(value) => { setClassId(value); setSubjectId(""); setStudentId("") }} />
+      <DependentSelect id="claim-subject" label="Matière" value={subjectId}
+        options={visibleSubjects.map((item) => ({ id: item.id, label: item.name }))}
+        dependsOn={{ field: "class", value: classId }} allLabel="Toutes les matières" invalid={createAttempted && !subjectId}
+        onValueChange={(value) => { setSubjectId(value); setStudentId("") }} />
+      <DependentSelect id="claim-student" label="Élève concerné" value={studentId}
+        options={(studentsQuery.data ?? []).map((student) => ({ id: student.id, label: student.fullName }))}
+        dependsOn={{ field: "class", value: classId }} allLabel="Toute la classe" loading={studentsQuery.isPending && Boolean(classId)}
+        onValueChange={setStudentId} />
+      {studentsQuery.isError ? <p className="text-xs text-destructive">Impossible de charger les élèves. <Button variant="link" className="h-auto p-0 text-xs" onClick={() => void studentsQuery.refetch()}>Réessayer</Button></p> : null}
+      <div className="space-y-2"><Label htmlFor="claim-status">Statut</Label><Select value={status || "all"} onValueChange={(value) => setStatus(value === "all" ? "" : value)}><SelectTrigger id="claim-status" className="min-h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Tous les statuts</SelectItem>{Object.entries(LABELS).map(([key, label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent></Select></div>
+      </FilterBar>
+      <ResetFiltersButton active={Boolean(yearChoice || periodChoice || levelId || classId || subjectId || studentId || status)}
+        onReset={() => { setYearChoice(""); setPeriodChoice(""); setLevelId(""); setClassId(""); setSubjectId(""); setStudentId(""); setStatus("") }} />
     </section>
 
     {selectedYear?.status !== "closed" ? <section aria-labelledby="claim-create-title" className="mt-6 space-y-3 rounded-lg border p-4">
       <h2 id="claim-create-title" className="text-lg font-semibold">Ouvrir une réclamation</h2>
       <p className="text-sm text-muted-foreground">Choisissez une classe, une période et une matière dont les moyennes sont validées. Vous pouvez cibler un élève ou toute la classe. Décrivez précisément l’erreur constatée.</p>
       <Label htmlFor="claim-reason">Motif détaillé</Label>
-      <Textarea id="claim-reason" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={4000} placeholder="Précisez la note ou l’évaluation à vérifier." />
-      <Button className="min-h-12" disabled={!classId || !gradingPeriodId || !subjectId || selectedClass?.schoolYearId !== selectedPeriod?.schoolYearId || selectedClass?.level.id !== subjectsQuery.data?.find((item) => item.id === subjectId)?.levelId || !claimYear || claimYear.status === "closed" || reason.trim().length < 10 || createMutation.isPending} onClick={() => createMutation.mutate()}>
+      <Textarea id="claim-reason" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={4000} placeholder="Précisez la note ou l’évaluation à vérifier."
+        aria-invalid={createAttempted && reason.trim().length < 10 || undefined} className={createAttempted && reason.trim().length < 10 ? "border-destructive" : undefined} />
+      {createAttempted && createErrors.length ? <Alert variant="destructive" role="alert"><AlertDescription>
+        <ul className="list-disc pl-5">{createErrors.map((error) => <li key={error}>{error}</li>)}</ul>
+      </AlertDescription></Alert> : null}
+      <Button className="min-h-12" disabled={createMutation.isPending || claimYear?.status === "closed"} onClick={() => {
+        setCreateAttempted(true)
+        if (!createErrors.length) createMutation.mutate()
+      }}>
         {createMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Ouvrir la réclamation
       </Button>
     </section> : <p className="mt-6 text-sm text-muted-foreground">L’année scolaire {selectedYear.label} est clôturée. Ses réclamations restent consultables.</p>}

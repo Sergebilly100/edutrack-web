@@ -25,7 +25,7 @@ describe('Réinscriptions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() })
-    mocks.listYears.mockResolvedValue([{ id: 'year-1', label: '2025-2026', status: 'closed' }, { id: 'year-2', label: '2026-2027', status: 'active' }])
+    mocks.listYears.mockResolvedValue([{ id: 'year-1', label: '2025-2026', status: 'closed', startDate: '2025-09-01', endDate: '2026-06-30' }, { id: 'year-2', label: '2026-2027', status: 'active', startDate: '2026-09-01', endDate: '2027-06-30' }])
     mocks.listLevels.mockResolvedValue([{ id: 'level-2', name: '5e' }])
     mocks.listClasses.mockResolvedValue({ classes: [{ id: 'class-2', name: '5e A', isActive: true, level: { id: 'level-2', name: '5e' }, studentCount: 0 }] })
     mocks.listEnrollments.mockResolvedValue({ enrollments: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } })
@@ -67,15 +67,20 @@ describe('Réinscriptions', () => {
       <MemoryRouter initialEntries={['/enrollments?tab=re-enrollment']}><EnrollmentsPage /></MemoryRouter>
     </QueryClientProvider>)
 
-    await waitFor(() => expect(mocks.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ schoolYearId: 'year-2', campaignStatus: 'to_process' })))
+    await waitFor(() => expect(mocks.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ schoolYearId: 'year-2', campaignStatus: 'to_process', sourceSchoolYearId: 'year-1' })))
     fireEvent.keyDown(screen.getByRole('combobox', { name: 'État de la campagne' }), { key: 'ArrowDown' })
     fireEvent.click(await screen.findByRole('option', { name: 'Confirmé' }))
     await waitFor(() => expect(mocks.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ schoolYearId: 'year-2', campaignStatus: 'confirmed' })))
 
     fireEvent.keyDown(screen.getByRole('combobox', { name: 'Année d’origine clôturée' }), { key: 'ArrowDown' })
     expect(screen.queryByRole('option', { name: /2026-2027/ })).not.toBeInTheDocument()
-    fireEvent.click(await screen.findByRole('option', { name: '2024-2025' }))
+    expect(screen.getByRole('option', { name: 'Toutes les années d’origine' })).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('option', { name: '2024-2025 · Année clôturée' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'Filtrer les élèves' }), { target: { value: 'MAT-42' } })
     await waitFor(() => expect(mocks.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ schoolYearId: 'year-2', campaignStatus: 'confirmed', sourceSchoolYearId: 'year-old', search: 'MAT-42' })))
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Année d’origine clôturée' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Toutes les années d’origine' }))
+    await waitFor(() => expect(mocks.listCandidates).toHaveBeenLastCalledWith(expect.objectContaining({ sourceSchoolYearId: undefined })))
   })
 })

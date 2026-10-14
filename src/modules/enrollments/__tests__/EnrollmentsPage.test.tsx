@@ -117,8 +117,10 @@ describe("EnrollmentsPage", () => {
       <MemoryRouter initialEntries={["/enrollments"]}><EnrollmentsPage /></MemoryRouter>
     </QueryClientProvider>)
 
-    expect(await screen.findByText("Année scolaire active : 2026-2027")).toBeInTheDocument()
-    const table = screen.getByRole("table")
+    expect(await screen.findByText("Année active : 2026-2027")).toBeInTheDocument()
+    await waitFor(() => expect(mocks.listEnrollments).toHaveBeenCalledWith(expect.objectContaining({ schoolYearId: "year-active" })))
+    expect(screen.getByRole("combobox", { name: "Année scolaire" })).toHaveTextContent("2026-2027")
+    const table = await screen.findByRole("table")
     const archivedRow = within(table).getByRole("row", { name: /Koné Aya/ })
     expect(within(archivedRow).getByText(/Année clôturée · Consultation seule/)).toBeInTheDocument()
     expect(within(archivedRow).getByRole("link", { name: "Voir le dossier" })).toBeInTheDocument()
@@ -133,7 +135,54 @@ describe("EnrollmentsPage", () => {
     expect(await screen.findByRole("option", { name: "2026-2027 · Année active" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("option", { name: "2025-2026 · Année clôturée" }))
     expect(await screen.findByText("Dossiers 2025-2026 · consultation seule.")).toBeInTheDocument()
+    expect(screen.getByText("Vous consultez une année archivée.")).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "Nouvelle inscription" })).not.toBeInTheDocument()
+  })
+
+  it("recharge les classes et remet niveau et classe à zéro lorsque l’année change", async () => {
+    mocks.listSchoolYears.mockResolvedValue([
+      { id: "year-old", label: "2025-2026", status: "closed" },
+      { id: "year-active", label: "2026-2027", status: "active" },
+    ])
+    mocks.listLevels.mockResolvedValue([{ id: "level-1", name: "6e" }])
+    mocks.listClasses.mockResolvedValue({ classes: [{ id: "class-1", name: "6e A", level: { id: "level-1" } }] })
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={["/enrollments"]}><EnrollmentsPage /></MemoryRouter>
+    </QueryClientProvider>)
+
+    await screen.findByRole("table")
+    const studentSearch = screen.getByRole("searchbox", { name: "Rechercher une inscription par nom ou matricule" })
+    fireEvent.change(studentSearch, { target: { value: "Awa" } })
+    fireEvent.click(screen.getByRole("combobox", { name: "Niveau" }))
+    fireEvent.click(screen.getByRole("option", { name: "6e" }))
+    expect(studentSearch).toHaveValue("")
+    fireEvent.click(screen.getByRole("combobox", { name: "Classe" }))
+    fireEvent.click(screen.getByRole("option", { name: "6e A" }))
+    await waitFor(() => expect(mocks.listEnrollments).toHaveBeenLastCalledWith(expect.objectContaining({
+      schoolYearId: "year-active", levelId: "level-1", classId: "class-1",
+    })))
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Année scolaire" }))
+    fireEvent.click(screen.getByRole("option", { name: "2025-2026 · Année clôturée" }))
+    await waitFor(() => expect(mocks.listEnrollments).toHaveBeenLastCalledWith(expect.objectContaining({
+      schoolYearId: "year-old", levelId: undefined, classId: undefined,
+    })))
+    expect(mocks.listClasses).toHaveBeenCalledWith("year-old")
+  })
+
+  it("explique le blocage sur toutes les années et rétablit l'année par défaut", async () => {
+    mocks.listSchoolYears.mockResolvedValue([{ id: "year-1", label: "2026-2027", status: "active" }])
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={["/enrollments"]}><EnrollmentsPage /></MemoryRouter>
+    </QueryClientProvider>)
+    await screen.findByRole("table")
+    fireEvent.click(screen.getByRole("combobox", { name: "Année scolaire" }))
+    fireEvent.click(screen.getByRole("option", { name: "Toutes les années" }))
+    expect(screen.getByRole("combobox", { name: "Niveau" })).toBeDisabled()
+    expect(screen.getByRole("combobox", { name: "Niveau" })).toHaveAccessibleDescription("Choisissez une année précise.")
+    fireEvent.click(screen.getByRole("button", { name: "Réinitialiser les filtres" }))
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Année scolaire" })).toHaveTextContent("2026-2027"))
+    expect(screen.queryByRole("button", { name: "Réinitialiser les filtres" })).not.toBeInTheDocument()
   })
 
   it("ne plante pas quand une ancienne donnée imbriquée subsiste dans le cache", async () => {
@@ -155,7 +204,7 @@ describe("EnrollmentsPage", () => {
   })
 
   it("ouvre l’historique depuis la campagne active sélectionnée automatiquement", async () => {
-    mocks.listSchoolYears.mockResolvedValue([{ id: "year-1", label: "2026-2027", status: "closed", endDate: "2027-06-30" }, { id: "year-active", label: "2027-2028", status: "active", startDate: "2027-09-01" }])
+    mocks.listSchoolYears.mockResolvedValue([{ id: "year-older", label: "2025-2026", status: "closed", endDate: "2026-06-30" }, { id: "year-1", label: "2026-2027", status: "closed", endDate: "2027-06-30" }, { id: "year-active", label: "2027-2028", status: "active", startDate: "2027-09-01" }])
     mocks.getStudentAcademicSummary.mockResolvedValue({
       student: { id: "student-1", firstName: "Awa", lastName: "Koné", matricule: "MAT-001" },
       years: [
@@ -184,12 +233,13 @@ describe("EnrollmentsPage", () => {
 
     expect(await screen.findByText(/Matricule : MAT-001/)).toBeInTheDocument()
     expect(screen.getByLabelText("Année d’origine clôturée")).toBeInTheDocument()
+    expect(screen.getByRole("combobox", { name: "Année d’origine clôturée" })).toHaveTextContent("2026-2027")
     expect(screen.getByLabelText("Niveau récent")).toBeInTheDocument()
     expect(screen.getByLabelText("Classe récente")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Voir dossier" }))
     expect(await screen.findByText("Dossier complet de l’élève")).toBeInTheDocument()
     await waitFor(() => expect(mocks.listReEnrollmentCandidates).toHaveBeenCalledWith({
-      schoolYearId: "year-active", campaignStatus: "to_process", sourceSchoolYearId: undefined, levelId: undefined, classId: undefined, search: undefined, page: 1, limit: 20,
+      schoolYearId: "year-active", campaignStatus: "to_process", sourceSchoolYearId: "year-1", levelId: undefined, classId: undefined, search: undefined, page: 1, limit: 20,
     }))
   })
 })

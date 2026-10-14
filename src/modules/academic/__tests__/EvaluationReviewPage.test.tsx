@@ -43,6 +43,8 @@ describe("EvaluationReviewPage", () => {
     expect(screen.getByRole("note")).toHaveTextContent("Utilisez les filtres pour obtenir des résultats plus précis")
     expect(within(screen.getByRole("region", { name: "Filtres" })).getByRole("combobox", { name: "Classe" })).toBeDisabled()
     const toggle = await screen.findByRole("button", { name: /Devoir 1/ })
+    expect(fetchReview).toHaveBeenCalledWith(expect.objectContaining({ schoolYearId: "y1", gradingPeriodId: "p1" }))
+    expect(screen.getByText("Année active : 2026-2027")).toBeInTheDocument()
     expect(within(screen.getByRole("region", { name: "Synthèse" })).getAllByText("1", { selector: "strong" })).toHaveLength(3)
     fireEvent.click(toggle)
     expect(screen.getByText("Kouassi Awa")).toBeInTheDocument()
@@ -58,9 +60,26 @@ describe("EvaluationReviewPage", () => {
     await screen.findByRole("button", { name: /Devoir 1/ })
     const filters = screen.getByRole("region", { name: "Filtres" })
     fireEvent.click(within(filters).getByRole("combobox", { name: "Année scolaire" }))
-    fireEvent.click(screen.getByRole("option", { name: "2027-2028" }))
+    fireEvent.click(screen.getByRole("option", { name: "2027-2028 · Année clôturée" }))
     await waitFor(() => expect(fetchOptions).toHaveBeenCalledWith({ schoolYearId: "y2", levelId: undefined, classId: undefined }))
     expect(fetchReview).not.toHaveBeenLastCalledWith(expect.objectContaining({ schoolYearId: "y2", levelId: "l1" }))
+  })
+
+  it("réinitialise les sélections et revient à l'année et à la période par défaut", async () => {
+    fetchOptions.mockResolvedValue({ ...options, gradingPeriods: [
+      ...options.gradingPeriods,
+      { id: "p2", label: "Deuxième trimestre", schoolYearId: "y1", isCurrent: false, isFuture: false, hasEvaluations: true },
+    ] })
+    mount()
+    await screen.findByRole("button", { name: /Devoir 1/ })
+    const filters = screen.getByRole("region", { name: "Filtres" })
+    fireEvent.click(within(filters).getByRole("combobox", { name: "Période" }))
+    fireEvent.click(screen.getByRole("option", { name: "Deuxième trimestre" }))
+    await waitFor(() => expect(within(filters).getByRole("combobox", { name: "Période" })).toHaveTextContent("Deuxième trimestre"))
+    fireEvent.click(within(filters).getByRole("button", { name: "Réinitialiser les filtres" }))
+    await waitFor(() => expect(within(filters).getByRole("combobox", { name: "Période" })).toHaveTextContent("Premier trimestre"))
+    expect(within(filters).getByRole("combobox", { name: "Année scolaire" })).toHaveTextContent("2026-2027")
+    expect(within(filters).queryByRole("button", { name: "Réinitialiser les filtres" })).not.toBeInTheDocument()
   })
 
   it("réinitialise classe, matière et professeur après un changement de niveau", async () => {
@@ -85,13 +104,13 @@ describe("EvaluationReviewPage", () => {
     await waitFor(() => expect(fetchReview).toHaveBeenLastCalledWith(expect.objectContaining({ levelId: "l2", classId: undefined, subjectId: undefined, teacherId: undefined })))
   })
 
-  it("choisit d’abord une période renseignée et réinitialise les filtres après un changement de période", async () => {
+  it("choisit la dernière période échue et réinitialise les filtres après un changement de période", async () => {
     fetchOptions.mockResolvedValue({ ...options, gradingPeriods: [
       { id: "p2", label: "Deuxième trimestre", schoolYearId: "y1", isCurrent: false, isFuture: false, hasEvaluations: false },
       { id: "p1", label: "Premier trimestre", schoolYearId: "y1", isCurrent: false, isFuture: false, hasEvaluations: true },
     ] })
     mount()
-    await waitFor(() => expect(fetchReview).toHaveBeenCalledWith(expect.objectContaining({ gradingPeriodId: "p1" })))
+    await waitFor(() => expect(fetchReview).toHaveBeenCalledWith(expect.objectContaining({ gradingPeriodId: "p2" })))
     const filters = screen.getByRole("region", { name: "Filtres" })
     for (const [label, option] of [["Niveau", "6e"], ["Classe", "6e A"], ["Matière", "Mathématiques"], ["Professeur", "Professeur A"]]) {
       const select = within(filters).getByRole("combobox", { name: label })
@@ -103,12 +122,12 @@ describe("EvaluationReviewPage", () => {
       levelId: "l1", classId: "c1", subjectId: "s1", teacherId: "t1",
     })))
     fireEvent.click(within(filters).getByRole("combobox", { name: "Période" }))
-    fireEvent.click(screen.getByRole("option", { name: "Deuxième trimestre" }))
+    fireEvent.click(screen.getByRole("option", { name: "Premier trimestre" }))
     await waitFor(() => expect(fetchOptions).toHaveBeenLastCalledWith(expect.objectContaining({
-      gradingPeriodId: "p2", levelId: undefined, classId: undefined, subjectId: undefined,
+      gradingPeriodId: "p1", levelId: undefined, classId: undefined, subjectId: undefined,
     })))
     await waitFor(() => expect(fetchReview).toHaveBeenLastCalledWith(expect.objectContaining({
-      gradingPeriodId: "p2", levelId: undefined, classId: undefined, subjectId: undefined, teacherId: undefined,
+      gradingPeriodId: "p1", levelId: undefined, classId: undefined, subjectId: undefined, teacherId: undefined,
     })))
   })
 

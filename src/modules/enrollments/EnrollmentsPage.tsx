@@ -41,6 +41,10 @@ import {
   listSchoolYears,
 } from "@/modules/academic/academic.api";
 import { EmptyState } from "@/shared/components/EmptyState";
+import { AcademicContextFilters } from "@/shared/components/AcademicContextFilters";
+import { DependentSelect } from "@/shared/components/DependentSelect";
+import { FilterBar } from "@/shared/components/FilterBar";
+import { ResetFiltersButton } from "@/shared/components/ResetFiltersButton";
 import { PageLayout } from "@/shared/components/PageLayout";
 import { QueryErrorState } from "@/shared/components/QueryErrorState";
 import { usePermissions } from "@/shared/hooks/usePermissions";
@@ -110,7 +114,7 @@ export default function EnrollmentsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
-  const [dossierYearId, setDossierYearId] = useState("");
+  const [dossierYearChoice, setDossierYearChoice] = useState("");
   const [dossierLevelId, setDossierLevelId] = useState("");
   const [dossierClassId, setDossierClassId] = useState("");
   const [dossierStatus, setDossierStatus] = useState<Enrollment["status"] | "all">("all");
@@ -126,7 +130,7 @@ export default function EnrollmentsPage() {
   const [candidatePage, setCandidatePage] = useState(1);
   const [campaignStatus, setCampaignStatus] = useState<CampaignStatus>("to_process");
   const [candidateSearch, setCandidateSearch] = useState("");
-  const [recentYearId, setRecentYearId] = useState("");
+  const [recentYearChoice, setRecentYearChoice] = useState("");
   const [recentLevelId, setRecentLevelId] = useState("");
   const [recentClassId, setRecentClassId] = useState("");
   const [classSelections, setClassSelections] = useState<
@@ -137,12 +141,15 @@ export default function EnrollmentsPage() {
     queryFn: listSchoolYears,
   });
   const activeYears = (yearsQuery.data ?? []).filter((year) => year.status === "active");
-  const activeYearLabel = activeYears.length === 1 ? activeYears[0].label : null;
-  const dossierYear = yearsQuery.data?.find((year) => year.id === dossierYearId);
-  const viewingPastDossiers = selectedTab === "dossiers" && dossierYear?.status === "closed";
   const activeYearId = activeYears.length === 1 ? activeYears[0].id : "";
   const selectedYear = activeYears.length === 1 ? activeYears[0] : null;
-  const closedOriginYears = (yearsQuery.data ?? []).filter((year) => year.status === "closed" && selectedYear && year.endDate < selectedYear.startDate);
+  const dossierYearId = dossierYearChoice === "all" ? "" : dossierYearChoice || activeYearId;
+  const dossierYear = yearsQuery.data?.find((year) => year.id === dossierYearId);
+  const viewingPastDossiers = selectedTab === "dossiers" && dossierYear?.status === "closed";
+  const closedOriginYears = (yearsQuery.data ?? []).filter((year) => year.status === "closed" && selectedYear && year.endDate < selectedYear.startDate)
+    .sort((left, right) => right.endDate.localeCompare(left.endDate));
+  const recentYearId = recentYearChoice === "all" ? "" : closedOriginYears.some((year) => year.id === recentYearChoice)
+    ? recentYearChoice : closedOriginYears[0]?.id || "";
   const enrollmentsQuery = useQuery({
     queryKey: [
       "enrollments",
@@ -166,6 +173,7 @@ export default function EnrollmentsPage() {
         ...(debouncedDossierSearch ? { search: debouncedDossierSearch } : {}),
       }),
     select: (data) => normalizeEnrollmentsListResponse(data, page, 20),
+    enabled: yearsQuery.isSuccess,
   });
   const levelsQuery = useQuery({
     queryKey: ["academic", "levels", "enrollment-filters"],
@@ -277,14 +285,17 @@ export default function EnrollmentsPage() {
     [enrollmentRows, yearsQuery.data],
   );
   const updateDossierYear = (yearId: string) => {
-    setDossierYearId(yearId === "all" ? "" : yearId);
+    setDossierYearChoice(yearId || "all");
+    setDossierLevelId("");
     setDossierClassId("");
+    updateDossierSearch("");
     setPage(1);
   };
   const updateRecentYear = (yearId: string) => {
-    setRecentYearId(yearId);
+    setRecentYearChoice(yearId || "all");
     setRecentLevelId("");
     setRecentClassId("");
+    setCandidateSearch("");
     setCandidatePage(1);
   };
   if (!hasPermission("enrollments.view")) {
@@ -293,7 +304,7 @@ export default function EnrollmentsPage() {
   return (
     <PageLayout
       title="Inscriptions"
-      subtitle={selectedTab === "re-enrollment" ? "Suivez les élèves à traiter et ceux déjà réinscrits." : viewingPastDossiers ? `Dossiers ${dossierYear.label} · consultation seule.` : "Consultez les inscriptions de toutes les années."}
+      subtitle={selectedTab === "re-enrollment" ? "Suivez les élèves à traiter et ceux déjà réinscrits." : viewingPastDossiers ? `Dossiers ${dossierYear.label} · consultation seule.` : "Consultez les inscriptions de l’année sélectionnée."}
       actions={
         hasPermission("enrollments.create") && !viewingPastDossiers ? (
           <Button asChild>
@@ -316,80 +327,26 @@ export default function EnrollmentsPage() {
           <TabsTrigger value="re-enrollment" className="min-h-12">Réinscriptions</TabsTrigger>
         </TabsList>
         <TabsContent value="dossiers" className="space-y-4">
-          <div className="space-y-2 rounded-lg border bg-card p-4">
-            <Label htmlFor="enrollment-dossier-search">Rechercher une inscription par nom ou matricule</Label>
-            <div className="relative max-w-2xl">
-              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input id="enrollment-dossier-search" type="search" maxLength={100} className="min-h-12 pl-10" placeholder="Ex. Koné Aya ou MAT-42" value={dossierSearch} onChange={(event) => updateDossierSearch(event.target.value)} />
-            </div>
-          </div>
-          <div className="grid gap-3 rounded-lg border bg-card p-4 sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto] lg:items-end">
+          <div className="space-y-4 rounded-lg border bg-card p-4">
+            <AcademicContextFilters yearIdPrefix="dossier" years={yearsQuery.data ?? []} yearId={dossierYearId}
+              activeYear={selectedYear ?? undefined} showPeriod={false} allowAllYears
+              onYearChange={updateDossierYear} yearDisabled={yearsQuery.isLoading} />
+            <FilterBar>
+            <DependentSelect id="dossier-level-filter" label="Niveau" value={dossierLevelId}
+              options={(levelsQuery.data ?? []).map((level) => ({ id: level.id, label: level.name }))}
+              dependsOn={{ field: "year", value: dossierYearId }} allLabel="Tous les niveaux"
+              onValueChange={(value) => { setDossierLevelId(value); setDossierClassId(""); updateDossierSearch(""); setPage(1) }} />
+            <DependentSelect id="dossier-class-filter" label="Classe" value={dossierClassId}
+              options={dossierFilterClasses.map((item) => ({ id: item.id, label: item.name }))}
+              dependsOn={{ field: dossierYearId ? "level" : "year", value: dossierYearId && dossierLevelId ? dossierLevelId : "" }}
+              allLabel="Toutes les classes" loading={dossierClassesQuery.isFetching && Boolean(dossierLevelId)}
+              onValueChange={(value) => { setDossierClassId(value); updateDossierSearch(""); setPage(1) }} />
             <div className="space-y-2">
-              <Label htmlFor="dossier-year-filter">Année scolaire</Label>
-              <Select value={dossierYearId || "all"} onValueChange={updateDossierYear}>
-                <SelectTrigger id="dossier-year-filter" className="min-h-12">
-                  <SelectValue placeholder="Toutes les années" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Toutes les années</SelectItem>
-                  {(yearsQuery.data ?? []).map((year) => (
-                    <SelectItem key={year.id} value={year.id}>
-                      {year.label}{year.status === "active" ? " · Année active" : year.status === "closed" ? " · Année clôturée" : " · En préparation"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {activeYearLabel ? <p className="text-xs text-muted-foreground">Année scolaire active : {activeYearLabel}</p> : null}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="dossier-level-filter">Niveau</Label>
-              <Select
-                value={dossierLevelId}
-                onValueChange={(value) => {
-                  setDossierLevelId(value);
-                  setDossierClassId("");
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger id="dossier-level-filter" className="min-h-12">
-                  <SelectValue placeholder="Tous les niveaux" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(levelsQuery.data ?? []).map((level) => (
-                    <SelectItem key={level.id} value={level.id}>
-                      {level.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="dossier-class-filter">Classe</Label>
-              <Select
-                value={dossierClassId}
-                disabled={!dossierYearId}
-                onValueChange={(value) => {
-                  setDossierClassId(value);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger id="dossier-class-filter" className="min-h-12">
-                  <SelectValue
-                    placeholder={
-                      dossierYearId
-                        ? "Toutes les classes"
-                        : "Choisir une année d’abord"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {dossierFilterClasses.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="enrollment-dossier-search">Rechercher une inscription par nom ou matricule</Label>
+              <div className="relative">
+                <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input id="enrollment-dossier-search" type="search" maxLength={100} className="min-h-12 pl-10" placeholder="Ex. Koné Aya ou MAT-42" value={dossierSearch} onChange={(event) => updateDossierSearch(event.target.value)} />
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="dossier-status-filter">Statut</Label>
@@ -401,23 +358,9 @@ export default function EnrollmentsPage() {
                 </SelectContent>
               </Select>
             </div>
-            {dossierYearId || dossierLevelId || dossierClassId || dossierStatus !== "all" || dossierSearch ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="min-h-12"
-                onClick={() => {
-                  setDossierYearId("");
-                  setDossierLevelId("");
-                  setDossierClassId("");
-                  setDossierStatus("all");
-                  updateDossierSearch("");
-                  setPage(1);
-                }}
-              >
-                Réinitialiser
-              </Button>
-            ) : null}
+            </FilterBar>
+            <ResetFiltersButton active={Boolean(dossierYearChoice || dossierLevelId || dossierClassId || dossierStatus !== "all" || dossierSearch)}
+              onReset={() => { setDossierYearChoice(""); setDossierLevelId(""); setDossierClassId(""); setDossierStatus("all"); updateDossierSearch(""); setPage(1) }} />
           </div>
           {enrollmentsQuery.isLoading ? (
             <div className="space-y-3">
@@ -597,109 +540,41 @@ export default function EnrollmentsPage() {
               ))}
             </div>
           </div>
-          <div className="max-w-md space-y-2">
-            <Label htmlFor="campaign-status-filter">État de la campagne</Label>
-            <Select value={campaignStatus} onValueChange={(value) => { setCampaignStatus(value as CampaignStatus); setCandidatePage(1) }}>
-              <SelectTrigger id="campaign-status-filter" className="min-h-12"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {(Object.keys(campaignStatusLabels) as CampaignStatus[]).map((status) => <SelectItem key={status} value={status}>{campaignStatusLabels[status]}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-3 rounded-lg border bg-card p-4 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto] lg:items-end">
+          <div className="space-y-4 rounded-lg border bg-card p-4">
+            <AcademicContextFilters yearIdPrefix="re-enrollment" years={closedOriginYears} yearId={recentYearId}
+              activeYear={selectedYear ?? undefined} showPeriod={false} allowAllYears allYearsLabel="Toutes les années d’origine"
+              yearLabel="Année d’origine clôturée" yearHint={recentYearChoice ? undefined : "Année clôturée la plus récente."}
+              onYearChange={updateRecentYear} yearDisabled={yearsQuery.isLoading || !closedOriginYears.length} />
+            <FilterBar>
+            <DependentSelect id="recent-level-filter" label="Niveau récent" value={recentLevelId}
+              options={(levelsQuery.data ?? []).map((level) => ({ id: level.id, label: level.name }))}
+              dependsOn={{ field: "year", value: recentYearId }} allLabel="Tous les niveaux"
+              onValueChange={(value) => { setRecentLevelId(value); setRecentClassId(""); setCandidateSearch(""); setCandidatePage(1) }} />
+            <DependentSelect id="recent-class-filter" label="Classe récente" value={recentClassId}
+              options={recentFilterClasses.map((item) => ({ id: item.id, label: item.name }))}
+              dependsOn={{ field: recentYearId ? "level" : "year", value: recentYearId && recentLevelId ? recentLevelId : "" }}
+              allLabel="Toutes les classes" loading={recentClassesQuery.isFetching && Boolean(recentLevelId)}
+              onValueChange={(value) => { setRecentClassId(value); setCandidateSearch(""); setCandidatePage(1) }} />
             <div className="space-y-2">
-              <Label htmlFor="recent-year-filter">Année d’origine clôturée</Label>
-              <Select value={recentYearId} onValueChange={updateRecentYear}>
-                <SelectTrigger id="recent-year-filter" className="min-h-12">
-                  <SelectValue placeholder="Toutes les années d’origine" />
-                </SelectTrigger>
+              <Label htmlFor="candidate-search">Élève, nom ou matricule</Label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input id="candidate-search" aria-label="Filtrer les élèves" className="min-h-12 pl-9" value={candidateSearch}
+                  onChange={(event) => { setCandidateSearch(event.target.value); setCandidatePage(1) }} placeholder="Filtrer par nom ou matricule" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="campaign-status-filter">État de la campagne</Label>
+              <Select value={campaignStatus} onValueChange={(value) => { setCampaignStatus(value as CampaignStatus); setCandidatePage(1) }}>
+                <SelectTrigger id="campaign-status-filter" className="min-h-12"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {closedOriginYears.map((year) => (
-                    <SelectItem key={year.id} value={year.id}>
-                      {year.label}
-                    </SelectItem>
-                  ))}
+                  {(Object.keys(campaignStatusLabels) as CampaignStatus[]).map((status) => <SelectItem key={status} value={status}>{campaignStatusLabels[status]}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="recent-level-filter">Niveau récent</Label>
-              <Select
-                value={recentLevelId}
-                onValueChange={(value) => {
-                  setRecentLevelId(value);
-                  setRecentClassId("");
-                  setCandidatePage(1);
-                }}
-              >
-                <SelectTrigger id="recent-level-filter" className="min-h-12">
-                  <SelectValue placeholder="Tous les niveaux" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(levelsQuery.data ?? []).map((level) => (
-                    <SelectItem key={level.id} value={level.id}>
-                      {level.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="recent-class-filter">Classe récente</Label>
-              <Select
-                value={recentClassId}
-                disabled={!recentYearId}
-                onValueChange={(value) => {
-                  setRecentClassId(value);
-                  setCandidatePage(1);
-                }}
-              >
-                <SelectTrigger id="recent-class-filter" className="min-h-12">
-                  <SelectValue
-                    placeholder={
-                      recentYearId
-                        ? "Toutes les classes"
-                        : "Choisir une année d’abord"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {recentFilterClasses.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {recentYearId || recentLevelId || recentClassId ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="min-h-12"
-                onClick={() => {
-                  setRecentYearId("");
-                  setRecentLevelId("");
-                  setRecentClassId("");
-                  setCandidatePage(1);
-                }}
-              >
-                Réinitialiser
-              </Button>
-            ) : null}
-          </div>
-          <div className="relative max-w-xl">
-             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              aria-label="Filtrer les élèves"
-              className="min-h-12 pl-9"
-              value={candidateSearch}
-              onChange={(event) => {
-                setCandidateSearch(event.target.value);
-                setCandidatePage(1);
-              }}
-              placeholder="Filtrer par nom ou matricule"
-            />
+            </FilterBar>
+            <ResetFiltersButton active={Boolean(recentYearChoice || recentLevelId || recentClassId || candidateSearch || campaignStatus !== "to_process")}
+              onReset={() => { setRecentYearChoice(""); setRecentLevelId(""); setRecentClassId(""); setCandidateSearch(""); setCampaignStatus("to_process"); setCandidatePage(1) }} />
           </div>
           {candidatesForbidden ? <Alert variant="destructive"><AlertDescription>Vous n’avez pas accès aux candidats à la réinscription.</AlertDescription></Alert> : null}
           {candidatesQuery.isError && !candidatesForbidden ? (

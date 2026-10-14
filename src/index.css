@@ -29,7 +29,12 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 214 45% 98.8%;
     --border: 214 27% 88.5%;
-    --input: 214 27% 88.5%;
+    --input: 213 27% 84%;
+    --control-bg: 0 0% 100%;
+    --control-disabled-bg: 210 40% 96.1%;
+    --control-disabled-fg: 215 25% 27%;
+    --button-disabled-bg: 210 40% 96.1%;
+    --button-disabled-fg: 215 25% 27%;
     --ring: 218 78% 46%;
     --radius: 0.5rem;
     --sidebar-bg: 214 45% 97.5%;
@@ -76,7 +81,12 @@
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
     --border: 218 28% 18.5%;
-    --input: 218 28% 18.5%;
+    --input: 215 19% 34%;
+    --control-bg: 222 47% 7.2%;
+    --control-disabled-bg: 217 33% 17%;
+    --control-disabled-fg: 213 27% 84%;
+    --button-disabled-bg: 217 33% 17%;
+    --button-disabled-fg: 213 27% 84%;
     --ring: 216 86% 62%;
     --sidebar-bg: 222 56% 4.5%;
     --sidebar-border: 217.2 32.6% 13%;
@@ -126,6 +136,33 @@
 }
 
 @layer components {
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  [role="combobox"] {
+    background-color: hsl(var(--control-bg)) !important;
+  }
+
+  input::placeholder,
+  textarea::placeholder,
+  [role="combobox"][data-placeholder] {
+    color: hsl(var(--muted-foreground)) !important;
+    opacity: 1 !important;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]):disabled,
+  textarea:disabled,
+  [role="combobox"][data-disabled] {
+    background-color: hsl(var(--control-disabled-bg)) !important;
+    color: hsl(var(--control-disabled-fg)) !important;
+    opacity: 1 !important;
+  }
+
+  button:disabled:not([role="combobox"]) {
+    background-color: hsl(var(--button-disabled-bg)) !important;
+    color: hsl(var(--button-disabled-fg)) !important;
+    opacity: 1 !important;
+  }
+
   .sticky,
   [data-sticky] {
     background-color: hsl(var(--background)) !important;

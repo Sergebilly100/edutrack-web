@@ -146,7 +146,7 @@ test("C42 : la campagne ouvre l’historique annuel de l’élève sur mobile", 
   await expect(page.getByText("RC-RECENT")).toHaveCount(0)
   await page.goto("/enrollments")
   await page.setViewportSize({ width: 320, height: 800 })
-  await expect(page.getByText(`Année scolaire active : ${activeYear.label}`)).toBeVisible()
+  await expect(page.getByText(`Année active : ${activeYear.label}`)).toBeVisible()
   await expect(page.locator("article").getByText("Koné Awa")).toBeVisible()
   const archivedDraft = page.locator("article").filter({ hasText: "Coulibaly Aya" })
   await expect(archivedDraft.getByText("Année clôturée · Consultation seule")).toBeVisible()

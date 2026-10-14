@@ -10,22 +10,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmptyState } from "@/shared/components/EmptyState"
+import { AcademicContextFilters } from "@/shared/components/AcademicContextFilters"
+import { DependentSelect } from "@/shared/components/DependentSelect"
+import { FilterBar } from "@/shared/components/FilterBar"
+import { ResetFiltersButton } from "@/shared/components/ResetFiltersButton"
 import { PageLayout } from "@/shared/components/PageLayout"
-import { fetchEvaluationReview, fetchReviewOptions, fetchSpontaneousReview, type ReviewOption } from "./evaluation-review.api"
+import { currentReviewPeriodId } from "@/shared/lib/academic-context"
+import { fetchEvaluationReview, fetchReviewOptions, fetchSpontaneousReview } from "./evaluation-review.api"
 
-const ALL = "all"
 const displayDate = (date: string | null) => date ? new Date(`${date}T00:00:00`).toLocaleDateString("fr-FR") : "Sans date"
 const displayAdjustment = (value: number) => new Intl.NumberFormat("fr-FR", { signDisplay: "always", maximumFractionDigits: 3 }).format(value)
-function ReviewSelect({ label, value, options, onChange, disabled = false, optional = false, hint }: {
-  label: string; value: string; options: ReviewOption[]; onChange: (value: string) => void; disabled?: boolean; optional?: boolean; hint?: string
-}) {
-  const id = `review-${label.toLowerCase().replace(/\s+/g, "-")}`
-  return <div className="space-y-2"><Label htmlFor={id}>{label}</Label><Select value={value || (optional ? ALL : "")} onValueChange={(next) => onChange(next === ALL ? "" : next)} disabled={disabled}>
-    <SelectTrigger id={id} className="min-h-12 w-full"><SelectValue placeholder={`Choisir ${label.toLowerCase()}`} /></SelectTrigger>
-    <SelectContent>{optional ? <SelectItem value={ALL}>Tous</SelectItem> : null}{options.map((option) =>
-      <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>)}</SelectContent>
-  </Select>{hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}</div>
-}
 
 function ReviewPagination({ label, plural, total, page, pageSize, onPageChange, onPageSizeChange }: {
   label: string; plural: string; total: number; page: number; pageSize: number
@@ -80,13 +74,12 @@ export default function EvaluationReviewPage() {
   const [studentSearch, setStudentSearch] = useState("")
 
   const yearsQuery = useQuery({ queryKey: ["evaluation-review", "years"], queryFn: () => fetchReviewOptions({}) })
-  const schoolYearId = year || yearsQuery.data?.schoolYears.find((item) => item.active)?.id || yearsQuery.data?.schoolYears[0]?.id || ""
+  const activeYear = yearsQuery.data?.schoolYears.find((item) => item.active)
+  const schoolYearId = year || activeYear?.id || ""
   const calendarQuery = useQuery({ queryKey: ["evaluation-review", "calendar", schoolYearId],
     queryFn: () => fetchReviewOptions({ schoolYearId }), enabled: Boolean(schoolYearId) })
   const availablePeriods = calendarQuery.data?.gradingPeriods ?? []
-  const gradingPeriodId = period || availablePeriods.find((item) => !item.isFuture && item.hasEvaluations)?.id
-    || availablePeriods.find((item) => item.notesEntryOpen)?.id || availablePeriods.find((item) => !item.isFuture)?.id
-    || availablePeriods[availablePeriods.length - 1]?.id || ""
+  const gradingPeriodId = availablePeriods.some((item) => item.id === period) ? period : currentReviewPeriodId(availablePeriods)
   const optionsQuery = useQuery({ queryKey: ["evaluation-review", "options", schoolYearId, gradingPeriodId, level, classId, subject],
     queryFn: () => fetchReviewOptions({ schoolYearId, gradingPeriodId, levelId: level || undefined,
       classId: classId || undefined, subjectId: subject || undefined }), enabled: Boolean(gradingPeriodId) })
@@ -106,7 +99,7 @@ export default function EvaluationReviewPage() {
   })
   const result = resultQuery.data
   const spontaneous = spontaneousQuery.data
-  const resetPage = () => { setPage(1); setSpontaneousPage(1); setOpenId(null); setOpenStudentId(null) }
+  const resetPage = () => { setPage(1); setSpontaneousPage(1); setOpenId(null); setOpenStudentId(null); setStudentSearch(""); setStudentSearchInput("") }
   const applyStudentSearch = (value: string) => { setStudentSearch(value.trim()); setSpontaneousPage(1); setOpenStudentId(null) }
   const goToScheduledPage = (next: number) => { setPage(next); setOpenId(null); scheduledSectionRef.current?.scrollIntoView?.({ block: "start" }) }
   const goToSpontaneousPage = (next: number) => { setSpontaneousPage(next); setOpenStudentId(null); spontaneousSectionRef.current?.scrollIntoView?.({ block: "start" }) }
@@ -118,23 +111,30 @@ export default function EvaluationReviewPage() {
 
   return <PageLayout title="Suivi des évaluations et notes" subtitle="Consultez les évaluations saisies et les notes des élèves." >
     <Alert variant="info" role="note"><Info className="h-4 w-4" /><AlertDescription>Utilisez les filtres pour obtenir des résultats plus précis : choisissez une période, puis affinez par niveau, classe, matière et professeur.</AlertDescription></Alert>
-    <section aria-label="Filtres" className="grid gap-4 rounded-lg border bg-card p-4 sm:grid-cols-2 lg:grid-cols-3">
-      <ReviewSelect label="Année scolaire" value={schoolYearId} options={yearsQuery.data?.schoolYears ?? []} onChange={changeYear} disabled={yearsQuery.isLoading} />
-      <ReviewSelect label="Période" value={gradingPeriodId}
-        options={availablePeriods.map((item) => ({ id: item.id, label: item.isFuture ? `${item.label} (à venir)` : item.label }))}
-        onChange={changePeriod} disabled={!availablePeriods.length || calendarQuery.isFetching} />
-      <ReviewSelect label="Niveau" value={level} options={options?.levels ?? []} onChange={changeLevel}
-        disabled={!options?.levels.length || optionsQuery.isFetching}
-        hint={options && options.levels.length === 0 ? "Aucun niveau pour cette année." : undefined} optional />
-      <ReviewSelect label="Classe" value={classId} options={options?.classes ?? []} onChange={changeClass}
-        disabled={!level || !options?.classes.length || optionsQuery.isFetching}
-        hint={!level ? "Choisissez un niveau." : options && options.classes.length === 0 ? "Aucune classe pour ce niveau." : undefined} optional />
-      <ReviewSelect label="Matière" value={subject} options={options?.subjects ?? []} onChange={changeSubject}
-        disabled={!classId || !options?.subjects.length || optionsQuery.isFetching}
-        hint={!classId ? "Choisissez une classe." : options && options.subjects.length === 0 ? "Aucune matière pour cette classe." : undefined} optional />
-      <ReviewSelect label="Professeur" value={teacher} options={options?.teachers ?? []} onChange={(value) => { setTeacher(value); resetPage() }}
-        disabled={!subject || !options?.teachers.length || optionsQuery.isFetching}
-        hint={!subject ? "Choisissez une matière." : options && options.teachers.length === 0 ? "Aucun professeur pour cette matière." : undefined} optional />
+    <section aria-label="Filtres" className="space-y-4 rounded-lg border bg-card p-4">
+      <AcademicContextFilters yearIdPrefix="review" showPeriod allowAllYears={false}
+        years={(yearsQuery.data?.schoolYears ?? []).map((item) => ({ ...item, status: item.active ? "active" as const : "closed" as const }))}
+        yearId={schoolYearId} activeYear={activeYear ? { ...activeYear, status: "active" } : undefined}
+        onYearChange={changeYear} yearDisabled={yearsQuery.isLoading}
+        periods={availablePeriods.map((item) => ({ id: item.id, label: item.isFuture ? `${item.label} (à venir)` : item.label }))}
+        periodId={gradingPeriodId} onPeriodChange={changePeriod}
+        periodDisabled={!availablePeriods.length || calendarQuery.isFetching} />
+      <FilterBar>
+      <DependentSelect id="review-niveau" label="Niveau" value={level} options={options?.levels ?? []}
+        dependsOn={{ field: "year", value: schoolYearId }} allLabel="Tous" loading={optionsQuery.isFetching}
+        disabled={!gradingPeriodId || !options?.levels.length} onValueChange={changeLevel} />
+      <DependentSelect id="review-classe" label="Classe" value={classId} options={options?.classes ?? []}
+        dependsOn={{ field: "level", value: level }} allLabel="Tous" loading={optionsQuery.isFetching}
+        disabled={!options?.classes.length} onValueChange={changeClass} />
+      <DependentSelect id="review-matière" label="Matière" value={subject} options={options?.subjects ?? []}
+        dependsOn={{ field: "class", value: classId }} allLabel="Tous" loading={optionsQuery.isFetching}
+        disabled={!options?.subjects.length} onValueChange={changeSubject} />
+      <DependentSelect id="review-professeur" label="Professeur" value={teacher} options={options?.teachers ?? []}
+        dependsOn={{ field: "subject", value: subject }} allLabel="Tous" loading={optionsQuery.isFetching}
+        disabled={!options?.teachers.length} onValueChange={(value) => { setTeacher(value); resetPage() }} />
+      </FilterBar>
+      <ResetFiltersButton active={Boolean(year || period || level || classId || subject || teacher || studentSearch)}
+        onReset={() => { changeYear(""); setStudentSearch(""); setStudentSearchInput("") }} />
     </section>
     {yearsQuery.isError || calendarQuery.isError || optionsQuery.isError || (view === "scheduled" ? resultQuery.isError : spontaneousQuery.isError) ? <Alert variant="destructive"><AlertDescription>Impossible de charger les évaluations. Réessayez dans un instant.</AlertDescription></Alert> : null}
     {!schoolYearId && !yearsQuery.isLoading ? <EmptyState title="Aucune année scolaire" description="Créez une année scolaire pour consulter les évaluations." /> : null}
