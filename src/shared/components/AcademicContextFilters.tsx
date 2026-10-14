@@ -36,7 +36,7 @@ export function AcademicContextFilters({
   const periodControlId = `${yearIdPrefix}-period`
 
   return <div className="space-y-4 border-b border-border pb-4">
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className={showPeriod ? "grid gap-4 sm:grid-cols-2" : "grid gap-4"}>
       <div className="min-w-0 space-y-2">
         <div className="flex min-h-6 items-center gap-2">
           <Label htmlFor={yearControlId}>{yearLabel}</Label>

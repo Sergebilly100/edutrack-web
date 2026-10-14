@@ -26,6 +26,7 @@ describe("AcademicContextFilters", () => {
     render(<AcademicContextFilters yearIdPrefix="archive" years={years} yearId="archived" activeYear={years[0]}
       onYearChange={onYearChange} showPeriod={false} allowAllYears yearLabel="Année d’origine clôturée" />)
     expect(screen.getByRole("combobox", { name: "Année d’origine clôturée" })).toBeInTheDocument()
+    expect(screen.getByRole("combobox", { name: "Année d’origine clôturée" }).closest(".grid")).not.toHaveClass("sm:grid-cols-2")
     expect(screen.queryByRole("combobox", { name: "Période" })).not.toBeInTheDocument()
     expect(screen.getByText("Archive")).toBeInTheDocument()
     expect(screen.getByText("Vous consultez une année archivée.")).toBeInTheDocument()

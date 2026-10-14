@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   listClasses: vi.fn(),
   listReEnrollmentCandidates: vi.fn(),
   getStudentAcademicSummary: vi.fn(),
+  listRequiredDocumentTypes: vi.fn(),
+  getStudentById: vi.fn(),
 }))
 
 vi.mock("../enrollments.api", async (importOriginal) => ({
@@ -18,11 +20,13 @@ vi.mock("../enrollments.api", async (importOriginal) => ({
   listEnrollments: mocks.listEnrollments,
   listReEnrollmentCandidates: mocks.listReEnrollmentCandidates,
   getStudentAcademicSummary: mocks.getStudentAcademicSummary,
+  listRequiredDocumentTypes: mocks.listRequiredDocumentTypes,
   createEnrollment: vi.fn(),
 }))
 vi.mock("@/modules/class-decisions/class-decisions.api", () => ({
   listClassDecisions: mocks.listClassDecisions,
 }))
+vi.mock("@/modules/students/students.api", () => ({ getStudentById: mocks.getStudentById }))
 vi.mock("@/modules/academic/academic.api", () => ({
   listSchoolYears: mocks.listSchoolYears,
   listLevels: mocks.listLevels,
@@ -60,6 +64,8 @@ describe("EnrollmentsPage", () => {
     mocks.listSchoolYears.mockResolvedValue([])
     mocks.listLevels.mockResolvedValue([])
     mocks.listClasses.mockResolvedValue({ classes: [] })
+    mocks.listRequiredDocumentTypes.mockResolvedValue([])
+    mocks.getStudentById.mockImplementation((studentId: string) => Promise.resolve({ id: studentId, matricule: `MAT-${studentId}` }))
     mocks.listReEnrollmentCandidates.mockResolvedValue({
       candidates: [],
       pagination: { page: 1, limit: 20, total: 0, totalPages: 1 },
@@ -82,12 +88,12 @@ describe("EnrollmentsPage", () => {
     )
 
     expect(await screen.findByRole("table")).toBeInTheDocument()
-    expect(within(screen.getByRole("table")).getByText("Koné Awa")).toBeInTheDocument()
-    expect(screen.getByText("Page 1 sur 2, 21 dossiers")).toBeInTheDocument()
+    expect(within(screen.getByRole("table")).getByText("KONÉ Awa")).toBeInTheDocument()
+    expect(screen.getByText(/Page 1 sur 2, 21 dossiers/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Suivant" }))
 
-    await waitFor(() => expect(within(screen.getByRole("table")).getByText("Koné Aya")).toBeInTheDocument())
+    await waitFor(() => expect(within(screen.getByRole("table")).getByText("KONÉ Aya")).toBeInTheDocument())
     await waitFor(() => expect(mocks.listEnrollments).toHaveBeenCalledWith({ page: 2, limit: 20 }))
   })
 
@@ -97,8 +103,81 @@ describe("EnrollmentsPage", () => {
         <MemoryRouter initialEntries={["/enrollments"]}><EnrollmentsPage /></MemoryRouter>
       </QueryClientProvider>,
     )
-    fireEvent.change(screen.getByRole("searchbox", { name: "Rechercher une inscription par nom ou matricule" }), { target: { value: "MAT-001" } })
+    fireEvent.change(screen.getByRole("searchbox", { name: "Élève, nom ou matricule" }), { target: { value: "MAT-001" } })
     await waitFor(() => expect(mocks.listEnrollments).toHaveBeenCalledWith(expect.objectContaining({ search: "MAT-001", page: 1 })))
+  })
+
+  it("affiche la synthèse annuelle et un seul bandeau quand les documents manquent", async () => {
+    mocks.listSchoolYears.mockResolvedValue([{ id: "year-1", label: "2026-2027", status: "active" }])
+    mocks.listEnrollments.mockImplementation(({ type, limit = 20 }: { type?: string; limit?: number }) => Promise.resolve({
+      enrollments: limit === 1 ? [] : [enrollment("1", "Awa"), enrollment("2", "Aya")],
+      pagination: { page: 1, limit, total: type === "re_registration" ? 2 : type === "new_registration" ? 6 : 8, totalPages: 1 },
+    }))
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter><EnrollmentsPage /></MemoryRouter>
+    </QueryClientProvider>)
+    expect(await screen.findByText("Total inscrits")).toBeInTheDocument()
+    const summary = screen.getByLabelText("Synthèse des inscriptions")
+    expect(within(summary).getByText("8")).toBeInTheDocument()
+    expect(within(summary).getByText("6")).toBeInTheDocument()
+    expect(within(summary).getByText("2")).toBeInTheDocument()
+    expect(screen.getAllByText("Les documents requis ne sont pas configurés.")).toHaveLength(1)
+    expect(screen.getByRole("link", { name: "Configurer" })).toHaveAttribute("href", "/settings?tab=scolarite")
+    expect(within(screen.getByRole("table")).queryByText("Dossier")).not.toBeInTheDocument()
+  })
+
+  it("affiche le dossier configuré, trie les élèves et ouvre la ligne entière", async () => {
+    mocks.listRequiredDocumentTypes.mockResolvedValue([{ id: "doc-1", levelId: "level-1", levelName: "6e", name: "Acte de naissance", isMandatory: true, isActive: true }])
+    mocks.listEnrollments.mockResolvedValue({
+      enrollments: [enrollment("2", "Zoé"), { ...enrollment("1", "Awa"), documentStatus: "complete", missingMandatoryDocumentCount: 0 }],
+      pagination: { page: 1, limit: 20, total: 2, totalPages: 1 },
+    })
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={["/enrollments"]}><Routes>
+        <Route path="/enrollments" element={<EnrollmentsPage />} />
+        <Route path="/students/:studentId/history" element={<p>Dossier complet de l’élève</p>} />
+      </Routes></MemoryRouter>
+    </QueryClientProvider>)
+    const table = await screen.findByRole("table")
+    expect(screen.queryByText("Les documents requis ne sont pas configurés.")).not.toBeInTheDocument()
+    expect(within(table).getByText("Complet")).toBeInTheDocument()
+    expect(within(table).getByText("Incomplet")).toBeInTheDocument()
+    expect(await within(table).findByText("MAT-student-1")).toBeInTheDocument()
+    expect(within(table).getAllByRole("row")[1]).toHaveTextContent("KONÉ Awa")
+    fireEvent.click(within(table).getByRole("button", { name: "Élève" }))
+    expect(within(table).getAllByRole("row")[1]).toHaveTextContent("KONÉ Zoé")
+    fireEvent.keyDown(within(table).getByRole("row", { name: /KONÉ Zoé/ }), { key: "Enter" })
+    expect(await screen.findByText("Dossier complet de l’élève")).toBeInTheDocument()
+  })
+
+  it.each([
+    { status: "confirmed", yearStatus: "active", destination: "Profil actif" },
+    { status: "pending_cashier", yearStatus: "active", destination: "Documents actifs" },
+    { status: "confirmed", yearStatus: "closed", destination: "Historique scolaire" },
+  ] as const)("ouvre $destination depuis une ligne $yearStatus ($status)", async ({ status, yearStatus, destination }) => {
+    mocks.listSchoolYears.mockResolvedValue([{ id: "year-1", label: "2026-2027", status: yearStatus }])
+    mocks.listEnrollments.mockResolvedValue({
+      enrollments: [{ ...enrollment("1", "Awa"), status }],
+      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+    })
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={["/enrollments"]}><Routes>
+        <Route path="/enrollments" element={<EnrollmentsPage />} />
+        <Route path="/students/:studentId" element={<p>Profil actif</p>} />
+        <Route path="/enrollments/students/:studentId/documents" element={<p>Documents actifs</p>} />
+        <Route path="/students/:studentId/history" element={<p>Historique scolaire</p>} />
+      </Routes></MemoryRouter>
+    </QueryClientProvider>)
+    const row = within(await screen.findByRole("table")).getByRole("row", { name: /KONÉ Awa/ })
+    const actions = within(row).getByRole("button", { name: /Actions pour KONÉ Awa/ })
+    expect(actions).toBeInTheDocument()
+    if (yearStatus === "active" && status === "confirmed") {
+      fireEvent.keyDown(actions, { key: "ArrowDown" })
+      expect(await screen.findByRole("menuitem", { name: "Documents du dossier" })).toBeInTheDocument()
+      expect(screen.getByRole("menuitem", { name: "Historique scolaire" })).toBeInTheDocument()
+    }
+    fireEvent.click(row)
+    expect(await screen.findByText(destination)).toBeInTheDocument()
   })
 
   it("identifie l’année active et limite les anciens dossiers à la consultation", async () => {
@@ -121,16 +200,12 @@ describe("EnrollmentsPage", () => {
     await waitFor(() => expect(mocks.listEnrollments).toHaveBeenCalledWith(expect.objectContaining({ schoolYearId: "year-active" })))
     expect(screen.getByRole("combobox", { name: "Année scolaire" })).toHaveTextContent("2026-2027")
     const table = await screen.findByRole("table")
-    const archivedRow = within(table).getByRole("row", { name: /Koné Aya/ })
-    expect(within(archivedRow).getByText(/Année clôturée · Consultation seule/)).toBeInTheDocument()
-    expect(within(archivedRow).getByRole("link", { name: "Voir le dossier" })).toBeInTheDocument()
+    const archivedRow = within(table).getByRole("row", { name: /KONÉ Aya/ })
+    expect(within(archivedRow).queryByText("2025-2026")).not.toBeInTheDocument()
     expect(within(archivedRow).queryByRole("link", { name: "Modifier" })).not.toBeInTheDocument()
     expect(within(archivedRow).queryByRole("link", { name: "Caisse" })).not.toBeInTheDocument()
-    const activeRow = within(table).getByRole("row", { name: /Koné Awa/ })
-    expect(within(activeRow).getByRole("link", { name: "Modifier" })).toBeInTheDocument()
-    expect(within(activeRow).getByRole("link", { name: "Caisse" })).toBeInTheDocument()
-    expect(screen.getAllByRole("link", { name: "Modifier" })).toHaveLength(2)
-    expect(screen.getAllByRole("link", { name: "Caisse" })).toHaveLength(2)
+    const activeRow = within(table).getByRole("row", { name: /KONÉ Awa/ })
+    expect(within(activeRow).getByRole("button", { name: /Actions pour/ })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("combobox", { name: "Année scolaire" }))
     expect(await screen.findByRole("option", { name: "2026-2027 · Année active" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("option", { name: "2025-2026 · Année clôturée" }))
@@ -151,23 +226,35 @@ describe("EnrollmentsPage", () => {
     </QueryClientProvider>)
 
     await screen.findByRole("table")
-    const studentSearch = screen.getByRole("searchbox", { name: "Rechercher une inscription par nom ou matricule" })
+    const studentSearch = screen.getByRole("searchbox", { name: "Élève, nom ou matricule" })
     fireEvent.change(studentSearch, { target: { value: "Awa" } })
     fireEvent.click(screen.getByRole("combobox", { name: "Niveau" }))
     fireEvent.click(screen.getByRole("option", { name: "6e" }))
     expect(studentSearch).toHaveValue("")
     fireEvent.click(screen.getByRole("combobox", { name: "Classe" }))
     fireEvent.click(screen.getByRole("option", { name: "6e A" }))
-    await waitFor(() => expect(mocks.listEnrollments).toHaveBeenLastCalledWith(expect.objectContaining({
+    await waitFor(() => expect(mocks.listEnrollments).toHaveBeenCalledWith(expect.objectContaining({
       schoolYearId: "year-active", levelId: "level-1", classId: "class-1",
     })))
 
     fireEvent.click(screen.getByRole("combobox", { name: "Année scolaire" }))
     fireEvent.click(screen.getByRole("option", { name: "2025-2026 · Année clôturée" }))
-    await waitFor(() => expect(mocks.listEnrollments).toHaveBeenLastCalledWith(expect.objectContaining({
+    await waitFor(() => expect(mocks.listEnrollments).toHaveBeenCalledWith(expect.objectContaining({
       schoolYearId: "year-old", levelId: undefined, classId: undefined,
     })))
     expect(mocks.listClasses).toHaveBeenCalledWith("year-old")
+  })
+
+  it("permet de filtrer la classe de l’année active sans choisir un niveau", async () => {
+    mocks.listSchoolYears.mockResolvedValue([{ id: "year-1", label: "2026-2027", status: "active" }])
+    mocks.listClasses.mockResolvedValue({ classes: [{ id: "class-1", name: "6e A", level: { id: "level-1" } }] })
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter><EnrollmentsPage /></MemoryRouter>
+    </QueryClientProvider>)
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Classe" })).toBeEnabled())
+    fireEvent.click(screen.getByRole("combobox", { name: "Classe" }))
+    fireEvent.click(screen.getByRole("option", { name: "6e A" }))
+    await waitFor(() => expect(mocks.listEnrollments).toHaveBeenCalledWith(expect.objectContaining({ schoolYearId: "year-1", classId: "class-1" })))
   })
 
   it("explique le blocage sur toutes les années et rétablit l'année par défaut", async () => {
@@ -180,6 +267,8 @@ describe("EnrollmentsPage", () => {
     fireEvent.click(screen.getByRole("option", { name: "Toutes les années" }))
     expect(screen.getByRole("combobox", { name: "Niveau" })).toBeDisabled()
     expect(screen.getByRole("combobox", { name: "Niveau" })).toHaveAccessibleDescription("Choisissez une année précise.")
+    expect(screen.getByRole("combobox", { name: "Classe" })).toBeDisabled()
+    expect(screen.getByRole("combobox", { name: "Classe" })).toHaveAccessibleDescription("Choisissez une année précise.")
     fireEvent.click(screen.getByRole("button", { name: "Réinitialiser les filtres" }))
     await waitFor(() => expect(screen.getByRole("combobox", { name: "Année scolaire" })).toHaveTextContent("2026-2027"))
     expect(screen.queryByRole("button", { name: "Réinitialiser les filtres" })).not.toBeInTheDocument()
@@ -199,7 +288,7 @@ describe("EnrollmentsPage", () => {
       </QueryClientProvider>,
     )
 
-    await waitFor(() => expect(within(screen.getByRole("table")).getByText("Koné Adjoua")).toBeInTheDocument())
+    await waitFor(() => expect(within(screen.getByRole("table")).getByText("KONÉ Adjoua")).toBeInTheDocument())
     expect(screen.getByRole("table")).toBeInTheDocument()
   })
 
