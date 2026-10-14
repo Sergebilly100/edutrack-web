@@ -81,13 +81,16 @@ export type ReEnrollmentCandidate = {
   finalDecision: "promoted" | "repeat" | "expelled" | null
   nextLevelId: string | null
   nextLevelName: string | null
+  sourceSchoolYearStatus: "active" | "closed"
+  status: "decision_pending" | "ready" | "awaiting_cashier" | "awaiting_documents" | "blocked_unpaid" | "re_enrolled" | "excluded" | "financial_unavailable"
   enrollment: { id: string; status: EnrollmentStatus; className: string } | null
 }
 
 export type ReEnrollmentCandidatesResponse = {
   candidates: ReEnrollmentCandidate[]
+  targetSchoolYear: { id: string; label: string; status: "draft" | "active" | "closed" } | null
   pagination: { page: number; limit: number; total: number; totalPages: number }
-  counts: { toProcess: number; awaitingCashier: number; blockedUnpaid: number; confirmed: number; all: number }
+  counts: { decisionPending: number; ready: number; toProcess: number; awaitingCashier: number; awaitingDocuments: number; blockedUnpaid: number; reEnrolled: number; excluded: number; financialUnavailable: number; confirmed: number; all: number }
 }
 
 export type StudentAcademicSummary = {
@@ -232,6 +235,8 @@ const parseReEnrollmentCandidate = (value: unknown): ReEnrollmentCandidate | nul
       : null,
     nextLevelId: asString(value.nextLevelId ?? value.next_level_id) || null,
     nextLevelName: asString(value.nextLevelName ?? value.next_level_name) || null,
+    sourceSchoolYearStatus: value.sourceSchoolYearStatus === "active" || value.source_school_year_status === "active" ? "active" : "closed",
+    status: value.status === "decision_pending" || value.status === "ready" || value.status === "awaiting_cashier" || value.status === "awaiting_documents" || value.status === "blocked_unpaid" || value.status === "re_enrolled" || value.status === "excluded" || value.status === "financial_unavailable" ? value.status : "financial_unavailable",
     enrollment: enrollmentValue && (enrollmentStatus === "pending_cashier" || enrollmentStatus === "pending_dossier" || enrollmentStatus === "confirmed" || enrollmentStatus === "blocked_unpaid")
       ? { id: asString(enrollmentValue.id), status: enrollmentStatus, className: asString(enrollmentValue.className ?? enrollmentValue.class_name) }
       : null,
@@ -239,8 +244,8 @@ const parseReEnrollmentCandidate = (value: unknown): ReEnrollmentCandidate | nul
 }
 
 export async function listReEnrollmentCandidates(params: {
-  schoolYearId: string
-  campaignStatus?: "to_process" | "awaiting_cashier" | "blocked_unpaid" | "confirmed" | "all"
+  schoolYearId?: string
+  campaignStatus?: "decision_pending" | "ready" | "to_process" | "awaiting_cashier" | "awaiting_documents" | "blocked_unpaid" | "confirmed" | "re_enrolled" | "excluded" | "financial_unavailable" | "all"
   sourceSchoolYearId?: string
   levelId?: string
   classId?: string
@@ -254,8 +259,8 @@ export async function listReEnrollmentCandidates(params: {
     params: {
       page: requestedPage,
       limit: requestedLimit,
-      school_year_id: params.schoolYearId,
-      campaign_status: params.campaignStatus ?? "to_process",
+      ...(params.schoolYearId ? { school_year_id: params.schoolYearId } : {}),
+      campaign_status: params.campaignStatus ?? "all",
       ...(params.sourceSchoolYearId ? { source_school_year_id: params.sourceSchoolYearId } : {}),
       ...(params.levelId ? { level_id: params.levelId } : {}),
       ...(params.classId ? { class_id: params.classId } : {}),
@@ -265,7 +270,12 @@ export async function listReEnrollmentCandidates(params: {
   const payload = isRecord(response.data) ? response.data : {}
   const pagination = isRecord(payload.pagination) ? payload.pagination : {}
   const counts = isRecord(payload.counts) ? payload.counts : {}
+  const targetSchoolYear = isRecord(payload.targetSchoolYear) ? payload.targetSchoolYear : null
   return {
+    targetSchoolYear: targetSchoolYear ? {
+      id: asString(targetSchoolYear.id), label: asString(targetSchoolYear.label),
+      status: targetSchoolYear.status === "active" || targetSchoolYear.status === "closed" ? targetSchoolYear.status : "draft",
+    } : null,
     candidates: Array.isArray(payload.candidates) ? payload.candidates.flatMap((item) => {
       const parsed = parseReEnrollmentCandidate(item)
       return parsed ? [parsed] : []
@@ -277,9 +287,15 @@ export async function listReEnrollmentCandidates(params: {
       totalPages: asNumber(pagination.totalPages ?? pagination.total_pages, 1),
     },
     counts: {
+      decisionPending: asNumber(counts.decisionPending ?? counts.decision_pending),
+      ready: asNumber(counts.ready),
       toProcess: asNumber(counts.toProcess ?? counts.to_process),
       awaitingCashier: asNumber(counts.awaitingCashier ?? counts.awaiting_cashier),
+      awaitingDocuments: asNumber(counts.awaitingDocuments ?? counts.awaiting_documents),
       blockedUnpaid: asNumber(counts.blockedUnpaid ?? counts.blocked_unpaid),
+      reEnrolled: asNumber(counts.reEnrolled ?? counts.re_enrolled),
+      excluded: asNumber(counts.excluded),
+      financialUnavailable: asNumber(counts.financialUnavailable ?? counts.financial_unavailable),
       confirmed: asNumber(counts.confirmed),
       all: asNumber(counts.all),
     },

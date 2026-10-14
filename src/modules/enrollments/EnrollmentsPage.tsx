@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Eye,
   FileCheck2,
   Loader2,
   MoreHorizontal,
@@ -20,6 +19,7 @@ import { Card } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -52,6 +52,7 @@ import { QueryErrorState } from "@/shared/components/QueryErrorState";
 import { usePermissions } from "@/shared/hooks/usePermissions";
 import { useDebounce } from "@/shared/hooks/useDebounce";
 import { getStudentById } from "@/modules/students/students.api";
+import { useEndOfYearReviewStatus } from "@/modules/class-decisions/useEndOfYearReviewStatus";
 import {
   createEnrollment,
   listEnrollments,
@@ -80,13 +81,28 @@ const decisionLabel: Record<
 };
 
 const campaignStatusLabels = {
-  to_process: "À traiter",
+  decision_pending: "Décision en attente",
+  ready: "Prêt à réinscrire",
   awaiting_cashier: "Dossier créé / en attente de caisse",
+  awaiting_documents: "Dossier à compléter",
   blocked_unpaid: "Bloqué par impayé",
-  confirmed: "Confirmé",
-  all: "Tous",
+  re_enrolled: "Réinscrit",
+  excluded: "Exclu",
+  financial_unavailable: "Solde indisponible",
+  all: "Tous les élèves",
 } as const;
 type CampaignStatus = keyof typeof campaignStatusLabels;
+const campaignStatusClassName: Record<CampaignStatus, string> = {
+  decision_pending: "border-amber-200 bg-amber-50 text-amber-800",
+  ready: "border-blue-200 bg-blue-50 text-blue-700",
+  awaiting_cashier: "border-blue-200 bg-blue-50 text-blue-700",
+  awaiting_documents: "border-amber-200 bg-amber-50 text-amber-800",
+  blocked_unpaid: "border-red-200 bg-red-50 text-red-800",
+  re_enrolled: "border-green-200 bg-green-50 text-green-800",
+  excluded: "border-slate-200 bg-slate-50 text-slate-700",
+  financial_unavailable: "border-amber-200 bg-amber-50 text-amber-800",
+  all: "border-border bg-background text-foreground",
+};
 
 function EnrollmentDocumentBadge({ enrollment }: { enrollment: Enrollment }) {
   const label =
@@ -138,7 +154,7 @@ export default function EnrollmentsPage() {
     setPage(1);
   };
   const [candidatePage, setCandidatePage] = useState(1);
-  const [campaignStatus, setCampaignStatus] = useState<CampaignStatus>("to_process");
+  const [campaignStatus, setCampaignStatus] = useState<CampaignStatus>("all");
   const [candidateSearch, setCandidateSearch] = useState("");
   const [recentYearChoice, setRecentYearChoice] = useState("");
   const [recentLevelId, setRecentLevelId] = useState("");
@@ -153,13 +169,22 @@ export default function EnrollmentsPage() {
   const activeYears = (yearsQuery.data ?? []).filter((year) => year.status === "active");
   const activeYearId = activeYears.length === 1 ? activeYears[0].id : "";
   const selectedYear = activeYears.length === 1 ? activeYears[0] : null;
+  const reviewStatusQuery = useEndOfYearReviewStatus();
   const dossierYearId = dossierYearChoice === "all" ? "" : dossierYearChoice || activeYearId;
   const dossierYear = yearsQuery.data?.find((year) => year.id === dossierYearId);
   const viewingPastDossiers = selectedTab === "dossiers" && dossierYear?.status === "closed";
-  const closedOriginYears = (yearsQuery.data ?? []).filter((year) => year.status === "closed" && selectedYear && year.endDate < selectedYear.startDate)
+  const closedOriginYears = (yearsQuery.data ?? []).filter((year) => year.status === "closed" && (!selectedYear || year.endDate < selectedYear.startDate))
     .sort((left, right) => right.endDate.localeCompare(left.endDate));
-  const recentYearId = recentYearChoice === "all" ? "" : closedOriginYears.some((year) => year.id === recentYearChoice)
-    ? recentYearChoice : closedOriginYears[0]?.id || "";
+  const originYears = [...closedOriginYears, ...(selectedYear ? [selectedYear] : [])];
+  const recentYearId = originYears.some((year) => year.id === recentYearChoice)
+    ? recentYearChoice : closedOriginYears[0]?.id || selectedYear?.id || "";
+  const originYear = originYears.find((year) => year.id === recentYearId);
+  const followingYear = (yearsQuery.data ?? []).filter((year) => originYear && year.startDate > originYear.endDate)
+    .sort((left, right) => left.startDate.localeCompare(right.startDate) || Number(right.status === "active") - Number(left.status === "active"))[0];
+  const targetYear = selectedYear && originYear?.status === "closed" && followingYear?.id === selectedYear.id ? selectedYear : null;
+  const targetLabel = followingYear?.label ?? (originYear?.label.match(/^(\d{4})-(\d{4})$/)
+    ? `${Number(originYear.label.slice(0, 4)) + 1}-${Number(originYear.label.slice(5)) + 1}`
+    : "suivante");
   const enrollmentsQuery = useQuery({
     queryKey: [
       "enrollments",
@@ -212,9 +237,9 @@ export default function EnrollmentsPage() {
     enabled: Boolean(dossierYearId),
   });
   const classesQuery = useQuery({
-    queryKey: ["academic", "classes", "re-enrollment", activeYearId],
-    queryFn: () => listClasses(activeYearId),
-    enabled: Boolean(activeYearId),
+    queryKey: ["academic", "classes", "re-enrollment", targetYear?.id],
+    queryFn: () => listClasses(targetYear!.id),
+    enabled: Boolean(targetYear),
   });
   const recentClassesQuery = useQuery({
     queryKey: ["academic", "classes", "re-enrollment-filters", recentYearId],
@@ -226,7 +251,7 @@ export default function EnrollmentsPage() {
       "enrollments",
       "re-enrollment",
       "candidates",
-      activeYearId,
+      followingYear?.id,
       campaignStatus,
       recentYearId,
       recentLevelId,
@@ -236,7 +261,7 @@ export default function EnrollmentsPage() {
     ],
     queryFn: () =>
       listReEnrollmentCandidates({
-        schoolYearId: activeYearId,
+        schoolYearId: followingYear?.id,
         campaignStatus,
         sourceSchoolYearId: recentYearId || undefined,
         levelId: recentLevelId || undefined,
@@ -245,15 +270,22 @@ export default function EnrollmentsPage() {
         page: candidatePage,
         limit: 20,
       }),
-    enabled: selectedTab === "re-enrollment" && Boolean(activeYearId),
+    enabled: selectedTab === "re-enrollment" && Boolean(recentYearId),
   });
   const candidates = candidatesQuery.data?.candidates ?? [];
+  const campaignTargetLabel = candidatesQuery.data?.targetSchoolYear?.label ?? targetLabel;
   const campaignCounts = candidatesQuery.data?.counts;
+  const expectedCount = campaignCounts ? campaignCounts.all - campaignCounts.excluded : 0;
+  const campaignPercentage = expectedCount ? Math.round((campaignCounts?.reEnrolled ?? 0) / expectedCount * 100) : 0;
   const campaignCounters: Array<{ status: CampaignStatus; count: number }> = [
-    { status: "to_process", count: campaignCounts?.toProcess ?? 0 },
+    { status: "decision_pending", count: campaignCounts?.decisionPending ?? 0 },
+    { status: "ready", count: campaignCounts?.ready ?? 0 },
     { status: "awaiting_cashier", count: campaignCounts?.awaitingCashier ?? 0 },
+    { status: "awaiting_documents", count: campaignCounts?.awaitingDocuments ?? 0 },
     { status: "blocked_unpaid", count: campaignCounts?.blockedUnpaid ?? 0 },
-    { status: "confirmed", count: campaignCounts?.confirmed ?? 0 },
+    { status: "re_enrolled", count: campaignCounts?.reEnrolled ?? 0 },
+    { status: "excluded", count: campaignCounts?.excluded ?? 0 },
+    { status: "financial_unavailable", count: campaignCounts?.financialUnavailable ?? 0 },
     { status: "all", count: campaignCounts?.all ?? 0 },
   ];
   const candidatesForbidden = axios.isAxiosError(candidatesQuery.error) && candidatesQuery.error.response?.status === 403;
@@ -368,7 +400,7 @@ export default function EnrollmentsPage() {
     setPage(1);
   };
   const updateRecentYear = (yearId: string) => {
-    setRecentYearChoice(yearId || "all");
+    setRecentYearChoice(yearId);
     setRecentLevelId("");
     setRecentClassId("");
     setCandidateSearch("");
@@ -589,24 +621,38 @@ export default function EnrollmentsPage() {
           {levelsQuery.isError ? <QueryErrorState message="Impossible de charger les niveaux scolaires." onRetry={() => void levelsQuery.refetch()} isRetrying={levelsQuery.isFetching} /> : null}
           {classesQuery.isError ? <QueryErrorState message="Impossible de charger les classes de l’année de campagne." onRetry={() => void classesQuery.refetch()} isRetrying={classesQuery.isFetching} /> : null}
           {recentClassesQuery.isError ? <QueryErrorState message="Impossible de charger les classes récentes." onRetry={() => void recentClassesQuery.refetch()} isRetrying={recentClassesQuery.isFetching} /> : null}
-          {yearsQuery.isSuccess && activeYears.length === 0 ? (
-            <EmptyState title="Aucune campagne active" description="La campagne débutera lorsqu’une nouvelle année scolaire sera ouverte. Les inscriptions des années clôturées restent consultables dans Inscriptions." />
-          ) : null}
+          {yearsQuery.isSuccess && activeYears.length === 0 ? <Alert><AlertDescription>Aucune année scolaire active. La campagne s’ouvrira quand l’année suivante sera créée par IvoirEdu.</AlertDescription></Alert> : null}
           {yearsQuery.isSuccess && activeYears.length > 1 ? <Alert variant="destructive"><AlertDescription>Plusieurs années scolaires sont actives. Corrigez ce conflit avant de lancer la campagne.</AlertDescription></Alert> : null}
-          {selectedYear ? <>
-          <div className="space-y-3">
-            <h2 className="text-lg font-semibold">Campagne {selectedYear.label}</h2>
-            <div className="flex flex-wrap gap-2" aria-label={`Compteurs de la campagne ${selectedYear.label}`}>
+          {originYear ? <>
+          <div className="space-y-4">
+            <div className="space-y-2 rounded-lg border bg-card p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-lg font-semibold">Campagne de réinscription → année {campaignTargetLabel}</h2>
+                {campaignCounts ? <p className="text-sm font-medium">{campaignCounts.reEnrolled} {campaignCounts.reEnrolled === 1 ? "réinscrit" : "réinscrits"} sur {expectedCount} {expectedCount === 1 ? "élève attendu" : "élèves attendus"}</p> : null}
+              </div>
+              {campaignCounts ? <Progress value={campaignPercentage} aria-valuenow={campaignPercentage}
+                aria-label="Progression de la campagne de réinscription" /> : null}
+              <p className="text-xs text-muted-foreground">La progression et les compteurs suivent l’année d’origine, la classe et la recherche sélectionnées.</p>
+            </div>
+            {!targetYear ? <Alert><AlertDescription>{candidatesQuery.data?.targetSchoolYear?.status === "closed"
+              ? `L’année ${campaignTargetLabel} est clôturée. Cette campagne est consultable en lecture seule.`
+              : `La campagne s’ouvrira quand l’année ${campaignTargetLabel} sera ${candidatesQuery.data?.targetSchoolYear?.status === "draft" ? "ouverte" : "créée et ouverte"} par IvoirEdu. Les candidats restent consultables en lecture seule.`}</AlertDescription></Alert> : null}
+            <div className="flex flex-wrap gap-2" role="group" aria-label={`Filtrer les élèves de la campagne ${campaignTargetLabel} par état`}>
               {campaignCounters.map(({ status, count }) => (
-                <Badge key={status} variant="outline">{campaignStatusLabels[status]} : {candidatesQuery.isLoading ? "…" : count}</Badge>
+                <Button key={status} type="button" variant="outline" aria-pressed={campaignStatus === status}
+                  className={`min-h-12 border ${campaignStatusClassName[status]} ${campaignStatus === status ? "ring-2 ring-ring ring-offset-2" : ""}`}
+                  onClick={() => { setCampaignStatus(status); setCandidatePage(1) }}>
+                  {campaignStatusLabels[status]} : {candidatesQuery.isLoading ? "…" : count}
+                </Button>
               ))}
             </div>
+            <p className="text-xs text-muted-foreground">Les dossiers créés en attente de caisse et les élèves exclus conservent un état distinct.</p>
           </div>
           <div className="space-y-4 rounded-lg border bg-card p-4">
-            <AcademicContextFilters yearIdPrefix="re-enrollment" years={closedOriginYears} yearId={recentYearId}
-              activeYear={selectedYear ?? undefined} showPeriod={false} allowAllYears allYearsLabel="Toutes les années d’origine"
-              yearLabel="Année d’origine clôturée" yearHint={recentYearChoice ? undefined : "Année clôturée la plus récente."}
-              onYearChange={updateRecentYear} yearDisabled={yearsQuery.isLoading || !closedOriginYears.length} />
+            <AcademicContextFilters yearIdPrefix="re-enrollment" years={originYears} yearId={recentYearId}
+              activeYear={selectedYear ?? undefined} showPeriod={false} allowAllYears={false}
+              yearLabel="Année d’origine" yearHint={recentYearChoice ? undefined : "Année clôturée la plus récente par défaut ; choisissez l’année active pour préparer la suivante."}
+              onYearChange={updateRecentYear} yearDisabled={yearsQuery.isLoading || !originYears.length} />
             <FilterBar>
             <DependentSelect id="recent-level-filter" label="Niveau récent" value={recentLevelId}
               options={(levelsQuery.data ?? []).map((level) => ({ id: level.id, label: level.name }))}
@@ -625,18 +671,9 @@ export default function EnrollmentsPage() {
                   onChange={(event) => { setCandidateSearch(event.target.value); setCandidatePage(1) }} placeholder="Filtrer par nom ou matricule" />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="campaign-status-filter">État de la campagne</Label>
-              <Select value={campaignStatus} onValueChange={(value) => { setCampaignStatus(value as CampaignStatus); setCandidatePage(1) }}>
-                <SelectTrigger id="campaign-status-filter" className="min-h-12"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(campaignStatusLabels) as CampaignStatus[]).map((status) => <SelectItem key={status} value={status}>{campaignStatusLabels[status]}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
             </FilterBar>
-            <ResetFiltersButton active={Boolean(recentYearChoice || recentLevelId || recentClassId || candidateSearch || campaignStatus !== "to_process")}
-              onReset={() => { setRecentYearChoice(""); setRecentLevelId(""); setRecentClassId(""); setCandidateSearch(""); setCampaignStatus("to_process"); setCandidatePage(1) }} />
+            <ResetFiltersButton active={Boolean(recentYearChoice || recentLevelId || recentClassId || candidateSearch || campaignStatus !== "all")}
+              onReset={() => { setRecentYearChoice(""); setRecentLevelId(""); setRecentClassId(""); setCandidateSearch(""); setCampaignStatus("all"); setCandidatePage(1) }} />
           </div>
           {candidatesForbidden ? <Alert variant="destructive"><AlertDescription>Vous n’avez pas accès aux candidats à la réinscription.</AlertDescription></Alert> : null}
           {candidatesQuery.isError && !candidatesForbidden ? (
@@ -665,140 +702,75 @@ export default function EnrollmentsPage() {
             />
           ) : null}
           {candidates.length > 0 ? (
-            <div className="divide-y rounded-lg border bg-card">
-              {candidates.map((candidate) => {
-                const eligibleClasses = (
-                  classesQuery.data?.classes ?? []
-                ).filter((item) => item.level.id === candidate.nextLevelId);
-                const existing = candidate.enrollment;
-                return (
-                  <div key={candidate.studentId} className="space-y-4 p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="font-medium">
-                          {candidate.studentLastName}{" "}
-                          {candidate.studentFirstName}
-                        </p>
-                        {candidate.studentMatricule ? <p className="text-sm text-muted-foreground">Matricule : {candidate.studentMatricule}</p> : null}
-                        <p className="text-sm text-muted-foreground">
-                          Année clôturée : {candidate.currentSchoolYearLabel} ·
-                          Classe : {candidate.currentClassName}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {hasPermission("students.view") ? <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="min-h-10"
-                          onClick={() =>
-                            navigate(`/students/${candidate.studentId}/history?year=${candidate.currentSchoolYearId}&returnTo=${encodeURIComponent("/enrollments?tab=re-enrollment")}`)
-                          }
-                        >
-                          <Eye className="mr-2 h-4 w-4" />
-                          Voir dossier
-                        </Button> : null}
-                        {existing ? (
-                          <Badge
-                            className={`w-fit border ${statusClassName[existing.status]}`}
-                          >
-                            {enrollmentStatusLabel[existing.status]}
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline">À traiter</Badge>
-                        )}
-                      </div>
-                    </div>
-                    {!candidate.finalDecision ? (
-                      <Alert>
-                        <AlertDescription>
-                          La décision de fin d’année doit être validée avant la
-                          réinscription.
-                        </AlertDescription>
-                      </Alert>
-                    ) : null}
-                    {candidate.finalDecision ? (
-                      <p className="text-sm text-muted-foreground">
-                        Décision : {decisionLabel[candidate.finalDecision]} ·
-                        Niveau proposé :{" "}
-                        {candidate.nextLevelName ?? "non défini"} · Classe cible : {existing?.className ?? "à choisir"}
-                      </p>
-                    ) : null}
-                    {existing?.status === "blocked_unpaid" ? (
-                      <Alert variant="destructive">
-                        <AlertDescription>
-                          La réinscription est bloquée par un impayé. La caisse
-                          peut régulariser la dette si l’inscription de l’année
-                          précédente est validée. Si l’élève n’apparaît pas
-                          dans les encaissements, faites vérifier son dossier
-                          antérieur par la direction.
-                        </AlertDescription>
-                      </Alert>
-                    ) : null}
-                    {!existing &&
-                    candidate.finalDecision &&
-                    candidate.finalDecision !== "expelled" ? (
-                      <div className="grid gap-3 rounded-lg border bg-muted/40 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end" aria-label={`Réinscription de ${candidate.studentFirstName} ${candidate.studentLastName}`}>
-                        <div className="space-y-2">
-                          <Label>
-                            Classe proposée pour {selectedYear.label}
-                          </Label>
-                          <Select
-                            value={classSelections[candidate.studentId] ?? ""}
-                            onValueChange={(value) =>
-                              setClassSelections((current) => ({
-                                ...current,
-                                [candidate.studentId]: value,
-                              }))
-                            }
-                          >
-                            <SelectTrigger className="min-h-12">
-                              <SelectValue
-                                placeholder={
-                                  classesQuery.isLoading
-                                    ? "Chargement…"
-                                    : eligibleClasses.length
-                                      ? "Choisir la classe"
-                                      : "Aucune classe compatible"
-                                }
-                              />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {eligibleClasses.map((item) => (
-                                <SelectItem key={item.id} value={item.id}>
-                                  {item.name} · {item.studentCount} {item.studentCount === 1 ? "élève confirmé" : "élèves confirmés"}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+            <div role="region" aria-label="Tableau des candidats à la réinscription" tabIndex={0}
+              className="overflow-x-auto rounded-lg border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <Table className="min-w-[76rem]">
+                <TableHeader><TableRow>
+                  <TableHead>Élève</TableHead>
+                  <TableHead>Classe d’origine</TableHead>
+                  <TableHead>Décision de fin d’année</TableHead>
+                  <TableHead>Classe d’accueil</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead>Action</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>
+                  {candidates.map((candidate) => {
+                    const existing = candidate.enrollment;
+                    const eligibleClasses = (classesQuery.data?.classes ?? []).filter((item) => item.level.id === candidate.nextLevelId);
+                    const canOpenDossier = hasPermission("students.view");
+                    const dossierHref = `/students/${candidate.studentId}/history?year=${candidate.currentSchoolYearId}&returnTo=${encodeURIComponent("/enrollments?tab=re-enrollment")}`;
+                    const name = `${candidate.studentLastName.toLocaleUpperCase("fr-FR")} ${candidate.studentFirstName}`;
+                    const isCreating = reEnrollmentMutation.isPending && reEnrollmentMutation.variables?.studentId === candidate.studentId;
+                    return <TableRow key={candidate.studentId} tabIndex={canOpenDossier ? 0 : undefined}
+                      aria-label={canOpenDossier ? `Ouvrir le dossier de ${name}` : undefined}
+                      onClick={() => { if (canOpenDossier) navigate(dossierHref) }}
+                      onKeyDown={(event) => { if (canOpenDossier && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); navigate(dossierHref) } }}
+                      className={canOpenDossier ? "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" : undefined}>
+                      <TableCell><div className="flex items-center gap-3">
+                        <Avatar><AvatarFallback className="bg-blue-50 text-blue-700">{`${candidate.studentLastName.charAt(0)}${candidate.studentFirstName.charAt(0)}`.toLocaleUpperCase("fr-FR")}</AvatarFallback></Avatar>
+                        <div><span className="block font-medium">{name}</span>
+                          <span className="block text-xs text-muted-foreground">{candidate.studentMatricule ?? "Sans matricule"}</span>
                         </div>
-                        <Button
-                          className="min-h-12"
-                          disabled={
-                            !classSelections[candidate.studentId] ||
-                            reEnrollmentMutation.isPending
-                          }
-                          onClick={() =>
-                            reEnrollmentMutation.mutate({
-                              studentId: candidate.studentId,
-                              classId: classSelections[candidate.studentId]!,
-                            })
-                          }
-                        >
-                          {reEnrollmentMutation.isPending &&
-                          reEnrollmentMutation.variables?.studentId ===
-                            candidate.studentId ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <RefreshCw className="mr-2 h-4 w-4" />
-                          )}
-                          Créer la réinscription
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
+                      </div></TableCell>
+                      <TableCell>{candidate.currentClassName}<span className="block text-xs text-muted-foreground">{candidate.currentSchoolYearLabel}</span></TableCell>
+                      <TableCell>{candidate.finalDecision ? decisionLabel[candidate.finalDecision] : "Non validée"}</TableCell>
+                      <TableCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                        {existing ? existing.className : !candidate.finalDecision ? "À déterminer" : candidate.finalDecision === "expelled" ? "Sans classe d’accueil" : !targetYear || candidate.status !== "ready" ? <span>{candidate.nextLevelName ?? "Niveau à définir"}<span className="block text-xs text-muted-foreground">{candidate.status === "blocked_unpaid" ? "Classe à choisir après régularisation" : candidate.status === "financial_unavailable" ? "Classe à choisir après vérification du solde" : candidate.status === "decision_pending" ? "Classe à définir dans Fin d’année" : "Classe à choisir après ouverture"}</span></span> : <div className="min-w-44 space-y-1">
+                          <Label className="sr-only" htmlFor={`target-class-${candidate.studentId}`}>Classe d’accueil de {name}</Label>
+                          <Select value={classSelections[candidate.studentId] ?? ""}
+                            onValueChange={(value) => setClassSelections((current) => ({ ...current, [candidate.studentId]: value }))}>
+                            <SelectTrigger id={`target-class-${candidate.studentId}`} className="min-h-12">
+                              <SelectValue placeholder={classesQuery.isLoading ? "Chargement…" : eligibleClasses.length ? "Choisir la classe" : "Aucune classe compatible"} />
+                            </SelectTrigger>
+                            <SelectContent>{eligibleClasses.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent>
+                          </Select>
+                          <span className="text-xs text-muted-foreground">{candidate.nextLevelName ?? "Niveau à définir"}</span>
+                        </div>}
+                      </TableCell>
+                      <TableCell><Badge variant="outline" className={campaignStatusClassName[candidate.status]}>{campaignStatusLabels[candidate.status]}</Badge></TableCell>
+                      <TableCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                        {candidate.status === "ready" && targetYear ? <Button className="min-h-12"
+                          disabled={!classSelections[candidate.studentId] || reEnrollmentMutation.isPending}
+                          onClick={() => reEnrollmentMutation.mutate({ studentId: candidate.studentId, classId: classSelections[candidate.studentId]! })}>
+                          {isCreating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                          {isCreating ? "Création…" : "Réinscrire"}
+                        </Button> : <span className="text-sm text-muted-foreground">
+                          {candidate.status === "decision_pending" ? <>{candidate.finalDecision
+                            ? candidate.sourceSchoolYearStatus === "active" ? "La classe d’accueil doit être définie dans le menu Fin d’année." : "Classe d’accueil manquante pour cette décision ; contactez IvoirEdu."
+                            : candidate.sourceSchoolYearStatus === "active" ? "La décision de fin d’année doit être validée dans le menu Fin d’année." : "Décision de fin d’année absente pour cette année clôturée ; contactez IvoirEdu."}{candidate.sourceSchoolYearStatus === "active" && reviewStatusQuery.data?.visible && hasPermission("class_decisions.view") ? <> <Link className="font-medium text-primary underline" to="/end-of-year">Ouvrir Fin d’année</Link></> : null}</>
+                            : candidate.status === "ready" ? "La réinscription sera possible après l’ouverture de l’année suivante par IvoirEdu."
+                            : candidate.status === "blocked_unpaid" ? "Impayé de l’année d’origine à régulariser à la caisse."
+                            : candidate.status === "re_enrolled" ? "Réinscription confirmée."
+                            : candidate.status === "awaiting_cashier" ? "Dossier créé, passage en caisse attendu."
+                            : candidate.status === "awaiting_documents" ? "Dossier créé, pièces du dossier à compléter."
+                            : candidate.status === "financial_unavailable" ? "Solde de l’année d’origine indisponible : vérifiez le plan de scolarité."
+                            : "Élève exclu : réinscription impossible."}
+                        </span>}
+                      </TableCell>
+                    </TableRow>;
+                  })}
+                </TableBody>
+              </Table>
             </div>
           ) : null}
           {candidatesQuery.data &&

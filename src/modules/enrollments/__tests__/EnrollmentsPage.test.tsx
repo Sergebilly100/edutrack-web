@@ -25,6 +25,7 @@ vi.mock("../enrollments.api", async (importOriginal) => ({
 }))
 vi.mock("@/modules/class-decisions/class-decisions.api", () => ({
   listClassDecisions: mocks.listClassDecisions,
+  getEndOfYearReviewStatus: vi.fn().mockResolvedValue({ visible: false }),
 }))
 vi.mock("@/modules/students/students.api", () => ({ getStudentById: mocks.getStudentById }))
 vi.mock("@/modules/academic/academic.api", () => ({
@@ -320,15 +321,15 @@ describe("EnrollmentsPage", () => {
 
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Réinscriptions" }), { button: 0 })
 
-    expect(await screen.findByText(/Matricule : MAT-001/)).toBeInTheDocument()
-    expect(screen.getByLabelText("Année d’origine clôturée")).toBeInTheDocument()
-    expect(screen.getByRole("combobox", { name: "Année d’origine clôturée" })).toHaveTextContent("2026-2027")
+    expect(await screen.findByText("MAT-001")).toBeInTheDocument()
+    expect(screen.getByLabelText("Année d’origine")).toBeInTheDocument()
+    expect(screen.getByRole("combobox", { name: "Année d’origine" })).toHaveTextContent("2026-2027")
     expect(screen.getByLabelText("Niveau récent")).toBeInTheDocument()
     expect(screen.getByLabelText("Classe récente")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Voir dossier" }))
+    fireEvent.click(screen.getByRole("row", { name: "Ouvrir le dossier de KONÉ Awa" }))
     expect(await screen.findByText("Dossier complet de l’élève")).toBeInTheDocument()
     await waitFor(() => expect(mocks.listReEnrollmentCandidates).toHaveBeenCalledWith({
-      schoolYearId: "year-active", campaignStatus: "to_process", sourceSchoolYearId: "year-1", levelId: undefined, classId: undefined, search: undefined, page: 1, limit: 20,
+      schoolYearId: "year-active", campaignStatus: "all", sourceSchoolYearId: "year-1", levelId: undefined, classId: undefined, search: undefined, page: 1, limit: 20,
     }))
   })
 })

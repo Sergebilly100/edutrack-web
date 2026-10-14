@@ -23,8 +23,9 @@ test("C42 : la campagne ouvre l’historique annuel de l’élève sur mobile", 
       : pathname.endsWith("/enrollments/re-enrollment/candidates") ? {
         candidates: [{ studentId, studentFirstName: "Awa", studentLastName: "Koné", studentMatricule: "MAT-25",
           currentClassName: "6e A", currentSchoolYearId: previousYear.id, currentSchoolYearLabel: previousYear.label,
-          finalDecision: "promoted", nextLevelId: null, nextLevelName: null, enrollment: null }],
-        pagination: { page: 1, limit: 20, total: 1, totalPages: 1 }, counts: { toProcess: 1, awaitingCashier: 0, blockedUnpaid: 0, confirmed: 0, all: 1 },
+          finalDecision: "promoted", nextLevelId: null, nextLevelName: null, sourceSchoolYearStatus: "closed",
+          status: "decision_pending", enrollment: null }],
+        pagination: { page: 1, limit: 20, total: 1, totalPages: 1 }, counts: { decisionPending: 1, ready: 0, toProcess: 1, awaitingCashier: 0, blockedUnpaid: 0, reEnrolled: 0, excluded: 0, financialUnavailable: 0, confirmed: 0, all: 1 },
       }
       : pathname.endsWith(`/students/${studentId}/academic-history`) ? {
         student: { id: studentId, firstName: "Awa", lastName: "Koné", matricule: "MAT-25" },
@@ -86,10 +87,13 @@ test("C42 : la campagne ouvre l’historique annuel de l’élève sur mobile", 
   })
 
   await page.goto("/enrollments?tab=re-enrollment")
-  await expect(page.getByRole("heading", { name: `Campagne ${activeYear.label}` })).toBeVisible()
+  await expect(page.getByRole("heading", { name: `Campagne de réinscription → année ${activeYear.label}` })).toBeVisible()
   await expect(page.getByRole("combobox", { name: "Année cible active" })).toHaveCount(0)
-  await expect(page.getByRole("button", { name: "Voir dossier" })).toBeVisible()
-  await page.getByRole("button", { name: "Voir dossier" }).click()
+  await page.setViewportSize({ width: 320, height: 800 })
+  await expect(page.getByRole("region", { name: "Tableau des candidats à la réinscription" })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await expect(page.getByRole("row", { name: "Ouvrir le dossier de KONÉ Awa" })).toBeVisible()
+  await page.getByRole("row", { name: "Ouvrir le dossier de KONÉ Awa" }).click()
   await expect(page).toHaveURL(new RegExp(`/students/${studentId}/history\\?year=${previousYear.id}&returnTo=`))
   for (const width of [320, 360, 393]) {
     await page.setViewportSize({ width, height: 800 })
@@ -147,21 +151,17 @@ test("C42 : la campagne ouvre l’historique annuel de l’élève sur mobile", 
   await page.goto("/enrollments")
   await page.setViewportSize({ width: 320, height: 800 })
   await expect(page.getByText(`Année active : ${activeYear.label}`)).toBeVisible()
-  await expect(page.locator("article").getByText("Koné Awa")).toBeVisible()
-  const archivedDraft = page.locator("article").filter({ hasText: "Coulibaly Aya" })
-  await expect(archivedDraft.getByText("Année clôturée · Consultation seule")).toBeVisible()
-  await expect(archivedDraft.getByRole("link", { name: "Voir le dossier" })).toBeVisible()
-  await expect(archivedDraft.getByRole("link", { name: "Modifier" })).toHaveCount(0)
-  await expect(archivedDraft.getByRole("link", { name: "Caisse" })).toHaveCount(0)
+  await expect(page.getByRole("link", { name: "Ouvrir le dossier de KONÉ Awa" })).toBeVisible()
+  await expect(page.getByRole("link", { name: "Ouvrir le dossier de COULIBALY Aya" })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   if (process.env.C42_CAPTURE === "1") await page.screenshot({ path: "/tmp/c42-inscriptions-mobile.png", fullPage: true })
   const searchedRequest = page.waitForRequest((request) => request.url().includes("/api/v1/enrollments?") && new URL(request.url()).searchParams.get("search") === "MAT-25")
-  await page.getByRole("searchbox", { name: "Rechercher une inscription par nom ou matricule" }).fill("MAT-25")
+  await page.getByRole("searchbox", { name: "Élève, nom ou matricule" }).fill("MAT-25")
   await searchedRequest
-  await page.locator("article").filter({ hasText: "Koné Awa" }).getByRole("link", { name: "Voir le dossier" }).click()
+  await page.getByRole("link", { name: "Ouvrir le dossier de KONÉ Awa" }).click()
   expect(new URL(page.url()).searchParams.get("returnTo")).toBe("/enrollments?search=MAT-25")
   await page.getByRole("button", { name: "Retour" }).click()
-  await expect(page.getByRole("searchbox", { name: "Rechercher une inscription par nom ou matricule" })).toHaveValue("MAT-25")
+  await expect(page.getByRole("searchbox", { name: "Élève, nom ou matricule" })).toHaveValue("MAT-25")
 })
 
 test("C42 : une fiche active ouvre une année passée puis revient à l’année active", async ({ page }) => {
