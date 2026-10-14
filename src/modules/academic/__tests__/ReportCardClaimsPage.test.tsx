@@ -71,10 +71,11 @@ describe("ReportCardClaimsPage", () => {
     expect(screen.getByText("Active")).toBeInTheDocument()
   })
 
-  it("annonce l'impact publié sans offrir le déverrouillage à un poste ordinaire", async () => {
+  it("ouvre le détail depuis la ligne et annonce l'impact publié sans déverrouillage ordinaire", async () => {
     renderPage()
-    expect(await screen.findByText("Autorisation exceptionnelle requise")).toBeInTheDocument()
-    expect(screen.getByText("Élève concerné : Aya Test")).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole("button", { name: "Voir la réclamation de Aya Test" }))
+    expect(screen.getByRole("dialog", { name: "Détail de la réclamation" })).toBeInTheDocument()
+    expect(screen.getByText(/Cible :/).parentElement).toHaveTextContent("Aya Test")
     expect(screen.getByText(/retirera tous les bulletins publiés/)).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText("Motif de la décision"), { target: { value: "Erreur confirmée par contrôle" } })
     expect(screen.getByRole("button", { name: "Approuver et ouvrir la correction" })).toBeDisabled()
@@ -84,7 +85,7 @@ describe("ReportCardClaimsPage", () => {
   it("permet au censeur délégué d'approuver avec un motif", async () => {
     mocks.permissions.push("report_cards.published_correction")
     renderPage()
-    expect(await screen.findByText("Autorisation exceptionnelle requise")).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole("button", { name: "Voir la réclamation de Aya Test" }))
     fireEvent.change(screen.getByLabelText("Motif de la décision"), { target: { value: "Erreur confirmée par contrôle" } })
     fireEvent.click(screen.getByRole("button", { name: "Approuver et ouvrir la correction" }))
     await waitFor(() => expect(mocks.decideClaim).toHaveBeenCalledWith("claim-1", {
@@ -93,22 +94,46 @@ describe("ReportCardClaimsPage", () => {
     expect(mocks.listVersions).toHaveBeenCalled()
   })
 
-  it("exige un motif détaillé pour ouvrir la réclamation", async () => {
+  it("ouvre et ferme le panneau, puis valide les champs manquants", async () => {
     mocks.listClaims.mockResolvedValue([])
-    renderPage()
+    renderPage("/academic/report-card-claims")
     expect(await screen.findByText("Aucune réclamation")).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole("button", { name: "Nouvelle réclamation" })[0])
+    expect(screen.getByRole("dialog", { name: "Nouvelle réclamation" })).toHaveClass("left-[50%]", "top-[50%]")
     const button = screen.getByRole("button", { name: "Ouvrir la réclamation" })
     expect(button).toBeEnabled()
     fireEvent.click(button)
-    expect(screen.getByRole("alert")).toHaveTextContent("Décrivez le motif en au moins 10 caractères.")
+    expect(screen.getByRole("alert")).toHaveTextContent("Sélectionnez une classe, une période et une matière dont les moyennes sont validées.")
+    expect(screen.getByText("Sélectionnez une classe.")).toBeInTheDocument()
     expect(screen.getByLabelText("Motif détaillé")).toHaveAttribute("aria-invalid", "true")
     expect(mocks.createClaim).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Annuler" }))
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Nouvelle réclamation" })).not.toBeInTheDocument())
+  })
+
+  it("préremplit le formulaire depuis les filtres et crée une réclamation de classe", async () => {
+    mocks.listClaims.mockResolvedValue([])
+    renderPage()
+    expect(await screen.findByText("Aucune réclamation")).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole("button", { name: "Nouvelle réclamation" })[0])
+    expect(screen.getByRole("combobox", { name: "Classe" })).toHaveTextContent("6ème A")
+    expect(screen.getByRole("combobox", { name: "Période" })).toHaveTextContent("Trimestre 1")
     fireEvent.change(screen.getByLabelText("Motif détaillé"), { target: { value: "Erreur sur la note finale" } })
-    await waitFor(() => expect(button).toBeEnabled())
-    fireEvent.click(button)
+    expect(screen.getByText("25 / 4 000")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Ouvrir la réclamation" }))
     await waitFor(() => expect(mocks.createClaim).toHaveBeenCalledWith({
       classId: "class-1", subjectId: "subject-1", gradingPeriodId: "period-1", reason: "Erreur sur la note finale",
       studentId: undefined,
     }))
+  })
+
+  it("filtre par statut et conserve le compteur de chaque statut", async () => {
+    mocks.listClaims.mockResolvedValue([claim, { ...claim, id: "claim-2", status: "refused", student_name: null, student_id: null }])
+    renderPage()
+    expect(await screen.findByRole("button", { name: "Toutes · 2" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Refusée · 1" }))
+    expect(screen.getByRole("button", { name: "Refusée · 1" })).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("button", { name: "Voir la réclamation de toute la classe" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Voir la réclamation de Aya Test" })).not.toBeInTheDocument()
   })
 })
