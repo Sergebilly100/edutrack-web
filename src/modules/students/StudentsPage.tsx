@@ -2,7 +2,7 @@ import { birthDateIssue, yesterdayInBusinessTimezone } from "@/shared/lib/date-v
 import { useEffect, useMemo, useState } from "react"
 import type { Column, ColumnDef } from "@tanstack/react-table"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import axios from "axios"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -25,7 +25,6 @@ import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { listClasses, listLevels } from "@/modules/academic/academic.api"
 import StudentAbsencePanel from "@/modules/students/components/StudentAbsencePanel"
-import { RecordsNavigation } from "@/modules/students/components/RecordsNavigation"
 import { createStudent, getAttendanceHistory, listStudents, type StudentItem } from "@/modules/students/students.api"
 import { DataTable, EmptyState, OfflineGuard, PageLayout } from "@/shared/components"
 import { TourGuide } from "@/shared/components/TourGuide"
@@ -372,6 +371,7 @@ export default function StudentsPage() {
       subtitle={`Liste des ${studentLabels.pluralLower} et suivi des absences`}
       actions={
         <div className="flex flex-wrap gap-2">
+          {canViewStudents ? <Button asChild variant="outline" className="min-h-12"><Link to="/students/history">Tous les dossiers élèves</Link></Button> : null}
           <Button
             type="button"
             variant="outline"
@@ -394,7 +394,6 @@ export default function StudentsPage() {
         </div>
       }
     >
-      <RecordsNavigation />
       <Tabs
         value={activeTab}
         onValueChange={(value) => {

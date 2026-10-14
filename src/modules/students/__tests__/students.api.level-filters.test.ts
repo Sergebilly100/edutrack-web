@@ -10,6 +10,7 @@ import {
   getStudentAbsenceStats,
   listCashierCandidates,
   listFinancialProfiles,
+  listHistoryProfiles,
   listStudents,
 } from "@/modules/students/students.api"
 
@@ -30,6 +31,13 @@ describe("students.api : filtres de niveau", () => {
     await listFinancialProfiles({ schoolYearId: "year-current", includeBlockedReEnrollments: true, search: "Awa" })
     expect(getMock).toHaveBeenCalledWith("/students/financial-profiles", expect.objectContaining({
       params: expect.objectContaining({ school_year_id: "year-current", include_blocked_reenrollments: "true", search: "Awa" }),
+    }))
+  })
+
+  it("transmet l’année et le niveau au répertoire de tous les dossiers", async () => {
+    await listHistoryProfiles({ schoolYearId: "year-old", levelId, search: "Aya" })
+    expect(getMock).toHaveBeenCalledWith("/students/history-directory", expect.objectContaining({
+      params: expect.objectContaining({ school_year_id: "year-old", level_id: levelId, search: "Aya" }),
     }))
   })
 

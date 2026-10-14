@@ -55,6 +55,7 @@ const enrollment = (id: string, firstName: string) => ({
 describe("EnrollmentsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, value: vi.fn() })
     mocks.listClassDecisions.mockResolvedValue({ decisions: [] })
     mocks.listSchoolYears.mockResolvedValue([])
     mocks.listLevels.mockResolvedValue([])
@@ -98,6 +99,41 @@ describe("EnrollmentsPage", () => {
     )
     fireEvent.change(screen.getByRole("searchbox", { name: "Rechercher une inscription par nom ou matricule" }), { target: { value: "MAT-001" } })
     await waitFor(() => expect(mocks.listEnrollments).toHaveBeenCalledWith(expect.objectContaining({ search: "MAT-001", page: 1 })))
+  })
+
+  it("identifie l’année active et limite les anciens dossiers à la consultation", async () => {
+    mocks.listSchoolYears.mockResolvedValue([
+      { id: "year-old", label: "2025-2026", status: "closed" },
+      { id: "year-active", label: "2026-2027", status: "active" },
+    ])
+    mocks.listEnrollments.mockResolvedValue({
+      enrollments: [
+        { ...enrollment("old", "Aya"), schoolYearId: "year-old", schoolYearLabel: "2025-2026" },
+        { ...enrollment("active", "Awa"), schoolYearId: "year-active", schoolYearLabel: "2026-2027" },
+      ],
+      pagination: { page: 1, limit: 20, total: 2, totalPages: 1 },
+    })
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={["/enrollments"]}><EnrollmentsPage /></MemoryRouter>
+    </QueryClientProvider>)
+
+    expect(await screen.findByText("Année scolaire active : 2026-2027")).toBeInTheDocument()
+    const table = screen.getByRole("table")
+    const archivedRow = within(table).getByRole("row", { name: /Koné Aya/ })
+    expect(within(archivedRow).getByText(/Année clôturée · Consultation seule/)).toBeInTheDocument()
+    expect(within(archivedRow).getByRole("link", { name: "Voir le dossier" })).toBeInTheDocument()
+    expect(within(archivedRow).queryByRole("link", { name: "Modifier" })).not.toBeInTheDocument()
+    expect(within(archivedRow).queryByRole("link", { name: "Caisse" })).not.toBeInTheDocument()
+    const activeRow = within(table).getByRole("row", { name: /Koné Awa/ })
+    expect(within(activeRow).getByRole("link", { name: "Modifier" })).toBeInTheDocument()
+    expect(within(activeRow).getByRole("link", { name: "Caisse" })).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "Modifier" })).toHaveLength(2)
+    expect(screen.getAllByRole("link", { name: "Caisse" })).toHaveLength(2)
+    fireEvent.click(screen.getByRole("combobox", { name: "Année scolaire" }))
+    expect(await screen.findByRole("option", { name: "2026-2027 · Année active" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("option", { name: "2025-2026 · Année clôturée" }))
+    expect(await screen.findByText("Dossiers 2025-2026 · consultation seule.")).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Nouvelle inscription" })).not.toBeInTheDocument()
   })
 
   it("ne plante pas quand une ancienne donnée imbriquée subsiste dans le cache", async () => {
@@ -144,7 +180,7 @@ describe("EnrollmentsPage", () => {
       </QueryClientProvider>,
     )
 
-    fireEvent.click(screen.getByRole("link", { name: "Réinscriptions" }))
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Réinscriptions" }), { button: 0 })
 
     expect(await screen.findByText(/Matricule : MAT-001/)).toBeInTheDocument()
     expect(screen.getByLabelText("Année d’origine clôturée")).toBeInTheDocument()

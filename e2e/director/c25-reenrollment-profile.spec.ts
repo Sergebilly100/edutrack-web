@@ -6,6 +6,7 @@ const previousYear = { id: "22222222-2222-4222-8222-222222222222", label: "2025-
 const olderYear = { id: "44444444-4444-4444-8444-444444444444", label: "2024-2025", status: "closed", startDate: "2024-09-01", endDate: "2025-06-30" }
 const oldestYear = { id: "55555555-5555-4555-8555-555555555555", label: "2023-2024", status: "closed", startDate: "2023-09-01", endDate: "2024-06-30" }
 const studentId = "33333333-3333-4333-8333-333333333333"
+const historicalLevelId = "66666666-6666-4666-8666-666666666666"
 
 test("C42 : la campagne ouvre l’historique annuel de l’élève sur mobile", async ({ page }) => {
   await returningUser(page)
@@ -14,7 +15,7 @@ test("C42 : la campagne ouvre l’historique annuel de l’élève sur mobile", 
     const user = { id: "director-c25", role: "director", name: "Directeur C25", phone: null, email: null, profilePhotoUrl: null, mustChangePassword: false }
     const payload = pathname.endsWith("/auth/refresh") ? { accessToken: "token-c25", tokenType: "Bearer", expiresIn: 3600, user }
       : pathname.endsWith("/auth/me") ? { user, tenant: { id: "tenant-c25", status: "active", trialEndsAt: null } }
-      : pathname.endsWith("/permissions/me") ? { permissions: ["enrollments.view", "enrollments.create", "students.view", "students.documents", "report_cards.view", "evaluations.view", "attendance.view", "payments.view"] }
+      : pathname.endsWith("/permissions/me") ? { permissions: ["enrollments.view", "enrollments.create", "enrollments.edit", "enrollments.confirm_payment", "students.view", "students.edit", "students.documents", "report_cards.view", "evaluations.view", "attendance.view", "payments.view"] }
       : pathname.endsWith("/school/info") ? { onboarding_completed: true }
       : pathname.endsWith("/school-years") ? { schoolYears: [activeYear, previousYear, olderYear, oldestYear] }
       : pathname.endsWith("/levels") ? { levels: [] }
@@ -74,12 +75,19 @@ test("C42 : la campagne ouvre l’historique annuel de l’élève sur mobile", 
         classId: "class-old", className: "6e A", schoolYearId: previousYear.id, schoolYearLabel: previousYear.label,
         type: "re_registration", status: "confirmed", enrolledAt: "2025-09-01T08:00:00.000Z",
         documentStatus: "complete", missingMandatoryDocumentCount: 0,
-      }], pagination: { page: 1, limit: 20, total: 1, totalPages: 1 } }
+      }, {
+        id: "enrollment-archive-pending", studentId: "77777777-7777-4777-8777-777777777777", studentFirstName: "Aya", studentLastName: "Coulibaly",
+        classId: "class-old", className: "6e A", schoolYearId: previousYear.id, schoolYearLabel: previousYear.label,
+        type: "new_registration", status: "pending_cashier", enrolledAt: "2025-09-02T08:00:00.000Z",
+        documentStatus: "incomplete", missingMandatoryDocumentCount: 1,
+      }], pagination: { page: 1, limit: 20, total: 2, totalPages: 1 } }
       : { data: [] }
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(payload) })
   })
 
   await page.goto("/enrollments?tab=re-enrollment")
+  await expect(page.getByRole("heading", { name: `Campagne ${activeYear.label}` })).toBeVisible()
+  await expect(page.getByRole("combobox", { name: "Année cible active" })).toHaveCount(0)
   await expect(page.getByRole("button", { name: "Voir dossier" })).toBeVisible()
   await page.getByRole("button", { name: "Voir dossier" }).click()
   await expect(page).toHaveURL(new RegExp(`/students/${studentId}/history\\?year=${previousYear.id}&returnTo=`))
@@ -138,13 +146,19 @@ test("C42 : la campagne ouvre l’historique annuel de l’élève sur mobile", 
   await expect(page.getByText("RC-RECENT")).toHaveCount(0)
   await page.goto("/enrollments")
   await page.setViewportSize({ width: 320, height: 800 })
+  await expect(page.getByText(`Année scolaire active : ${activeYear.label}`)).toBeVisible()
   await expect(page.locator("article").getByText("Koné Awa")).toBeVisible()
+  const archivedDraft = page.locator("article").filter({ hasText: "Coulibaly Aya" })
+  await expect(archivedDraft.getByText("Année clôturée · Consultation seule")).toBeVisible()
+  await expect(archivedDraft.getByRole("link", { name: "Voir le dossier" })).toBeVisible()
+  await expect(archivedDraft.getByRole("link", { name: "Modifier" })).toHaveCount(0)
+  await expect(archivedDraft.getByRole("link", { name: "Caisse" })).toHaveCount(0)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   if (process.env.C42_CAPTURE === "1") await page.screenshot({ path: "/tmp/c42-inscriptions-mobile.png", fullPage: true })
   const searchedRequest = page.waitForRequest((request) => request.url().includes("/api/v1/enrollments?") && new URL(request.url()).searchParams.get("search") === "MAT-25")
   await page.getByRole("searchbox", { name: "Rechercher une inscription par nom ou matricule" }).fill("MAT-25")
   await searchedRequest
-  await page.locator("article").getByRole("link", { name: "Voir le dossier" }).click()
+  await page.locator("article").filter({ hasText: "Koné Awa" }).getByRole("link", { name: "Voir le dossier" }).click()
   expect(new URL(page.url()).searchParams.get("returnTo")).toBe("/enrollments?search=MAT-25")
   await page.getByRole("button", { name: "Retour" }).click()
   await expect(page.getByRole("searchbox", { name: "Rechercher une inscription par nom ou matricule" })).toHaveValue("MAT-25")
@@ -167,6 +181,8 @@ test("C42 : une fiche active ouvre une année passée puis revient à l’année
       : pathname.endsWith("/auth/me") ? { user, tenant: { id: "tenant-c42", status: "active", trialEndsAt: null } }
       : pathname.endsWith("/permissions/me") ? { permissions: ["students.view"] }
       : pathname.endsWith("/school/info") ? { onboarding_completed: true }
+      : pathname.endsWith("/school-years") ? { schoolYears: [activeYear, previousYear] }
+      : pathname.endsWith("/levels") ? { levels: [{ id: historicalLevelId, name: "6e", orderIndex: 1, isExamClass: false }] }
       : pathname.endsWith(`/students/${studentId}/school-profile`) ? { data: profile }
       : pathname.endsWith(`/students/${studentId}/historical-profile`) ? { data: {
         ...profile, latestConfirmedSchoolYear: { id: previousYear.id, label: previousYear.label, className: "6e A" }, confirmedInActiveYear: true,
@@ -192,14 +208,17 @@ test("C42 : une fiche active ouvre une année passée puis revient à l’année
   await expect(page.getByText("Total dû")).toHaveCount(0)
   await page.getByRole("button", { name: "Voir l’année active" }).click()
   await expect(page).toHaveURL(new RegExp(`/students/${studentId}$`))
-  await page.goto("/students/history")
-  await expect(page.getByText("Koné Awa")).toBeVisible()
+  await page.goto("/students")
+  await page.getByRole("link", { name: "Tous les dossiers élèves" }).click()
+  await expect(page).toHaveURL(/\/students\/history$/)
+  await expect(page.getByRole("link", { name: "Ouvrir le dossier" })).toBeVisible()
   await page.getByRole("link", { name: "Ouvrir le dossier" }).click()
   await expect(page).toHaveURL(new RegExp(`/students/${studentId}/history`))
   expect(new URL(page.url()).searchParams.get("returnTo")).toBe("/students/history")
   await expect(page.locator('[data-tour="student-detail-profile"]')).toContainText(`5e A · ${activeYear.label}`)
 
   await page.goto("/records")
+  await expect(page).toHaveURL(/\/students\/history$/)
   for (const width of [320, 360, 393]) {
     await page.setViewportSize({ width, height: 800 })
     await expect(page.getByRole("searchbox", { name: "Nom ou matricule" })).toBeVisible()
@@ -207,11 +226,24 @@ test("C42 : une fiche active ouvre une année passée puis revient à l’année
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     if (width === 320 && process.env.C42_CAPTURE === "1") await page.screenshot({ path: "/tmp/c42-dossiers-mobile.png", fullPage: true })
   }
+  await page.getByRole("combobox", { name: "Année scolaire" }).click()
+  await page.getByRole("option", { name: previousYear.label }).click()
+  await page.getByRole("combobox", { name: "Niveau" }).click()
+  await page.getByRole("option", { name: "6e" }).click()
+  await expect(page.getByRole("link", { name: "Ouvrir le dossier" })).toHaveAttribute("href", new RegExp(`year=${previousYear.id}`))
+  expect(new URL(page.url()).searchParams.get("level")).toBe(historicalLevelId)
+  await page.getByRole("combobox", { name: "Année scolaire" }).click()
+  await page.getByRole("option", { name: "Toutes les années" }).click()
+  await expect.poll(() => new URL(page.url()).searchParams.get("year")).toBeNull()
+  await page.getByRole("combobox", { name: "Niveau" }).click()
+  await page.getByRole("option", { name: "Tous les niveaux" }).click()
+  await expect.poll(() => new URL(page.url()).searchParams.get("level")).toBeNull()
+  await expect(page.getByRole("combobox", { name: "Niveau" })).toContainText("Tous les niveaux")
   await page.getByRole("searchbox", { name: "Nom ou matricule" }).fill("MAT-25")
   await page.getByRole("button", { name: "Inscrits cette année" }).click()
   await expect(page.getByText("5e A", { exact: true })).toBeVisible()
   await page.getByRole("link", { name: "Ouvrir le dossier" }).click()
-  expect(new URL(page.url()).searchParams.get("returnTo")).toBe("/records?search=MAT-25&scope=current")
+  expect(new URL(page.url()).searchParams.get("returnTo")).toBe("/students/history?search=MAT-25&scope=current")
   await page.getByRole("button", { name: "Retour" }).click()
   await expect(page.getByRole("searchbox", { name: "Nom ou matricule" })).toHaveValue("MAT-25")
   await expect(page.getByRole("button", { name: "Inscrits cette année" })).toHaveAttribute("aria-pressed", "true")

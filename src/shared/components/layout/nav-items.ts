@@ -9,6 +9,7 @@ import {
   SalaryIcon,
   ScheduleIcon,
   SettingsIcon,
+  StudentsIcon,
   TeachersIcon,
   ClassIcon,
 } from "@/shared/components/icons"
@@ -29,7 +30,6 @@ export interface NavItem {
   mobileVisible: boolean
   matchExact?: boolean
   activePaths?: string[]
-  activePrefixes?: string[]
   excludedPaths?: string[]
   requiresEndOfYearReview?: boolean
 }
@@ -53,14 +53,22 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: true,
   },
   {
-    label: "Inscriptions & dossiers",
-    href: "/records",
+    label: "Inscriptions",
+    href: "/enrollments",
     icon: FileCheck2,
     group: "Vie scolaire",
     roles: ["director", "staff"],
-    requiredAnyPermissions: ["students.view", "enrollments.view"],
+    requiredPermissions: ["enrollments.view"],
     mobileVisible: true,
-    activePrefixes: ["/students", "/enrollments"],
+  },
+  {
+    label: "Élèves",
+    href: "/students",
+    icon: StudentsIcon,
+    group: "Vie scolaire",
+    roles: ["director", "staff"],
+    requiredPermissions: ["students.view"],
+    mobileVisible: true,
   },
   {
     label: "Professeurs",
@@ -350,8 +358,6 @@ export function isNavItemActive(item: NavItem, pathname: string, search: string)
 
   if (item.excludedPaths?.some((path) => pathname === path || pathname.startsWith(`${path}/`))) return false
 
-  if (item.activePrefixes?.some((path) => pathname === path || pathname.startsWith(`${path}/`))) return true
-
   if (item.activePaths) {
     return item.activePaths.includes(pathname)
   }
@@ -393,23 +399,26 @@ const hasPermissions = (
 export function getNavItemsByRole(
   role: AuthRole | undefined,
   permissions: PermissionKey[] = [],
-  _studentPluralLabel?: string,
+  studentPluralLabel?: string,
 ): NavItem[] {
   if (!role) {
     return []
   }
 
   const roleItems = NAV_ITEMS.filter((item) => item.roles.includes(role))
+  const withStudentLabel = (items: NavItem[]) => items.map((item) =>
+    item.href === "/students" && studentPluralLabel ? { ...item, label: studentPluralLabel } : item
+  )
   if (role === "director" || role === "super_admin") {
-    return roleItems
+    return withStudentLabel(roleItems)
   }
 
   if (!isStaffRole(role) && role !== "teacher") {
-    return roleItems
+    return withStudentLabel(roleItems)
   }
 
   const permissionsSet = new Set<PermissionKey>(permissions)
-  return roleItems.filter((item) => hasPermissions(item, permissionsSet))
+  return withStudentLabel(roleItems.filter((item) => hasPermissions(item, permissionsSet)))
 }
 
 export function filterNavItemsByFeatures(

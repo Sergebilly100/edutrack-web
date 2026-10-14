@@ -416,7 +416,7 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
   const parentSmsRows = student.parentSms.filter((row) => !historical || (selectedYear &&
     row.date.slice(0, 10) >= selectedYear.startDate && row.date.slice(0, 10) <= selectedYear.endDate))
   const params = new URLSearchParams(location.search)
-  const returnTo = params.get("returnTo") || "/records"
+  const returnTo = params.get("returnTo") || "/students"
   const sentSmsCount = parentSmsRows.filter((row) => row.status === "sent" || row.status === "delivered").length
   const failedSmsCount = parentSmsRows.filter((row) => row.status === "failed").length
   const hasParentContact = Boolean(parentPhone.trim() || parentPhone2.trim())

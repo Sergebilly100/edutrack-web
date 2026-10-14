@@ -38,7 +38,8 @@ describe('Réinscriptions', () => {
       <MemoryRouter initialEntries={['/enrollments?tab=re-enrollment']}><EnrollmentsPage /></MemoryRouter>
     </QueryClientProvider>)
     expect(await screen.findByText('Koné Aya')).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Année cible active' })).toHaveTextContent('2026-2027 · Active')
+    expect(screen.getByRole('heading', { name: 'Campagne 2026-2027' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Année cible active' })).not.toBeInTheDocument()
     const form = await screen.findByLabelText('Réinscription de Aya Koné')
     fireEvent.keyDown(form.querySelector('[role="combobox"]')!, { key: 'ArrowDown' })
     fireEvent.click(await screen.findByRole('option', { name: /5e A/ }))

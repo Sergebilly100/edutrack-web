@@ -7,11 +7,12 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { EmptyState, PageLayout } from "@/shared/components"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { useDebounce } from "@/shared/hooks/useDebounce"
+import { listLevels, listSchoolYears } from "@/modules/academic/academic.api"
 import { listHistoryProfiles, listStudents } from "@/modules/students/students.api"
-import { RecordsNavigation } from "@/modules/students/components/RecordsNavigation"
 
 const pageSize = 20
 
@@ -21,22 +22,46 @@ export default function StudentHistoryDirectoryPage() {
   const [search, setSearch] = useState(searchParams.get("search") ?? "")
   const [page, setPage] = useState(1)
   const scope = searchParams.get("scope") === "current" ? "current" : "all"
+  const schoolYearId = scope === "all" ? searchParams.get("year") ?? "" : ""
+  const levelId = searchParams.get("level") ?? ""
   const debouncedSearch = useDebounce(search.trim(), 200)
   const searchPending = search.trim() !== debouncedSearch
+  const yearsQuery = useQuery({ queryKey: ["academic", "school-years"], queryFn: listSchoolYears })
+  const levelsQuery = useQuery({ queryKey: ["academic", "levels"], queryFn: listLevels })
   const query = useQuery({
-    queryKey: ["students", "records-directory", scope, debouncedSearch, page],
+    queryKey: ["students", "records-directory", scope, schoolYearId, levelId, debouncedSearch, page],
     queryFn: () => (scope === "current" ? listStudents : listHistoryProfiles)({
       page,
       limit: pageSize,
       search: debouncedSearch || undefined,
+      schoolYearId: schoolYearId || undefined,
+      levelId: levelId || undefined,
     }),
   })
   const returnTo = `${location.pathname}${location.search}`
+  const detailHref = (studentId: string, matchedYearId?: string) => {
+    const detailSearch = new URLSearchParams()
+    const selectedYearId = schoolYearId || matchedYearId
+    if (selectedYearId) detailSearch.set("year", selectedYearId)
+    detailSearch.set("returnTo", returnTo)
+    return `/students/${studentId}/history?${detailSearch.toString()}`
+  }
 
   const setScope = (nextScope: "all" | "current") => {
     const next = new URLSearchParams(searchParams)
     if (nextScope === "all") next.delete("scope")
-    else next.set("scope", nextScope)
+    else {
+      next.set("scope", nextScope)
+      next.delete("year")
+    }
+    setSearchParams(next, { replace: true })
+    setPage(1)
+  }
+
+  const setFilter = (key: "year" | "level", value: string) => {
+    const next = new URLSearchParams(searchParams)
+    if (value === "all") next.delete(key)
+    else next.set(key, value)
     setSearchParams(next, { replace: true })
     setPage(1)
   }
@@ -51,9 +76,8 @@ export default function StudentHistoryDirectoryPage() {
   }
 
   return (
-    <PageLayout title="Inscriptions & dossiers" subtitle="Retrouvez un élève par nom ou matricule, même sans inscription active.">
+    <PageLayout title="Tous les dossiers élèves" subtitle="Retrouvez un élève par nom ou matricule, même sans inscription active." actions={<Button asChild variant="outline" className="min-h-12"><Link to="/students">Retour aux élèves</Link></Button>}>
       <div className="space-y-5">
-        <RecordsNavigation />
         <section aria-label="Trouver un dossier élève" className="space-y-4 rounded-lg border bg-card p-4 sm:p-6">
           <div className="space-y-2">
             <Label htmlFor="records-student-search">Nom ou matricule</Label>
@@ -75,10 +99,33 @@ export default function StudentHistoryDirectoryPage() {
             <Button type="button" variant={scope === "all" ? "secondary" : "outline"} className="min-h-12" aria-pressed={scope === "all"} onClick={() => setScope("all")}>Tous les dossiers</Button>
             <Button type="button" variant={scope === "current" ? "secondary" : "outline"} className="min-h-12" aria-pressed={scope === "current"} onClick={() => setScope("current")}>Inscrits cette année</Button>
           </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {scope === "all" ? <div className="space-y-2">
+              <Label htmlFor="records-year-filter">Année scolaire</Label>
+              <Select value={schoolYearId || "all"} onValueChange={(value) => setFilter("year", value)}>
+                <SelectTrigger id="records-year-filter" className="min-h-12"><SelectValue placeholder="Toutes les années" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes les années</SelectItem>
+                  {(yearsQuery.data ?? []).filter((year) => year.status !== "draft").map((year) => <SelectItem key={year.id} value={year.id}>{year.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div> : null}
+            <div className="space-y-2">
+              <Label htmlFor="records-level-filter">Niveau</Label>
+              <Select value={levelId || "all"} onValueChange={(value) => setFilter("level", value)}>
+                <SelectTrigger id="records-level-filter" className="min-h-12"><SelectValue placeholder="Tous les niveaux" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les niveaux</SelectItem>
+                  {(levelsQuery.data ?? []).map((level) => <SelectItem key={level.id} value={level.id}>{level.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {yearsQuery.isError || levelsQuery.isError ? <QueryErrorState title="Filtres indisponibles" message="Impossible de charger les années scolaires ou les niveaux." onRetry={() => { void yearsQuery.refetch(); void levelsQuery.refetch() }} /> : null}
         </section>
         {query.isPending || searchPending ? <p className="text-sm text-muted-foreground" role="status">Recherche des dossiers…</p> : null}
         {!searchPending && query.isError ? <QueryErrorState title="Dossiers indisponibles" message="Impossible de charger les dossiers élèves." onRetry={() => void query.refetch()} /> : null}
-        {!searchPending && query.isSuccess && query.data.data.length === 0 ? <EmptyState title="Aucun dossier trouvé" description={search ? "Vérifiez le nom ou le matricule, ou affichez tous les dossiers." : scope === "current" ? "Aucun élève confirmé cette année. Essayez Tous les dossiers." : "Aucun profil élève disponible."} /> : null}
+        {!searchPending && query.isSuccess && query.data.data.length === 0 ? <EmptyState title="Aucun dossier trouvé" description={search || schoolYearId || levelId ? "Aucun élève ne correspond à la recherche et aux filtres sélectionnés." : scope === "current" ? "Aucun élève confirmé cette année. Essayez Tous les dossiers." : "Aucun profil élève disponible."} /> : null}
         {!searchPending && query.isSuccess && query.data.data.length > 0 ? <>
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
             <p>{query.data.pagination.total} dossier{query.data.pagination.total > 1 ? "s" : ""} trouvé{query.data.pagination.total > 1 ? "s" : ""}</p>
@@ -90,10 +137,11 @@ export default function StudentHistoryDirectoryPage() {
                 <p className="font-medium">{student.lastName} {student.firstName}</p>
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                   <span>{student.matricule ? `Matricule : ${student.matricule}` : "Matricule non renseigné"}</span>
-                  {scope === "current" && student.className ? <Badge variant="secondary">{student.className}</Badge> : null}
+                  {student.schoolYearLabel ? <Badge variant="outline">{student.schoolYearLabel}</Badge> : null}
+                  {(scope === "current" || schoolYearId || levelId) && student.className ? <Badge variant="secondary">{student.className}</Badge> : null}
                 </div>
               </div>
-              <Button variant="outline" className="min-h-12 w-full sm:w-auto" asChild><Link to={`/students/${student.id}/history?returnTo=${encodeURIComponent(returnTo)}`}>Ouvrir le dossier</Link></Button>
+              <Button variant="outline" className="min-h-12 w-full sm:w-auto" asChild><Link to={detailHref(student.id, student.schoolYearId)}>Ouvrir le dossier</Link></Button>
             </div>)}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm">

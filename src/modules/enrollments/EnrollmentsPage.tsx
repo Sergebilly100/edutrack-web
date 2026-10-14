@@ -33,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import {
   listClasses,
@@ -45,7 +45,6 @@ import { PageLayout } from "@/shared/components/PageLayout";
 import { QueryErrorState } from "@/shared/components/QueryErrorState";
 import { usePermissions } from "@/shared/hooks/usePermissions";
 import { useDebounce } from "@/shared/hooks/useDebounce";
-import { RecordsNavigation } from "@/modules/students/components/RecordsNavigation";
 import {
   createEnrollment,
   listEnrollments,
@@ -110,7 +109,6 @@ export default function EnrollmentsPage() {
     hasPermission("enrollments.edit") && hasPermission("students.edit");
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [targetYearId, setTargetYearId] = useState("");
   const [page, setPage] = useState(1);
   const [dossierYearId, setDossierYearId] = useState("");
   const [dossierLevelId, setDossierLevelId] = useState("");
@@ -139,8 +137,11 @@ export default function EnrollmentsPage() {
     queryFn: listSchoolYears,
   });
   const activeYears = (yearsQuery.data ?? []).filter((year) => year.status === "active");
-  const effectiveTargetYearId = targetYearId || (activeYears.length === 1 ? activeYears[0].id : "");
-  const selectedYear = activeYears.find((year) => year.id === effectiveTargetYearId) ?? null;
+  const activeYearLabel = activeYears.length === 1 ? activeYears[0].label : null;
+  const dossierYear = yearsQuery.data?.find((year) => year.id === dossierYearId);
+  const viewingPastDossiers = selectedTab === "dossiers" && dossierYear?.status === "closed";
+  const activeYearId = activeYears.length === 1 ? activeYears[0].id : "";
+  const selectedYear = activeYears.length === 1 ? activeYears[0] : null;
   const closedOriginYears = (yearsQuery.data ?? []).filter((year) => year.status === "closed" && selectedYear && year.endDate < selectedYear.startDate);
   const enrollmentsQuery = useQuery({
     queryKey: [
@@ -176,9 +177,9 @@ export default function EnrollmentsPage() {
     enabled: Boolean(dossierYearId),
   });
   const classesQuery = useQuery({
-    queryKey: ["academic", "classes", "re-enrollment", effectiveTargetYearId],
-    queryFn: () => listClasses(effectiveTargetYearId),
-    enabled: Boolean(effectiveTargetYearId),
+    queryKey: ["academic", "classes", "re-enrollment", activeYearId],
+    queryFn: () => listClasses(activeYearId),
+    enabled: Boolean(activeYearId),
   });
   const recentClassesQuery = useQuery({
     queryKey: ["academic", "classes", "re-enrollment-filters", recentYearId],
@@ -190,7 +191,7 @@ export default function EnrollmentsPage() {
       "enrollments",
       "re-enrollment",
       "candidates",
-      effectiveTargetYearId,
+      activeYearId,
       campaignStatus,
       recentYearId,
       recentLevelId,
@@ -200,7 +201,7 @@ export default function EnrollmentsPage() {
     ],
     queryFn: () =>
       listReEnrollmentCandidates({
-        schoolYearId: effectiveTargetYearId,
+        schoolYearId: activeYearId,
         campaignStatus,
         sourceSchoolYearId: recentYearId || undefined,
         levelId: recentLevelId || undefined,
@@ -209,7 +210,7 @@ export default function EnrollmentsPage() {
         page: candidatePage,
         limit: 20,
       }),
-    enabled: selectedTab === "re-enrollment" && Boolean(effectiveTargetYearId),
+    enabled: selectedTab === "re-enrollment" && Boolean(activeYearId),
   });
   const candidates = candidatesQuery.data?.candidates ?? [];
   const campaignCounts = candidatesQuery.data?.counts;
@@ -238,7 +239,7 @@ export default function EnrollmentsPage() {
       createEnrollment({
         studentId,
         classId,
-        schoolYearId: effectiveTargetYearId,
+        schoolYearId: activeYearId,
         type: "re_registration",
       }),
     onSuccess: async (result) => {
@@ -261,7 +262,7 @@ export default function EnrollmentsPage() {
           axios.isAxiosError(error) &&
           typeof error.response?.data?.error === "string"
             ? error.response.data.error
-            : "Vérifiez la décision finale, l’année cible et la classe choisie.",
+            : "Vérifiez la décision finale et la classe choisie, puis réessayez.",
         variant: "destructive",
       }),
   });
@@ -269,19 +270,14 @@ export default function EnrollmentsPage() {
     ? enrollmentsQuery.data.enrollments
     : [];
   const namedEnrollments = useMemo(
-    () => enrollmentRows.map((enrollment) => ({ enrollment })),
-    [enrollmentRows],
+    () => enrollmentRows.map((enrollment) => {
+      const yearStatus = yearsQuery.data?.find((year) => year.id === enrollment.schoolYearId)?.status;
+      return { enrollment, isActiveYear: yearStatus === "active", yearStatus };
+    }),
+    [enrollmentRows, yearsQuery.data],
   );
-  const resetCandidateView = (yearId: string) => {
-    setTargetYearId(yearId);
-    setRecentYearId("");
-    setRecentLevelId("");
-    setRecentClassId("");
-    setCandidatePage(1);
-    setClassSelections({});
-  };
   const updateDossierYear = (yearId: string) => {
-    setDossierYearId(yearId);
+    setDossierYearId(yearId === "all" ? "" : yearId);
     setDossierClassId("");
     setPage(1);
   };
@@ -296,10 +292,10 @@ export default function EnrollmentsPage() {
   }
   return (
     <PageLayout
-      title="Inscriptions & dossiers"
-      subtitle={selectedTab === "re-enrollment" ? "Campagne de réinscription de l’année active." : "Consultez les inscriptions de toutes les années."}
+      title="Inscriptions"
+      subtitle={selectedTab === "re-enrollment" ? "Suivez les élèves à traiter et ceux déjà réinscrits." : viewingPastDossiers ? `Dossiers ${dossierYear.label} · consultation seule.` : "Consultez les inscriptions de toutes les années."}
       actions={
-        hasPermission("enrollments.create") ? (
+        hasPermission("enrollments.create") && !viewingPastDossiers ? (
           <Button asChild>
             <Link to="/enrollments/new">
               <Plus className="mr-2 h-4 w-4" />
@@ -309,8 +305,16 @@ export default function EnrollmentsPage() {
         ) : undefined
       }
     >
-      <RecordsNavigation />
-      <Tabs value={selectedTab} className="space-y-5">
+      <Tabs value={selectedTab} onValueChange={(value) => {
+        const next = new URLSearchParams(searchParams);
+        if (value === "re-enrollment") next.set("tab", "re-enrollment");
+        else next.delete("tab");
+        setSearchParams(next, { replace: true });
+      }} className="space-y-5">
+        <TabsList className="grid h-auto w-full grid-cols-2 rounded-lg sm:w-[420px]">
+          <TabsTrigger value="dossiers" className="min-h-12">Dossiers</TabsTrigger>
+          <TabsTrigger value="re-enrollment" className="min-h-12">Réinscriptions</TabsTrigger>
+        </TabsList>
         <TabsContent value="dossiers" className="space-y-4">
           <div className="space-y-2 rounded-lg border bg-card p-4">
             <Label htmlFor="enrollment-dossier-search">Rechercher une inscription par nom ou matricule</Label>
@@ -322,18 +326,20 @@ export default function EnrollmentsPage() {
           <div className="grid gap-3 rounded-lg border bg-card p-4 sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto] lg:items-end">
             <div className="space-y-2">
               <Label htmlFor="dossier-year-filter">Année scolaire</Label>
-              <Select value={dossierYearId} onValueChange={updateDossierYear}>
+              <Select value={dossierYearId || "all"} onValueChange={updateDossierYear}>
                 <SelectTrigger id="dossier-year-filter" className="min-h-12">
                   <SelectValue placeholder="Toutes les années" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">Toutes les années</SelectItem>
                   {(yearsQuery.data ?? []).map((year) => (
                     <SelectItem key={year.id} value={year.id}>
-                      {year.label}
+                      {year.label}{year.status === "active" ? " · Année active" : year.status === "closed" ? " · Année clôturée" : " · En préparation"}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {activeYearLabel ? <p className="text-xs text-muted-foreground">Année scolaire active : {activeYearLabel}</p> : null}
             </div>
             <div className="space-y-2">
               <Label htmlFor="dossier-level-filter">Niveau</Label>
@@ -441,11 +447,12 @@ export default function EnrollmentsPage() {
           ) : null}
           {namedEnrollments.length > 0 ? (
             <div className="space-y-3 md:hidden">
-              {namedEnrollments.map(({ enrollment }) => (
+              {namedEnrollments.map(({ enrollment, isActiveYear, yearStatus }) => (
                 <article key={enrollment.id} className="space-y-3 rounded-lg border bg-card p-4">
                   <div>
                     <p className="font-medium">{enrollment.studentLastName} {enrollment.studentFirstName}</p>
                     <p className="text-sm text-muted-foreground">{enrollment.schoolYearLabel} · {enrollment.className} · {enrollment.type === "re_registration" ? "Réinscription" : "Nouvelle inscription"}</p>
+                    <p className="text-xs text-muted-foreground">{isActiveYear ? "Année active" : yearStatus === "closed" ? "Année clôturée · Consultation seule" : "Année non active · Consultation seule"}</p>
                   </div>
                   <Badge className={`w-fit border ${statusClassName[enrollment.status]}`}>{enrollmentStatusLabel[enrollment.status]}</Badge>
                   <div className="flex flex-wrap gap-2">
@@ -453,11 +460,11 @@ export default function EnrollmentsPage() {
                       <Button asChild variant="outline" className="min-h-12 flex-1">
                         <Link to={`/students/${enrollment.studentId}/history?year=${enrollment.schoolYearId}&returnTo=${encodeURIComponent(`/enrollments${searchParams.toString() ? `?${searchParams.toString()}` : ""}`)}`}>Voir le dossier</Link>
                       </Button>
-                    ) : (
+                    ) : isActiveYear ? (
                       <Button asChild variant="outline" className="min-h-12 flex-1"><Link to={`/enrollments/students/${enrollment.studentId}/documents`}>Documents d’inscription</Link></Button>
-                    )}
-                    {canEditDraft && enrollment.status !== "confirmed" ? <Button asChild variant="outline" className="min-h-12"><Link to={`/enrollments/${enrollment.id}/edit`}>Modifier</Link></Button> : null}
-                    {hasPermission("enrollments.confirm_payment") && enrollment.status !== "confirmed" && enrollment.status !== "blocked_unpaid" ? <Button asChild className="min-h-12"><Link to={`/enrollments/${enrollment.id}/payment`}>Caisse</Link></Button> : null}
+                    ) : null}
+                    {isActiveYear && canEditDraft && enrollment.status !== "confirmed" ? <Button asChild variant="outline" className="min-h-12"><Link to={`/enrollments/${enrollment.id}/edit`}>Modifier</Link></Button> : null}
+                    {isActiveYear && hasPermission("enrollments.confirm_payment") && enrollment.status !== "confirmed" && enrollment.status !== "blocked_unpaid" ? <Button asChild className="min-h-12"><Link to={`/enrollments/${enrollment.id}/payment`}>Caisse</Link></Button> : null}
                   </div>
                 </article>
               ))}
@@ -477,7 +484,7 @@ export default function EnrollmentsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {namedEnrollments.map(({ enrollment }) => (
+                  {namedEnrollments.map(({ enrollment, isActiveYear, yearStatus }) => (
                     <TableRow key={enrollment.id}>
                       <TableCell className="font-medium">
                         {enrollment.studentLastName}{" "}
@@ -486,7 +493,7 @@ export default function EnrollmentsPage() {
                       <TableCell>
                         <span className="block">{enrollment.className}</span>
                         <span className="text-xs text-muted-foreground">
-                          {enrollment.schoolYearLabel}
+                          {enrollment.schoolYearLabel} · {isActiveYear ? "Année active" : yearStatus === "closed" ? "Année clôturée · Consultation seule" : "Année non active · Consultation seule"}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -506,7 +513,7 @@ export default function EnrollmentsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-2">
-                          {canEditDraft && enrollment.status !== "confirmed" ? (
+                          {isActiveYear && canEditDraft && enrollment.status !== "confirmed" ? (
                             <Button size="sm" variant="outline" asChild>
                               <Link to={`/enrollments/${enrollment.id}/edit`}>
                                 <Pencil className="mr-2 h-4 w-4" />
@@ -520,8 +527,8 @@ export default function EnrollmentsPage() {
                             >
                               Voir le dossier
                             </Link>
-                          </Button> : <Button size="sm" variant="outline" asChild><Link to={`/enrollments/students/${enrollment.studentId}/documents`}>Documents d’inscription</Link></Button>}
-                          {hasPermission("enrollments.confirm_payment") &&
+                          </Button> : isActiveYear ? <Button size="sm" variant="outline" asChild><Link to={`/enrollments/students/${enrollment.studentId}/documents`}>Documents d’inscription</Link></Button> : null}
+                          {isActiveYear && hasPermission("enrollments.confirm_payment") &&
                           enrollment.status !== "confirmed" &&
                           enrollment.status !== "blocked_unpaid" ? (
                             <Button size="sm" asChild>
@@ -572,43 +579,15 @@ export default function EnrollmentsPage() {
           ) : null}
         </TabsContent>
         <TabsContent value="re-enrollment" className="space-y-5">
+          {yearsQuery.isLoading ? <p role="status" className="text-sm text-muted-foreground">Chargement de la campagne…</p> : null}
           {yearsQuery.isError ? <QueryErrorState message="Impossible de charger les années scolaires." onRetry={() => void yearsQuery.refetch()} isRetrying={yearsQuery.isFetching} /> : null}
           {levelsQuery.isError ? <QueryErrorState message="Impossible de charger les niveaux scolaires." onRetry={() => void levelsQuery.refetch()} isRetrying={levelsQuery.isFetching} /> : null}
-          {classesQuery.isError ? <QueryErrorState message="Impossible de charger les classes de l’année cible." onRetry={() => void classesQuery.refetch()} isRetrying={classesQuery.isFetching} /> : null}
+          {classesQuery.isError ? <QueryErrorState message="Impossible de charger les classes de l’année de campagne." onRetry={() => void classesQuery.refetch()} isRetrying={classesQuery.isFetching} /> : null}
           {recentClassesQuery.isError ? <QueryErrorState message="Impossible de charger les classes récentes." onRetry={() => void recentClassesQuery.refetch()} isRetrying={recentClassesQuery.isFetching} /> : null}
-          <div className="rounded-lg border bg-card p-4">
-            <div className="max-w-sm space-y-2">
-              <Label htmlFor="re-enrollment-year">
-                Année cible active
-              </Label>
-              <Select value={effectiveTargetYearId} onValueChange={resetCandidateView}>
-                <SelectTrigger id="re-enrollment-year" className="min-h-12">
-                  <SelectValue
-                    placeholder={
-                      yearsQuery.isLoading
-                        ? "Chargement…"
-                        : "Choisir l’année cible active"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {activeYears.map((year) => (
-                    <SelectItem key={year.id} value={year.id}>
-                      {year.label} · Active
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <p className="mt-3 text-sm text-muted-foreground">
-              La réinscription est autorisée uniquement après la clôture de
-              l’année précédente et l’ouverture de la nouvelle année par le
-              super-administrateur.
-            </p>
-          </div>
-          {!yearsQuery.isLoading && activeYears.length === 0 ? (
-            <EmptyState title="Aucune campagne active" description="Ouvrez une année scolaire pour démarrer une campagne de réinscription. Les campagnes clôturées restent consultables dans Dossiers." />
+          {yearsQuery.isSuccess && activeYears.length === 0 ? (
+            <EmptyState title="Aucune campagne active" description="La campagne débutera lorsqu’une nouvelle année scolaire sera ouverte. Les inscriptions des années clôturées restent consultables dans Inscriptions." />
           ) : null}
+          {yearsQuery.isSuccess && activeYears.length > 1 ? <Alert variant="destructive"><AlertDescription>Plusieurs années scolaires sont actives. Corrigez ce conflit avant de lancer la campagne.</AlertDescription></Alert> : null}
           {selectedYear ? <>
           <div className="space-y-3">
             <h2 className="text-lg font-semibold">Campagne {selectedYear.label}</h2>

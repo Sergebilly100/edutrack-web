@@ -552,13 +552,13 @@ function PermissionRoute({
   return <Navigate to={fallback} replace />
 }
 
-function RecordsIndexRoute() {
+function RecordsLegacyRoute() {
   const user = useAuthStore((state) => state.user)
   const permissions = useAuthStore((state) => state.permissions)
   if (user?.role === "director" || user?.role === "super_admin" || permissions.includes("students.view")) {
-    return <StudentHistoryDirectoryPage />
+    return <Navigate replace to="/students/history" />
   }
-  return <Navigate replace to="/enrollments" />
+  return <Navigate replace to={permissions.includes("enrollments.view") ? "/enrollments" : "/dashboard"} />
 }
 
 function AcademicIndexRoute() {
@@ -672,12 +672,12 @@ export default function App() {
           <Route path="/schedule" element={<PermissionRoute href="/schedule" element={<SchedulePage />} />} />
           <Route path="/teachers" element={<PermissionRoute href="/teachers" element={<TeachersPage />} />} />
           <Route path="/teachers/:teacherId" element={<PermissionRoute href="/teachers" element={<TeacherDetailPage />} />} />
-          <Route path="/records" element={<PermissionRoute href="/records" requiredAnyPermissions={["students.view", "enrollments.view"]} element={<RecordsIndexRoute />} />} />
-          <Route path="/students" element={<PermissionRoute href="/records" requiredAnyPermissions={["students.view"]} element={<StudentsPage />} />} />
-          <Route path="/students/history" element={<PermissionRoute href="/records" requiredAnyPermissions={["students.view"]} element={<StudentHistoryDirectoryPage />} />} />
-          <Route path="/students/:studentId" element={<PermissionRoute href="/records" requiredAnyPermissions={["students.view"]} element={<StudentDetailPage />} />} />
-          <Route path="/students/:studentId/history" element={<PermissionRoute href="/records" requiredAnyPermissions={["students.view"]} element={<StudentDetailPage mode="historical" />} />} />
-          <Route path="/enrollments/re-enrollment/students/:studentId" element={<PermissionRoute href="/records" requiredAnyPermissions={["students.view"]} element={<LegacyStudentHistoryRedirect />} />} />
+          <Route path="/records" element={<RecordsLegacyRoute />} />
+          <Route path="/students" element={<PermissionRoute href="/students" requiredAnyPermissions={["students.view"]} element={<StudentsPage />} />} />
+          <Route path="/students/history" element={<PermissionRoute href="/students" requiredAnyPermissions={["students.view"]} element={<StudentHistoryDirectoryPage />} />} />
+          <Route path="/students/:studentId" element={<PermissionRoute href="/students" requiredAnyPermissions={["students.view"]} element={<StudentDetailPage />} />} />
+          <Route path="/students/:studentId/history" element={<PermissionRoute href="/students" requiredAnyPermissions={["students.view"]} element={<StudentDetailPage mode="historical" />} />} />
+          <Route path="/enrollments/re-enrollment/students/:studentId" element={<PermissionRoute href="/students" requiredAnyPermissions={["students.view"]} element={<LegacyStudentHistoryRedirect />} />} />
           <Route path="/academic" element={<PermissionRoute href="/academic" element={<AcademicIndexRoute />} />} />
           <Route path="/academic/school-years" element={<PermissionRoute href="/academic" requiredAnyPermissions={["school_years.view"]} element={<SchoolYearsPage />} />} />
           <Route path="/academic/levels" element={<PermissionRoute href="/academic" requiredAnyPermissions={["classes.view"]} element={<LevelsPage />} />} />
@@ -688,11 +688,11 @@ export default function App() {
           <Route path="/academic/report-card-claims" element={<PermissionRoute href="/academic/report-card-claims" requiredAnyPermissions={["report_cards.view", "report_cards.publish"]} element={<ReportCardClaimsPage />} />} />
           <Route path="/academic/evaluations" element={<PermissionRoute href="/academic/evaluations" requiredAnyPermissions={["evaluations.view"]} element={<EvaluationReviewPage />} />} />
           <Route path="/end-of-year" element={<PermissionRoute href="/end-of-year" requiredAnyPermissions={["class_decisions.view"]} element={<EndOfYearAccessRoute />} />} />
-          <Route path="/enrollments" element={<PermissionRoute href="/records" requiredAnyPermissions={["enrollments.view"]} element={<EnrollmentsPage />} />} />
-          <Route path="/enrollments/new" element={<PermissionRoute href="/records" requiredAllPermissions={["enrollments.view", "enrollments.create"]} element={<NewEnrollmentPage />} />} />
-          <Route path="/enrollments/:enrollmentId/edit" element={<PermissionRoute href="/records" requiredAllPermissions={["enrollments.view", "enrollments.edit", "students.edit"]} element={<NewEnrollmentPage />} />} />
-          <Route path="/enrollments/students/:studentId/documents" element={<PermissionRoute href="/records" requiredAllPermissions={["enrollments.view"]} element={<EnrollmentDocumentsPage />} />} />
-          <Route path="/enrollments/:enrollmentId/payment" element={<PermissionRoute href="/records" requiredAllPermissions={["enrollments.view", "enrollments.confirm_payment"]} element={<EnrollmentPaymentPage />} />} />
+          <Route path="/enrollments" element={<PermissionRoute href="/enrollments" requiredAnyPermissions={["enrollments.view"]} element={<EnrollmentsPage />} />} />
+          <Route path="/enrollments/new" element={<PermissionRoute href="/enrollments" requiredAllPermissions={["enrollments.view", "enrollments.create"]} element={<NewEnrollmentPage />} />} />
+          <Route path="/enrollments/:enrollmentId/edit" element={<PermissionRoute href="/enrollments" requiredAllPermissions={["enrollments.view", "enrollments.edit", "students.edit"]} element={<NewEnrollmentPage />} />} />
+          <Route path="/enrollments/students/:studentId/documents" element={<PermissionRoute href="/enrollments" requiredAllPermissions={["enrollments.view"]} element={<EnrollmentDocumentsPage />} />} />
+          <Route path="/enrollments/:enrollmentId/payment" element={<PermissionRoute href="/enrollments" requiredAllPermissions={["enrollments.view", "enrollments.confirm_payment"]} element={<EnrollmentPaymentPage />} />} />
           <Route path="/finance" element={<FinanceLegacyRoute />} />
           <Route path={FINANCE_PATHS.dashboard} element={<PermissionRoute href={FINANCE_PATHS.dashboard} requiredAnyPermissions={["payments.view"]} element={<FinancePage view="dashboard" />} />} />
           <Route path={FINANCE_PATHS.recovery} element={<PermissionRoute href={FINANCE_PATHS.recovery} requiredAnyPermissions={["payments.view"]} element={<RecoveryPage />} />} />

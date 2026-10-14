@@ -38,31 +38,35 @@ describe("navigation de fin d’année", () => {
   })
 })
 
-describe("navigation des inscriptions", () => {
-  it("expose un seul menu aux lecteurs des dossiers élèves ou des inscriptions", () => {
-    expect(getNavItemsByRole("staff", ["enrollments.view"]))
-      .toEqual(expect.arrayContaining([expect.objectContaining({ href: "/records", label: "Inscriptions & dossiers" })]))
-    expect(getNavItemsByRole("staff", ["enrollments.edit"]))
-      .not.toEqual(expect.arrayContaining([expect.objectContaining({ href: "/records" })]))
-    expect(getNavItemsByRole("staff", ["students.view"]))
-      .toEqual(expect.arrayContaining([expect.objectContaining({ href: "/records" })]))
+describe("navigation des inscriptions et des élèves", () => {
+  it("affiche deux menus indépendants selon les droits de lecture", () => {
+    const enrollmentItems = getNavItemsByRole("staff", ["enrollments.view"])
+    expect(enrollmentItems).toEqual(expect.arrayContaining([expect.objectContaining({ href: "/enrollments", label: "Inscriptions" })]))
+    expect(enrollmentItems.map((item) => item.href)).not.toContain("/students")
+    expect(getNavItemsByRole("staff", ["enrollments.edit"]).map((item) => item.href)).not.toContain("/enrollments")
+    const studentItems = getNavItemsByRole("staff", ["students.view"])
+    expect(studentItems).toEqual(expect.arrayContaining([expect.objectContaining({ href: "/students", label: "Élèves" })]))
+    expect(studentItems.map((item) => item.href)).not.toContain("/enrollments")
     const fullAccessItems = getNavItemsByRole("staff", ["students.view", "enrollments.view"])
-    expect(fullAccessItems.filter((item) => item.href === "/records")).toHaveLength(1)
-    expect(fullAccessItems.map((item) => item.href)).not.toContain("/students")
-    expect(fullAccessItems.map((item) => item.href)).not.toContain("/enrollments")
+    expect(fullAccessItems.filter((item) => item.href === "/students")).toHaveLength(1)
+    expect(fullAccessItems.filter((item) => item.href === "/enrollments")).toHaveLength(1)
+    expect(fullAccessItems.map((item) => item.href)).not.toContain("/records")
+    expect(getNavItemsByRole("staff", ["students.view"], "Apprenants").find((item) => item.href === "/students")?.label).toBe("Apprenants")
   })
 })
 
 describe("navigation de l’historique scolaire", () => {
-  it("garde le menu unique actif sur les anciens liens élèves et inscriptions", () => {
+  it("garde Élèves actif sur l’historique et Inscriptions actif sur la campagne", () => {
     const items = getNavItemsByRole("staff", ["students.view"])
-    const item = items.find((entry) => entry.href === "/records")!
+    const item = items.find((entry) => entry.href === "/students")!
     expect(item.group).toBe("Vie scolaire")
-    expect(isNavItemActive(item, "/records", "")).toBe(true)
+    expect(isNavItemActive(item, "/students", "")).toBe(true)
     expect(isNavItemActive(item, "/students/history", "")).toBe(true)
     expect(isNavItemActive(item, "/students/student-1", "")).toBe(true)
-    expect(isNavItemActive(item, "/enrollments", "?tab=re-enrollment")).toBe(true)
+    expect(isNavItemActive(item, "/enrollments", "?tab=re-enrollment")).toBe(false)
     expect(items.map((entry) => entry.href)).not.toContain("/students/history")
+    const enrollmentItem = getNavItemsByRole("staff", ["enrollments.view"]).find((entry) => entry.href === "/enrollments")!
+    expect(isNavItemActive(enrollmentItem, "/enrollments", "?tab=re-enrollment")).toBe(true)
   })
 })
 
