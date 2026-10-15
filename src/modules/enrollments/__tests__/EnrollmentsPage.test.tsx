@@ -301,7 +301,7 @@ describe("EnrollmentsPage", () => {
       student: { id: "student-1", firstName: "Awa", lastName: "Koné", matricule: "MAT-001" },
       years: [
         { schoolYearId: "year-active", schoolYearLabel: "2027-2028", className: "5e A", enrollmentStatus: "pending_cashier", decision: "Non renseignée", financialStatus: "unavailable", remainingDue: null },
-        { schoolYearId: "year-1", schoolYearLabel: "2026-2027", className: "6e A", enrollmentStatus: "confirmed", decision: "Admis(e)", financialStatus: "remaining_due", remainingDue: 25000, totalDue: 100000, confirmedPaid: 65000, waivedAmount: 10000 },
+        { schoolYearId: "year-1", schoolYearLabel: "2026-2027", className: "6e A", enrollmentStatus: "confirmed", decision: "Admis(e)", financialStatus: "remaining_due", remainingDue: 25000, totalDue: 100000, confirmedPaid: 65000 },
       ],
     })
     mocks.listReEnrollmentCandidates.mockResolvedValue({

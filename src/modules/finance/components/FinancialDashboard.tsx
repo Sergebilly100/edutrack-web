@@ -83,7 +83,6 @@ export function FinancialDashboard({ schoolYearId }: { schoolYearId: string }) {
                     {fcfa(remainingToCollect)}
                   </p>
                   <p className="text-xs text-blue-100">
-                    Après {fcfa(school?.total_waived ?? 0)} tolérés
                   </p>
                 </div>
               </div>
@@ -181,8 +180,8 @@ function ClassStudentsDrillDown({ classId }: { classId: string }) {
   if (studentsQuery.isError) return <div className="border-t p-3"><QueryErrorState message="Impossible de charger les élèves de cette classe." onRetry={() => void studentsQuery.refetch()} isRetrying={studentsQuery.isFetching} /></div>
   if ((studentsQuery.data?.length ?? 0) === 0) return <div className="border-t px-3 py-4 text-sm text-muted-foreground">Aucun élève avec un statut financier calculé.</div>
   return <div className="overflow-x-auto border-t"><Table><TableHeader><TableRow><TableHead>Élève</TableHead><TableHead>Statut à l'échéance</TableHead><TableHead className="text-right">Reste dû</TableHead></TableRow></TableHeader><TableBody>{(studentsQuery.data ?? []).map((student: ClassStudentStatusRow) => {
-    const remaining = Math.max(0, Number(student.total_due_year) - Number(student.total_paid) - Number(student.waived_amount))
-    return <TableRow key={student.student_id}><TableCell><span className="block font-medium">{student.full_name}</span><span className="text-xs text-muted-foreground">{student.matricule ?? "Sans matricule"}</span></TableCell><TableCell><Badge variant="outline" className={student.status === "up_to_date" ? "border-green-200 bg-green-50 text-green-700" : student.status === "waived" ? "border-slate-200 bg-slate-50 text-slate-700" : "border-amber-200 bg-amber-50 text-amber-800"}>{student.status === "up_to_date" ? "À jour" : student.status === "waived" ? "Toléré" : `Retard${student.days_late !== null ? ` · ${student.days_late} j` : ""}`}</Badge></TableCell><TableCell className="text-right font-medium tabular-nums">{fcfa(remaining)}</TableCell></TableRow>
+    const remaining = Math.max(0, Number(student.total_due_year) - Number(student.total_paid))
+    return <TableRow key={student.student_id}><TableCell><span className="block font-medium">{student.full_name}</span><span className="text-xs text-muted-foreground">{student.matricule ?? "Sans matricule"}</span></TableCell><TableCell><Badge variant="outline" className={student.status === "up_to_date" ? "border-green-200 bg-green-50 text-green-700" : "border-amber-200 bg-amber-50 text-amber-800"}>{student.status === "up_to_date" ? "À jour" : `Retard${student.days_late !== null ? ` · ${student.days_late} j` : ""}`}</Badge></TableCell><TableCell className="text-right font-medium tabular-nums">{fcfa(remaining)}</TableCell></TableRow>
   })}</TableBody></Table></div>
 }
 

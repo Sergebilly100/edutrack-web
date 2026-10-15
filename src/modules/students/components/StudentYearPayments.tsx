@@ -6,7 +6,7 @@ import { EmptyState } from "@/shared/components/EmptyState"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { formatFcfa } from "@/shared/utils/formatting"
 
-const statusLabel = { confirmed: "Paiement confirmé", waived_by_school: "Remise accordée", cancelled: "Mouvement annulé" } as const
+const statusLabel = { confirmed: "Paiement confirmé", cancelled: "Mouvement annulé" } as const
 
 export function StudentYearPayments({ studentId, schoolYearId, schoolYearLabel }: { studentId: string; schoolYearId: string; schoolYearLabel: string }) {
   const query = useQuery({
@@ -19,7 +19,7 @@ export function StudentYearPayments({ studentId, schoolYearId, schoolYearLabel }
   if (!query.data?.length) return <EmptyState title="Aucun mouvement financier" description={`Aucun paiement ni remise enregistré pour ${schoolYearLabel}.`} />
 
   return <Card>
-    <CardHeader><CardTitle className="text-base">Paiements et remises · {schoolYearLabel}</CardTitle></CardHeader>
+    <CardHeader><CardTitle className="text-base">Paiements · {schoolYearLabel}</CardTitle></CardHeader>
     <CardContent className="space-y-2">
       {query.data.map((payment) => <div key={payment.id} className="flex flex-wrap items-start justify-between gap-2 rounded-md border p-3 text-sm">
         <div><p className="font-medium">{statusLabel[payment.status]}</p><p className="text-muted-foreground">{payment.paymentDate} · {payment.receiptNumber || "Sans numéro de reçu"}</p></div>

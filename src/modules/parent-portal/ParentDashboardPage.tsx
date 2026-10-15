@@ -391,8 +391,6 @@ export default function ParentDashboardPage() {
                   <p className="text-sm font-semibold">Situation de scolarité</p>
                   {overviewQuery.data.financial.status === "up_to_date" ? (
                     <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">À jour</Badge>
-                  ) : overviewQuery.data.financial.status === "waived" ? (
-                    <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">Toléré</Badge>
                   ) : (
                     <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
                       En retard

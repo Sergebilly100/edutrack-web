@@ -28,8 +28,8 @@ const isoToday = () => new Date().toISOString().slice(0, 10)
 const firstDayOfMonth = () => `${isoToday().slice(0, 8)}01`
 const methodLabels: Record<Payment["method"], string> = { cash: "Espèces", mobile_money: "Mobile Money", bank_transfer: "Virement" }
 const sourceLabels: Record<Payment["source"], string> = { cashier_manual: "Saisie manuelle", in_app_button: "Paiement en ligne", bulk_import: "Import courant", migration_import: "Solde de départ" }
-const statusLabels: Record<FinancialCacheStatus, string> = { up_to_date: "À jour", late: "En retard", waived: "Remise" }
-const statusClassNames: Record<FinancialCacheStatus, string> = { up_to_date: "border-green-200 bg-green-50 text-green-700", late: "border-amber-200 bg-amber-50 text-amber-700", waived: "border-blue-200 bg-blue-50 text-blue-700" }
+const statusLabels: Record<FinancialCacheStatus, string> = { up_to_date: "À jour", late: "En retard" }
+const statusClassNames: Record<FinancialCacheStatus, string> = { up_to_date: "border-green-200 bg-green-50 text-green-700", late: "border-amber-200 bg-amber-50 text-amber-700"}
 const formatDate = (value: string): string => value ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "Date inconnue"
 
 type PaymentHistoryPanelProps = { schoolYearId: string; schoolYearLabel: string; canCancel: boolean; studentId?: string }

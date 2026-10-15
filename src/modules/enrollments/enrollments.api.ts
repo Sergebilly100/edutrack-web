@@ -108,7 +108,6 @@ export type StudentAcademicSummary = {
     remainingDue: number | null
     totalDue: number | null
     confirmedPaid: number | null
-    waivedAmount: number | null
     currency: string
   }>
 }

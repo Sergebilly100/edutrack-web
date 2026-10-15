@@ -99,7 +99,7 @@ describe("StudentDetailPage loading errors", () => {
     })
     mocks.getFinancialStatus.mockResolvedValue({
       studentId, schoolYearId: "year-active", asOfDate: "2026-09-30", currency: "FCFA",
-      totalDue: 100000, confirmedPaid: 65000, waivedAmount: 5000, remainingDue: 30000,
+      totalDue: 95000, discountAmount: 5000, confirmedPaid: 65000, remainingDue: 30000,
       cumulativeExpectedAtDate: 80000, standing: "late",
     })
     renderPage()
@@ -129,7 +129,7 @@ describe("StudentDetailPage loading errors", () => {
         startDate: `${2025 - index}-09-01`, endDate: `${2026 - index}-06-30`,
         className: `${index + 1}e A`,
         enrollmentStatus: "confirmed", decision: "Admis(e)", financialStatus: "remaining_due",
-        totalDue: 100000, confirmedPaid: 70000, waivedAmount: 5000, remainingDue: 25000, currency: "FCFA",
+        totalDue: 95000, discountAmount: 5000, confirmedPaid: 70000, remainingDue: 25000, currency: "FCFA",
       })),
     })
     renderHistoricalPage()

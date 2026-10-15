@@ -587,7 +587,7 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
           {academicSummaryQuery.isError ? <QueryErrorState title="Historique indisponible" message="Impossible de charger les années scolaires." onRetry={() => void academicSummaryQuery.refetch()} /> : null}
           {academicSummaryQuery.data && academicYears.length === 0 ? <EmptyState title="Aucune année scolaire" description="Ce dossier ne contient pas encore d’année scolaire à consulter." /> : null}
           {academicYears.filter((year) => year.schoolYearId === selectedYear?.schoolYearId).map((year) => {
-            const hasFinancialData = [year.totalDue, year.confirmedPaid, year.waivedAmount, year.remainingDue].some((value) => value !== null)
+            const hasFinancialData = [year.totalDue, year.confirmedPaid, year.remainingDue].some((value) => value !== null)
 
             return <article key={year.schoolYearId} className="border-t pt-4 first:border-t-0 first:pt-0">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -601,7 +601,6 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
                 <dl className="mt-4 grid divide-y rounded-md border bg-muted/20 text-sm sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4">
                   <div className="p-3"><dt className="text-muted-foreground">Total dû</dt><dd className="mt-1 font-semibold tabular-nums">{year.totalDue === null ? "Non disponible" : formatFcfa(year.totalDue)}</dd></div>
                   <div className="p-3"><dt className="text-muted-foreground">Paiements confirmés</dt><dd className="mt-1 font-semibold tabular-nums">{year.confirmedPaid === null ? "Non disponible" : formatFcfa(year.confirmedPaid)}</dd></div>
-                  <div className="p-3"><dt className="text-muted-foreground">Remises accordées</dt><dd className="mt-1 font-semibold tabular-nums">{year.waivedAmount === null ? "Non disponible" : formatFcfa(year.waivedAmount)}</dd></div>
                   <div className="p-3"><dt className="text-muted-foreground">Reste à régler</dt><dd className="mt-1 font-semibold tabular-nums">{year.remainingDue === null ? "Non disponible" : formatFcfa(year.remainingDue)}</dd></div>
                 </dl>
               ) : canViewFinance ? (
@@ -635,7 +634,7 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
             <div className="border-t px-4 py-4 sm:px-5 lg:border-l lg:border-t-0">
               <p className="text-sm text-muted-foreground">Paiements confirmés</p>
               <p className="mt-1 text-xl font-semibold tabular-nums">{formatFcfa(financialQuery.data.confirmedPaid)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">Remises : {formatFcfa(financialQuery.data.waivedAmount)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Remises sur frais : {formatFcfa(financialQuery.data.discountAmount)}</p>
             </div>
           </div> : null}
       </section> : null}
@@ -649,7 +648,7 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
           </TabsTrigger> : null}
           {canViewReportCards ? <TabsTrigger value="report-cards" className="min-h-12 shrink-0 px-4 data-[state=active]:bg-background">Bulletins</TabsTrigger> : null}
           {canViewEvaluations ? <TabsTrigger value="results" className="min-h-12 shrink-0 px-4 data-[state=active]:bg-background">Résultats</TabsTrigger> : null}
-          {canViewPaymentMovements ? <TabsTrigger value="payments" className="min-h-12 shrink-0 px-4 data-[state=active]:bg-background">Paiements et remises</TabsTrigger> : null}
+          {canViewPaymentMovements ? <TabsTrigger value="payments" className="min-h-12 shrink-0 px-4 data-[state=active]:bg-background">Paiements</TabsTrigger> : null}
           <TabsTrigger value="informations" data-tour="student-detail-tab-informations" className="min-h-12 shrink-0 px-4 data-[state=active]:bg-background">
             Infos Parents
           </TabsTrigger>

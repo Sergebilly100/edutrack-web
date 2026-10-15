@@ -3,7 +3,7 @@ import { triggerBlobDownload } from "@/shared/api/pdfExport.api"
 import { asBoolean, asNullableString, asNumber, asString, isRecord } from "@/shared/utils/parsers"
 
 export type PaymentMethod = "mobile_money" | "cash" | "bank_transfer"
-export type PaymentStatus = "confirmed" | "waived_by_school" | "cancelled"
+export type PaymentStatus = "confirmed" | "cancelled"
 export type PaymentProvider = "orange_money" | "mtn_momo" | "moov_money" | "wave"
 export type SubscriptionPeriod = "monthly" | "quarterly" | "semester" | "annual"
 
@@ -13,8 +13,8 @@ export type FinancialStatus = {
   asOfDate: string
   currency: string
   totalDue: number
+  discountAmount: number
   confirmedPaid: number
-  waivedAmount: number
   remainingDue: number
   cumulativeExpectedAtDate: number
   standing: "up_to_date" | "late"
@@ -67,7 +67,7 @@ export type CashJournal = {
   pagination: CashJournalPagination
 }
 
-export type FinancialCacheStatus = "up_to_date" | "late" | "waived"
+export type FinancialCacheStatus = "up_to_date" | "late"
 
 export type PaymentHistoryFilter = {
   schoolYearId: string
@@ -178,8 +178,8 @@ const parseFinancialStatus = (value: unknown): FinancialStatus => {
     asOfDate: asString(row.asOfDate),
     currency: asString(row.currency, "FCFA"),
     totalDue: asNumber(row.totalDue),
+    discountAmount: asNumber(row.discountAmount),
     confirmedPaid: asNumber(row.confirmedPaid),
-    waivedAmount: asNumber(row.waivedAmount),
     remainingDue: asNumber(row.remainingDue),
     cumulativeExpectedAtDate: asNumber(row.cumulativeExpectedAtDate),
     standing: row.standing === "late" ? "late" : "up_to_date",
@@ -189,7 +189,7 @@ const parseFinancialStatus = (value: unknown): FinancialStatus => {
 const parsePayment = (value: unknown): Payment => {
   const row = record(value)
   const method = row.method === "mobile_money" || row.method === "bank_transfer" ? row.method : "cash"
-  const status = row.status === "cancelled" || row.status === "waived_by_school" ? row.status : "confirmed"
+  const status = row.status === "cancelled" ? row.status : "confirmed"
   const source = row.source === "in_app_button" || row.source === "bulk_import" || row.source === "migration_import"
     ? row.source
     : "cashier_manual"
@@ -285,7 +285,7 @@ export async function getPaymentHistory(filter: PaymentHistoryFilter): Promise<P
   return {
     entries: (Array.isArray(history.entries) ? history.entries : []).map((item) => {
       const row = record(item)
-      const status = row.financialStatus === "late" || row.financialStatus === "waived" ? row.financialStatus : row.financialStatus === "up_to_date" ? "up_to_date" : null
+      const status = row.financialStatus === "late" ? row.financialStatus : row.financialStatus === "up_to_date" ? "up_to_date" : null
       return {
         ...parsePayment(item),
         studentMatricule: asNullableString(row.studentMatricule),
@@ -565,7 +565,6 @@ export async function requestParentPaymentReceipt(studentId: string, paymentId: 
 export type SchoolFinancialSummary = {
   total_expected_to_date: string;
   total_paid: string;
-  total_waived: string;
   remaining_to_collect: string;
   recovery_rate: string;
   students_up_to_date_count: number;
@@ -575,7 +574,7 @@ export type SchoolFinancialSummary = {
 } | null;
 
 export type RecoveryMetrics = {
-  studentCount: number; expected: number; paid: number; waived: number;
+  studentCount: number; expected: number; paid: number;
   remaining: number; recoveryRate: number; studentsToFollow: number;
 }
 
@@ -593,7 +592,7 @@ export type RecoverySummary = {
 export type RecoveryStudent = {
   studentId: string; name: string; matricule: string | null;
   status: FinancialCacheStatus | null; expected: number; paid: number;
-  waived: number; remaining: number; daysLate: number | null;
+  remaining: number; daysLate: number | null;
 }
 
 export type RecoveryStudents = {
@@ -629,7 +628,6 @@ export type ClassFinancialSummaryRow = {
   level_name: string;
   total_expected_to_date: string;
   total_paid: string;
-  total_waived: string;
   remaining_to_collect: string;
   students_up_to_date_count: number;
   students_late_count: number;
@@ -641,7 +639,6 @@ export type LevelFinancialSummaryRow = {
   level_name: string;
   total_expected_to_date: string;
   total_paid: string;
-  total_waived: string;
   remaining_to_collect: string;
   students_up_to_date_count: number;
   students_late_count: number;
@@ -704,9 +701,8 @@ export type ClassStudentStatusRow = {
   matricule: string | null;
   total_expected_to_date: string;
   total_paid: string;
-  waived_amount: string;
   total_due_year: string;
-  status: "up_to_date" | "late" | "waived";
+  status: "up_to_date" | "late";
   days_late: number | null;
 };
 

@@ -253,7 +253,7 @@ export const requestParentReportCardPdf = async (
 // ── Vue d'ensemble enrichie (17b) ───────────────────────────────────────────
 
 export type ParentFinancialPreview = {
-  status: "up_to_date" | "late" | "waived"
+  status: "up_to_date" | "late"
   daysLate: number | null
   totalPaid: number
   totalDueYear: number

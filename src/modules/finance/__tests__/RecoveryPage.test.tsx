@@ -15,7 +15,7 @@ vi.mock("@/shared/components/OfflineIndicator", () => ({ OfflineIndicator: () =>
 
 import RecoveryPage from "../RecoveryPage"
 
-const metrics = { studentCount: 1, expected: 100000, paid: 30000, waived: 20000, remaining: 50000, recoveryRate: 0.3, studentsToFollow: 1 }
+const metrics = { studentCount: 1, expected: 100000, paid: 30000, remaining: 70000, recoveryRate: 0.3, studentsToFollow: 1 }
 const classA = { ...metrics, classId: "class-a", className: "6e A", levelId: "level-a", levelName: "6e" }
 const classB = { ...metrics, classId: "class-b", className: "5e B", levelId: "level-b", levelName: "5e" }
 const allClasses = [classA, classB]
@@ -35,7 +35,7 @@ describe("RecoveryPage", () => {
     Element.prototype.scrollIntoView = vi.fn()
     mocks.fetchRecoveryYears.mockResolvedValue([{ id: "year", label: "2026-2027", status: "active" }])
     mocks.fetchRecoverySummary.mockImplementation(summaryFor)
-    mocks.fetchRecoveryStudents.mockResolvedValue({ students: [{ studentId: "student-1", name: "Awa Koné", matricule: "MAT-1", status: "late", expected: 100000, paid: 30000, waived: 20000, remaining: 50000, daysLate: 4 }], pagination: { page: 1, limit: 20, total: 1, totalPages: 1 } })
+    mocks.fetchRecoveryStudents.mockResolvedValue({ students: [{ studentId: "student-1", name: "Awa Koné", matricule: "MAT-1", status: "late", expected: 100000, paid: 30000, remaining: 70000, daysLate: 4 }], pagination: { page: 1, limit: 20, total: 1, totalPages: 1 } })
   })
 
   it("clears the selected class when the level changes and opens a paged student detail", async () => {
