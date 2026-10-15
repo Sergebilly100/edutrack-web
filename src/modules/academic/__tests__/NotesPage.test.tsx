@@ -219,7 +219,11 @@ describe("NotesPage", () => {
     fetchEntryPeriod.mockResolvedValue({ period: { id: "p1", label: "1er trimestre" }, state: "open", code: null })
     fetchScope.mockImplementation(async (_classId: string, _periodId: string, date?: string) => ({
       lessonSlots: date
-        ? [{ id: "slot-date", dayOfWeek: 1, startTime: "08:00", endTime: "09:00", roomName: "Salle 1", subjectId: "s1", subjectName: "Mathématiques" }]
+        ? [
+            { id: "slot-monday", dayOfWeek: 1, startTime: "08:00", endTime: "09:00", roomName: "Salle lundi", subjectId: "s1", subjectName: "Mathématiques" },
+            { id: "slot-thursday", dayOfWeek: 4, startTime: "09:00", endTime: "10:00", roomName: "Salle jeudi", subjectId: "s1", subjectName: "Mathématiques" },
+            { id: "slot-friday", dayOfWeek: 5, startTime: "10:00", endTime: "11:00", roomName: "Salle vendredi", subjectId: "s1", subjectName: "Mathématiques" },
+          ]
         : [{ id: "slot-old", dayOfWeek: 2, startTime: "10:00", endTime: "11:00", roomName: "Salle 2", subjectId: "s2", subjectName: "Français" }],
       subjects: [{ id: "s1", name: "Mathématiques", coefficient: 4 }],
       evaluations: [], completion: [], periodState: { isClosed: false },
@@ -236,8 +240,21 @@ describe("NotesPage", () => {
     await waitFor(() => expect(screen.getByRole("combobox", { name: "Créneau de cours" })).toBeEnabled())
     expect(fetchEntryPeriod).toHaveBeenCalledWith("c1", "2026-10-15")
     expect(fetchScope).toHaveBeenCalledWith("c1", "p1", "2026-10-15")
+    expect(screen.getByText("Créneau du jeudi (facultatif)")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("combobox", { name: "Créneau de cours" }))
-    fireEvent.click(await screen.findByRole("option", { name: /Salle 1/ }))
+    expect(screen.queryByRole("option", { name: /Salle lundi/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("option", { name: /Salle vendredi/ })).not.toBeInTheDocument()
+    fireEvent.click(await screen.findByRole("option", { name: /Salle jeudi/ }))
     expect(screen.getByRole("combobox", { name: "Matière de l’évaluation" })).toHaveTextContent("Mathématiques")
+
+    fireEvent.change(dateInput, { target: { value: "2026-10-16" } })
+    await waitFor(() => expect(fetchScope).toHaveBeenCalledWith("c1", "p1", "2026-10-16"))
+    expect(screen.getByText("Créneau du vendredi (facultatif)")).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Créneau de cours" })).toBeEnabled())
+    expect(screen.getByRole("combobox", { name: "Créneau de cours" })).not.toHaveTextContent("Salle jeudi")
+    expect(screen.getByRole("combobox", { name: "Matière de l’évaluation" })).not.toHaveTextContent("Mathématiques")
+    fireEvent.click(screen.getByRole("combobox", { name: "Créneau de cours" }))
+    expect(screen.queryByRole("option", { name: /Salle jeudi/ })).not.toBeInTheDocument()
+    expect(await screen.findByRole("option", { name: /Salle vendredi/ })).toBeInTheDocument()
   })
 })

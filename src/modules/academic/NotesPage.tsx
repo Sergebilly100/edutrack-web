@@ -119,7 +119,12 @@ export default function NotesPage() {
   const correctionBySubject = new Map((scopeQuery.data?.correctionStatuses ?? []).map((item) => [item.subjectId, item.status]))
   const isSubjectClosed = (subjectId: string | null | undefined) =>
     isPeriodReadOnly || completionBySubject.get(subjectId ?? "")?.status === "completed"
-  const selectedDraftSlot = creationScope?.lessonSlots.find((item) => item.id === draft.lessonSlotId)
+  const draftDayOfWeek = draft.evaluationDate && isCivilDate(draft.evaluationDate)
+    ? new Date(`${draft.evaluationDate}T00:00:00Z`).getUTCDay() || 7
+    : null
+  const draftLessonSlots = (creationScope?.lessonSlots ?? []).filter((item) => item.dayOfWeek === draftDayOfWeek)
+  const draftDayLabel = draftDayOfWeek ? dayLabel(draftDayOfWeek).toLowerCase() : null
+  const selectedDraftSlot = draftLessonSlots.find((item) => item.id === draft.lessonSlotId)
   const availableDraftSubjects = selectedDraftSlot?.subjectId
     ? (creationScope?.subjects ?? []).filter((item) => item.id === selectedDraftSlot.subjectId)
     : (creationScope?.subjects ?? [])
@@ -360,12 +365,12 @@ export default function NotesPage() {
                 {creationScopeQuery.isError ? <p role="alert" className="text-sm text-destructive">Impossible de charger les matières et les créneaux pour cette date. Réessayez.</p> : null}
               </div>
               <div className="space-y-2">
-                <Label>Créneau de cours (facultatif)</Label>
+                <Label>Créneau {draftDayLabel ? `du ${draftDayLabel}` : "de cours"} (facultatif)</Label>
                 <Select
                   value={draft.lessonSlotId || "none"}
                   disabled={!creationScope}
                   onValueChange={(value) => {
-                    const slot = creationScope?.lessonSlots.find(
+                    const slot = draftLessonSlots.find(
                       (item) => item.id === value,
                     );
                     setDraft((previous) => ({
@@ -380,7 +385,7 @@ export default function NotesPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Sans créneau EDT</SelectItem>
-                    {(creationScope?.lessonSlots ?? []).map((slot) => (
+                    {draftLessonSlots.map((slot) => (
                       <SelectItem key={slot.id} value={slot.id}>
                         {dayLabel(slot.dayOfWeek)} · {slot.startTime}-
                         {slot.endTime} · {slot.roomName}
@@ -388,7 +393,7 @@ export default function NotesPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                {creationScope && creationScope.lessonSlots.length === 0 ? <p className="text-sm text-muted-foreground">Aucun créneau EDT actif pour cette classe à cette date. Vous pouvez programmer l’évaluation sans créneau.</p> : null}
+                {creationScope && draftLessonSlots.length === 0 ? <p className="text-sm text-muted-foreground">Aucun créneau EDT {draftDayLabel ? `le ${draftDayLabel}` : ""} pour cette classe à cette date. Vous pouvez programmer l’évaluation sans créneau.</p> : null}
               </div>
               <div className="space-y-2">
                 <Label>Matière</Label>

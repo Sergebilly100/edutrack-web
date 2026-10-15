@@ -401,7 +401,7 @@ export const fetchEntryPeriod = (classId: string, date: string) =>
   api.get<EntryPeriodResult>("/evaluations/entry-period", { params: { classId, date } })
     .then((response) => response.data)
 
-const DAY_LABELS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
+const DAY_LABELS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 
 export const dayLabel = (day: number): string => DAY_LABELS[day] ?? `Jour ${day}`
 

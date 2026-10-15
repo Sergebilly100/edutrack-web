@@ -36,10 +36,10 @@ const getCourseStatus = (
     return { label: "Absent", className: "border-red-200 bg-red-50 text-red-700" }
   }
   if (now > new Date(schedule.end_at)) {
-    return { label: "Terminé", className: "border-slate-200 bg-slate-50 text-slate-700" }
+    return { label: "Terminé", className: "border-green-200 bg-green-50 text-green-700" }
   }
   if (now >= new Date(schedule.start_at)) {
-    return { label: "En cours", className: "border-green-200 bg-green-50 text-green-700" }
+    return { label: "En cours", className: "border-slate-200 bg-slate-50 text-slate-700" }
   }
   return { label: "À venir", className: "border-blue-200 bg-blue-50 text-blue-700" }
 }
