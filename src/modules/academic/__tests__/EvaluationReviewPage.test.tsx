@@ -3,14 +3,16 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { fetchOptions, fetchReview, fetchSpontaneous } = vi.hoisted(() => ({ fetchOptions: vi.fn(), fetchReview: vi.fn(), fetchSpontaneous: vi.fn() }))
+const { fetchOptions, fetchReview, fetchSpontaneous, remindTeacher } = vi.hoisted(() => ({ fetchOptions: vi.fn(), fetchReview: vi.fn(), fetchSpontaneous: vi.fn(), remindTeacher: vi.fn() }))
 vi.mock("@/modules/academic/evaluation-review.api", () => ({
   fetchReviewOptions: (...args: unknown[]) => fetchOptions(...args),
   fetchEvaluationReview: (...args: unknown[]) => fetchReview(...args),
   fetchSpontaneousReview: (...args: unknown[]) => fetchSpontaneous(...args),
+  remindEvaluationTeacher: (...args: unknown[]) => remindTeacher(...args),
 }))
 
 import EvaluationReviewPage from "@/modules/academic/EvaluationReviewPage"
+import { todayInAbidjan } from "@/modules/academic/evaluation-review.logic"
 
 const options = {
   schoolYears: [{ id: "y1", label: "2026-2027", active: true }, { id: "y2", label: "2027-2028", active: false }],
@@ -24,6 +26,7 @@ const evaluation = {
   class: { id: "c1", name: "6e A" }, level: { id: "l1", name: "6e" }, period: { id: "p1", name: "Premier trimestre" },
   notes: [{ studentId: "st1", studentName: "Kouassi Awa", score: 14, maxScore: 20, comment: "Bien" },
     { studentId: "st2", studentName: "Koné Moussa", score: null, maxScore: null, comment: null }],
+  expectedCount: 2, enteredCount: 1, lastReminderAt: null,
 }
 
 const mount = () => render(<MemoryRouter><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -33,19 +36,21 @@ const mount = () => render(<MemoryRouter><QueryClientProvider client={new QueryC
 describe("EvaluationReviewPage", () => {
   beforeEach(() => {
     fetchOptions.mockReset().mockResolvedValue(options)
-    fetchReview.mockReset().mockResolvedValue({ items: [evaluation], summary: { evaluations: 1, grades: 1, missing: 1 }, page: 1, pageSize: 20, total: 1 })
+    fetchReview.mockReset().mockResolvedValue({ items: [evaluation], summary: { evaluations: 1, grades: 1, missing: 1 }, policy: { graceDays: 7, lateDays: 14 }, page: 1, pageSize: 20, total: 1 })
     fetchSpontaneous.mockReset().mockResolvedValue({ students: [], totalStudents: 0, totalNotes: 0, page: 1, pageSize: 20 })
+    remindTeacher.mockReset().mockResolvedValue({ lastReminderAt: "2026-10-14T00:00:00Z" })
   })
 
   it("affiche le détail de l’évaluation et les notes manquantes sur une largeur mobile", async () => {
     window.innerWidth = 390
     mount()
-    expect(screen.getByRole("note")).toHaveTextContent("Utilisez les filtres pour obtenir des résultats plus précis")
+    expect(screen.queryByRole("note")).not.toBeInTheDocument()
     expect(within(screen.getByRole("region", { name: "Filtres" })).getByRole("combobox", { name: "Classe" })).toBeDisabled()
     const toggle = await screen.findByRole("button", { name: /Devoir 1/ })
     expect(fetchReview).toHaveBeenCalledWith(expect.objectContaining({ schoolYearId: "y1", gradingPeriodId: "p1" }))
     expect(screen.getByText("Année active : 2026-2027")).toBeInTheDocument()
     expect(within(screen.getByRole("region", { name: "Synthèse" })).getAllByText("1", { selector: "strong" })).toHaveLength(3)
+    expect(screen.getByRole("progressbar", { name: "Complétion des notes" })).toHaveAttribute("aria-valuenow", "50")
     fireEvent.click(toggle)
     expect(screen.getByText("Kouassi Awa")).toBeInTheDocument()
     expect(screen.getByText("14 / 20")).toBeInTheDocument()
@@ -53,6 +58,33 @@ describe("EvaluationReviewPage", () => {
     expect(screen.getByText("Note manquante")).toBeInTheDocument()
     expect(toggle).toHaveAttribute("aria-expanded", "true")
     expect(screen.queryByRole("button", { name: /modifier|supprimer|créer/i })).not.toBeInTheDocument()
+  })
+
+  it("montre Relancer après le délai, puis bloque une nouvelle relance pendant 24 h", async () => {
+    const date = new Date(`${todayInAbidjan()}T00:00:00Z`)
+    date.setUTCDate(date.getUTCDate() - 8)
+    const due = { ...evaluation, date: date.toISOString().slice(0, 10) }
+    fetchReview.mockResolvedValueOnce({ items: [due], summary: { evaluations: 1, grades: 1, missing: 1 },
+      policy: { graceDays: 7, lateDays: 14 }, page: 1, pageSize: 20, total: 1 })
+      .mockResolvedValue({ items: [{ ...due, lastReminderAt: new Date().toISOString() }],
+        summary: { evaluations: 1, grades: 1, missing: 1 }, policy: { graceDays: 7, lateDays: 14 }, page: 1, pageSize: 20, total: 1 })
+    mount()
+    const remind = await screen.findByRole("button", { name: "Relancer" })
+    expect(screen.getByText("Saisie attendue")).toBeInTheDocument()
+    expect(remind).toBeEnabled()
+    fireEvent.click(remind)
+    await waitFor(() => expect(remindTeacher).toHaveBeenCalledWith("e1", expect.anything()))
+    await waitFor(() => expect(screen.getByRole("button", { name: "Relancer" })).toBeDisabled())
+    expect(screen.getByText(/Dernière relance/)).toBeInTheDocument()
+  })
+
+  it("transmet le tri global à l’API et regroupe par professeur", async () => {
+    mount()
+    await screen.findByRole("button", { name: /Devoir 1/ })
+    fireEvent.click(screen.getByRole("combobox", { name: "Trier et regrouper" }))
+    fireEvent.click(screen.getByRole("option", { name: "Professeur" }))
+    await waitFor(() => expect(fetchReview).toHaveBeenLastCalledWith(expect.objectContaining({ sort: "teacher", page: 1 })))
+    expect(await screen.findByRole("heading", { name: "Professeur A" })).toBeInTheDocument()
   })
 
   it("efface les filtres enfants quand l’année change", async () => {

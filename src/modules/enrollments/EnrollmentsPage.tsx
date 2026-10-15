@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ChevronDown,
   FileCheck2,
   Loader2,
   MoreHorizontal,
@@ -278,6 +279,7 @@ export default function EnrollmentsPage() {
   const expectedCount = campaignCounts ? campaignCounts.all - campaignCounts.excluded : 0;
   const campaignPercentage = expectedCount ? Math.round((campaignCounts?.reEnrolled ?? 0) / expectedCount * 100) : 0;
   const campaignCounters: Array<{ status: CampaignStatus; count: number }> = [
+    { status: "all", count: campaignCounts?.all ?? 0 },
     { status: "decision_pending", count: campaignCounts?.decisionPending ?? 0 },
     { status: "ready", count: campaignCounts?.ready ?? 0 },
     { status: "awaiting_cashier", count: campaignCounts?.awaitingCashier ?? 0 },
@@ -286,8 +288,13 @@ export default function EnrollmentsPage() {
     { status: "re_enrolled", count: campaignCounts?.reEnrolled ?? 0 },
     { status: "excluded", count: campaignCounts?.excluded ?? 0 },
     { status: "financial_unavailable", count: campaignCounts?.financialUnavailable ?? 0 },
-    { status: "all", count: campaignCounts?.all ?? 0 },
   ];
+  const visibleCampaignCounters = campaignCounters.filter(({ status, count }) =>
+    status === "all" || count > 0 || status === campaignStatus,
+  );
+  const otherCampaignCounters = campaignCounters.filter(({ status, count }) =>
+    status !== "all" && count === 0 && status !== campaignStatus,
+  );
   const candidatesForbidden = axios.isAxiosError(candidatesQuery.error) && candidatesQuery.error.response?.status === 403;
   const dossierFilterClasses = (dossierClassesQuery.data?.classes ?? []).filter(
     (item) => !dossierLevelId || item.level.id === dossierLevelId,
@@ -625,43 +632,52 @@ export default function EnrollmentsPage() {
           {yearsQuery.isSuccess && activeYears.length > 1 ? <Alert variant="destructive"><AlertDescription>Plusieurs années scolaires sont actives. Corrigez ce conflit avant de lancer la campagne.</AlertDescription></Alert> : null}
           {originYear ? <>
           <div className="space-y-4">
-            <div className="space-y-2 rounded-lg border bg-card p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-lg font-semibold">Campagne de réinscription → année {campaignTargetLabel}</h2>
-                {campaignCounts ? <p className="text-sm font-medium">{campaignCounts.reEnrolled} {campaignCounts.reEnrolled === 1 ? "réinscrit" : "réinscrits"} sur {expectedCount} {expectedCount === 1 ? "élève attendu" : "élèves attendus"}</p> : null}
+            <div className="space-y-4 rounded-lg border bg-card p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <h2 className="text-lg font-semibold">Campagne de réinscription → année {campaignTargetLabel}</h2>
+                  <p className="text-xs text-muted-foreground">Depuis l’année {originYear.label} · chiffres selon les filtres sélectionnés</p>
+                </div>
+                {campaignCounts ? <p className="text-sm font-semibold tabular-nums">{campaignCounts.reEnrolled} {campaignCounts.reEnrolled === 1 ? "réinscrit" : "réinscrits"} sur {expectedCount} {expectedCount === 1 ? "élève attendu" : "élèves attendus"}</p> : null}
               </div>
               {campaignCounts ? <Progress value={campaignPercentage} aria-valuenow={campaignPercentage}
                 aria-label="Progression de la campagne de réinscription" /> : null}
-              <p className="text-xs text-muted-foreground">La progression et les compteurs suivent l’année d’origine, la classe et la recherche sélectionnées.</p>
+              <div className="flex flex-wrap items-center gap-2 border-t pt-4" role="group" aria-label={`Filtrer les élèves de la campagne ${campaignTargetLabel} par état`}>
+                {visibleCampaignCounters.map(({ status, count }) => (
+                  <Button key={status} type="button" variant="outline" aria-pressed={campaignStatus === status}
+                    className={`min-h-11 max-w-full whitespace-normal border text-left ${campaignStatusClassName[status]} ${campaignStatus === status ? "ring-2 ring-ring ring-offset-2" : ""}`}
+                    onClick={() => { setCampaignStatus(status); setCandidatePage(1) }}>
+                    {campaignStatusLabels[status]} : {candidatesQuery.isLoading ? "…" : count}
+                  </Button>
+                ))}
+                {otherCampaignCounters.length > 0 ? <DropdownMenu>
+                  <DropdownMenuTrigger asChild><Button type="button" variant="outline" className="min-h-11 gap-2 text-muted-foreground">Autres statuts <ChevronDown className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    {otherCampaignCounters.map(({ status, count }) => <DropdownMenuItem key={status}
+                      onSelect={() => { setCampaignStatus(status); setCandidatePage(1) }}>
+                      {campaignStatusLabels[status]} : {count}
+                    </DropdownMenuItem>)}
+                  </DropdownMenuContent>
+                </DropdownMenu> : null}
+              </div>
             </div>
             {!targetYear ? <Alert><AlertDescription>{candidatesQuery.data?.targetSchoolYear?.status === "closed"
               ? `L’année ${campaignTargetLabel} est clôturée. Cette campagne est consultable en lecture seule.`
               : `La campagne s’ouvrira quand l’année ${campaignTargetLabel} sera ${candidatesQuery.data?.targetSchoolYear?.status === "draft" ? "ouverte" : "créée et ouverte"} par IvoirEdu. Les candidats restent consultables en lecture seule.`}</AlertDescription></Alert> : null}
-            <div className="flex flex-wrap gap-2" role="group" aria-label={`Filtrer les élèves de la campagne ${campaignTargetLabel} par état`}>
-              {campaignCounters.map(({ status, count }) => (
-                <Button key={status} type="button" variant="outline" aria-pressed={campaignStatus === status}
-                  className={`min-h-12 border ${campaignStatusClassName[status]} ${campaignStatus === status ? "ring-2 ring-ring ring-offset-2" : ""}`}
-                  onClick={() => { setCampaignStatus(status); setCandidatePage(1) }}>
-                  {campaignStatusLabels[status]} : {candidatesQuery.isLoading ? "…" : count}
-                </Button>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">Les dossiers créés en attente de caisse et les élèves exclus conservent un état distinct.</p>
           </div>
-          <div className="space-y-4 rounded-lg border bg-card p-4">
-            <AcademicContextFilters yearIdPrefix="re-enrollment" years={originYears} yearId={recentYearId}
-              activeYear={selectedYear ?? undefined} showPeriod={false} allowAllYears={false}
-              yearLabel="Année d’origine" yearHint={recentYearChoice ? undefined : "Année clôturée la plus récente par défaut ; choisissez l’année active pour préparer la suivante."}
+          <div className="space-y-3 rounded-lg border bg-card p-4">
+            <FilterBar className="lg:grid-cols-4">
+            <AcademicContextFilters compact yearIdPrefix="re-enrollment" years={originYears} yearId={recentYearId}
+              showPeriod={false} allowAllYears={false} yearLabel="Année d’origine"
               onYearChange={updateRecentYear} yearDisabled={yearsQuery.isLoading || !originYears.length} />
-            <FilterBar>
             <DependentSelect id="recent-level-filter" label="Niveau récent" value={recentLevelId}
               options={(levelsQuery.data ?? []).map((level) => ({ id: level.id, label: level.name }))}
               dependsOn={{ field: "year", value: recentYearId }} allLabel="Tous les niveaux"
               onValueChange={(value) => { setRecentLevelId(value); setRecentClassId(""); setCandidateSearch(""); setCandidatePage(1) }} />
             <DependentSelect id="recent-class-filter" label="Classe récente" value={recentClassId}
               options={recentFilterClasses.map((item) => ({ id: item.id, label: item.name }))}
-              dependsOn={{ field: recentYearId ? "level" : "year", value: recentYearId && recentLevelId ? recentLevelId : "" }}
-              allLabel="Toutes les classes" loading={recentClassesQuery.isFetching && Boolean(recentLevelId)}
+              dependsOn={{ field: "year", value: recentYearId }}
+              allLabel="Toutes les classes" loading={recentClassesQuery.isFetching && Boolean(recentYearId)}
               onValueChange={(value) => { setRecentClassId(value); setCandidateSearch(""); setCandidatePage(1) }} />
             <div className="space-y-2">
               <Label htmlFor="candidate-search">Élève, nom ou matricule</Label>
@@ -733,7 +749,9 @@ export default function EnrollmentsPage() {
                         </div>
                       </div></TableCell>
                       <TableCell>{candidate.currentClassName}<span className="block text-xs text-muted-foreground">{candidate.currentSchoolYearLabel}</span></TableCell>
-                      <TableCell>{candidate.finalDecision ? decisionLabel[candidate.finalDecision] : "Non validée"}</TableCell>
+                      <TableCell>{candidate.finalDecision ? decisionLabel[candidate.finalDecision] : candidate.status === "re_enrolled"
+                        ? <span className="text-muted-foreground" title="Aucune décision enregistrée pour l’année d’origine">Non renseignée</span>
+                        : "Non validée"}</TableCell>
                       <TableCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
                         {existing ? existing.className : !candidate.finalDecision ? "À déterminer" : candidate.finalDecision === "expelled" ? "Sans classe d’accueil" : !targetYear || candidate.status !== "ready" ? <span>{candidate.nextLevelName ?? "Niveau à définir"}<span className="block text-xs text-muted-foreground">{candidate.status === "blocked_unpaid" ? "Classe à choisir après régularisation" : candidate.status === "financial_unavailable" ? "Classe à choisir après vérification du solde" : candidate.status === "decision_pending" ? "Classe à définir dans Fin d’année" : "Classe à choisir après ouverture"}</span></span> : <div className="min-w-44 space-y-1">
                           <Label className="sr-only" htmlFor={`target-class-${candidate.studentId}`}>Classe d’accueil de {name}</Label>

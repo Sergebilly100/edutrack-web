@@ -89,6 +89,30 @@ describe('Réinscriptions', () => {
     await waitFor(() => expect(mocks.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ campaignStatus: 'blocked_unpaid' })))
   })
 
+  it('regroupe les statuts à zéro tout en les gardant filtrables', async () => {
+    mocks.listCandidates.mockResolvedValue({
+      candidates: [{ ...candidate('confirmed', 're_enrolled'), finalDecision: null }],
+      counts: { ...counts, decisionPending: 0, ready: 0, awaitingCashier: 0, awaitingDocuments: 0, blockedUnpaid: 0, reEnrolled: 1, excluded: 0, financialUnavailable: 0, toProcess: 0, confirmed: 1, all: 1 },
+      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+    })
+    renderPage()
+    expect(await screen.findByRole('button', { name: 'Réinscrit : 1' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Prêt à réinscrire : 0' })).not.toBeInTheDocument()
+    expect(within(screen.getByRole('row', { name: 'Ouvrir le dossier de KONÉ confirmed' })).getByText('Non renseignée')).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Autres statuts' }), { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Prêt à réinscrire : 0' }))
+    await waitFor(() => expect(mocks.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ campaignStatus: 'ready' })))
+    expect(await screen.findByRole('button', { name: 'Prêt à réinscrire : 0' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('permet de filtrer directement par classe récente', async () => {
+    renderPage()
+    await screen.findByText('KONÉ ready')
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Classe récente' }), { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByRole('option', { name: '5e A' }))
+    await waitFor(() => expect(mocks.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ classId: 'class-2', levelId: undefined })))
+  })
+
   it('crée le dossier après choix de la classe et ouvre le dossier par la ligne', async () => {
     renderPage()
     await screen.findByText('KONÉ ready')

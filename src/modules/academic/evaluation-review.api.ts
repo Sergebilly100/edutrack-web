@@ -19,6 +19,7 @@ export type ReviewFilters = {
   studentSearch?: string
   page: number
   pageSize?: number
+  sort?: "delay" | "teacher" | "class"
 }
 export type ReviewEvaluation = {
   id: string
@@ -32,10 +33,14 @@ export type ReviewEvaluation = {
   level: { id: string; name: string }
   period: { id: string; name: string }
   notes: Array<{ studentId: string; studentName: string; score: number | null; maxScore: number | null; comment: string | null }>
+  expectedCount: number
+  enteredCount: number
+  lastReminderAt: string | null
 }
 export type ReviewResult = {
   items: ReviewEvaluation[]
   summary: { evaluations: number; grades: number; missing: number }
+  policy: { graceDays: number; lateDays: number }
   page: number
   pageSize: number
   total: number
@@ -73,3 +78,6 @@ export const fetchEvaluationReview = (params: ReviewFilters) =>
 
 export const fetchSpontaneousReview = (params: ReviewFilters) =>
   apiClient.get<SpontaneousReviewResult>("/academic/evaluations/spontaneous", { params }).then((response) => response.data)
+
+export const remindEvaluationTeacher = (evaluationId: string): Promise<{ lastReminderAt: string }> =>
+  apiClient.post<{ lastReminderAt: string }>(`/academic/evaluations/${evaluationId}/remind`).then((response) => response.data)

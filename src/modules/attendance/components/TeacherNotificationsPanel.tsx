@@ -20,8 +20,8 @@ const formatDate = (value: string): string => {
 }
 
 // Doit couvrir tous les types renvoyés par l'API prof (cf. whitelist backend
-// validations.repository : attendance_approved/rejected, scan_end_warning/
-// sanction/sanction_cancelled). Sans entrée ici, le code technique brut était
+// validations.repository : présence, scan de fin et relance de saisie).
+// Sans entrée ici, le code technique brut serait
 // affiché à l'enseignant.
 const notifTypeLabel: Record<string, string> = {
   attendance_approved: "Présence validée",
@@ -29,6 +29,7 @@ const notifTypeLabel: Record<string, string> = {
   scan_end_warning: "Scan de fin manquant",
   scan_end_sanction: "Heures non comptabilisées",
   scan_end_sanction_cancelled: "Sanction annulée",
+  custom: "Saisie des notes attendue",
 }
 
 export default function TeacherNotificationsPanel() {

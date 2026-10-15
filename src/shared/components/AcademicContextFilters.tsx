@@ -23,19 +23,20 @@ type AcademicContextFiltersProps = {
   yearDisabled?: boolean
   periodDisabled?: boolean
   yearHint?: string
+  compact?: boolean
 }
 
 export function AcademicContextFilters({
   years, yearId, onYearChange, activeYear, showPeriod, allowAllYears, allYearsLabel = "Toutes les années",
   yearLabel = "Année scolaire", yearIdPrefix, periods = [], periodId = "", onPeriodChange,
-  allowAllPeriods = false, yearDisabled = false, periodDisabled = false, yearHint,
+  allowAllPeriods = false, yearDisabled = false, periodDisabled = false, yearHint, compact = false,
 }: AcademicContextFiltersProps) {
   const selectedYear = years.find((year) => year.id === yearId)
   const isArchive = selectedYear?.status === "closed"
   const yearControlId = `${yearIdPrefix}-year`
   const periodControlId = `${yearIdPrefix}-period`
 
-  return <div className="space-y-4 border-b border-border pb-4">
+  return <div className={compact ? "space-y-4" : "space-y-4 border-b border-border pb-4"}>
     <div className={showPeriod ? "grid gap-4 sm:grid-cols-2" : "grid gap-4"}>
       <div className="min-w-0 space-y-2">
         <div className="flex min-h-6 items-center gap-2">
@@ -57,7 +58,7 @@ export function AcademicContextFilters({
         </Select>
         {activeYear ? <p className="text-xs text-muted-foreground">Année active : {activeYear.label}</p> : null}
         {yearHint ? <p className="text-xs text-muted-foreground">{yearHint}</p> : null}
-        {isArchive ? <p className="text-xs font-medium text-amber-700">Vous consultez une année archivée.</p> : null}
+        {isArchive && !compact ? <p className="text-xs font-medium text-amber-700">Vous consultez une année archivée.</p> : null}
       </div>
       {showPeriod ? <div className="min-w-0 space-y-2">
         <div className="flex min-h-6 items-center"><Label htmlFor={periodControlId}>Période</Label></div>

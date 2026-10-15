@@ -154,6 +154,8 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
   const [addressDraft, setAddressDraft] = useState("")
   const [logoUrlDraft, setLogoUrlDraft] = useState("")
   const [allowTeacherQrSkipDraft, setAllowTeacherQrSkipDraft] = useState(false)
+  const [evaluationGraceDraft, setEvaluationGraceDraft] = useState('7')
+  const [evaluationLateDraft, setEvaluationLateDraft] = useState('14')
   const [pendingQrSkipState, setPendingQrSkipState] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -165,6 +167,8 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
     setAddressDraft(schoolConfigQuery.data.school.address ?? "")
     setLogoUrlDraft(schoolConfigQuery.data.school.logoUrl ?? "")
     setAllowTeacherQrSkipDraft(Boolean(schoolConfigQuery.data.school.allowTeacherQrSkip))
+    setEvaluationGraceDraft(String(schoolConfigQuery.data.school.evaluationGraceDays))
+    setEvaluationLateDraft(String(schoolConfigQuery.data.school.evaluationLateDays))
   }, [schoolConfigQuery.data])
 
   const saveSchoolInfoMutation = useMutation({
@@ -226,6 +230,18 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
     onSettled: () => {
       setPendingQrSkipState(null)
     },
+  })
+
+  const saveEvaluationDelaysMutation = useMutation({
+    mutationFn: () => updateSchoolInfo({
+      evaluationGraceDays: Number(evaluationGraceDraft), evaluationLateDays: Number(evaluationLateDraft),
+    }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY })
+      await queryClient.invalidateQueries({ queryKey: ['evaluation-review'] })
+      toast({ title: 'Délais de saisie des notes enregistrés' })
+    },
+    onError: () => toast({ title: 'Impossible de sauvegarder les délais', variant: 'destructive' }),
   })
 
   const saveLimitMutation = useMutation({
@@ -783,6 +799,29 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
             </div>
           </div>
         </div>
+
+        {canManageSchoolSettings ? <section id="evaluation-delays" aria-labelledby="evaluation-delays-title" className="space-y-4 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
+          <div>
+            <h2 id="evaluation-delays-title" className="text-lg font-semibold">Délais de saisie des notes</h2>
+            <p className="text-sm text-muted-foreground">Après le délai de grâce, une saisie devient attendue. Au-delà du seuil de retard, elle apparaît en rouge.</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2"><Label htmlFor="evaluation-grace-days">Délai de grâce (jours)</Label>
+              <Input id="evaluation-grace-days" type="number" min={0} max={364} value={evaluationGraceDraft} onChange={(event) => setEvaluationGraceDraft(event.target.value)} /></div>
+            <div className="space-y-2"><Label htmlFor="evaluation-late-days">Seuil de retard (jours)</Label>
+              <Input id="evaluation-late-days" type="number" min={1} max={365} value={evaluationLateDraft} onChange={(event) => setEvaluationLateDraft(event.target.value)} /></div>
+          </div>
+          <p className="text-sm text-muted-foreground">Le seuil de retard doit être supérieur au délai de grâce.</p>
+          <Button type="button" className="min-h-12" disabled={saveEvaluationDelaysMutation.isPending ||
+            !Number.isInteger(Number(evaluationGraceDraft)) || !Number.isInteger(Number(evaluationLateDraft)) ||
+            evaluationGraceDraft.trim() === '' || evaluationLateDraft.trim() === '' ||
+            Number(evaluationGraceDraft) < 0 || Number(evaluationLateDraft) > 365 ||
+            Number(evaluationGraceDraft) >= Number(evaluationLateDraft) ||
+            (Number(evaluationGraceDraft) === school?.evaluationGraceDays && Number(evaluationLateDraft) === school?.evaluationLateDays)}
+            onClick={() => saveEvaluationDelaysMutation.mutate()}>
+            {saveEvaluationDelaysMutation.isPending ? 'Enregistrement…' : 'Enregistrer les délais'}
+          </Button>
+        </section> : null}
 
         {canManageSchoolSettings ? (
           <section

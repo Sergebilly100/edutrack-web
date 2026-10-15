@@ -45,6 +45,8 @@ export type SchoolConfigData = {
     activeSchoolYear: string | null
     canEditSmsTemplate: boolean
     allowTeacherQrSkip: boolean
+    evaluationGraceDays: number
+    evaluationLateDays: number
   }
   limits: {
     maxAdminPositions: number
@@ -175,6 +177,8 @@ const parseConfigEnvelope = (value: unknown): SchoolConfigData => {
       allowTeacherQrSkip: Boolean(
         schoolRaw.allowTeacherQrSkip ?? schoolRaw.allow_teacher_qr_skip
       ),
+      evaluationGraceDays: asNumber(schoolRaw.evaluationGraceDays ?? schoolRaw.evaluation_grace_days, 7),
+      evaluationLateDays: asNumber(schoolRaw.evaluationLateDays ?? schoolRaw.evaluation_late_days, 14),
     },
     limits: {
       maxAdminPositions: asNumber(limitsRaw.max_admin_positions ?? limitsRaw.maxAdminPositions, 0),
@@ -202,6 +206,8 @@ const parseSchoolInfo = (value: unknown): SchoolConfigData["school"] => {
     activeSchoolYear: asNullableString(payload.activeSchoolYear ?? payload.active_school_year),
     canEditSmsTemplate: false,
     allowTeacherQrSkip: false,
+    evaluationGraceDays: asNumber(payload.evaluationGraceDays ?? payload.evaluation_grace_days, 7),
+    evaluationLateDays: asNumber(payload.evaluationLateDays ?? payload.evaluation_late_days, 14),
   }
 }
 
@@ -326,6 +332,8 @@ export const updateSchoolInfo = async (payload: {
   teachingType?: TeachingType
   logoUrl?: string | null
   allowTeacherQrSkip?: boolean
+  evaluationGraceDays?: number
+  evaluationLateDays?: number
 }): Promise<void> => {
   await apiClient.patch("/permissions/config/school", {
     name: payload.name,
@@ -336,6 +344,8 @@ export const updateSchoolInfo = async (payload: {
     ...(payload.allowTeacherQrSkip !== undefined
       ? { allowTeacherQrSkip: payload.allowTeacherQrSkip }
       : {}),
+    ...(payload.evaluationGraceDays !== undefined ? { evaluationGraceDays: payload.evaluationGraceDays } : {}),
+    ...(payload.evaluationLateDays !== undefined ? { evaluationLateDays: payload.evaluationLateDays } : {}),
   })
 }
 
