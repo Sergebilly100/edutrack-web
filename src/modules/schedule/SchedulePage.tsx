@@ -841,19 +841,6 @@ export default function SchedulePage() {
             </SelectContent>
           </Select>
 
-          {/* Filtre professeur */}
-          <Select value={teacherFilter} onValueChange={setTeacherFilter} disabled={!data}>
-            <SelectTrigger aria-label="Filtrer par professeur" className="min-h-[48px] w-full min-w-0 text-xs sm:w-auto sm:min-w-[160px]">
-              <SelectValue placeholder="Tous les professeurs" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les professeurs</SelectItem>
-              {(data?.catalog.teachers ?? []).map((t) => (
-                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           {/* Filtre classe */}
           <Select value={classFilter} onValueChange={setClassFilter} disabled={!data}>
             <SelectTrigger aria-label="Filtrer par classe" className="min-h-[48px] w-full min-w-0 text-xs sm:w-auto sm:min-w-[140px]">
@@ -863,6 +850,19 @@ export default function SchedulePage() {
               <SelectItem value="all">Toutes les classes</SelectItem>
               {visibleClassOptions.map((c) => (
                 <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Filtre professeur */}
+          <Select value={teacherFilter} onValueChange={setTeacherFilter} disabled={!data}>
+            <SelectTrigger aria-label="Filtrer par professeur" className="min-h-[48px] w-full min-w-0 text-xs sm:w-auto sm:min-w-[160px]">
+              <SelectValue placeholder="Tous les professeurs" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les professeurs</SelectItem>
+              {(data?.catalog.teachers ?? []).map((t) => (
+                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
