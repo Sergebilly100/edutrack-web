@@ -38,6 +38,24 @@ describe("schedule API subject display", () => {
     expect((await fetchTeacherSchedule())[0]?.subject_name).toBe("Mathématiques")
   })
 
+  it("utilise la date API et les horaires flexibles, avec le statut d'absence", async () => {
+    getMock.mockResolvedValueOnce({ data: {
+      date: "2026-10-16",
+      schedules: [{ ...schedule, timeSlot: { ...schedule.timeSlot, startTime: "09:17:00", endTime: "10:43:00" }, attendance: { status: "absent" } }],
+    } })
+
+    expect(await fetchTeacherSchedule()).toEqual([expect.objectContaining({
+      start_at: "2026-10-16T09:17:00.000Z",
+      end_at: "2026-10-16T10:43:00.000Z",
+      attendance_status: "absent",
+    })])
+  })
+
+  it("rejette une réponse sans date métier au lieu d'utiliser celle de l'appareil", async () => {
+    getMock.mockResolvedValueOnce({ data: [schedule] })
+    await expect(fetchTeacherSchedule()).rejects.toThrow()
+  })
+
   it("normalise les niveaux du catalogue et des créneaux, y compris une classe sans niveau", async () => {
     getMock.mockResolvedValueOnce({ data: {
       date: "2026-10-05", period: null,

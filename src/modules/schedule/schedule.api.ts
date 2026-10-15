@@ -244,10 +244,10 @@ const ActiveScheduleResponseSchema = z.object({
   schedules: z.array(ScheduleRowSchema),
 })
 
-const TeacherScheduleResponseSchema = z.union([
-  z.object({ date: z.string(), schedules: z.array(ScheduleRowSchema) }),
-  z.array(ScheduleRowSchema),
-])
+const TeacherScheduleResponseSchema = z.object({
+  date: z.iso.date(),
+  schedules: z.array(ScheduleRowSchema),
+})
 
 const SchedulePeriodsResponseSchema = z.object({
   periods: z
@@ -284,18 +284,16 @@ const getDateParam = (value: unknown): string | undefined =>
 export const fetchTeacherSchedule = async (): Promise<TeacherSchedule[]> => {
   const response = await api.get("/schedule/teacher/me")
   const payload = TeacherScheduleResponseSchema.parse(response.data)
-  const date = Array.isArray(payload) ? new Date().toISOString().slice(0, 10) : payload.date
-  const schedules = Array.isArray(payload) ? payload : payload.schedules
 
-  return schedules.map((item) => ({
+  return payload.schedules.map((item) => ({
     id: item.id,
     class_id: item.class.id,
     class_name: item.class.name,
     subject_name: item.subjectDisplay || item.subject,
     room_id: item.room.id,
     room_name: item.room.name,
-    start_at: toIsoDateTime(date, item.timeSlot.startTime),
-    end_at: toIsoDateTime(date, item.timeSlot.endTime),
+    start_at: toIsoDateTime(payload.date, item.timeSlot.startTime),
+    end_at: toIsoDateTime(payload.date, item.timeSlot.endTime),
     attendance_status: item.attendance?.status ?? null,
   }))
 }
