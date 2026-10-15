@@ -68,7 +68,7 @@ describe("enrollments.api", () => {
       pagination: { total: 1 },
     })
     await expect(getStudentAcademicSummary("student-1")).resolves.toMatchObject({ student: { matricule: "MAT-001" } })
-    expect(getMock).toHaveBeenCalledWith("/enrollments/re-enrollment/candidates", { params: { page: 1, limit: 20, school_year_id: "year-active", campaign_status: "to_process", source_school_year_id: "year-1", level_id: "level-1", class_id: "class-1", search: "Awa" } })
+    expect(getMock).toHaveBeenCalledWith("/enrollments/re-enrollment/candidates", { params: { page: 1, limit: 20, school_year_id: "year-active", campaign_status: "all", source_school_year_id: "year-1", level_id: "level-1", class_id: "class-1", search: "Awa" } })
     expect(getMock).toHaveBeenCalledWith("/students/student-1/academic-history")
   })
 

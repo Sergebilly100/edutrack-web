@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { isCivilDate } from "@/shared/lib/date-validation"
+import { currentAcademicPeriodId } from "@/shared/lib/academic-context"
+import { businessToday } from "@/shared/lib/academic-calendar"
 import { listStudents, type StudentItem } from "@/modules/students/students.api"
 import { EmptyState } from "@/shared/components/EmptyState"
 import {
@@ -57,9 +59,9 @@ export default function NotesPage() {
     ),
     [contextQuery.data?.gradingPeriods, selectedClass],
   )
-  const today = new Date().toISOString().slice(0, 10)
+  const today = businessToday()
   const gradingPeriodId = selectedPeriodId
-    || periods.find((period) => period.notesEntryOpen && today >= period.startDate && today <= period.endDate)?.id
+    || currentAcademicPeriodId(periods.filter((period) => period.notesEntryOpen), today)
     || periods.find((period) => period.notesEntryOpen)?.id || ""
   const activePeriod = periods.find((period) => period.id === gradingPeriodId)
   const isPeriodClosedFromContext = Boolean(activePeriod?.isCompleted || activePeriod?.closedClassIds?.includes(classId))

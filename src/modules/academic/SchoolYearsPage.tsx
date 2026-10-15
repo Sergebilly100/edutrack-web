@@ -1,90 +1,106 @@
-import { useEffect, useMemo, useState } from "react"
-import type { FormEvent } from "react"
-import { zodResolver } from "@hookform/resolvers/zod"
+import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { ColumnDef } from "@tanstack/react-table"
-import { useForm } from "react-hook-form"
-import { z } from "zod"
 import axios from "axios"
+import { Check, ChevronDown, ChevronUp, LockKeyhole } from "lucide-react"
+import { Link } from "react-router-dom"
 
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/components/ui/use-toast"
 import { createGradingPeriod, listGradingPeriods, listSchoolYears, updateGradingPeriod, updateSchoolYearReviewDate, type GradingPeriod, type SchoolYear } from "@/modules/academic/academic.api"
 import { AcademicNavigation } from "@/modules/academic/components/AcademicNavigation"
-import { DataTable, EmptyState, PageLayout, QueryErrorState, Spinner } from "@/shared/components"
+import { AcademicTimeline } from "@/shared/components/AcademicTimeline"
+import { EmptyState, PageLayout, QueryErrorState, Spinner } from "@/shared/components"
 import { CalendarIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { businessToday, daysUntil, formatAcademicDate, nextAcademicDeadline, periodDateErrors, periodOverlap } from "@/shared/lib/academic-calendar"
+import { currentAcademicPeriodId } from "@/shared/lib/academic-context"
 import { isCivilDate } from "@/shared/lib/date-validation"
 
 const SCHOOL_YEARS_KEY = ["academic", "school-years"] as const
 const GRADING_PERIODS_KEY = ["academic", "grading-periods"] as const
-const reviewDateSchema = z.object({
-  endOfYearReviewStartDate: z.string().min(1, "La date de début de revue est requise"),
-})
-type ReviewDateForm = z.infer<typeof reviewDateSchema>
-
-const statusLabel = { draft: "Brouillon", active: "Active", closed: "Clôturée" } as const
-const formatDate = (value: string) => new Intl.DateTimeFormat("fr-FR").format(new Date(`${value}T00:00:00`))
-const previousIsoDate = (value: string) => { // retourne la date ISO du jour précédent pour une date donnée (ex: 2024-06-30 -> 2024-06-29)
-  const date = new Date(`${value}T00:00:00.000Z`) 
-  date.setUTCDate(date.getUTCDate() - 1)
-  return date.toISOString().slice(0, 10)
+const dateKeys = ["startDate", "reviewStartDate", "endDate"] as const
+const dateLabels = { startDate: "Début de période", reviewStartDate: "Début de revue", endDate: "Fin de période" }
+const dateHelp = {
+  startDate: "Premier jour couvert par la période.",
+  reviewStartDate: "Ouvre la conduite et la préparation des bulletins ; les notes restent modifiables jusqu’à la validation de chaque matière.",
+  endDate: "Borne finale, égale ou postérieure au début de revue.",
 }
-const apiErrorMessage = (error: unknown, fallback = "La date doit être strictement antérieure à la fin de l’année scolaire.") =>
-  axios.isAxiosError(error) && typeof error.response?.data?.error === "string"
-    ? error.response.data.error
-    : fallback
+const apiErrorMessage = (error: unknown, fallback: string) => axios.isAxiosError(error) && typeof error.response?.data?.error === "string" ? error.response.data.error : fallback
+const countdown = (date: string, today: string) => {
+  const days = daysUntil(date, today)
+  return days === null ? "Date indisponible" : days > 0 ? `dans ${days} jour${days > 1 ? "s" : ""}` : days === 0 ? "aujourd’hui" : "passée"
+}
 
-function GradingPeriodFields({ id, initial, disabled, pending, actionLabel }: {
-  id: string
-  initial?: { startDate: string; reviewStartDate: string; endDate: string }
-  disabled: boolean
-  pending: boolean
-  actionLabel: string
+function PeriodEditor({ period, previous, next, year, isCurrent, canEdit, onSave, pending, today }: {
+  period: GradingPeriod; previous?: GradingPeriod; next?: GradingPeriod; year: SchoolYear; isCurrent: boolean
+  canEdit: boolean; onSave: (period: GradingPeriod, dates: Pick<GradingPeriod, "startDate" | "reviewStartDate" | "endDate">) => void
+  pending: boolean; today: string
 }) {
-  const [dates, setDates] = useState({
-    startDate: initial?.startDate ?? "",
-    reviewStartDate: initial?.reviewStartDate ?? "",
-    endDate: initial?.endDate ?? "",
-  })
-  const [message, setMessage] = useState<string | null>(null)
-  const changeDate = (key: keyof typeof dates, value: string) => {
-    const next = { ...dates, [key]: value }
-    const cleared: Array<keyof typeof dates> = []
-    if (next.startDate && next.endDate && next.startDate > next.endDate) {
-      const field = key === "startDate" ? "endDate" : "startDate"
-      next[field] = ""
-      cleared.push(field)
-    }
-    if (next.reviewStartDate && next.startDate && next.reviewStartDate < next.startDate) {
-      const field = key === "reviewStartDate" ? "startDate" : "reviewStartDate"
-      next[field] = ""
-      cleared.push(field)
-    }
-    if (next.reviewStartDate && next.endDate && next.reviewStartDate > next.endDate) {
-      const field = key === "reviewStartDate" ? "endDate" : "reviewStartDate"
-      next[field] = ""
-      cleared.push(field)
-    }
-    setDates(next)
-    const labels = cleared.map((field) => field === "startDate" ? "début de période" : field === "endDate" ? "fin de période" : "début de revue")
-    setMessage(labels.length ? `Dates précédentes incompatibles effacées : ${labels.join(", ")}.` : null)
+  const [open, setOpen] = useState(isCurrent && !period.isClosed)
+  const [editing, setEditing] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [dates, setDates] = useState({ startDate: period.startDate, reviewStartDate: period.reviewStartDate, endDate: period.endDate })
+  const draft = { ...dates, orderIndex: period.orderIndex }
+  const errors = periodDateErrors(draft, year, previous, next)
+  const dirty = dateKeys.some((key) => dates[key] !== period[key])
+  const valid = Object.keys(errors).length === 0
+  const overlap = periodOverlap(draft, previous)
+  const transitionErrors = previous ? periodDateErrors(draft, year, previous) : null
+  const transitionError = transitionErrors?.startDate ?? transitionErrors?.reviewStartDate
+  const save = () => {
+    if (!dirty || !valid) return
+    if (isCurrent) setConfirmOpen(true)
+    else onSave(period, dates)
   }
-  const valid = Object.values(dates).every((value) => isCivilDate(value))
-    && dates.startDate <= dates.reviewStartDate && dates.reviewStartDate <= dates.endDate
-  return <>
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto]">
-      <label className="space-y-1 text-sm">Début de période<Input name="startDate" type="date" value={dates.startDate} max={dates.endDate || undefined} aria-describedby={message ? `grading-date-error-${id}` : undefined} onChange={(event) => changeDate("startDate", event.target.value)} disabled={disabled} required /></label>
-      <label className="space-y-1 text-sm">Début de revue<Input name="reviewStartDate" type="date" value={dates.reviewStartDate} min={dates.startDate || undefined} max={dates.endDate || undefined} aria-describedby={message ? `grading-date-error-${id}` : undefined} onChange={(event) => changeDate("reviewStartDate", event.target.value)} disabled={disabled} required /></label>
-      <label className="space-y-1 text-sm">Fin de période<Input name="endDate" type="date" value={dates.endDate} min={dates.startDate || undefined} aria-describedby={message ? `grading-date-error-${id}` : undefined} onChange={(event) => changeDate("endDate", event.target.value)} disabled={disabled} required /></label>
-      {!disabled ? <Button type="submit" className="min-h-12 lg:self-end lg:whitespace-nowrap" disabled={pending || !valid}>{pending ? <Spinner size="sm" className="mr-2" /> : null}{actionLabel}</Button> : null}
-    </div>
-    {message ? <p id={`grading-date-error-${id}`} role="alert" className="text-sm text-destructive">{message}</p> : null}
-  </>
+  const cancel = () => {
+    setDates({ startDate: period.startDate, reviewStartDate: period.reviewStartDate, endDate: period.endDate })
+    setEditing(false)
+  }
+  return <div className={`rounded-lg border ${isCurrent ? "border-blue-600" : "border-border"}`}>
+    <Button type="button" variant="ghost" className="flex h-auto min-h-12 w-full flex-wrap justify-start gap-2 whitespace-normal px-4 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800" aria-expanded={open} onClick={() => setOpen(!open)}>
+      {period.isClosed ? <LockKeyhole className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
+      <span className="font-semibold">{period.label}</span>
+      <Badge variant="outline" className={period.isClosed ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100" : isCurrent ? "border-blue-200 bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-100" : ""}>
+        {period.isClosed ? "Clôturée" : year.status === "closed" ? "Année clôturée" : year.status === "draft" || period.startDate > today ? "À venir" : period.conductReviewOpen ? "Revue de conduite" : period.notesEntryOpen ? "Saisie des notes" : "À venir"}
+      </Badge>
+      {previous && transitionError ? <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100">Transition avec {previous.label} : {transitionError}</Badge> : previous && overlap ? <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-100">Recouvre {previous.label} du {formatAcademicDate(overlap.start)} au {formatAcademicDate(overlap.end)} ({overlap.days} jours) · normal</Badge> : null}
+      <span className="ml-auto hidden text-sm text-slate-700 dark:text-slate-200 sm:inline">{formatAcademicDate(period.startDate)} → {formatAcademicDate(period.endDate)}</span>
+      {open ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
+    </Button>
+    {open ? <div className="space-y-4 border-t px-4 py-4">
+      <p className="text-sm text-slate-700 dark:text-slate-200 sm:hidden">{formatAcademicDate(period.startDate)} → {formatAcademicDate(period.endDate)}</p>
+      {editing ? <>
+        {dirty ? <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100">Modifications non enregistrées</Badge> : null}
+        <div className="grid gap-4 lg:grid-cols-3">{dateKeys.map((key) => <label key={key} className="space-y-2 text-sm font-medium">
+          <span>{dateLabels[key]}</span><Input type="date" value={dates[key]} aria-invalid={Boolean(errors[key])} aria-describedby={`${period.id}-${key}-help`} onChange={(event) => setDates((current) => ({ ...current, [key]: event.target.value }))} />
+          <span id={`${period.id}-${key}-help`} className="block text-sm font-normal text-slate-700 dark:text-slate-200">{dateHelp[key]}</span>
+          {errors[key] ? <span role="alert" className="block text-sm font-normal text-destructive">{errors[key]}</span> : null}
+        </label>)}</div>
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100"><strong>Impact :</strong> la revue s’ouvre le {formatAcademicDate(dates.reviewStartDate)}, {countdown(dates.reviewStartDate, today)}.</div>
+        <div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" className="min-h-12" onClick={cancel} disabled={pending}>Annuler</Button><Button type="button" className="min-h-12" disabled={!dirty || !valid || pending} onClick={save}>{pending ? <Spinner size="sm" className="mr-2" /> : null}Enregistrer {period.label}</Button></div>
+      </> : <>
+        <dl className="grid gap-3 text-sm sm:grid-cols-3">{dateKeys.map((key) => <div key={key}><dt className="font-medium">{dateLabels[key]}</dt><dd>{formatAcademicDate(period[key])}</dd></div>)}</dl>
+        {period.hasGeneratedCards ? <p className="text-sm text-slate-700 dark:text-slate-200">Calendrier figé depuis la génération des bulletins.</p> : canEdit ? <div className="flex justify-end"><Button type="button" variant="outline" className="min-h-12" onClick={() => setEditing(true)}>Modifier {period.label}</Button></div> : null}
+      </>}
+    </div> : null}
+    <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Modifier la période courante ?</AlertDialogTitle><AlertDialogDescription>Les dates du calendrier de {period.label} vont changer. Vérifiez leurs effets sur la revue et les bulletins avant de continuer.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel className="min-h-12">Annuler</AlertDialogCancel><AlertDialogAction className="min-h-12" onClick={() => onSave(period, dates)}>Confirmer l’enregistrement</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+  </div>
+}
+
+function NewPeriod({ year, previous, onSave, pending }: { year: SchoolYear; previous?: GradingPeriod; onSave: (label: string, dates: Pick<GradingPeriod, "startDate" | "reviewStartDate" | "endDate">) => void; pending: boolean }) {
+  const [label, setLabel] = useState("")
+  const [dates, setDates] = useState({ startDate: "", reviewStartDate: "", endDate: "" })
+  const errors = periodDateErrors({ ...dates, orderIndex: (previous?.orderIndex ?? 0) + 1 }, year, previous)
+  return <div className="space-y-3 rounded-lg border p-4">
+    <h3 className="font-semibold">Ajouter la période {(previous?.orderIndex ?? 0) + 1}</h3>
+    <label className="block space-y-2 text-sm font-medium">Nom<Input value={label} onChange={(event) => setLabel(event.target.value)} /></label>
+    <div className="grid gap-3 lg:grid-cols-3">{dateKeys.map((key) => <label key={key} className="space-y-2 text-sm font-medium">{dateLabels[key]}<Input type="date" value={dates[key]} aria-invalid={Boolean(dates[key] && errors[key])} onChange={(event) => setDates((current) => ({ ...current, [key]: event.target.value }))} />{dates[key] && errors[key] ? <span role="alert" className="block text-sm font-normal text-destructive">{errors[key]}</span> : null}</label>)}</div>
+    <div className="flex justify-end"><Button className="min-h-12" disabled={!label.trim() || Object.keys(errors).length > 0 || pending} onClick={() => onSave(label.trim(), dates)}>{pending ? <Spinner size="sm" className="mr-2" /> : null}Ajouter la période</Button></div>
+  </div>
 }
 
 export default function SchoolYearsPage() {
@@ -92,204 +108,64 @@ export default function SchoolYearsPage() {
   const { toast } = useToast()
   const { hasPermission } = usePermissions()
   const canEdit = hasPermission("school_years.edit")
-  const query = useQuery({ queryKey: SCHOOL_YEARS_KEY, queryFn: listSchoolYears })
-  const activeYear = query.data?.find((year) => year.status === "active") ?? null
-  const periodsQuery = useQuery({ queryKey: GRADING_PERIODS_KEY, queryFn: listGradingPeriods, enabled: Boolean(activeYear) })
-  const periods = (periodsQuery.data ?? []).filter((period) => period.schoolYearId === activeYear?.id).sort((a, b) => a.orderIndex - b.orderIndex)
-  const form = useForm<ReviewDateForm>({
-    resolver: zodResolver(reviewDateSchema),
-    defaultValues: { endOfYearReviewStartDate: "" },
-  })
+  const canViewDecisions = hasPermission("class_decisions.view")
+  const today = businessToday()
+  const [selectedYearId, setSelectedYearId] = useState("")
+  const [reviewDateDraft, setReviewDateDraft] = useState<string | null>(null)
+  const yearsQuery = useQuery({ queryKey: SCHOOL_YEARS_KEY, queryFn: listSchoolYears })
+  const years = yearsQuery.data ?? []
+  const activeYear = years.find((year) => year.status === "active") ?? null
+  const selectedYear = years.find((year) => year.id === selectedYearId) ?? activeYear ?? years[0] ?? null
+  const periodsQuery = useQuery({ queryKey: GRADING_PERIODS_KEY, queryFn: listGradingPeriods, enabled: years.length > 0 })
+  const periods = (periodsQuery.data ?? []).filter((period) => period.schoolYearId === selectedYear?.id).sort((a, b) => a.orderIndex - b.orderIndex)
+  const activePeriods = (periodsQuery.data ?? []).filter((period) => period.schoolYearId === activeYear?.id)
+  const activePeriodId = currentAcademicPeriodId(activePeriods, today)
+  const currentPeriodId = selectedYear?.status === "active" ? currentAcademicPeriodId(periods, today) : ""
+  const activePeriod = activePeriods.find((period) => period.id === activePeriodId)
+  const deadline = activeYear ? nextAcademicDeadline(activeYear, activePeriods, today) : null
+  const reviewDate = reviewDateDraft ?? selectedYear?.endOfYearReviewStartDate ?? ""
+  const reviewDateValid = isCivilDate(reviewDate) && Boolean(selectedYear && reviewDate < selectedYear.endDate)
+  const selectedEditable = canEdit && selectedYear?.status === "active"
 
-  useEffect(() => {
-    form.reset({ endOfYearReviewStartDate: activeYear?.endOfYearReviewStartDate ?? "" })
-  }, [activeYear?.endOfYearReviewStartDate, form])
-
-  const mutation = useMutation({
-    mutationFn: (values: ReviewDateForm) => {
-      if (!activeYear) throw new Error("Aucune année scolaire active")
-      return updateSchoolYearReviewDate(activeYear.id, values)
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["academic"] })
-      await queryClient.invalidateQueries({ queryKey: ["class-decisions", "review-status"] })
-      toast({ title: "Ouverture des décisions de fin d’année mise à jour" })
-    },
-    onError: (error) => toast({
-      title: "Enregistrement impossible",
-      description: apiErrorMessage(error),
-      variant: "destructive",
-    }),
+  const reviewMutation = useMutation({
+    mutationFn: () => updateSchoolYearReviewDate(selectedYear!.id, { endOfYearReviewStartDate: reviewDate }),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ["academic"] }); await queryClient.invalidateQueries({ queryKey: ["class-decisions", "review-status"] }); setReviewDateDraft(null); toast({ title: "Ouverture des décisions mise à jour" }) },
+    onError: (error) => toast({ title: "Enregistrement impossible", description: apiErrorMessage(error, "La date doit précéder la fin de l’année scolaire."), variant: "destructive" }),
   })
   const periodMutation = useMutation({
-    mutationFn: ({ id, values }: { id: string | null; values: Pick<GradingPeriod, "startDate" | "reviewStartDate" | "endDate"> & Partial<Pick<GradingPeriod, "label">> }) => {
-      if (id) return updateGradingPeriod(id, values)
-      if (!activeYear || !values.label) throw new Error("Année ou nom de période manquant")
-      return createGradingPeriod({
-        schoolYearId: activeYear.id,
-        type: activeYear.gradingPeriodType,
-        orderIndex: periods.length + 1,
-        label: values.label,
-        startDate: values.startDate,
-        reviewStartDate: values.reviewStartDate,
-        endDate: values.endDate,
-      })
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: GRADING_PERIODS_KEY })
-      toast({ title: "Calendrier de période enregistré" })
-    },
-    onError: (error) => toast({ title: "Calendrier impossible à enregistrer", description: apiErrorMessage(error, "Vérifiez les trois dates et le chevauchement des périodes."), variant: "destructive" }),
+    mutationFn: ({ period, label, dates }: { period?: GradingPeriod; label?: string; dates: Pick<GradingPeriod, "startDate" | "reviewStartDate" | "endDate"> }) => period ? updateGradingPeriod(period.id, dates) : createGradingPeriod({ schoolYearId: selectedYear!.id, type: selectedYear!.gradingPeriodType, orderIndex: periods.length + 1, label: label!, ...dates }),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: GRADING_PERIODS_KEY }); toast({ title: "Calendrier de période enregistré" }) },
+    onError: (error) => toast({ title: "Calendrier impossible à enregistrer", description: apiErrorMessage(error, "Vérifiez les dates et la transition entre périodes."), variant: "destructive" }),
   })
-  const savePeriod = (event: FormEvent<HTMLFormElement>, id: string | null) => {
-    event.preventDefault()
-    const formData = new FormData(event.currentTarget)
-    periodMutation.mutate({ id, values: {
-      label: String(formData.get("label") ?? ""),
-      startDate: String(formData.get("startDate") ?? ""),
-      reviewStartDate: String(formData.get("reviewStartDate") ?? ""),
-      endDate: String(formData.get("endDate") ?? ""),
-    } })
-  }
-
-  const columns = useMemo<ColumnDef<SchoolYear>[]>(() => [
-    {
-      accessorKey: "label",
-      header: "Année scolaire",
-      cell: ({ row }) => (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">{row.original.label}</span>
-          {row.original.status === "active" ? <Badge className="bg-green-100 text-green-700">Année en cours</Badge> : null}
-        </div>
-      ),
-    },
-    { id: "dates", header: "Période", cell: ({ row }) => `${formatDate(row.original.startDate)} au ${formatDate(row.original.endDate)}` },
-    { id: "cycle", header: "Cycle", cell: ({ row }) => row.original.gradingPeriodType === "semester" ? "2 semestres" : "3 trimestres" },
-    { id: "review", header: "Décisions dès le", cell: ({ row }) => formatDate(row.original.endOfYearReviewStartDate) },
-    {
-      accessorKey: "status",
-      header: "Statut",
-      cell: ({ row }) => <Badge variant={row.original.status === "active" ? "default" : "outline"}>{statusLabel[row.original.status]}</Badge>,
-    },
-  ], [])
-
-  return (
-    <PageLayout title="Structure scolaire" subtitle="Configurez les périodes d’évaluation et l’ouverture des décisions de fin d’année.">
-      <AcademicNavigation />
-      {query.isError ? (
-        <QueryErrorState onRetry={() => void query.refetch()} isRetrying={query.isFetching} message="Impossible de charger les années scolaires." />
-      ) : null}
-
-      {!query.isError ? (
-        <DataTable
-          columns={columns}
-          data={query.data ?? []}
-          isLoading={query.isLoading}
-          searchKey="label"
-          searchPlaceholder="Rechercher une année…"
-          emptyState={<EmptyState icon={CalendarIcon} title="Aucune année scolaire" message="La prochaine année scolaire doit être ouverte depuis l’espace super administrateur." />}
-          mobileCard={(schoolYear) => (
-            <div className="space-y-3 rounded-lg border bg-card p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium">{schoolYear.label}</p>
-                  <p className="text-sm text-muted-foreground">{formatDate(schoolYear.startDate)} au {formatDate(schoolYear.endDate)}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{schoolYear.gradingPeriodType === "semester" ? "2 semestres" : "3 trimestres"}</p>
-                  <p className="mt-2 text-xs text-muted-foreground">Décisions dès le {formatDate(schoolYear.endOfYearReviewStartDate)}</p>
-                </div>
-                <Badge variant={schoolYear.status === "active" ? "default" : "outline"}>{statusLabel[schoolYear.status]}</Badge>
-              </div>
-            </div>
-          )}
-        />
-      ) : null}
-
-      {activeYear ? (
-        <Card className="mt-5">
-          <CardHeader className="border-none">
-            <CardTitle className="text-lg">Périodes d’évaluation</CardTitle>
-            <CardDescription>
-              Début de période : premier jour couvert par la période. Début de revue : ouverture du travail de conduite et de préparation des bulletins. Les notes restent modifiables jusqu’à la validation définitive de chaque matière. Fin de période : borne finale du calendrier, égale ou postérieure au début de revue. Les dates des périodes successives doivent se chevaucher.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            {periodsQuery.isLoading ? <Spinner /> : null}
-            {periodsQuery.isError ? <QueryErrorState onRetry={() => void periodsQuery.refetch()} isRetrying={periodsQuery.isFetching} message="Le calendrier des périodes n’a pas pu être chargé. Réessayez avant de le modifier." /> : null}
-            {periodsQuery.isSuccess && periods.length === 0 ? <EmptyState icon={CalendarIcon} title="Aucune période" message="Ajoutez la première période de l’année scolaire." /> : null}
-            {periodsQuery.isSuccess ? periods.map((period, index) => {
-              const previous = periods[index - 1]
-              const transitionReady = previous
-                && period.startDate > previous.startDate
-                && period.startDate <= previous.reviewStartDate
-                && period.reviewStartDate > previous.reviewStartDate
-              const historicalCalendarLocked = Boolean(previous?.hasGeneratedCards && period.hasGeneratedCards)
-              return (
-                <form key={`${period.id}-${period.startDate}-${period.reviewStartDate}-${period.endDate}`} className="space-y-3 rounded-lg border p-4" onSubmit={(event) => savePeriod(event, period.id)}>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <strong>{period.label}</strong>
-                    {transitionReady ? <Badge variant="secondary">Chevauchement avec {previous.label}</Badge> : null}
-                    {previous && !transitionReady ? (
-                      <Badge variant={historicalCalendarLocked ? "outline" : "destructive"}>
-                        {historicalCalendarLocked ? "Transition historique sans chevauchement" : "Transition à corriger"} avec {previous.label}
-                      </Badge>
-                    ) : null}
-                    {period.notesEntryOpen ? <Badge>Saisie des notes</Badge> : null}
-                    {period.conductReviewOpen ? <Badge variant="secondary">Revue de conduite</Badge> : null}
-                    {period.isClosed ? <Badge variant="outline">Clôturée</Badge> : null}
-                    {period.hasGeneratedCards && !period.isClosed ? <Badge variant="outline">Bulletins déjà générés</Badge> : null}
-                  </div>
-                  <GradingPeriodFields id={period.id} initial={period} disabled={!canEdit || period.hasGeneratedCards} pending={periodMutation.isPending} actionLabel={`Enregistrer ${period.label}`} />
-                </form>
-              )
-            }) : null}
-            {periodsQuery.isSuccess && canEdit && periods.length < (activeYear.gradingPeriodType === "semester" ? 2 : 3) ? (
-              <form className="space-y-3 rounded-lg border p-4" onSubmit={(event) => savePeriod(event, null)}>
-                <strong>Ajouter la période {periods.length + 1}</strong>
-                <div>
-                  <label className="space-y-1 text-sm">Nom<Input name="label" required /></label>
-                </div>
-                <GradingPeriodFields id="new" disabled={false} pending={periodMutation.isPending} actionLabel="Ajouter la période" />
-              </form>
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {!query.isError && activeYear ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Décisions de fin d’année</CardTitle>
-            <CardDescription>
-              Cette date ouvre le menu "Fin d’année" et la validation des décisions de passage pour l'année scolaire {activeYear.label}.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form className="my-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-6" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
-                <FormField
-                  control={form.control}
-                  name="endOfYearReviewStartDate"
-                  render={({ field }) => (
-                    <FormItem className="w-full sm:max-w-[25rem] sm:min-w-[25rem]">
-                      <FormLabel className="whitespace-nowrap">Ouverture des décisions de fin d’année</FormLabel>
-                      <FormControl><Input type="date" max={previousIsoDate(activeYear.endDate)} disabled={!canEdit || mutation.isPending} {...field} /></FormControl>
-                      <FormDescription>Cette date doit précéder le {formatDate(activeYear.endDate)}.</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                {canEdit ? (
-                  <Button type="submit" className="min-h-10 self-start sm:self-end" disabled={mutation.isPending}>
-                    {mutation.isPending ? <Spinner size="sm" className="mr-2" /> : null}
-                    {mutation.isPending ? "Enregistrement…" : "Enregistrer la date"}
-                  </Button>
-                ) : null}
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
-      ) : null}
-
-    </PageLayout>
-  )
+  return <PageLayout title="Structure scolaire" subtitle="Configurez les périodes d’évaluation et l’ouverture des décisions de fin d’année.">
+    <AcademicNavigation />
+    {yearsQuery.isLoading ? <div className="py-6"><Spinner /></div> : null}
+    {yearsQuery.isError ? <QueryErrorState onRetry={() => void yearsQuery.refetch()} isRetrying={yearsQuery.isFetching} message="Impossible de charger les années scolaires." /> : null}
+    {yearsQuery.isSuccess && years.length === 0 ? <EmptyState icon={CalendarIcon} title="Aucune année scolaire" message="La prochaine année scolaire doit être ouverte depuis l’espace super administrateur." /> : null}
+    {activeYear ? <div className="grid gap-4 md:grid-cols-3">
+      <div className="rounded-lg border bg-card p-4"><p className="text-sm font-medium text-slate-700 dark:text-slate-200">Année active</p><p className="mt-2 text-xl font-semibold">{activeYear.label}</p><p className="mt-1 text-sm">Fin {countdown(activeYear.endDate, today)}</p></div>
+      <div className="rounded-lg border bg-card p-4"><p className="text-sm font-medium text-slate-700 dark:text-slate-200">Période courante</p><p className="mt-2 text-xl font-semibold">{periodsQuery.isLoading ? "Chargement…" : activePeriod?.label ?? "Aucune période commencée"}</p><p className="mt-1 text-sm">{activePeriod ? activePeriod.isClosed ? "Clôturée" : activePeriod.conductReviewOpen ? "Revue de conduite" : activePeriod.notesEntryOpen ? "Saisie des notes" : "À venir" : ""}</p></div>
+      <div className="rounded-lg border bg-card p-4"><p className="text-sm font-medium text-slate-700 dark:text-slate-200">Prochaine échéance</p><p className="mt-2 text-xl font-semibold">{periodsQuery.isLoading ? "Chargement…" : deadline ? formatAcademicDate(deadline.date) : "Aucune échéance"}</p><p className="mt-1 text-sm">{deadline ? `${deadline.label} · ${countdown(deadline.date, today)}` : ""}</p></div>
+    </div> : null}
+    {years.length > 0 ? <div className="overflow-x-auto rounded-lg border bg-card"><Table><TableHeader><TableRow><TableHead>Année</TableHead><TableHead>Période</TableHead><TableHead>Cycle</TableHead><TableHead>Ouverture des décisions</TableHead><TableHead>Statut</TableHead></TableRow></TableHeader><TableBody>{years.map((year) => <TableRow key={year.id} className={`cursor-pointer ${selectedYear?.id === year.id ? "bg-blue-50 dark:bg-blue-950" : ""}`} onClick={() => { setSelectedYearId(year.id); setReviewDateDraft(null) }}><TableCell><Button type="button" variant="ghost" className="min-h-12 justify-start gap-2 font-semibold" aria-current={selectedYear?.id === year.id ? "true" : undefined}>{selectedYear?.id === year.id ? <Check className="h-4 w-4 text-blue-700" aria-hidden="true" /> : <span className="w-4" />}{year.label}</Button></TableCell><TableCell className="whitespace-nowrap">{formatAcademicDate(year.startDate)} au {formatAcademicDate(year.endDate)}</TableCell><TableCell className="whitespace-nowrap">{year.gradingPeriodType === "semester" ? "2 semestres" : "3 trimestres"}</TableCell><TableCell className="whitespace-nowrap">{formatAcademicDate(year.endOfYearReviewStartDate)} · {countdown(year.endOfYearReviewStartDate, today)}</TableCell><TableCell><Badge variant="outline" className={year.status === "active" ? "border-green-200 bg-green-50 text-green-800" : year.status === "closed" ? "bg-slate-100 text-slate-700" : "border-amber-200 bg-amber-50 text-amber-800"}>{year.status === "active" ? "Active" : year.status === "closed" ? "Clôturée" : "À venir"}</Badge></TableCell></TableRow>)}</TableBody></Table></div> : null}
+    {selectedYear && periodsQuery.isSuccess ? <AcademicTimeline year={selectedYear} periods={periods} currentPeriodId={currentPeriodId} today={today} /> : null}
+    {selectedYear ? <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.42fr)]">
+      <section className="space-y-4 rounded-lg border bg-card p-4 md:p-6" aria-labelledby="periods-heading"><h2 id="periods-heading" className="text-xl font-semibold">Périodes d’évaluation · {selectedYear.label}</h2>
+        {periodsQuery.isLoading ? <Spinner /> : null}
+        {periodsQuery.isError ? <QueryErrorState onRetry={() => void periodsQuery.refetch()} isRetrying={periodsQuery.isFetching} message="Le calendrier des périodes n’a pas pu être chargé. Réessayez avant de le modifier." /> : null}
+        {periodsQuery.isSuccess && periods.length === 0 ? <EmptyState icon={CalendarIcon} title="Aucune période" message="Ajoutez la première période de l’année scolaire." /> : null}
+        {periodsQuery.isSuccess ? periods.map((period, index) => <PeriodEditor key={`${period.id}-${period.startDate}-${period.reviewStartDate}-${period.endDate}`} period={period} previous={periods[index - 1]} next={periods[index + 1]} year={selectedYear} isCurrent={period.id === currentPeriodId} canEdit={Boolean(selectedEditable && !period.hasGeneratedCards)} pending={periodMutation.isPending} today={today} onSave={(item, dates) => periodMutation.mutate({ period: item, dates })} />) : null}
+        {periodsQuery.isSuccess && selectedEditable && periods.length < (selectedYear.gradingPeriodType === "semester" ? 2 : 3) ? <NewPeriod year={selectedYear} previous={periods[periods.length - 1]} pending={periodMutation.isPending} onSave={(label, dates) => periodMutation.mutate({ label, dates })} /> : null}
+      </section>
+      <section className="space-y-5 rounded-lg border bg-card p-4 md:p-6" aria-labelledby="decisions-heading"><h2 id="decisions-heading" className="text-xl font-semibold">Décisions de fin d’année · {selectedYear.label}</h2>
+        <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100">{daysUntil(selectedYear.endOfYearReviewStartDate, today) !== null && daysUntil(selectedYear.endOfYearReviewStartDate, today)! > 0 ? `S’ouvre ${countdown(selectedYear.endOfYearReviewStartDate, today)}` : `Ouvert depuis le ${formatAcademicDate(selectedYear.endOfYearReviewStartDate)}`}</Badge>
+        <p className="text-sm text-slate-700 dark:text-slate-200">Cette date ouvre le menu « Fin d’année » et la validation des décisions de passage.</p>
+        <label className="block space-y-2 text-sm font-medium">Ouverture des décisions de fin d’année<Input type="date" value={reviewDate} max={selectedYear.endDate} disabled={!selectedEditable || reviewMutation.isPending} aria-invalid={Boolean(reviewDate && !reviewDateValid)} onChange={(event) => setReviewDateDraft(event.target.value)} /></label>
+        <p className="text-sm text-slate-800 dark:text-slate-100">Doit précéder le {formatAcademicDate(selectedYear.endDate)}, fin de l’année.</p>
+        {reviewDate && !reviewDateValid ? <p role="alert" className="text-sm text-destructive">La date doit précéder la fin de l’année scolaire.</p> : null}
+        {selectedEditable ? <Button className="min-h-12 w-full" disabled={reviewMutation.isPending || !reviewDateValid || reviewDate === selectedYear.endOfYearReviewStartDate} onClick={() => reviewMutation.mutate()}>{reviewMutation.isPending ? <Spinner size="sm" className="mr-2" /> : null}Enregistrer la date</Button> : null}
+        <div className="border-t pt-4"><Button asChild={canViewDecisions && selectedYear.status === "active" && today >= selectedYear.endOfYearReviewStartDate} variant="outline" className="min-h-12 w-full" disabled={!canViewDecisions || selectedYear.status !== "active" || today < selectedYear.endOfYearReviewStartDate}>{canViewDecisions && selectedYear.status === "active" && today >= selectedYear.endOfYearReviewStartDate ? <Link to="/end-of-year">Ouvrir Fin d’année</Link> : "Ouvrir Fin d’année"}</Button>{today < selectedYear.endOfYearReviewStartDate ? <p className="mt-2 text-sm text-slate-700 dark:text-slate-200">Disponible à partir du {formatAcademicDate(selectedYear.endOfYearReviewStartDate)}.</p> : null}</div>
+      </section>
+    </div> : null}
+  </PageLayout>
 }
