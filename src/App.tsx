@@ -299,7 +299,7 @@ function TeacherShell({ element }: { element: ReactElement }) {
   )
 }
 
-function TeacherNavigation({ variant }: { variant: "desktop" | "mobile" }) {
+export function TeacherNavigation({ variant }: { variant: "desktop" | "mobile" }) {
   const user = useAuthStore((state) => state.user)
   const permissions = useAuthStore((state) => state.permissions)
   const items = getNavItemsByRole(user?.role, permissions)
@@ -307,8 +307,12 @@ function TeacherNavigation({ variant }: { variant: "desktop" | "mobile" }) {
     queryKey: ["conduct", "teacher-actions"],
     queryFn: fetchConductTeacherActions,
     enabled: user?.role === "teacher",
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+    refetchInterval: user?.role === "teacher" ? 60_000 : false,
   })
-  const conductCount = (conductQuery.data?.teacherActions ?? []).reduce((total, action) => total + action.pendingCount, 0)
+  const conductCount = (conductQuery.isFetchedAfterMount ? conductQuery.data?.teacherActions ?? [] : [])
+    .reduce((total, action) => total + action.pendingCount, 0)
 
   const mobileItems = items.filter((item) =>
     item.href === "/dashboard" || item.href === "/attendance" || item.href === "/academic/notes" || item.href === "/account",

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast"
 import { EmptyState } from "@/shared/components/EmptyState"
 import {
-  fetchTeacherAcademicContext,
+  type ConductReviewAction,
   fetchTeacherConductScope,
   submitBulkConductInputs,
   submitConductInput,
@@ -21,7 +21,7 @@ import {
 
 const CONDUCT_MAX = 20
 
-export default function ConductPage() {
+export default function ConductPage({ openScopes }: { openScopes: ConductReviewAction[] }) {
   return (
     <div className="space-y-4">
       <header className="space-y-1">
@@ -31,12 +31,12 @@ export default function ConductPage() {
         </p>
       </header>
 
-      <TeacherConductSection />
+      <TeacherConductSection openScopes={openScopes} />
     </div>
   )
 }
 
-function TeacherConductSection() {
+function TeacherConductSection({ openScopes }: { openScopes: ConductReviewAction[] }) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
@@ -46,37 +46,28 @@ function TeacherConductSection() {
   const [bulkNote, setBulkNote] = useState("")
   const [bulkObservation, setBulkObservation] = useState("")
 
-  const contextQuery = useQuery({
-    queryKey: ["academic", "teacher-context"],
-    queryFn: fetchTeacherAcademicContext,
-  })
-  const selectedClass = contextQuery.data?.classes.find((item) => item.id === classId)
-  const periods = (contextQuery.data?.gradingPeriods ?? []).filter(
-    (period) => !selectedClass || period.schoolYearId === selectedClass.schoolYearId,
-  )
-  const selectedPeriod = periods.find((period) => period.id === gradingPeriodId)
-  const periodEnded = selectedPeriod?.conductReviewOpen === false || Boolean(selectedPeriod?.closedClassIds?.includes(classId))
-  useEffect(() => {
-    if (gradingPeriodId || periods.length === 0) return
-    const current = periods.find((period) => period.conductReviewOpen)
-    if (current) setGradingPeriodId(current.id)
-  }, [gradingPeriodId, periods])
+  const classes = [...new Map(openScopes.map((scope) => [scope.classId, scope.className])).entries()]
+  const selectedClassId = classes.some(([id]) => id === classId) ? classId : (classes[0]?.[0] ?? "")
+  const periods = openScopes.filter((scope) => scope.classId === selectedClassId)
+  const selectedPeriod = periods.find((scope) => scope.gradingPeriodId === gradingPeriodId) ?? periods[0]
+  const selectedPeriodId = selectedPeriod?.gradingPeriodId ?? ""
+  useEffect(() => { setSelectedStudentIds([]) }, [selectedClassId, selectedPeriodId])
   const scopeQuery = useQuery({
-    queryKey: ["conduct-input-scope", classId, gradingPeriodId],
-    queryFn: () => fetchTeacherConductScope(classId, gradingPeriodId),
-    enabled: Boolean(classId) && Boolean(gradingPeriodId),
+    queryKey: ["conduct-input-scope", selectedClassId, selectedPeriodId],
+    queryFn: () => fetchTeacherConductScope(selectedClassId, selectedPeriodId),
+    enabled: Boolean(selectedClassId) && Boolean(selectedPeriodId),
   })
 
   const submitMutation = useMutation({
     mutationFn: (input: { studentId: string; note: number; observation?: string }) =>
       submitConductInput({
         student_id: input.studentId,
-        grading_period_id: gradingPeriodId,
+        grading_period_id: selectedPeriodId,
         note: input.note,
         observation: input.observation,
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["conduct-input-scope", classId, gradingPeriodId] })
+      await queryClient.invalidateQueries({ queryKey: ["conduct-input-scope", selectedClassId, selectedPeriodId] })
       await queryClient.invalidateQueries({ queryKey: ["conduct", "teacher-actions"] })
       toast({ title: "Note de conduite enregistrée", duration: 3000 })
     },
@@ -91,14 +82,14 @@ function TeacherConductSection() {
 
   const bulkMutation = useMutation({
     mutationFn: () => submitBulkConductInputs({
-      class_id: classId,
+      class_id: selectedClassId,
       student_ids: selectedStudentIds,
-      grading_period_id: gradingPeriodId,
+      grading_period_id: selectedPeriodId,
       note: Number(bulkNote.replace(",", ".")),
       observation: bulkObservation.trim() || undefined,
     }),
     onSuccess: async (result) => {
-      await queryClient.invalidateQueries({ queryKey: ["conduct-input-scope", classId, gradingPeriodId] })
+      await queryClient.invalidateQueries({ queryKey: ["conduct-input-scope", selectedClassId, selectedPeriodId] })
       await queryClient.invalidateQueries({ queryKey: ["conduct", "teacher-actions"] })
       setSelectedStudentIds([])
       setBulkNote("")
@@ -109,6 +100,7 @@ function TeacherConductSection() {
       title: "Saisie en lot impossible",
       description: error instanceof Error ? error.message : undefined,
       variant: "destructive",
+      duration: 6000,
     }),
   })
 
@@ -129,21 +121,21 @@ function TeacherConductSection() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {contextQuery.isLoading ? <p role="status" className="text-sm text-muted-foreground">Chargement de vos classes…</p> : null}
-        {contextQuery.isError ? <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive"><span>Impossible de charger vos classes.</span><Button type="button" variant="outline" className="min-h-6" onClick={() => void contextQuery.refetch()}>Réessayer</Button></div> : null}
-        {contextQuery.isSuccess && contextQuery.data.classes.length === 0 ? <EmptyState title="Aucune classe affectée" description="Aucune affectation pédagogique ni aucun créneau actif ne vous associe à une classe." /> : null}
+        {openScopes.length === 0 ? <EmptyState title="Fenêtre de revue terminée" description="Les avis de conduite ne sont plus modifiables pour cette période." /> : null}
+        {selectedPeriod ? <p className="text-sm text-muted-foreground">Revue ouverte jusqu’au {new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Africa/Abidjan" }).format(new Date(`${selectedPeriod.endDate}T12:00:00Z`))}.</p> : null}
+        {selectedPeriod && selectedPeriod.pendingCount === 0 ? <p className="text-sm text-muted-foreground">Aucun avis restant à renseigner. Les avis non verrouillés restent modifiables pendant la revue.</p> : null}
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>Classe</Label>
-            <Select value={classId || "none"} onValueChange={(value) => {
+            <Select value={selectedClassId || "none"} onValueChange={(value) => {
               setClassId(value === "none" ? "" : value)
               setGradingPeriodId("")
               setSelectedStudentIds([])
             }}>
-              <SelectTrigger className="min-h-6" aria-label="Classe"><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
+              <SelectTrigger className="min-h-12" aria-label="Classe"><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
               <SelectContent>
-                {(contextQuery.data?.classes ?? []).map((klass) => (
-                  <SelectItem key={klass.id} value={klass.id}>{klass.name} · {klass.levelName}</SelectItem>
+                {classes.map(([id, name]) => (
+                  <SelectItem key={id} value={id}>{name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -151,23 +143,23 @@ function TeacherConductSection() {
           <div className="space-y-2">
             <Label>Période</Label>
             <Select
-              value={gradingPeriodId || "none"}
+              value={selectedPeriodId || "none"}
               onValueChange={(value) => setGradingPeriodId(value === "none" ? "" : value)}
             >
-              <SelectTrigger className="min-h-6" aria-label="Période"><SelectValue placeholder="Choisir une période" /></SelectTrigger>
+              <SelectTrigger className="min-h-12" aria-label="Période"><SelectValue placeholder="Choisir une période" /></SelectTrigger>
               <SelectContent>
                 {periods.map((period) => (
-                  <SelectItem key={period.id} value={period.id}>{period.label}</SelectItem>
+                  <SelectItem key={period.gradingPeriodId} value={period.gradingPeriodId}>{period.gradingPeriodLabel}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
         </div>
 
-        {classId && gradingPeriodId ? scopeQuery.isLoading ? (
+        {selectedClassId && selectedPeriodId ? scopeQuery.isLoading ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Chargement des élèves…</p>
         ) : scopeQuery.isError ? (
-          <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive"><span>Impossible de charger les élèves de cette classe.</span><Button type="button" variant="outline" className="min-h-6" onClick={() => void scopeQuery.refetch()}>Réessayer</Button></div>
+          <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive"><span>Impossible de charger les élèves de cette classe.</span><Button type="button" variant="outline" className="min-h-12" onClick={() => void scopeQuery.refetch()}>Réessayer</Button></div>
         ) : scopeQuery.data?.isAvailable === false ? (
           <EmptyState
             title="Revue de conduite indisponible"
@@ -175,8 +167,7 @@ function TeacherConductSection() {
           />
         ) : (
           <div className="space-y-5">
-            {periodEnded ? <div className="rounded-lg border border-muted-foreground/20 bg-muted/40 p-4 text-sm text-muted-foreground">Cette période est consultable, mais les notes de conduite sont verrouillées : elle est finalisée ou pas encore courante.</div> : null}
-            {!periodEnded && availableStudents.length > 0 ? (
+            {availableStudents.length > 0 ? (
               <div className="space-y-3 rounded-lg border p-4">
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -195,7 +186,7 @@ function TeacherConductSection() {
                 <div className="grid gap-3 sm:grid-cols-[120px_1fr_auto] sm:items-end">
                   <div className="space-y-1"><Label htmlFor="bulk-conduct-note">Note / 20</Label><Input id="bulk-conduct-note" type="number" min={0} max={20} step={0.5} value={bulkNote} onChange={(event) => setBulkNote(event.target.value)} /></div>
                   <div className="space-y-1"><Label htmlFor="bulk-conduct-observation">Observation commune</Label><Input id="bulk-conduct-observation" placeholder="Optionnel" value={bulkObservation} onChange={(event) => setBulkObservation(event.target.value)} /></div>
-                  <Button type="button" className="min-h-6" disabled={!bulkValid || bulkMutation.isPending} onClick={() => bulkMutation.mutate()}>{bulkMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Appliquer à la sélection</Button>
+                  <Button type="button" className="min-h-12" disabled={!bulkValid || bulkMutation.isPending} onClick={() => bulkMutation.mutate()}>{bulkMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}{bulkMutation.isPending ? "Enregistrement…" : "Appliquer à la sélection"}</Button>
                 </div>
               </div>
             ) : null}
@@ -205,15 +196,16 @@ function TeacherConductSection() {
                 studentId={student.studentId}
                 fullName={student.fullName}
                 existingInput={student.input}
-                readOnly={periodEnded || student.isLocked}
+                readOnly={student.isLocked}
+                isSaving={submitMutation.isPending && submitMutation.variables?.studentId === student.studentId}
                 selected={selectedStudentIds.includes(student.studentId)}
                 onSelectedChange={(selected) => setSelectedStudentIds((current) => selected
                   ? [...current, student.studentId]
                   : current.filter((id) => id !== student.studentId))}
                 onSave={(note, observation) => {
-                  void submitMutation
-                    .mutateAsync({ studentId: student.studentId, note, observation })
-                    .then(() => queryClient.invalidateQueries({ queryKey: ["conduct-overview", student.studentId] }))
+                  submitMutation.mutate({ studentId: student.studentId, note, observation }, {
+                    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["conduct-overview", student.studentId] }),
+                  })
                 }}
               />
             ))}
@@ -232,6 +224,7 @@ function ConductInputRow({
   fullName,
   existingInput,
   readOnly,
+  isSaving,
   selected,
   onSelectedChange,
   onSave,
@@ -240,6 +233,7 @@ function ConductInputRow({
   fullName: string
   existingInput: { note: number; observation: string | null; createdAt: string } | null
   readOnly: boolean
+  isSaving: boolean
   selected: boolean
   onSelectedChange: (selected: boolean) => void
   onSave: (note: number, observation?: string) => void
@@ -280,11 +274,12 @@ function ConductInputRow({
       <Button
         type="button"
         variant="outline"
-        className="min-h-6"
-        disabled={readOnly || !valid}
+        className="min-h-12"
+        disabled={readOnly || isSaving || !valid}
         onClick={() => onSave(parsed, observation.trim() || undefined)}
       >
-        {existingInput ? "Corriger" : "Enregistrer"}
+        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+        {isSaving ? "Enregistrement…" : existingInput ? "Corriger" : "Enregistrer"}
       </Button>
     </div>
   )

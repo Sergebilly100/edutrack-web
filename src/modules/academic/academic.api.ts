@@ -336,6 +336,7 @@ export type TeacherAcademicContext = {
   gradingPeriods: Array<{
     id: string
     schoolYearId: string
+    schoolYearStatus: "draft" | "active" | "closed"
     label: string
     startDate: string
     reviewStartDate: string
@@ -354,6 +355,7 @@ export type TeacherAcademicContext = {
 export type GradingPeriod = {
   id: string
   schoolYearId: string
+  schoolYearStatus: "draft" | "active" | "closed"
   label: string
   type: "trimester" | "semester"
   orderIndex: number
@@ -536,6 +538,7 @@ export type ConductReviewAction = {
   className: string
   gradingPeriodId: string
   gradingPeriodLabel: string
+  endDate: string
   pendingCount: number
 }
 
@@ -551,6 +554,7 @@ export type ConductDecisionScope = ConductReviewAction & {
 }
 
 export type ConductTeacherActions = {
+  teacherOpenScopes: ConductReviewAction[]
   teacherActions: ConductReviewAction[]
 }
 export type ConductDecisionWorkspaceResponse = {

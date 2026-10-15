@@ -63,7 +63,10 @@ export default function TeacherDashboardPage() {
     refetchInterval: isOnline ? 60_000 : false,
   })
   const academicQuery = useQuery({ queryKey: ["academic", "teacher-context"], queryFn: fetchTeacherAcademicContext })
-  const conductQuery = useQuery({ queryKey: ["conduct", "teacher-actions"], queryFn: fetchConductTeacherActions })
+  const conductQuery = useQuery({
+    queryKey: ["conduct", "teacher-actions"], queryFn: fetchConductTeacherActions,
+    refetchOnMount: "always", refetchOnWindowFocus: "always", refetchInterval: 60_000,
+  })
 
   const schedules = scheduleQuery.data ?? []
   const dayState = getTeacherDayState(schedules, now)
@@ -114,7 +117,7 @@ export default function TeacherDashboardPage() {
       </header>
 
       {conductQuery.isError ? <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center justify-between gap-2"><span>Impossible de charger les avis de conduite à renseigner.</span><Button type="button" variant="outline" className="min-h-12" onClick={() => void conductQuery.refetch()}>Réessayer</Button></AlertDescription></Alert> : null}
-      {(conductQuery.data?.teacherActions.length ?? 0) > 0 ? <section aria-labelledby="conduct-review-actions" className="space-y-2"><h2 id="conduct-review-actions" className="text-lg font-semibold">Conduite à renseigner</h2><div className="divide-y rounded-lg border bg-card">{conductQuery.data!.teacherActions.map((action) => <Button key={`${action.classId}:${action.gradingPeriodId}`} type="button" variant="ghost" className="min-h-14 w-full justify-between rounded-none px-4 text-left" onClick={() => navigate(`/academic/notes?tab=conduite&classId=${encodeURIComponent(action.classId)}&gradingPeriodId=${encodeURIComponent(action.gradingPeriodId)}`)}><span className="min-w-0 truncate">{action.className} · {action.gradingPeriodLabel} : {action.pendingCount} avis à renseigner</span><ArrowRight className="ml-2 h-4 w-4 shrink-0" /></Button>)}</div></section> : null}
+      {conductQuery.isFetchedAfterMount && (conductQuery.data?.teacherActions.length ?? 0) > 0 ? <section aria-labelledby="conduct-review-actions" className="space-y-2"><h2 id="conduct-review-actions" className="text-lg font-semibold">Conduite à renseigner</h2><div className="divide-y rounded-lg border bg-card">{conductQuery.data!.teacherActions.map((action) => <Button key={`${action.classId}:${action.gradingPeriodId}`} type="button" variant="ghost" className="min-h-14 w-full justify-between rounded-none px-4 text-left" onClick={() => navigate(`/academic/notes?tab=conduite&classId=${encodeURIComponent(action.classId)}&gradingPeriodId=${encodeURIComponent(action.gradingPeriodId)}`)}><span className="min-w-0 truncate">{action.className} · {action.gradingPeriodLabel} : {action.pendingCount} avis à renseigner</span><ArrowRight className="ml-2 h-4 w-4 shrink-0" /></Button>)}</div></section> : null}
 
       {scheduleQuery.isLoading ? <FocusCourseSkeleton /> : null}
       {scheduleQuery.isError ? <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center justify-between gap-3"><span>Vos cours ne sont pas disponibles. Vérifiez la connexion puis réessayez.</span><Button type="button" variant="outline" className="min-h-12" onClick={() => void scheduleQuery.refetch()}>Réessayer</Button></AlertDescription></Alert> : null}

@@ -59,6 +59,8 @@ vi.mock("@/modules/academic/academic.api", async () => {
 
 import ConductPage from "@/modules/academic/ConductPage"
 
+const openScope = { classId: "c1", className: "6ème A", gradingPeriodId: "p1", gradingPeriodLabel: "1er trimestre", endDate: "2026-12-20", pendingCount: 2 }
+
 function renderWithClient(ui: ReactNode) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -71,18 +73,14 @@ function renderWithClient(ui: ReactNode) {
 describe("ConductPage professeur", () => {
   afterEach(() => {
     authState.permissions = []
+    fetchTeacherContext.mockClear()
     listClassesMock.mockReset()
     fetchDecisionStudents.mockClear()
     fetchConductOverview.mockReset()
   })
 
   it("permet d’attribuer une même note à tous les élèves sélectionnés", async () => {
-    renderWithClient(<ConductPage />)
-
-    fireEvent.click(await screen.findByRole("combobox", { name: /classe/i }))
-    fireEvent.click(await screen.findByText(/6ème A/))
-    fireEvent.click(screen.getByRole("combobox", { name: /période/i }))
-    fireEvent.click(await screen.findByRole("option", { name: "1er trimestre" }))
+    renderWithClient(<ConductPage openScopes={[openScope]} />)
 
     fireEvent.click(await screen.findByRole("checkbox", { name: "Sélectionner tous les élèves" }))
     fireEvent.change(screen.getByLabelText("Note / 20"), { target: { value: "16" } })
@@ -99,31 +97,41 @@ describe("ConductPage professeur", () => {
 
   it("signale une revue de conduite indisponible", async () => {
     fetchConductScope.mockResolvedValueOnce({ isAvailable: false, students: [] })
-    renderWithClient(<ConductPage />)
-
-    fireEvent.click(await screen.findByRole("combobox", { name: /classe/i }))
-    fireEvent.click(await screen.findByText(/6ème A/))
-    fireEvent.click(screen.getByRole("combobox", { name: /période/i }))
-    fireEvent.click(await screen.findByRole("option", { name: "1er trimestre" }))
+    renderWithClient(<ConductPage openScopes={[openScope]} />)
 
     expect(await screen.findByText("Revue de conduite indisponible")).toBeInTheDocument()
     expect(screen.queryByText("Attribution en masse")).not.toBeInTheDocument()
   })
 
-  it("verrouille la conduite quand les bulletins rendent la période complète", async () => {
-    fetchTeacherContext.mockResolvedValueOnce({
-      classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2019-2020" }],
-      gradingPeriods: [{ id: "p1", schoolYearId: "y1", label: "1er trimestre", startDate: "2019-09-01", endDate: "2019-12-20", isCurrent: false, isCompleted: true, conductReviewOpen: false, closedClassIds: ["c1"] }],
-    })
-    renderWithClient(<ConductPage />)
-
-    fireEvent.click(await screen.findByRole("combobox", { name: /classe/i }))
-    fireEvent.click(await screen.findByText(/6ème A/))
-    fireEvent.click(screen.getByRole("combobox", { name: /période/i }))
-    fireEvent.click(await screen.findByRole("option", { name: "1er trimestre" }))
-
-    expect(await screen.findByText("Cette période est consultable, mais les notes de conduite sont verrouillées : elle est finalisée ou pas encore courante.")).toBeInTheDocument()
+  it("verrouille un élève dont la note finale est arrêtée", async () => {
+    fetchConductScope.mockResolvedValueOnce({ isAvailable: true, students: [
+      { studentId: "s1", fullName: "Awa Koné", input: { note: 16, observation: null, createdAt: "" }, isLocked: true },
+    ] })
+    renderWithClient(<ConductPage openScopes={[openScope]} />)
+    expect(await screen.findByText("Awa Koné")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Corriger" })).toBeDisabled()
     expect(screen.queryByText("Attribution en masse")).not.toBeInTheDocument()
+  })
+
+  it("n'offre aucune période quand la fenêtre expire", () => {
+    renderWithClient(<ConductPage openScopes={[]} />)
+    expect(screen.getByText("Fenêtre de revue terminée")).toBeInTheDocument()
+    expect(screen.queryByText("Attribution en masse")).not.toBeInTheDocument()
+  })
+
+  it("ne propose dans le sélecteur que la période ouverte fournie par l’API", async () => {
+    renderWithClient(<ConductPage openScopes={[openScope]} />)
+    fireEvent.click(screen.getByRole("combobox", { name: "Période" }))
+    expect(await screen.findAllByRole("option")).toHaveLength(1)
+    expect(screen.getByRole("option", { name: "1er trimestre" })).toBeInTheDocument()
+    expect(fetchTeacherContext).not.toHaveBeenCalled()
+  })
+
+  it("laisse les corrections accessibles quand aucun avis ne manque", async () => {
+    renderWithClient(<ConductPage openScopes={[{ ...openScope, pendingCount: 0 }]} />)
+    expect(screen.getByText(/Aucun avis restant à renseigner/)).toBeInTheDocument()
+    expect(screen.getByText(/Revue ouverte jusqu’au 20 décembre 2026/)).toBeInTheDocument()
+    expect(await screen.findAllByRole("button", { name: "Enregistrer" })).toHaveLength(2)
   })
 
 
