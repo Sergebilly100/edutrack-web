@@ -128,6 +128,19 @@ function EnrollmentDocumentBadge({ enrollment }: { enrollment: Enrollment }) {
 type DossierSort = "student" | "class" | "status";
 const studentName = (enrollment: Enrollment) => `${enrollment.studentLastName.toLocaleUpperCase("fr-FR")} ${enrollment.studentFirstName}`;
 const studentInitials = (enrollment: Enrollment) => `${enrollment.studentLastName.charAt(0)}${enrollment.studentFirstName.charAt(0)}`.toLocaleUpperCase("fr-FR");
+const enrollmentDateFormatter = new Intl.DateTimeFormat("fr-CI", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  timeZone: "Africa/Abidjan",
+});
+
+function EnrollmentDate({ value }: { value: string }) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? <span aria-label="Date d’inscription indisponible">—</span>
+    : <time dateTime={value}>{enrollmentDateFormatter.format(date)}</time>;
+}
 
 export default function EnrollmentsPage() {
   const navigate = useNavigate();
@@ -536,7 +549,8 @@ export default function EnrollmentsPage() {
                     <Avatar><AvatarFallback className="bg-blue-50 text-blue-700">{studentInitials(enrollment)}</AvatarFallback></Avatar>
                     <div className="min-w-0"><p className="font-medium">{studentName(enrollment)}</p>
                       {matriculesByStudentId.get(enrollment.studentId) !== undefined ? <p className="text-xs text-muted-foreground">{matriculesByStudentId.get(enrollment.studentId) ?? "Sans matricule"}</p> : null}
-                      <p className="text-sm text-muted-foreground">{enrollment.className}{!dossierYearId ? ` · ${enrollment.schoolYearLabel}` : ""}</p></div>
+                      <p className="text-sm text-muted-foreground">{enrollment.className}{!dossierYearId ? ` · ${enrollment.schoolYearLabel}` : ""}</p>
+                      <p className="text-xs text-muted-foreground">Inscrit le <EnrollmentDate value={enrollment.enrolledAt} /></p></div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline">{enrollment.type === "re_registration" ? "Réinscription" : "Nouvelle"}</Badge>
@@ -550,7 +564,7 @@ export default function EnrollmentsPage() {
           ) : null}
           {sortedEnrollments.length > 0 ? (
             <div className="hidden overflow-x-auto rounded-lg border bg-card md:block">
-              <Table className="min-w-[52rem]">
+              <Table className="min-w-[60rem]">
                 <TableHeader><TableRow>
                   <TableHead aria-sort={dossierSort === "student" ? dossierSortDescending ? "descending" : "ascending" : "none"}>
                     <Button variant="ghost" onClick={() => toggleDossierSort("student")} className="min-h-12 px-0">Élève</Button>
@@ -559,6 +573,7 @@ export default function EnrollmentsPage() {
                     <Button variant="ghost" onClick={() => toggleDossierSort("class")} className="min-h-12 px-0">Classe visée</Button>
                   </TableHead>
                   <TableHead>Type</TableHead>
+                  <TableHead>Date d’inscription</TableHead>
                   <TableHead aria-sort={dossierSort === "status" ? dossierSortDescending ? "descending" : "ascending" : "none"}>
                     <Button variant="ghost" onClick={() => toggleDossierSort("status")} className="min-h-12 px-0">Statut</Button>
                   </TableHead>
@@ -583,6 +598,7 @@ export default function EnrollmentsPage() {
                         {!dossierYearId ? <span className="text-xs text-muted-foreground">{enrollment.schoolYearLabel}</span> : null}
                       </TableCell>
                       <TableCell><Badge variant="outline">{enrollment.type === "re_registration" ? "Réinscription" : "Nouvelle"}</Badge></TableCell>
+                      <TableCell className="whitespace-nowrap tabular-nums"><EnrollmentDate value={enrollment.enrolledAt} /></TableCell>
                       <TableCell><Badge className={`border ${statusClassName[enrollment.status]}`}>{enrollmentStatusLabel[enrollment.status]}</Badge></TableCell>
                       {documentsConfigured ? <TableCell>{enrollment.documentStatus !== "not_configured" ? <EnrollmentDocumentBadge enrollment={enrollment} /> : null}</TableCell> : null}
                       <TableCell>{dossierActions(enrollment, isActiveYear)}</TableCell>

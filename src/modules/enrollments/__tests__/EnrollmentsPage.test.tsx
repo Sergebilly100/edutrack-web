@@ -90,6 +90,8 @@ describe("EnrollmentsPage", () => {
 
     expect(await screen.findByRole("table")).toBeInTheDocument()
     expect(within(screen.getByRole("table")).getByText("KONÉ Awa")).toBeInTheDocument()
+    expect(within(screen.getByRole("table")).getByRole("columnheader", { name: "Date d’inscription" })).toBeInTheDocument()
+    expect(within(screen.getByRole("table")).getByText("01/09/2026")).toHaveAttribute("datetime", "2026-09-01T08:00:00.000Z")
     expect(screen.getByText(/Page 1 sur 2, 21 dossiers/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Suivant" }))
