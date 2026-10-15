@@ -332,65 +332,10 @@ export default function NotesPage() {
             <DialogHeader>
               <DialogTitle>Programmer une évaluation</DialogTitle>
               <DialogDescription>
-                Choisissez la matière et la date. Le créneau EDT reste facultatif.
+                Choisissez d’abord la date pour charger les matières et les créneaux de l’emploi du temps. Le créneau reste facultatif.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Créneau de cours (facultatif)</Label>
-                <Select
-                  value={draft.lessonSlotId || "none"}
-                  onValueChange={(value) => {
-                    const slot = scopeQuery.data?.lessonSlots.find(
-                      (item) => item.id === value,
-                    );
-                    setDraft((previous) => ({
-                      ...previous,
-                      lessonSlotId: value === "none" ? "" : value,
-                      subjectId: slot?.subjectId ?? previous.subjectId,
-                    }));
-                  }}
-                >
-                  <SelectTrigger className="min-h-6">
-                    <SelectValue placeholder="Aucun créneau EDT" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Aucun créneau - EDT non configuré</SelectItem>
-                    {(creationScope?.lessonSlots ?? []).map((slot) => (
-                      <SelectItem key={slot.id} value={slot.id}>
-                        {dayLabel(slot.dayOfWeek)} · {slot.startTime}-
-                        {slot.endTime} · {slot.roomName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Matière</Label>
-                {selectedDraftSlot && !selectedDraftSlot.subjectId ? (
-                  <p className="text-sm text-amber-800">La direction doit corriger la matière officielle de ce créneau dans l’emploi du temps.</p>
-                ) : null}
-                <Select
-                  value={draft.subjectId || "none"}
-                  onValueChange={(value) =>
-                    setDraft((previous) => ({
-                      ...previous,
-                      subjectId: value === "none" ? "" : value,
-                    }))
-                  }
-                >
-                  <SelectTrigger className="min-h-6">
-                    <SelectValue placeholder="Choisir une matière" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableDraftSubjects.map((subject) => (
-                      <SelectItem key={subject.id} value={subject.id}>
-                        {subject.name} · coef. matière {subject.coefficient}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="space-y-2">
                 <Label htmlFor="evaluation-date">Date de l’évaluation</Label>
                 <Input
@@ -404,12 +349,74 @@ export default function NotesPage() {
                     setDraft((previous) => ({
                       ...previous,
                       evaluationDate: event.target.value,
+                      lessonSlotId: "",
+                      subjectId: "",
                     }))
                   }
                 />
                 {evaluationDateError ? <p id="evaluation-date-error" role="alert" className="text-sm text-destructive">{evaluationDateError}</p> : null}
                 {entryPeriodQuery.isLoading || creationScopeQuery.isLoading ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Vérification de la période…</p> : null}
                 {entryPeriodQuery.data?.period ? <p className="text-sm text-muted-foreground">Période de saisie : {entryPeriodQuery.data.period.label}</p> : null}
+                {creationScopeQuery.isError ? <p role="alert" className="text-sm text-destructive">Impossible de charger les matières et les créneaux pour cette date. Réessayez.</p> : null}
+              </div>
+              <div className="space-y-2">
+                <Label>Créneau de cours (facultatif)</Label>
+                <Select
+                  value={draft.lessonSlotId || "none"}
+                  disabled={!creationScope}
+                  onValueChange={(value) => {
+                    const slot = creationScope?.lessonSlots.find(
+                      (item) => item.id === value,
+                    );
+                    setDraft((previous) => ({
+                      ...previous,
+                      lessonSlotId: value === "none" ? "" : value,
+                      subjectId: slot?.subjectId ?? previous.subjectId,
+                    }));
+                  }}
+                >
+                  <SelectTrigger className="min-h-6" aria-label="Créneau de cours">
+                    <SelectValue placeholder="Aucun créneau EDT" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sans créneau EDT</SelectItem>
+                    {(creationScope?.lessonSlots ?? []).map((slot) => (
+                      <SelectItem key={slot.id} value={slot.id}>
+                        {dayLabel(slot.dayOfWeek)} · {slot.startTime}-
+                        {slot.endTime} · {slot.roomName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {creationScope && creationScope.lessonSlots.length === 0 ? <p className="text-sm text-muted-foreground">Aucun créneau EDT actif pour cette classe à cette date. Vous pouvez programmer l’évaluation sans créneau.</p> : null}
+              </div>
+              <div className="space-y-2">
+                <Label>Matière</Label>
+                {selectedDraftSlot && !selectedDraftSlot.subjectId ? (
+                  <p className="text-sm text-amber-800">La direction doit corriger la matière officielle de ce créneau dans l’emploi du temps.</p>
+                ) : null}
+                <Select
+                  value={draft.subjectId || "none"}
+                  disabled={!creationScope || availableDraftSubjects.length === 0}
+                  onValueChange={(value) =>
+                    setDraft((previous) => ({
+                      ...previous,
+                      subjectId: value === "none" ? "" : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger className="min-h-6" aria-label="Matière de l’évaluation">
+                    <SelectValue placeholder="Choisir une matière" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableDraftSubjects.map((subject) => (
+                      <SelectItem key={subject.id} value={subject.id}>
+                        {subject.name} · coef. matière {subject.coefficient}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {creationScope && creationScope.subjects.length === 0 ? <p role="alert" className="text-sm text-destructive">Aucune matière officielle n’est liée à votre affectation ou à votre EDT pour cette classe. Demandez à la direction de vérifier les matières des créneaux.</p> : null}
                 {draftSubjectIsLocked ? (
                   <p className="text-xs text-muted-foreground">
                     La saisie est clôturée pour cette matière dans la période indiquée.

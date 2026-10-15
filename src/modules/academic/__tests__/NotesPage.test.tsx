@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { listStudents } from "@/modules/students/students.api"
 
 const fetchScope = vi.fn()
+const fetchEntryPeriod = vi.fn()
 const markSubjectCompleted = vi.fn()
 const fetchContext = vi.fn().mockResolvedValue({
   classes: [{ id: "c1", name: "6ème A", levelId: "l1", levelName: "6ème", schoolYearId: "y1", schoolYearLabel: "2026-2027" }],
@@ -20,6 +21,7 @@ vi.mock("@/modules/academic/academic.api", async () => {
     ...actual,
     fetchTeacherAcademicContext: (...args: unknown[]) => fetchContext(...args),
     fetchEvaluationsScope: (...args: unknown[]) => fetchScope(...args),
+    fetchEntryPeriod: (...args: unknown[]) => fetchEntryPeriod(...args),
     markSubjectCompleted: (...args: unknown[]) => markSubjectCompleted(...args),
   }
 })
@@ -55,6 +57,7 @@ function renderAcademicPage(path = "/academic/notes?classId=c1&gradingPeriodId=p
 describe("NotesPage", () => {
   beforeEach(() => {
     fetchScope.mockReset()
+    fetchEntryPeriod.mockReset()
     markSubjectCompleted.mockReset()
     markSubjectCompleted.mockResolvedValue({ completion: { status: "in_progress" } })
   })
@@ -207,7 +210,34 @@ describe("NotesPage", () => {
     renderAcademicPage("/academic/notes?classId=c1&gradingPeriodId=p1")
 
     fireEvent.click(await screen.findByRole("button", { name: "Programmer une évaluation" }))
-    expect(screen.getByText("Aucun créneau - EDT non configuré")).toBeInTheDocument()
+    expect(screen.getByRole("combobox", { name: "Créneau de cours" })).toBeDisabled()
     expect(screen.getByRole("button", { name: "Programmer" })).toBeDisabled()
+  })
+
+  it("charge les créneaux et matières après la date et associe la matière du bon créneau", async () => {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() })
+    fetchEntryPeriod.mockResolvedValue({ period: { id: "p1", label: "1er trimestre" }, state: "open", code: null })
+    fetchScope.mockImplementation(async (_classId: string, _periodId: string, date?: string) => ({
+      lessonSlots: date
+        ? [{ id: "slot-date", dayOfWeek: 1, startTime: "08:00", endTime: "09:00", roomName: "Salle 1", subjectId: "s1", subjectName: "Mathématiques" }]
+        : [{ id: "slot-old", dayOfWeek: 2, startTime: "10:00", endTime: "11:00", roomName: "Salle 2", subjectId: "s2", subjectName: "Français" }],
+      subjects: [{ id: "s1", name: "Mathématiques", coefficient: 4 }],
+      evaluations: [], completion: [], periodState: { isClosed: false },
+    }))
+    renderAcademicPage("/academic/notes?classId=c1&gradingPeriodId=p1")
+
+    fireEvent.click(await screen.findByRole("button", { name: "Programmer une évaluation" }))
+    const dateInput = screen.getByLabelText("Date de l’évaluation")
+    expect(dateInput.compareDocumentPosition(screen.getByRole("combobox", { name: "Créneau de cours" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole("combobox", { name: "Créneau de cours" })).toBeDisabled()
+    expect(fetchEntryPeriod).not.toHaveBeenCalled()
+
+    fireEvent.change(dateInput, { target: { value: "2026-10-15" } })
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Créneau de cours" })).toBeEnabled())
+    expect(fetchEntryPeriod).toHaveBeenCalledWith("c1", "2026-10-15")
+    expect(fetchScope).toHaveBeenCalledWith("c1", "p1", "2026-10-15")
+    fireEvent.click(screen.getByRole("combobox", { name: "Créneau de cours" }))
+    fireEvent.click(await screen.findByRole("option", { name: /Salle 1/ }))
+    expect(screen.getByRole("combobox", { name: "Matière de l’évaluation" })).toHaveTextContent("Mathématiques")
   })
 })
