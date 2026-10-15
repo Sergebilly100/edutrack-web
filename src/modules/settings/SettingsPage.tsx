@@ -60,6 +60,7 @@ export default function SettingsPage() {
   const { hasPermission } = usePermissions()
   const recovery = readTuitionRecovery(searchParams)
   const canEditTuition = hasPermission("tuition.edit")
+  const canManageStudentSchedule = user?.role === "director" || hasPermission("tuition.manage_student_schedule")
   const currentLocation = useRef<typeof location | null>(location)
   useEffect(() => { currentLocation.current = location; return () => { currentLocation.current = null } }, [location])
   const studentLabels = useStudentLabels()
@@ -74,7 +75,7 @@ export default function SettingsPage() {
     : canEditSmsTemplate ? "Modifiables" : "Activation requise"
   const canViewRequiredDocuments = user?.role === "director" || hasPermission("enrollments.view")
   const canEditRequiredDocuments = user?.role === "director" || hasPermission("enrollments.edit")
-  const canViewTuition = user?.role === "director" || hasPermission("tuition.view") || canEditTuition
+  const canViewTuition = user?.role === "director" || hasPermission("tuition.view") || canEditTuition || canManageStudentSchedule
   const canViewFinancialAlerts = user?.role === "director" || hasPermission("payments.view")
   const canEditFinancialAlerts = user?.role === "director" || hasPermission("financial_alerts.edit")
   const canManageRiskAlerts = user?.role === "director" || hasPermission("risk_alerts.edit")
@@ -340,7 +341,7 @@ export default function SettingsPage() {
                 </Select>
               </div>
               {schoolYearsQuery.isError ? <ContextualHelp title="Années scolaires indisponibles" tone="warning">Impossible de charger l&apos;année nécessaire à la configuration des frais.</ContextualHelp> : null}
-              {financeSchoolYearId ? <TuitionConfiguration key={`${financeSchoolYearId}:${recovery?.enrollmentId ?? "normal"}`} schoolYearId={financeSchoolYearId} canEdit={canEditTuition} canGrantDiscount={user?.role === "director" || hasPermission("tuition.grant_discount")} recovery={recovery} onPlanSaved={resumePayment} /> : null}
+              {financeSchoolYearId ? <TuitionConfiguration key={`${financeSchoolYearId}:${recovery?.enrollmentId ?? "normal"}`} schoolYearId={financeSchoolYearId} canEdit={canEditTuition} canGrantDiscount={user?.role === "director" || hasPermission("tuition.grant_discount")} canManageStudentSchedule={canManageStudentSchedule} recovery={recovery} onPlanSaved={resumePayment} /> : null}
             </section>
           ) : null}
 

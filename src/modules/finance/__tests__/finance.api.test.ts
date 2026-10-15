@@ -46,25 +46,25 @@ describe("finance.api", () => {
     expect(result[0]?.scheduleSteps[0]?.cumulativeAmountExpected).toBe(50000)
   })
 
-  it("lit, enregistre et réinitialise une courbe particulière", async () => {
-    getMock.mockResolvedValueOnce({ data: { scheduleSteps: [{ due_date: "2026-10-01", cumulative_amount_expected: "50000" }] } })
-    await expect(getStudentTuitionSchedule("student-1", "year-1")).resolves.toEqual([
-      { dueDate: "2026-10-01", cumulativeAmountExpected: 50000 },
-    ])
+  it("lit, enregistre et réinitialise un échéancier négocié", async () => {
+    getMock.mockResolvedValueOnce({ data: { totalTuitionAmount: 100000, currency: "FCFA", agreement: { id: "agreement-1", reason: "Accord parent", updated_by_name: "Direction", updated_at: "2026-09-01T00:00:00.000Z", schedule_steps: [{ due_date: "2026-10-01", cumulative_amount_expected: "50000" }] } } })
+    await expect(getStudentTuitionSchedule("student-1", "year-1")).resolves.toMatchObject({
+      totalTuitionAmount: 100000,
+      agreement: { id: "agreement-1", reason: "Accord parent", updatedByName: "Direction", scheduleSteps: [{ dueDate: "2026-10-01", cumulativeAmountExpected: 50000 }] },
+    })
     expect(getMock).toHaveBeenCalledWith("/tuition/student-schedules/student-1", { params: { school_year_id: "year-1" } })
 
-    putMock.mockResolvedValueOnce({ data: { scheduleSteps: [{ dueDate: "2026-11-01", cumulativeAmountExpected: "75000" }] } })
-    await expect(saveStudentTuitionSchedule({ studentId: "student-1", schoolYearId: "year-1", scheduleSteps: [{ dueDate: "2026-11-01", cumulativeAmountExpected: 75000 }] })).resolves.toEqual([
-      { dueDate: "2026-11-01", cumulativeAmountExpected: 75000 },
-    ])
+    putMock.mockResolvedValueOnce({ data: { totalTuitionAmount: 100000, agreement: { id: "agreement-1", reason: "Accord parent", scheduleSteps: [{ dueDate: "2026-11-01", cumulativeAmountExpected: "100000" }] } } })
+    await expect(saveStudentTuitionSchedule({ studentId: "student-1", schoolYearId: "year-1", reason: "Accord parent", installments: [{ dueDate: "2026-11-01", amount: 100000 }] })).resolves.toMatchObject({ agreement: { reason: "Accord parent" } })
     expect(putMock).toHaveBeenCalledWith("/tuition/student-schedules/student-1", {
       schoolYearId: "year-1",
-      scheduleSteps: [{ dueDate: "2026-11-01", cumulativeAmountExpected: 75000 }],
+      reason: "Accord parent",
+      installments: [{ dueDate: "2026-11-01", amount: 100000 }],
     })
 
     deleteMock.mockResolvedValueOnce({ data: { deleted: true } })
-    await expect(resetStudentTuitionSchedule("student-1", "year-1")).resolves.toBe(true)
-    expect(deleteMock).toHaveBeenCalledWith("/tuition/student-schedules/student-1", { params: { school_year_id: "year-1" } })
+    await expect(resetStudentTuitionSchedule("student-1", "year-1", "Retour au plan commun")).resolves.toBe(true)
+    expect(deleteMock).toHaveBeenCalledWith("/tuition/student-schedules/student-1", { params: { school_year_id: "year-1" }, data: { reason: "Retour au plan commun" } })
   })
 
   it("force le canal direct inactif dans la configuration et côté parent", async () => {

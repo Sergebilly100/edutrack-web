@@ -133,6 +133,25 @@ export type TuitionScheduleStep = {
   cumulativeAmountExpected: number
 }
 
+export type NegotiatedTuitionScheduleAgreement = {
+  id: string
+  studentId: string
+  schoolYearId: string
+  reason: string
+  createdByUserId: string | null
+  updatedByUserId: string | null
+  updatedByName: string | null
+  createdAt: string
+  updatedAt: string
+  scheduleSteps: TuitionScheduleStep[]
+}
+
+export type StudentTuitionSchedule = {
+  agreement: NegotiatedTuitionScheduleAgreement | null
+  totalTuitionAmount: number
+  currency: string
+}
+
 export type TuitionPlan = {
   id: string
   levelId: string
@@ -473,25 +492,50 @@ const parseTuitionScheduleSteps = (input: unknown): TuitionScheduleStep[] =>
     }
   }) : []
 
-export async function getStudentTuitionSchedule(studentId: string, schoolYearId: string): Promise<TuitionScheduleStep[]> {
+const parseStudentTuitionSchedule = (input: unknown): StudentTuitionSchedule => {
+  const row = record(input)
+  const agreement = row.agreement === null ? null : record(row.agreement)
+  return {
+    agreement: agreement && Object.keys(agreement).length > 0 ? {
+      id: asString(agreement.id),
+      studentId: asString(agreement.studentId ?? agreement.student_id),
+      schoolYearId: asString(agreement.schoolYearId ?? agreement.school_year_id),
+      reason: asString(agreement.reason),
+      createdByUserId: asString(agreement.createdByUserId ?? agreement.created_by_user_id) || null,
+      updatedByUserId: asString(agreement.updatedByUserId ?? agreement.updated_by_user_id) || null,
+      updatedByName: asString(agreement.updatedByName ?? agreement.updated_by_name) || null,
+      createdAt: asString(agreement.createdAt ?? agreement.created_at),
+      updatedAt: asString(agreement.updatedAt ?? agreement.updated_at),
+      scheduleSteps: parseTuitionScheduleSteps(agreement.scheduleSteps ?? agreement.schedule_steps),
+    } : null,
+    totalTuitionAmount: asNumber(row.totalTuitionAmount ?? row.total_tuition_amount),
+    currency: asString(row.currency, "FCFA"),
+  }
+}
+
+export async function getStudentTuitionSchedule(studentId: string, schoolYearId: string): Promise<StudentTuitionSchedule> {
   const response = await apiClient.get(`/tuition/student-schedules/${studentId}`, { params: { school_year_id: schoolYearId } })
-  return parseTuitionScheduleSteps(response.data.scheduleSteps)
+  return parseStudentTuitionSchedule(response.data)
 }
 
 export async function saveStudentTuitionSchedule(payload: {
   studentId: string
   schoolYearId: string
-  scheduleSteps: Array<{ dueDate: string; cumulativeAmountExpected: number }>
-}): Promise<TuitionScheduleStep[]> {
+  reason: string
+  installments: Array<{ dueDate: string; amount: number }>
+}): Promise<StudentTuitionSchedule> {
   const response = await apiClient.put(`/tuition/student-schedules/${payload.studentId}`, {
     schoolYearId: payload.schoolYearId,
-    scheduleSteps: payload.scheduleSteps,
+    reason: payload.reason,
+    installments: payload.installments,
   })
-  return parseTuitionScheduleSteps(response.data.scheduleSteps)
+  return parseStudentTuitionSchedule(response.data)
 }
 
-export async function resetStudentTuitionSchedule(studentId: string, schoolYearId: string): Promise<boolean> {
-  const response = await apiClient.delete(`/tuition/student-schedules/${studentId}`, { params: { school_year_id: schoolYearId } })
+export async function resetStudentTuitionSchedule(studentId: string, schoolYearId: string, reason: string): Promise<boolean> {
+  const response = await apiClient.delete(`/tuition/student-schedules/${studentId}`, {
+    params: { school_year_id: schoolYearId }, data: { reason },
+  })
   return asBoolean(response.data.deleted)
 }
 
