@@ -240,8 +240,8 @@ describe("DashboardPage", () => {
       logoUrl: null,
     })
     fetchFinancialSummaryMock.mockResolvedValue({
-      school: { total_expected_to_date: "1200000", total_paid: "840000", recovery_rate: "0.7", students_late_count: 4 },
-      levels: [{ level_id: "level-1", level_name: "6e", total_expected_to_date: "600000", total_paid: "420000", students_late_count: 2 }],
+      school: { total_expected_to_date: "1200000", total_paid: "840000", remaining_to_collect: "400000", recovery_rate: "0.7", students_late_count: 4 },
+      levels: [{ level_id: "level-1", level_name: "6e", total_expected_to_date: "600000", total_paid: "420000", remaining_to_collect: "200000", students_late_count: 2 }],
       upcomingInstallments: [{ due_date: "2026-06-15", expected_amount: "350000", student_count: 42 }],
     })
     listSchoolYearsMock.mockResolvedValue([
@@ -287,6 +287,7 @@ describe("DashboardPage", () => {
     expect(screen.getByLabelText("Légende du graphique")).toHaveTextContent("Retards")
     expect(await screen.findByText("Suivi financier")).toBeInTheDocument()
     expect(screen.getAllByText("Taux de recouvrement")[0]?.parentElement).toHaveTextContent("70%")
+    expect(screen.getAllByText("Montant restant dû")[0]?.parentElement).toHaveTextContent(/400\s*000/)
     expect(screen.getByRole("progressbar", { name: "Recouvrement 6e, 70%" })).toHaveClass("[&>div]:bg-blue-600")
     expect(screen.queryByRole("tab")).not.toBeInTheDocument()
   })
