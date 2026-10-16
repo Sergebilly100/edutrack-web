@@ -157,6 +157,33 @@ function setAuth(role: "director" | "staff", permissions: PermissionKey[] = []) 
 const VALIDATIONS_PRIORITY = "Validations en attente"
 
 describe("DashboardPage", () => {
+  it("affiche tous les cours du jour puis revient aux six premiers", async () => {
+    getTodayAttendanceMock.mockResolvedValue({
+      date: "2026-05-12",
+      courses: Array.from({ length: 7 }, (_, index) => ({
+        id: `course-${index + 1}`,
+        startTime: `${String(7 + index).padStart(2, "0")}:00:00`,
+        endTime: `${String(8 + index).padStart(2, "0")}:00:00`,
+        teacherName: `Professeur ${index + 1}`,
+        subject: "Mathématiques",
+        className: "6A",
+        status: "present",
+      })),
+    })
+    renderWithQueryClient(<DashboardPage />)
+
+    expect(await screen.findByRole("button", { name: "Afficher tout" })).toBeInTheDocument()
+    expect(screen.queryByText("Professeur 7")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Afficher tout" }))
+    expect(await screen.findByText("Professeur 7")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Afficher moins" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Afficher moins" }))
+    expect(screen.queryByText("Professeur 7")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Afficher tout" })).toBeInTheDocument()
+  })
+
   it("affiche les horaires exacts sans secondes dans les présences professeurs", async () => {
     getTodayAttendanceMock.mockResolvedValue({
       date: "2026-05-12", presentCount: 0,

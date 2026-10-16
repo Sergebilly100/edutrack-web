@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps } from "recharts"
 import { BookOpenCheck, ChevronRight, CircleAlert, GraduationCap, UsersRound } from "lucide-react"
@@ -120,7 +120,7 @@ export function OverviewTab({
         <RiskSummary risks={pilotage?.risks} canViewTeachers={canViewTeachers} />
       </section>
 
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.12fr)_minmax(21rem,0.88fr)]">
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.12fr)_minmax(21rem,0.88fr)] xl:items-start">
         {canViewAttendance ? <TodaySchedule courses={todayCourses} date={todayDate} /> : null}
         {canViewFinance ? (
           <FinancialSnapshot
@@ -337,13 +337,93 @@ function RiskGroup({ title, total, rows }: { title: string; total: number; rows:
 }
 
 function TodaySchedule({ courses, date }: { courses: DashboardCourseItem[]; date: string }) {
-  const rows = useMemo(() => [...courses].sort((a, b) => a.startTime.localeCompare(b.startTime)).slice(0, 6), [courses])
+  const [showAll, setShowAll] = useState(false)
+  const sortedCourses = useMemo(
+    () => [...courses].sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    [courses],
+  )
+  const visibleCourses = showAll ? sortedCourses : sortedCourses.slice(0, 6)
   const status = (course: DashboardCourseItem) => {
     if (course.status === "present" || course.status === "late" || course.status === "excused") return { label: course.status === "late" ? "Retard" : "Présent", className: "border-green-200 bg-green-50 text-green-700" }
     if (course.status === "absent") return { label: "Absent", className: "border-red-200 bg-red-50 text-red-700" }
     return { label: "À pointer", className: "border-amber-200 bg-amber-50 text-amber-800" }
   }
-  return <Card className="rounded-lg shadow-sm"><CardHeader className="flex flex-row items-center justify-between gap-3 pb-3"><div><CardTitle className="text-lg">Présences professeurs aujourd’hui</CardTitle><CardDescription>{new Date(`${date}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long" })}</CardDescription></div><Button asChild type="button" variant="ghost" size="sm" className="min-h-10 text-blue-700"><Link to="/teachers?tab=analyse">Voir tout</Link></Button></CardHeader><CardContent>{rows.length > 0 ? <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Heure</TableHead><TableHead>Professeur</TableHead><TableHead>Matière</TableHead><TableHead>Classe</TableHead><TableHead>Statut</TableHead></TableRow></TableHeader><TableBody>{rows.map((course) => { const courseStatus = status(course); return <TableRow key={course.id}><TableCell className="whitespace-nowrap font-medium">{formatHours(course.startTime)} – {formatHours(course.endTime)}</TableCell><TableCell>{course.teacherName}</TableCell><TableCell>{course.subject}</TableCell><TableCell>{course.className}</TableCell><TableCell><Badge variant="outline" className={courseStatus.className}>{courseStatus.label}</Badge></TableCell></TableRow> })}</TableBody></Table></div> : <EmptyState icon={UsersRound} title="Aucun créneau aujourd’hui" message="Les présences apparaîtront dès qu’un cours est planifié." />}</CardContent></Card>
+  return (
+    <Card className="rounded-lg shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3">
+        <div>
+          <CardTitle className="text-lg">Présences professeurs aujourd’hui</CardTitle>
+          <CardDescription>
+            {new Date(`${date}T12:00:00`).toLocaleDateString("fr-FR", {
+              weekday: "long",
+              day: "2-digit",
+              month: "long",
+            })}
+          </CardDescription>
+        </div>
+        <div>
+          {sortedCourses.length > 6 ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="min-h-12 text-blue-700"
+              aria-expanded={showAll}
+              onClick={() => setShowAll((current) => !current)}
+            >
+              {showAll ? "Afficher moins" : "Afficher tout"}
+            </Button>
+          ) : null}
+          <Button asChild type="button" variant="ghost" size="sm" className="min-h-10 text-blue-700">
+            <Link to="/teachers?tab=analyse">Analyse des présences</Link>
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {visibleCourses.length > 0 ? (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Heure</TableHead>
+                  <TableHead>Professeur</TableHead>
+                  <TableHead>Matière</TableHead>
+                  <TableHead>Classe</TableHead>
+                  <TableHead>Statut</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visibleCourses.map((course) => {
+                  const courseStatus = status(course)
+                  return (
+                    <TableRow key={course.id}>
+                      <TableCell className="whitespace-nowrap font-medium">
+                        {formatHours(course.startTime)} – {formatHours(course.endTime)}
+                      </TableCell>
+                      <TableCell>{course.teacherName}</TableCell>
+                      <TableCell>{course.subject}</TableCell>
+                      <TableCell>{course.className}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={courseStatus.className}>
+                          {courseStatus.label}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <EmptyState
+            icon={UsersRound}
+            title="Aucun créneau aujourd’hui"
+            message="Les présences apparaîtront dès qu’un cours est planifié."
+          />
+        )}
+      </CardContent>
+    </Card>
+  )
 }
 
 function FinancialSnapshot({ summary, levels, upcomingInstallments, isLoading, isError }: { summary: Awaited<ReturnType<typeof fetchFinancialSummary>>["school"]; levels: Awaited<ReturnType<typeof fetchFinancialSummary>>["levels"]; upcomingInstallments: Awaited<ReturnType<typeof fetchFinancialSummary>>["upcomingInstallments"]; isLoading: boolean; isError: boolean }) {
