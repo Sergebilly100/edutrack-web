@@ -375,7 +375,7 @@ function TodaySchedule({ courses, date }: { courses: DashboardCourseItem[]; date
             </Button>
           ) : null}
           <Button asChild type="button" variant="ghost" size="sm" className="min-h-10 text-blue-700">
-            <Link to="/teachers?tab=analyse">Analyse des présences</Link>
+            <Link to="/teachers?tab=analyse">Analyser</Link>
           </Button>
         </div>
       </CardHeader>
