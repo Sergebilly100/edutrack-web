@@ -113,6 +113,7 @@ export function OverviewTab({
         <PilotageKpis
           stats={statsQuery.data}
           population={pilotage?.population}
+          todayDate={todayDate}
           isLoading={pilotageQuery.isLoading || statsQuery.isLoading}
         />
       </section>
@@ -150,10 +151,12 @@ export function OverviewTab({
 function PilotageKpis({
   stats,
   population,
+  todayDate,
   isLoading,
 }: {
   stats: Awaited<ReturnType<typeof getDashboardStats>> | undefined
   population: { activeStudents: number; activeTeachers: number; activeClasses: number } | undefined
+  todayDate: string
   isLoading: boolean
 }) {
   const attendance = stats?.teacherAttendance.globalRate ?? 0
@@ -162,8 +165,8 @@ function PilotageKpis({
 
   return (
     <>
-      <KpiCard label="Présence professeurs" value={formatRate(attendance)} detail={`${teacherPresent}/${teacherExpected} cours pointés`} isLoading={isLoading} />
-      <KpiCard label="Présence élèves" value={formatRate(stats?.studentAttendance.rate ?? 0)} detail="Aujourd’hui" href="/students" isLoading={isLoading} />
+      <KpiCard label="Présence professeurs" value={formatRate(attendance)} detail={`${teacherPresent}/${teacherExpected} cours pointés`} href={`/teachers?tab=analyse&run=1&from=${todayDate}&to=${todayDate}`} isLoading={isLoading} />
+      <KpiCard label="Présence élèves" value={formatRate(stats?.studentAttendance.rate ?? 0)} detail="Aujourd’hui" href={`/students?tab=absences&run=1&from=${todayDate}&to=${todayDate}&min_absences=1`} isLoading={isLoading} />
       <KpiCard label="Élèves confirmés" value={population?.activeStudents ?? 0} detail="Effectif de l’année sélectionnée" href="/students" icon={GraduationCap} isLoading={isLoading} />
       <KpiCard label="Professeurs" value={population?.activeTeachers ?? 0} detail={`${population?.activeClasses ?? 0} classes actives`} href="/teachers" icon={UsersRound} isLoading={isLoading} />
     </>
@@ -395,7 +398,7 @@ function TodaySchedule({ courses, date }: { courses: DashboardCourseItem[]; date
             </Button>
           ) : null}
           <Button asChild type="button" variant="ghost" size="sm" className="min-h-10 text-blue-700">
-            <Link to="/teachers?tab=analyse">Voir tout</Link>
+            <Link to={`/teachers?tab=analyse&run=1&from=${date}&to=${date}`}>Analyser</Link>
           </Button>
         </div>
       </CardHeader>
