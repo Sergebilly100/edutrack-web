@@ -610,6 +610,10 @@ export type SchoolFinancialSummary = {
   total_expected_to_date: string;
   total_paid: string;
   remaining_to_collect: string;
+  /** Exposé par UX-09a lorsque l'agrégat annuel est déployé côté API. */
+  annual_total_due?: string;
+  annual_remaining?: string;
+  upcoming_due?: string;
   recovery_rate: string;
   students_up_to_date_count: number;
   students_late_count: number;

@@ -199,6 +199,7 @@ describe("DashboardPage", () => {
   })
   beforeEach(() => {
     vi.clearAllMocks()
+    window.localStorage.clear()
 
     setAuth("director")
 
@@ -277,29 +278,7 @@ describe("DashboardPage", () => {
     getConductReviewWorkspaceMock.mockResolvedValue({ teacherActions: [], decisionScopes: [], decisionActions: [] })
   })
 
-  it("propose la décision de conduite autorisée avec un lien direct vers la classe et la période", async () => {
-    getConductReviewWorkspaceMock.mockResolvedValue({ teacherActions: [], decisionScopes: [], decisionActions: [{
-      schoolYearId: "school-year-1", levelId: "level-1", classId: "class-1", gradingPeriodId: "period-current",
-      className: "6e A", gradingPeriodLabel: "Trimestre 1", pendingCount: 1, schoolYearStatus: "active",
-    }] })
-    renderWithQueryClient(<DashboardPage />)
-
-    expect(await screen.findByRole("link", { name: /6e A : 1 décision à finaliser/ })).toHaveAttribute(
-      "href", "/academic/conduct?schoolYearId=school-year-1&levelId=level-1&classId=class-1&gradingPeriodId=period-current",
-    )
-  })
-
-  it("ne rappelle pas une décision d'une année en préparation", async () => {
-    getConductReviewWorkspaceMock.mockResolvedValue({ teacherActions: [], decisionScopes: [], decisionActions: [{
-      schoolYearId: "school-year-1", levelId: "level-1", classId: "class-1", gradingPeriodId: "period-current",
-      className: "6e A", gradingPeriodLabel: "Trimestre 1", pendingCount: 1, schoolYearStatus: "draft",
-    }] })
-    renderWithQueryClient(<DashboardPage />)
-    await waitFor(() => expect(getConductReviewWorkspaceMock).toHaveBeenCalled())
-    expect(screen.queryByRole("link", { name: /6e A : 1 décision à finaliser/ })).not.toBeInTheDocument()
-  })
-
-  it("affiche une vue de pilotage unique pour un directeur", async () => {
+  it("affiche les KPI, le graphique distinct et les libellés financiers à date", async () => {
     getAttendanceHistoryMock.mockResolvedValue([
       { date: "2026-05-11", presentCount: 10, lateCount: 1, absentCount: 2, notCheckedCount: 0, totalCount: 13, attendanceRate: 84.62 },
       { date: "2026-05-12", presentCount: 12, lateCount: 0, absentCount: 1, notCheckedCount: 0, totalCount: 13, attendanceRate: 92.31 },
@@ -307,15 +286,19 @@ describe("DashboardPage", () => {
     renderWithQueryClient(<DashboardPage />)
 
     expect(await screen.findByText("Bonjour, Directeur Test")).toBeInTheDocument()
-    expect(await screen.findByText("Vue de pilotage", {}, { timeout: 5000 })).toBeInTheDocument()
+    expect(await screen.findByText("Présence des professeurs, 7 derniers jours", {}, { timeout: 5000 })).toBeInTheDocument()
     expect(await screen.findByText("Présences professeurs aujourd’hui")).toBeInTheDocument()
     expect(await screen.findByText("Notes saisies")).toBeInTheDocument()
     expect(screen.getByText("Notes ≥ 10/20")).toBeInTheDocument()
+    expect(screen.getByLabelText("Légende du graphique")).toHaveTextContent("Présents")
     expect(screen.getByLabelText("Légende du graphique")).toHaveTextContent("Retards")
+    expect(screen.getByLabelText("Légende du graphique")).toHaveTextContent("Absents")
     expect(await screen.findByText("Suivi financier")).toBeInTheDocument()
-    expect(screen.getAllByText("Taux de recouvrement")[0]?.parentElement).toHaveTextContent("70%")
-    expect(screen.getAllByText("Montant restant dû")[0]?.parentElement).toHaveTextContent(/400\s*000/)
-    expect(screen.getByRole("progressbar", { name: "Recouvrement 6e, 70%" })).toHaveClass("[&>div]:bg-blue-600")
+    expect(screen.getAllByText("Recouvrement à date")[0]?.parentElement).toHaveTextContent("70%")
+    expect(screen.getAllByText("Impayé à date")[0]?.parentElement).toHaveTextContent(/400\s*000/)
+    expect(screen.getByRole("progressbar", { name: "Recouvrement à date 6e, 70%" })).toHaveClass("[&>div]:bg-blue-600")
+    expect(screen.getByRole("link", { name: /Élèves confirmés : 312/ })).toHaveAttribute("href", "/students")
+    expect(screen.getByRole("link", { name: /Professeurs : 13/ })).toHaveAttribute("href", "/teachers")
     expect(screen.queryByRole("tab")).not.toBeInTheDocument()
   })
 
@@ -333,7 +316,7 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Élèves confirmés")).toBeInTheDocument()
   })
 
-  it("affiche un total enseignant unique lorsque les deux signaux sont actifs", async () => {
+  it("signale le total enseignant sans additionner deux fois les signaux", async () => {
     getDashboardPilotageMock.mockResolvedValue({
       population: { activeStudents: 10, activeTeachers: 1, activeClasses: 1 },
       academic: [],
@@ -341,10 +324,7 @@ describe("DashboardPage", () => {
     })
     renderWithQueryClient(<DashboardPage />)
     expect(await screen.findByRole("link", { name: /Retards répétés/ })).toHaveAttribute("href", "/dashboard/risks?tab=teachers")
-    await waitFor(() => {
-      const teachers = screen.getAllByText("Professeurs", { selector: "p" }).find((label) => label.parentElement?.textContent?.includes("à risque"))
-      expect(teachers?.parentElement).toHaveTextContent("1 à risque")
-    })
+    expect(await screen.findByText("1 à risque")).toBeInTheDocument()
   })
 
   it("actualise toutes les données visibles du dashboard", async () => {
@@ -367,6 +347,15 @@ describe("DashboardPage", () => {
       expect(getDashboardActionItemsMock.mock.calls.length).toBeGreaterThan(initialCalls.actionItems)
       expect(listSchoolYearsMock.mock.calls.length).toBeGreaterThan(initialCalls.schoolYears)
     })
+    expect(await screen.findByText(/Dernière actualisation :/)).toBeInTheDocument()
+  })
+
+  it("conserve la dernière actualisation après le rechargement de la page", async () => {
+    window.localStorage.setItem("edutrack.dashboard.last-refresh:tenant-1", "2026-10-17T08:30:00.000Z")
+
+    renderWithQueryClient(<DashboardPage />)
+
+    expect(await screen.findByText("Dernière actualisation : 17/10/2026 à 08:30")).toBeInTheDocument()
   })
 
   it("garde la cloche et les priorités synchronisées après une résolution serveur", async () => {
@@ -448,6 +437,47 @@ describe("DashboardPage", () => {
     fireEvent.click(await screen.findByRole("combobox", { name: "Période" }))
 
     expect(screen.getByRole("option", { name: /trimestre 2.*à venir/i })).toHaveAttribute("aria-disabled", "true")
+  })
+
+  it("trie les présences par absent, à pointer puis présent", async () => {
+    getTodayAttendanceMock.mockResolvedValue({
+      date: "2026-05-12",
+      courses: [
+        { id: "present", startTime: "07:00:00", endTime: "08:00:00", teacherName: "Présent", subject: "Maths", className: "6A", status: "present" },
+        { id: "pending", startTime: "08:00:00", endTime: "09:00:00", teacherName: "À pointer", subject: "Maths", className: "6A", status: null },
+        { id: "absent", startTime: "09:00:00", endTime: "10:00:00", teacherName: "Absent", subject: "Maths", className: "6A", status: "absent" },
+      ],
+    })
+    renderWithQueryClient(<DashboardPage />)
+
+    const rows = await screen.findAllByRole("row")
+    const attendanceRows = rows.filter((row) => /Présent|À pointer|Absent/.test(row.textContent ?? ""))
+    expect(attendanceRows.map((row) => row.textContent)).toEqual(expect.arrayContaining([
+      expect.stringContaining("Absent"),
+      expect.stringContaining("À pointer"),
+      expect.stringContaining("Présent"),
+    ]))
+    expect(attendanceRows.findIndex((row) => row.textContent?.includes("Absent"))).toBeLessThan(attendanceRows.findIndex((row) => row.textContent?.includes("À pointer")))
+    expect(attendanceRows.findIndex((row) => row.textContent?.includes("À pointer"))).toBeLessThan(attendanceRows.findIndex((row) => row.textContent?.includes("Présent")))
+    expect(screen.queryByRole("button", { name: "Contacter" })).not.toBeInTheDocument()
+  })
+
+  it("affiche les quatre seules actions directeur dans l'ordre de leur priorité réelle", async () => {
+    getDashboardActionItemsMock.mockResolvedValue([
+      { id: "validations", type: "validations_pending", referenceId: null, priority: "high", message: "2 décision(s) à prendre sur les pointages.", generatedAt: "2026-05-12" },
+      { id: "students", type: "student_at_risk", referenceId: null, priority: "high", message: "10 élève(s) à examiner (niveau warning/critical)", generatedAt: "2026-05-12" },
+      { id: "teachers", type: "teacher_at_risk", referenceId: null, priority: "high", message: "6 professeur(s) à suivre pour leur assiduité", generatedAt: "2026-05-12" },
+      { id: "absence", type: "teacher_absences_high", referenceId: null, priority: "high", message: "52 absences de professeurs sur les 7 derniers jours", generatedAt: "2026-05-12" },
+      { id: "salary", type: "salary_pending", referenceId: null, priority: "medium", message: "1 fiche de salaire à terminer", generatedAt: "2026-05-12" },
+    ])
+    renderWithQueryClient(<DashboardPage />)
+
+    const actions = await screen.findByText("Actions prioritaires")
+    const actionCard = actions.closest("div[class*='rounded-lg']")
+    expect(actionCard).toHaveTextContent("4 sujets")
+    expect(actionCard).toHaveTextContent("10")
+    expect(actionCard).toHaveTextContent("niveaux à surveiller ou critiques")
+    expect(actionCard).not.toHaveTextContent("Salaires à terminer")
   })
 
 })

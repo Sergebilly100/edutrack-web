@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps } from "recharts"
-import { BookOpenCheck, ChevronRight, CircleAlert, GraduationCap, UsersRound } from "lucide-react"
+import { BookOpenCheck, ChevronRight, GraduationCap, UsersRound } from "lucide-react"
 import { Link } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
@@ -24,10 +24,11 @@ import {
 
 type DashboardPriorityAction = {
   id: string
+  type: "teacher_absences_high" | "student_at_risk" | "teacher_at_risk" | "validations_pending"
   title: string
   message: string
   href: string
-  tone: "warning" | "info" | "success" | "danger"
+  priority: "low" | "medium" | "high"
 }
 
 type OverviewTabProps = {
@@ -44,6 +45,14 @@ type OverviewTabProps = {
 
 const QUERY_STALE_TIME = 5 * 60_000
 
+const ATTENDANCE_SERIES = [
+  { key: "presentCount", label: "Présents", swatchClass: "bg-[var(--stat-success-fg)]" },
+  { key: "lateCount", label: "Retards", swatchClass: "bg-[var(--stat-warning-fg)]" },
+  { key: "absentCount", label: "Absents", swatchClass: "bg-[var(--stat-danger-fg)]" },
+] as const
+
+type AttendanceSeriesKey = (typeof ATTENDANCE_SERIES)[number]["key"]
+
 function AttendanceHistoryTooltip({ active, payload }: TooltipContentProps) {
   const point = payload?.[0]?.payload as DashboardHistoryPoint | undefined
   if (!active || !point) return null
@@ -51,11 +60,17 @@ function AttendanceHistoryTooltip({ active, payload }: TooltipContentProps) {
     weekday: "long", day: "2-digit", month: "long",
   })
   return (
-    <div className="w-48 max-w-[calc(100vw-3rem)] rounded-lg border border-border bg-popover p-2 text-xs text-popover-foreground shadow-md">
-      <p className="mb-2 break-words font-medium leading-snug">{date} · {Math.round(point.attendanceRate)}% de présence</p>
-      <div className="flex justify-between gap-2"><span>Présents</span><span>{point.presentCount}</span></div>
-      <div className="flex justify-between gap-2"><span>Absents</span><span>{point.absentCount}</span></div>
-      <div className="flex justify-between gap-2"><span>Retards</span><span>{point.lateCount}</span></div>
+    <div className="w-52 max-w-[calc(100vw-3rem)] rounded-lg border border-border !bg-card p-3 text-xs text-card-foreground opacity-100 shadow-lg ring-1 ring-border">
+      <p className="mb-2 break-words font-semibold leading-snug">{date}</p>
+      <p className="mb-3 text-muted-foreground">{Math.round(point.attendanceRate)} % de présence</p>
+      <div className="space-y-1.5">
+        {ATTENDANCE_SERIES.map((series) => (
+          <div key={series.key} className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-sm ${series.swatchClass}`} aria-hidden="true" />{series.label}</span>
+            <span className="font-semibold tabular-nums">{point[series.key]}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -90,27 +105,24 @@ export function OverviewTab({
   })
 
   const pilotage = pilotageQuery.data
-  const watchItems = [
-    ...priorityActions,
-    { id: "absence", title: "Absentéisme élevé", message: "Élèves concernés par la règle d’absence", href: "/students?tab=absences", tone: "danger" as const, value: pilotage?.risks.studentAbsences ?? 0 },
-    { id: "grades", title: "Baisse de moyenne", message: "Élèves signalés entre deux périodes", href: "/students?tab=absences", tone: "warning" as const, value: pilotage?.risks.studentGrades ?? 0 },
-    { id: "payments", title: "Paiements en retard", message: "Familles à régulariser", href: "/finance/dashboard", tone: "warning" as const, value: pilotage?.risks.studentPayments ?? 0 },
-    { id: "completion", title: "Matières à clôturer", message: "Matières dont les moyennes ne sont pas validées", href: "/academic/completion", tone: "info" as const, value: Math.max(0, (pilotage?.academic ?? []).reduce((total, row) => total + row.expectedSubjects - row.completedSubjects, 0)) },
-  ].filter((item) => !("value" in item) || item.value > 0)
+  const watchItems = priorityActions
 
   return (
     <div className="space-y-4 sm:space-y-5">
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(20rem,0.8fr)]">
-        <PilotageHero
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-4" data-tour="dashboard-stats">
+        <PilotageKpis
           stats={statsQuery.data}
-          history={historyData}
           population={pilotage?.population}
           isLoading={pilotageQuery.isLoading || statsQuery.isLoading}
         />
-        <WatchList items={watchItems} canViewTeachers={canViewTeachers} />
       </section>
 
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.38fr)_minmax(22rem,0.82fr)]">
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(20rem,0.8fr)] xl:items-start">
+        <AttendanceHistoryChart history={historyData} />
+        <WatchList items={watchItems} />
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.38fr)_minmax(22rem,0.82fr)] xl:items-start">
         <AcademicProgress
           levels={pilotage?.academic ?? []}
           confirmedStudents={pilotage?.population.activeStudents}
@@ -126,7 +138,6 @@ export function OverviewTab({
           <FinancialSnapshot
             summary={financialQuery.data?.school ?? null}
             levels={financialQuery.data?.levels ?? []}
-            upcomingInstallments={financialQuery.data?.upcomingInstallments ?? []}
             isLoading={financialQuery.isLoading}
             isError={financialQuery.isError}
           />
@@ -136,104 +147,111 @@ export function OverviewTab({
   )
 }
 
-function PilotageHero({
+function PilotageKpis({
   stats,
-  history,
   population,
   isLoading,
 }: {
   stats: Awaited<ReturnType<typeof getDashboardStats>> | undefined
-  history: DashboardHistoryPoint[]
   population: { activeStudents: number; activeTeachers: number; activeClasses: number } | undefined
   isLoading: boolean
 }) {
-  const trend = useMemo(
-    () => history.map((item) => ({ ...item, label: new Date(item.date).toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit" }) })),
-    [history]
-  )
   const attendance = stats?.teacherAttendance.globalRate ?? 0
   const teacherPresent = (stats?.teacherAttendance.fullTime.present ?? 0) + (stats?.teacherAttendance.partTime.present ?? 0)
   const teacherExpected = (stats?.teacherAttendance.fullTime.expected ?? 0) + (stats?.teacherAttendance.partTime.expected ?? 0)
 
   return (
-    <Card className="min-w-0 rounded-lg border-0 bg-blue-500 text-blue-50 shadow-sm" data-tour="dashboard-stats">
-      <CardContent className="p-5 sm:p-6">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-medium text-blue-100">Vue de pilotage</p>
-            <p className="mt-1 text-xs text-blue-100">Présence des professeurs par cours planifié, aujourd’hui et les 6 jours précédents</p>
-          </div>
-          <Badge variant="outline" className="border-blue-300 bg-blue-800/35 text-blue-50">Temps réel</Badge>
-        </div>
+    <>
+      <KpiCard label="Présence professeurs" value={formatRate(attendance)} detail={`${teacherPresent}/${teacherExpected} cours pointés`} isLoading={isLoading} />
+      <KpiCard label="Présence élèves" value={formatRate(stats?.studentAttendance.rate ?? 0)} detail="Aujourd’hui" href="/students" isLoading={isLoading} />
+      <KpiCard label="Élèves confirmés" value={population?.activeStudents ?? 0} detail="Effectif de l’année sélectionnée" href="/students" icon={GraduationCap} isLoading={isLoading} />
+      <KpiCard label="Professeurs" value={population?.activeTeachers ?? 0} detail={`${population?.activeClasses ?? 0} classes actives`} href="/teachers" icon={UsersRound} isLoading={isLoading} />
+    </>
+  )
+}
 
-        {isLoading ? (
-          <div className="mt-6 grid gap-5 sm:grid-cols-[12rem_minmax(0,1fr)]">
-            <Skeleton className="h-32 bg-blue-600" />
-            <Skeleton className="h-32 bg-blue-600" />
-          </div>
-        ) : (
-          <div className="mt-5 grid gap-5 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-center">
-            <div className="border-b border-blue-500 pb-5 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-5">
-              <p className="text-5xl font-semibold tracking-tight tabular-nums">{formatRate(attendance)}</p>
-              <p className="mt-2 text-sm text-blue-100">Présence professeurs</p>
-              <p className="mt-2 text-xs text-blue-100">Présence élèves : {formatRate(stats?.studentAttendance.rate ?? 0)}</p>
-              <p className="mt-4 text-xs text-blue-100">{teacherPresent}/{teacherExpected} cours pointés</p>
-            </div>
-            <div className="min-w-0 h-36">
-              {trend.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={trend} margin={{ top: 16, right: 6, left: -24, bottom: 0 }}>
-                    <CartesianGrid vertical={false} stroke="hsl(213 94% 68% / 0.35)" strokeDasharray="3 3" />
-                    <XAxis dataKey="label" tick={{ fill: "hsl(214 100% 93%)", fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis allowDecimals={false} tick={{ fill: "hsl(214 100% 93%)", fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <Tooltip cursor={{ fill: "hsl(213 94% 68% / 0.18)" }} content={AttendanceHistoryTooltip} />
-                    <Bar dataKey="presentCount" name="Présents" stackId="attendance" fill="var(--stat-success-fg)" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="absentCount" name="Absents" stackId="attendance" fill="var(--stat-danger-fg)" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="lateCount" name="Retards" stackId="attendance" fill="var(--stat-warning-fg)" radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : <div className="flex h-full items-center text-sm text-blue-100">Aucune tendance de présence disponible.</div>}
-            </div>
-          </div>
-        )}
+function KpiCard({ label, value, detail, href, icon: Icon, isLoading, secondaryHref, secondaryLabel }: { label: string; value: string | number; detail: string; href?: string; icon?: typeof GraduationCap; isLoading: boolean; secondaryHref?: string; secondaryLabel?: string }) {
+  const card = <Card className="min-h-30 rounded-lg shadow-sm transition-colors hover:bg-muted/30"><CardContent className="flex h-full flex-col p-5"><div className="flex items-start justify-between gap-3"><p className="text-sm font-medium text-muted-foreground">{label}</p>{Icon ? <Icon className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" /> : null}</div>{isLoading ? <Skeleton className="mt-4 h-10 w-24" /> : <p className="mt-3 text-3xl font-bold tracking-tight tabular-nums">{value}</p>}<p className="mt-auto pt-3 text-sm text-muted-foreground">{detail}</p>{href && secondaryHref ? <Link to={href} className="mt-2 inline-flex min-h-10 items-center text-sm font-medium text-blue-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Voir {label.toLowerCase()}</Link> : null}{secondaryHref && secondaryLabel ? <Link to={secondaryHref} className="mt-1 inline-flex min-h-10 items-center text-sm font-medium text-blue-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">{secondaryLabel}</Link> : null}</CardContent></Card>
+  return href && !secondaryHref ? <Link to={href} className="block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label={`${label} : ${value}. ${detail}`}>{card}</Link> : card
+}
 
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-blue-50" aria-label="Légende du graphique">
-          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[var(--stat-success-fg)]" aria-hidden="true" />Présents</span>
-          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[var(--stat-danger-fg)]" aria-hidden="true" />Absents</span>
-          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[var(--stat-warning-fg)]" aria-hidden="true" />Retards</span>
-        </div>
+function AttendanceHistoryChart({ history }: { history: DashboardHistoryPoint[] }) {
+  const trend = useMemo(
+    () => history.map((item) => ({ ...item, label: new Date(item.date).toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit" }) })),
+    [history],
+  )
+  const legend = ATTENDANCE_SERIES.filter((series) => trend.some((point) => point[series.key as AttendanceSeriesKey] > 0))
 
-        <div className="mt-5 grid grid-cols-3 divide-x divide-blue-500 border-t border-blue-500 pt-4">
-          <PopulationStat icon={GraduationCap} label="Élèves confirmés" value={population?.activeStudents ?? 0} />
-          <PopulationStat icon={UsersRound} label="Professeurs" value={population?.activeTeachers ?? 0} />
-          <PopulationStat icon={BookOpenCheck} label="Classes" value={population?.activeClasses ?? 0} />
+  return (
+    <Card className="min-w-0 rounded-lg shadow-sm">
+      <CardHeader className="flex flex-row items-start justify-between gap-3 border-none p-5 pb-3">
+        <div>
+          <CardTitle className="text-lg">Présence des professeurs, 7 derniers jours</CardTitle>
+          <CardDescription>Par cours planifié, aujourd’hui et les 6 jours précédents.</CardDescription>
         </div>
+        <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-800">Temps réel</Badge>
+      </CardHeader>
+      <CardContent className="px-5 pb-5">
+        {trend.length > 0 ? <>
+          <div className="h-64 min-w-0" aria-label="Graphique empilé des présences professeurs sur sept jours">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+              <BarChart data={trend} margin={{ top: 12, right: 8, left: -18, bottom: 0 }} accessibilityLayer>
+                <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeDasharray="3 3" />
+                <XAxis dataKey="label" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} axisLine={false} tickLine={false} />
+                <Tooltip cursor={false} content={AttendanceHistoryTooltip} />
+                <Bar dataKey="absentCount" name="Absents" stackId="attendance" fill="var(--stat-danger-fg)" />
+                <Bar dataKey="lateCount" name="Retards" stackId="attendance" fill="var(--stat-warning-fg)" />
+                <Bar dataKey="presentCount" name="Présents" stackId="attendance" fill="var(--stat-success-fg)" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          {legend.length > 0 ? <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs" aria-label="Légende du graphique">
+            {legend.map((item) => <span key={item.key} className="flex items-center gap-1.5"><span className={`h-2.5 w-2.5 rounded-sm ${item.swatchClass}`} aria-hidden="true" />{item.label}</span>)}
+          </div> : null}
+          <p className="sr-only">Utilisez les flèches du clavier sur le graphique pour consulter les valeurs de chaque jour. L’infobulle donne les présents, retards et absents.</p>
+        </> : <EmptyState title="Aucune tendance de présence" message="Les données des sept derniers jours apparaîtront ici dès que des cours seront planifiés." classNameRendu="py-8" />}
       </CardContent>
     </Card>
   )
 }
 
-function PopulationStat({ icon: Icon, label, value }: { icon: typeof GraduationCap; label: string; value: number }) {
-  return <div className="min-w-0 px-3 first:pl-0 last:pr-0"><div className="flex items-center gap-2"><Icon className="h-4 w-4 shrink-0 text-blue-100" /><p className="truncate text-xl font-semibold tabular-nums">{value}</p></div><p className="mt-1 truncate text-xs text-blue-100">{label}</p></div>
+const PRIORITY_ORDER: DashboardPriorityAction["type"][] = ["teacher_absences_high", "student_at_risk", "teacher_at_risk", "validations_pending"]
+const priorityWeight: Record<DashboardPriorityAction["priority"], number> = { high: 0, medium: 1, low: 2 }
+const priorityCounterClass: Record<DashboardPriorityAction["priority"], string> = {
+  high: "bg-red-50 text-red-700",
+  medium: "bg-amber-50 text-amber-800",
+  low: "bg-slate-100 text-slate-700",
 }
 
-function WatchList({ items, canViewTeachers }: { items: Array<DashboardPriorityAction & { value?: number }>; canViewTeachers: boolean }) {
-  const toneClass = { danger: "border-red-200 bg-red-50 text-red-700", warning: "border-amber-200 bg-amber-50 text-amber-800", info: "border-blue-200 bg-blue-50 text-blue-800", success: "border-green-200 bg-green-50 text-green-700" }
+function priorityCount(message: string): number {
+  const value = Number(message.match(/^\s*(\d+)/)?.[1] ?? 0)
+  return Number.isFinite(value) ? value : 0
+}
+
+function priorityMessage(item: DashboardPriorityAction): string {
+  if (item.type === "student_at_risk") return "Élèves à examiner en priorité, niveaux à surveiller ou critiques"
+  if (item.type === "teacher_absences_high") return "Absences de professeurs sur les 7 derniers jours"
+  if (item.type === "teacher_at_risk") return "Assiduité à suivre"
+  return "Décisions à prendre sur les pointages"
+}
+
+function WatchList({ items }: { items: DashboardPriorityAction[] }) {
+  const orderedItems = [...items].sort((a, b) => priorityWeight[a.priority] - priorityWeight[b.priority] || PRIORITY_ORDER.indexOf(a.type) - PRIORITY_ORDER.indexOf(b.type))
   return (
     <Card className="rounded-lg shadow-sm">
-      <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3 border-none">
-        <div><CardTitle className="text-lg">Actions prioritaires</CardTitle><CardDescription>Actions et situations nécessitant un suivi</CardDescription></div>
-        {canViewTeachers ? <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800" >Urgence</Badge> : null}
+      <CardHeader className="flex flex-row items-center justify-between gap-3 border-none p-5 pb-3">
+        <div><CardTitle className="text-lg">Actions prioritaires</CardTitle><CardDescription>Situations qui nécessitent votre décision</CardDescription></div>
+        <Badge variant="outline" className="border-border bg-muted text-foreground">{orderedItems.length} sujet{orderedItems.length > 1 ? "s" : ""}</Badge>
       </CardHeader>
-      <CardContent className="space-y-1.5">
-        {items.length > 0 ? items.slice(0, 4).map((item) => (
-          <Link key={item.id} to={item.href} className="flex min-h-14 items-center gap-3 rounded-lg border px-3 py-2 transition-colors hover:bg-muted/50">
-            <CircleAlert className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span className="min-w-0 flex-1"><span className="block text-sm font-medium">{item.title}</span><span className="block truncate text-xs text-muted-foreground">{item.message}</span></span>
-            {typeof item.value === "number" ? <Badge variant="outline" className={toneClass[item.tone]}>{item.value}</Badge> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
-            {typeof item.value === "number" ? <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" /> : null}
+      <CardContent className="space-y-2 px-5 pb-5">
+        {orderedItems.length > 0 ? orderedItems.map((item) => (
+          <Link key={item.id} to={item.href} className="flex min-h-16 items-center gap-3 rounded-lg border px-3 py-2 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+            <span className={`inline-flex min-h-10 min-w-10 items-center justify-center rounded-md px-2 text-lg font-bold tabular-nums ${priorityCounterClass[item.priority]}`}>{priorityCount(item.message)}</span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{item.title}</span><span className="block text-xs text-muted-foreground">{priorityMessage(item)}</span></span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           </Link>
-        )) : <div className="rounded-lg bg-green-50 p-4 text-sm text-green-800">Aucun signal prioritaire sur la période sélectionnée.</div>}
+        )) : <div className="rounded-lg bg-green-50 p-4 text-sm text-green-800">Aucun sujet prioritaire sur la période sélectionnée.</div>}
       </CardContent>
     </Card>
   )
@@ -241,13 +259,14 @@ function WatchList({ items, canViewTeachers }: { items: Array<DashboardPriorityA
 
 function AcademicProgress({ levels, confirmedStudents, isLoading, isError }: { levels: Awaited<ReturnType<typeof getDashboardPilotage>>["academic"]; confirmedStudents?: number; isLoading: boolean; isError: boolean }) {
   if (isError) return <QueryErrorState message="Impossible de charger la performance académique." />
+  const hasIncompleteSubjects = levels.some((level) => level.completedSubjects < level.expectedSubjects)
   return (
     <Card className="rounded-lg shadow-sm">
-      <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
-        <div><CardTitle className="text-lg">Performance académique de la période</CardTitle><CardDescription>Moyennes générales réelles, regroupées par niveau.</CardDescription></div>
-        <Button asChild type="button" variant="ghost" size="sm" className="min-h-10 text-blue-700"><Link to="/academic/completion">Détails</Link></Button>
+      <CardHeader className="flex flex-row items-start justify-between gap-3 border-none p-5 pb-3">
+        <div><CardTitle className="text-lg">Performance académique de la période</CardTitle><CardDescription>Moyennes générales réelles, regroupées par niveau.</CardDescription>{!isLoading && hasIncompleteSubjects ? <Badge variant="outline" className="mt-2 border-amber-200 bg-amber-50 text-amber-800">Provisoire</Badge> : null}</div>
+        <Button asChild type="button" variant="ghost" size="sm" className="min-h-10 text-blue-700"><Link to="/academic/evaluations">Détails</Link></Button>
       </CardHeader>
-      <CardContent className="overflow-x-auto">
+      <CardContent className="overflow-x-auto px-5 pb-5">
         {!isLoading && confirmedStudents === 0 ? <EmptyState title="Aucun élève confirmé" message="Les dossiers en attente ne font pas partie de l’effectif scolaire de cette année." classNameRendu="py-5" /> : null}
         {isLoading ? <Skeleton className="h-56 w-full" /> : levels.length > 0 ? (
           <table className="w-full min-w-[42rem] text-sm">
@@ -255,7 +274,8 @@ function AcademicProgress({ levels, confirmedStudents, isLoading, isError }: { l
             <tbody>{levels.map((level) => {
               const hasAverage = level.studentsWithAverage > 0
               const averageTone = (level.averageScore ?? 0) >= 10 ? "text-green-700" : (level.averageScore ?? 0) >= 8 ? "text-amber-800" : "text-red-700"
-              return <tr key={level.levelId} className="border-b last:border-0"><td className="py-3 font-medium">{level.levelName}<span className="ml-2 text-xs font-normal text-muted-foreground">{level.classCount} classe{level.classCount > 1 ? "s" : ""} · {level.completedSubjects}/{level.expectedSubjects} matières clôturées</span></td><td className={`py-3 font-semibold ${hasAverage ? averageTone : "text-muted-foreground"}`}>{hasAverage ? `${level.averageScore?.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}/20` : "En attente"}</td><td className="py-3 text-right font-medium">{level.studentsWithAverage}</td><td className="py-3 text-right font-medium">{level.gradeCount}</td><td className="py-3 text-right font-medium text-green-700">{level.gradesAtLeastTen}</td></tr>
+              const gradesAtLeastTenRate = level.gradeCount > 0 ? Math.round((level.gradesAtLeastTen / level.gradeCount) * 100) : 0
+              return <tr key={level.levelId} className="border-b last:border-0"><td className="py-3 font-medium">{level.levelName}<span className="ml-2 text-xs font-normal text-muted-foreground">{level.classCount} classe{level.classCount > 1 ? "s" : ""} · {level.completedSubjects}/{level.expectedSubjects} matières clôturées</span></td><td className={`py-3 font-semibold ${hasAverage ? averageTone : "text-muted-foreground"}`}>{hasAverage ? `${level.averageScore?.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}/20` : "En attente"}</td><td className="py-3 text-right font-medium">{level.studentsWithAverage}</td><td className="py-3 text-right font-medium">{level.gradeCount}</td><td className="py-3 text-right font-medium text-green-700">{level.gradesAtLeastTen} <span className="text-xs font-normal text-muted-foreground">({gradesAtLeastTenRate} %)</span></td></tr>
             })}</tbody>
           </table>
         ) : confirmedStudents !== 0 ? <EmptyState icon={BookOpenCheck} title="Aucun niveau à suivre" message="La performance apparaîtra dès que les moyennes de période seront calculées." /> : null}
@@ -268,7 +288,7 @@ function RiskSummary({ risks, canViewTeachers }: { risks: Awaited<ReturnType<typ
   const studentTotal = (risks?.studentAbsences ?? 0) + (risks?.studentGrades ?? 0) + (risks?.studentPayments ?? 0)
   return (
     <Card className="rounded-lg shadow-sm">
-      <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3 border-none">
+      <CardHeader className="flex flex-row items-start justify-between gap-3 border-none p-5 pb-3">
         <div>
           <CardTitle className="text-lg">
             Risques élèves et professeurs
@@ -287,7 +307,7 @@ function RiskSummary({ risks, canViewTeachers }: { risks: Awaited<ReturnType<typ
           <Link to="/dashboard/risks">Voir plus</Link>
         </Button>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 px-5 pb-5">
         <RiskGroup
           title="Élèves"
           total={studentTotal}
@@ -333,15 +353,15 @@ function RiskSummary({ risks, canViewTeachers }: { risks: Awaited<ReturnType<typ
 }
 
 function RiskGroup({ title, total, rows }: { title: string; total: number; rows: Array<{ label: string; value: number; href: string }> }) {
-  return <div className="rounded-lg border"><div className="flex items-center justify-between border-b px-3 py-2"><p className="font-medium">{title}</p><Badge variant="outline">{total} à risque</Badge></div>{rows.map((row) => <Link key={row.label} to={row.href} className="flex min-h-12 items-center gap-2 px-3 text-sm hover:bg-muted/50"><Badge variant="outline" className={row.value > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-border bg-muted text-foreground"}>{row.value}</Badge><span className="flex-1">{row.label}</span><ChevronRight className="h-4 w-4 text-muted-foreground" /></Link>)}</div>
+  return <div><div className="flex items-center justify-between gap-3 pb-2"><div><p className="font-medium">{title}</p>{title === "Élèves" ? <p className="mt-1 text-xs text-muted-foreground">Un élève peut cumuler plusieurs signaux.</p> : null}</div><Badge variant="outline">{title === "Élèves" ? `${total} signaux de risque` : `${total} à risque`}</Badge></div>{rows.map((row) => <Link key={row.label} to={row.href} className="flex min-h-12 items-center gap-2 border-b px-1 text-sm last:border-b-0 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><Badge variant="outline" className={row.value > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-border bg-muted text-foreground"}>{row.value}</Badge><span className="flex-1">{row.label}</span><ChevronRight className="h-4 w-4 text-muted-foreground" /></Link>)}</div>
 }
 
 function TodaySchedule({ courses, date }: { courses: DashboardCourseItem[]; date: string }) {
   const [showAll, setShowAll] = useState(false)
-  const sortedCourses = useMemo(
-    () => [...courses].sort((a, b) => a.startTime.localeCompare(b.startTime)),
-    [courses],
-  )
+  const sortedCourses = useMemo(() => {
+    const rank = (course: DashboardCourseItem) => course.status === "absent" ? 0 : course.status === "present" || course.status === "late" || course.status === "excused" ? 2 : 1
+    return [...courses].sort((a, b) => rank(a) - rank(b) || a.startTime.localeCompare(b.startTime))
+  }, [courses])
   const visibleCourses = showAll ? sortedCourses : sortedCourses.slice(0, 6)
   const status = (course: DashboardCourseItem) => {
     if (course.status === "present" || course.status === "late" || course.status === "excused") return { label: course.status === "late" ? "Retard" : "Présent", className: "border-green-200 bg-green-50 text-green-700" }
@@ -350,7 +370,7 @@ function TodaySchedule({ courses, date }: { courses: DashboardCourseItem[]; date
   }
   return (
     <Card className="rounded-lg shadow-sm">
-      <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 border-none p-5 pb-3">
         <div>
           <CardTitle className="text-lg">Présences professeurs aujourd’hui</CardTitle>
           <CardDescription>
@@ -375,11 +395,11 @@ function TodaySchedule({ courses, date }: { courses: DashboardCourseItem[]; date
             </Button>
           ) : null}
           <Button asChild type="button" variant="ghost" size="sm" className="min-h-10 text-blue-700">
-            <Link to="/teachers?tab=analyse">Analyser</Link>
+            <Link to="/teachers?tab=analyse">Voir tout</Link>
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-5 pb-5">
         {visibleCourses.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
@@ -426,13 +446,12 @@ function TodaySchedule({ courses, date }: { courses: DashboardCourseItem[]; date
   )
 }
 
-function FinancialSnapshot({ summary, levels, upcomingInstallments, isLoading, isError }: { summary: Awaited<ReturnType<typeof fetchFinancialSummary>>["school"]; levels: Awaited<ReturnType<typeof fetchFinancialSummary>>["levels"]; upcomingInstallments: Awaited<ReturnType<typeof fetchFinancialSummary>>["upcomingInstallments"]; isLoading: boolean; isError: boolean }) {
-  // Le backend additionne les impayés par élève : un trop-perçu ne peut pas
-  // masquer la dette d'une autre famille.
+function FinancialSnapshot({ summary, levels, isLoading, isError }: { summary: Awaited<ReturnType<typeof fetchFinancialSummary>>["school"]; levels: Awaited<ReturnType<typeof fetchFinancialSummary>>["levels"]; isLoading: boolean; isError: boolean }) {
   const remaining = Number(summary?.remaining_to_collect ?? 0)
   const recoveryRate = Math.max(0, Math.min(1, Number(summary?.recovery_rate ?? 0))) * 100
-  const upcomingAmount = upcomingInstallments.reduce((total, row) => total + Number(row.expected_amount), 0)
-  return <Card className="rounded-lg shadow-sm"><CardHeader className="flex flex-row items-center justify-between gap-3 pb-3 border-none"><div><CardTitle className="text-lg">Suivi financier</CardTitle><CardDescription>Situation à date et prochaines échéances</CardDescription></div><Button asChild type="button" variant="ghost" size="sm" className="min-h-10 text-blue-700"><Link to="/finance/dashboard">Voir tout</Link></Button></CardHeader><CardContent>{isLoading ? <Skeleton className="h-56 w-full" /> : isError ? <QueryErrorState message="Impossible de charger le suivi financier." /> : <div className="space-y-4"><div className="grid grid-cols-3 divide-x rounded-lg border bg-muted/20"><Metric label="Taux de recouvrement" value={formatRate(recoveryRate)} /><Metric label="Montant restant dû" value={formatFcfa(remaining)} /><Metric label="Échéances à venir" value={formatFcfa(upcomingAmount)} /></div>{levels.length > 0 ? <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Niveau</TableHead><TableHead>Taux de recouvrement</TableHead><TableHead className="text-right">Montant restant dû</TableHead><TableHead className="text-right">Élèves en retard</TableHead></TableRow></TableHeader><TableBody>{levels.slice(0, 4).map((level) => { const expected = Number(level.total_expected_to_date); const paid = Number(level.total_paid); const rate = expected > 0 ? Math.round((paid / expected) * 100) : 100; return <TableRow key={level.level_id}><TableCell className="font-medium">{level.level_name}</TableCell><TableCell className="min-w-40"><div className="flex items-center gap-2"><Progress value={rate} aria-label={`Recouvrement ${level.level_name}, ${rate}%`} className="h-2 [&>div]:bg-blue-600" /><span className="text-xs font-medium tabular-nums">{rate}%</span></div></TableCell><TableCell className="text-right font-medium tabular-nums">{formatFcfa(Number(level.remaining_to_collect ?? 0))}</TableCell><TableCell className="text-right"><Badge variant="outline" className={level.students_late_count > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-green-200 bg-green-50 text-green-700"}>{level.students_late_count}</Badge></TableCell></TableRow> })}</TableBody></Table></div> : <p className="text-sm text-muted-foreground">Aucun niveau avec des données financières calculées.</p>}</div>}</CardContent></Card>
+  const annualRemaining = summary?.annual_remaining
+  const annualAvailable = annualRemaining !== undefined
+  return <Card className="rounded-lg shadow-sm"><CardHeader className="flex flex-row items-center justify-between gap-3 border-none p-5 pb-3"><div><CardTitle className="text-lg">Suivi financier</CardTitle><CardDescription>Les mêmes indicateurs que la vue financière.</CardDescription></div><Button asChild type="button" variant="ghost" size="sm" className="min-h-10 text-blue-700"><Link to="/finance/dashboard">Voir tout</Link></Button></CardHeader><CardContent className="px-5 pb-5">{isLoading ? <Skeleton className="h-56 w-full" /> : isError ? <QueryErrorState message="Impossible de charger le suivi financier." /> : <div className="space-y-4"><div className="grid grid-cols-1 divide-y rounded-lg border bg-muted/20 sm:grid-cols-3 sm:divide-x sm:divide-y-0"><Metric label="Recouvrement à date" value={formatRate(recoveryRate)} /><Metric label="Impayé à date" value={formatFcfa(remaining)} /><Metric label="Solde annuel restant" value={annualAvailable ? formatFcfa(Number(annualRemaining)) : "Indisponible"} /></div>{!annualAvailable ? <p className="text-xs text-muted-foreground">Le solde annuel sera disponible après le déploiement de l’agrégat annuel de la vue financière.</p> : null}{levels.length > 0 ? <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Niveau</TableHead><TableHead>Recouvrement à date</TableHead><TableHead className="text-right">Impayé à date</TableHead><TableHead className="text-right">Élèves en retard</TableHead></TableRow></TableHeader><TableBody>{levels.slice(0, 4).map((level) => { const expected = Number(level.total_expected_to_date); const paid = Number(level.total_paid); const rate = expected > 0 ? Math.round((paid / expected) * 100) : 100; return <TableRow key={level.level_id}><TableCell className="font-medium">{level.level_name}</TableCell><TableCell className="min-w-40"><div className="flex items-center gap-2"><Progress value={rate} aria-label={`Recouvrement à date ${level.level_name}, ${rate}%`} className="h-2 [&>div]:bg-blue-600" /><span className="text-xs font-medium tabular-nums">{rate}%</span></div></TableCell><TableCell className="text-right font-medium tabular-nums">{formatFcfa(Number(level.remaining_to_collect ?? 0))}</TableCell><TableCell className="text-right"><Badge variant="outline" className={level.students_late_count > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-green-200 bg-green-50 text-green-700"}>{level.students_late_count}</Badge></TableCell></TableRow> })}</TableBody></Table></div> : <p className="text-sm text-muted-foreground">Aucun niveau avec des données financières calculées.</p>}</div>}</CardContent></Card>
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

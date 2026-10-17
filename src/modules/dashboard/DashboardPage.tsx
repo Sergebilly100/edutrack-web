@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { fetchSchoolInfo } from "@/modules/onboarding/onboarding.api"
-import { fetchConductDecisionWorkspace, listSchoolYears, type SchoolYear } from "@/modules/academic/academic.api"
+import { listSchoolYears, type SchoolYear } from "@/modules/academic/academic.api"
 import {
   getAttendanceHistory,
   getDashboardCounts,
@@ -33,6 +34,23 @@ import { dashboardTourSteps } from "@/shared/lib/tour-steps"
 const OverviewTab = lazy(() =>
   import("@/modules/dashboard/tabs/OverviewTab").then(m => ({ default: m.OverviewTab }))
 )
+
+const LAST_DASHBOARD_REFRESH_STORAGE_KEY = "edutrack.dashboard.last-refresh"
+
+function lastDashboardRefreshStorageKey(tenantId: string) {
+  return `${LAST_DASHBOARD_REFRESH_STORAGE_KEY}:${tenantId}`
+}
+
+function readLastDashboardRefresh(storageKey: string): Date | null {
+  try {
+    const value = window.localStorage.getItem(storageKey)
+    if (!value) return null
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? null : date
+  } catch {
+    return null
+  }
+}
 
 import {
   QUERY_STALE_TIME,
@@ -234,13 +252,14 @@ export default function DashboardPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
+  const user = useAuthStore((state) => state.user)
+  const permissions = useAuthStore((state) => state.permissions)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [refreshSuccess, setRefreshSuccess] = useState(false)
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [schoolYearId, setSchoolYearId] = useState("")
   const [gradingPeriodId, setGradingPeriodId] = useState("")
-  const user = useAuthStore((state) => state.user)
-  const permissions = useAuthStore((state) => state.permissions)
   const studentLabels = useStudentLabels()
   const isDirector = user?.role === "director"
   const tour = useTourGuide("dashboard", isDirector)
@@ -297,7 +316,7 @@ export default function DashboardPage() {
   const gradingPeriodsQuery = useQuery({
     queryKey: ["academic", "grading-periods", schoolYearId],
     queryFn: async () => {
-      const response = await apiClient.get<{ gradingPeriods?: Array<{ id: string; schoolYearId?: string; school_year_id?: string; label: string; orderIndex?: number; order_index?: number; notesEntryOpen?: boolean; conductReviewOpen?: boolean; isClosed?: boolean; isCurrent?: boolean; isCompleted?: boolean }> }>("/grading-periods")
+      const response = await apiClient.get<{ gradingPeriods?: Array<{ id: string; schoolYearId?: string; school_year_id?: string; label: string; orderIndex?: number; order_index?: number; startDate?: string; start_date?: string; endDate?: string; end_date?: string; notesEntryOpen?: boolean; conductReviewOpen?: boolean; isClosed?: boolean; isCurrent?: boolean; isCompleted?: boolean }> }>("/grading-periods")
       return (response.data.gradingPeriods ?? []).filter((period) => (period.schoolYearId ?? period.school_year_id) === schoolYearId)
     },
     enabled: Boolean(schoolYearId),
@@ -312,6 +331,13 @@ export default function DashboardPage() {
   const isInitialLoading = countsQuery.isLoading || schoolQuery.isLoading
 
   const schoolName = schoolQuery.data?.name?.trim() || "École"
+  const refreshStorageKey = user?.tenantId ? lastDashboardRefreshStorageKey(user.tenantId) : null
+
+  useEffect(() => {
+    if (!refreshStorageKey) return
+    setLastRefreshedAt(readLastDashboardRefresh(refreshStorageKey))
+  }, [refreshStorageKey])
+
   useEffect(() => {
     const state = location.state as { openNotifications?: boolean } | null
     if (!state?.openNotifications) {
@@ -335,8 +361,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (gradingPeriodId || !gradingPeriodsQuery.data?.length) return
-    const current = gradingPeriodsQuery.data.find((period) => period.notesEntryOpen)
-    if (current) setGradingPeriodId(current.id)
+    const today = new Date().toISOString().slice(0, 10)
+    const startedPeriods = gradingPeriodsQuery.data.filter((period) => {
+      const startDate = period.startDate ?? period.start_date
+      return Boolean(startDate && startDate <= today)
+    })
+    const selectedPeriod = gradingPeriodsQuery.data.find((period) => period.isCurrent)
+      ?? startedPeriods.sort((left, right) => (right.orderIndex ?? right.order_index ?? 0) - (left.orderIndex ?? left.order_index ?? 0))[0]
+    if (selectedPeriod) setGradingPeriodId(selectedPeriod.id)
   }, [gradingPeriodId, gradingPeriodsQuery.data])
 
   const handleDashboardRefresh = useCallback(async () => {
@@ -350,13 +382,36 @@ export default function DashboardPage() {
         queryClient.refetchQueries({ queryKey: ["academic", "school-years"], type: "active" }),
         queryClient.refetchQueries({ queryKey: ["academic", "grading-periods"], type: "active" }),
       ])
+      const refreshedAt = new Date()
+      setLastRefreshedAt(refreshedAt)
+      if (refreshStorageKey) {
+        try {
+          window.localStorage.setItem(refreshStorageKey, refreshedAt.toISOString())
+        } catch {
+          // L'horodatage reste visible pour la session si le stockage est indisponible.
+        }
+      }
       setRefreshSuccess(true)
     } finally {
       setIsRefreshing(false)
     }
   }, [
     queryClient,
+    refreshStorageKey,
   ])
+
+  const lastRefreshLabel = lastRefreshedAt
+    ? `${new Intl.DateTimeFormat("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      timeZone: "Africa/Abidjan",
+    }).format(lastRefreshedAt)} à ${new Intl.DateTimeFormat("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Africa/Abidjan",
+    }).format(lastRefreshedAt)}`
+    : null
 
   const actionItemsQuery = useQuery({
     queryKey: ["dashboard", "action-items"],
@@ -365,13 +420,6 @@ export default function DashboardPage() {
     staleTime: 60_000,
     refetchInterval: 5 * 60_000,
   })
-  const conductReviewQuery = useQuery({
-    queryKey: ["conduct", "decision-workspace"],
-    queryFn: fetchConductDecisionWorkspace,
-    enabled: isDirector || permissions.includes("conduct.finalize"),
-    staleTime: 60_000,
-  })
-
   const resolveItemMutation = useMutation({
     mutationFn: resolveDashboardActionItem,
     onSuccess: () => {
@@ -434,24 +482,22 @@ export default function DashboardPage() {
     }
   }, [dispatchMobileHeaderState, handleDashboardRefresh])
 
-  const priorityActions = [...(actionItemsQuery.data ?? [])
-    .filter((item) => canViewValidations || item.type !== "validations_pending")
+  const priorityActions = (actionItemsQuery.data ?? [])
+    .filter((item): item is typeof item & { type: "teacher_absences_high" | "student_at_risk" | "teacher_at_risk" | "validations_pending" } =>
+      (item.type === "teacher_absences_high" || item.type === "student_at_risk" || item.type === "teacher_at_risk" || item.type === "validations_pending")
+      && (canViewValidations || item.type !== "validations_pending")
+    )
     .map((item) => {
     const notification = actionItemToNotification(item)
     return {
       id: item.id,
+        type: item.type,
       title: notification.title,
       message: notification.message,
       href: notification.targetHref ?? "/dashboard",
-      tone: notification.tone,
+        priority: item.priority,
     }
-  }), ...(conductReviewQuery.data?.decisionActions ?? []).filter((action) => action.schoolYearStatus === "active").map((action) => ({
-    id: `conduct:${action.classId}:${action.gradingPeriodId}`,
-    title: `${action.className} : ${action.pendingCount} décision${action.pendingCount > 1 ? "s" : ""} à finaliser`,
-    message: action.gradingPeriodLabel,
-    href: `/academic/conduct?schoolYearId=${encodeURIComponent(action.schoolYearId)}&levelId=${encodeURIComponent(action.levelId)}&classId=${encodeURIComponent(action.classId)}&gradingPeriodId=${encodeURIComponent(action.gradingPeriodId)}`,
-    tone: "warning" as const,
-  }))]
+    })
 
   if (isInitialLoading) {
     return (
@@ -563,12 +609,12 @@ export default function DashboardPage() {
                 ) : null}
               </div>
             </div>
-            <div className="hidden items-center gap-2 md:flex">
+            <div className="hidden items-start gap-2 md:flex">
               {isDirector ? (
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
+                  size="default"
                   className="text-muted-foreground"
                   onClick={() => {
                     (
@@ -585,7 +631,7 @@ export default function DashboardPage() {
               <Button
                 type="button"
                 variant="outline"
-                size="icon"
+                size="default"
                 aria-label="Voir les notifications"
                 onClick={() => setNotificationsOpen((current) => !current)}
                 className="relative"
@@ -598,36 +644,49 @@ export default function DashboardPage() {
                   </span>
                 ) : null}
               </Button>
-              <OfflineGuard message="Actualisation indisponible hors ligne">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  aria-label="Mettre à jour les données"
-                  disabled={isRefreshing}
-                  onClick={() => {
-                    void handleDashboardRefresh();
-                  }}
-                  data-tour="dashboard-refresh"
-                >
-                  {isRefreshing ? (
-                    <>
-                      <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
-                      Mise à jour...
-                    </>
-                  ) : refreshSuccess ? (
-                    <>
-                      <CheckCircle2 className="mr-1 h-4 w-4 text-green-600" />À
-                      jour
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="mr-1 h-4 w-4" />
-                      Actualiser
-                    </>
-                  )}
-                </Button>
-              </OfflineGuard>
+              <div className="flex flex-col items-end gap-1">
+                <TooltipProvider delayDuration={150}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex">
+                        <OfflineGuard message="Actualisation indisponible hors ligne">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="default"
+                            aria-label="Mettre à jour les données"
+                            disabled={isRefreshing}
+                            onClick={() => {
+                              void handleDashboardRefresh();
+                            }}
+                            data-tour="dashboard-refresh"
+                          >
+                            {isRefreshing ? (
+                              <>
+                                <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
+                                Mise à jour...
+                              </>
+                            ) : refreshSuccess ? (
+                              <>
+                                <CheckCircle2 className="mr-1 h-4 w-4 text-green-600" />À jour
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="mr-1 h-4 w-4" />
+                                Actualiser
+                              </>
+                            )}
+                          </Button>
+                        </OfflineGuard>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>Actualise toutes les données</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <p className="whitespace-nowrap text-xs text-muted-foreground" aria-live="polite">
+                  {lastRefreshLabel ? `${lastRefreshLabel}` : "Actualise les données"}
+                </p>
+              </div>
               {/* Annonce l'état de l'actualisation aux lecteurs d'écran sans
                   voler le focus ni perturber l'affichage visuel. */}
               <span className="sr-only" role="status" aria-live="polite">
@@ -656,7 +715,6 @@ export default function DashboardPage() {
           />
         ) : null}
 
-        {conductReviewQuery.isError ? <QueryErrorState message="Impossible de charger les décisions de conduite." onRetry={() => void conductReviewQuery.refetch()} isRetrying={conductReviewQuery.isFetching} /> : null}
         <Suspense fallback={<DashboardSkeleton />}>
           <OverviewTab
             canViewAttendance={canViewAttendance}
