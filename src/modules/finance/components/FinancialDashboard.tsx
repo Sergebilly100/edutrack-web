@@ -56,14 +56,13 @@ export function FinancialDashboard({ schoolYearId }: { schoolYearId: string }) {
             <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
               <div className="space-y-2">
                 <p className="text-sm font-medium text-blue-100">
-                  Recouvrement de la période
+                  Recouvrement de scolarité à ce jour
                 </p>
                 <p className="text-4xl font-semibold tracking-tight sm:text-5xl">
                   {percent(school?.recovery_rate ?? 0)}%
                 </p>
                 <p className="max-w-xl text-sm text-blue-100">
-                  {fcfa(totalPaid)} encaissés sur {fcfa(expectedToDate)}{" "}
-                  attendus.
+                  {fcfa(totalPaid)} encaissés sur {fcfa(expectedToDate)} de scolarité attendus.
                 </p>
                 <Progress
                   value={percent(school?.recovery_rate ?? 0)}
@@ -72,13 +71,13 @@ export function FinancialDashboard({ schoolYearId }: { schoolYearId: string }) {
               </div>
               <div className="grid grid-cols-2 gap-4 text-sm sm:min-w-80">
                 <div className="border-l border-blue-400 pl-4">
-                  <p className="text-xs text-blue-100">Attendu</p>
+                  <p className="text-xs text-blue-100">Scolarité attendue à ce jour</p>
                   <p className="mt-1 font-semibold tabular-nums">
                     {fcfa(expectedToDate)}
                   </p>
                 </div>
                 <div className="border-l border-blue-400 pl-4">
-                  <p className="text-xs text-blue-100">Reste à recouvrer</p>
+                  <p className="text-xs text-blue-100">Impayé de scolarité à ce jour</p>
                   <p className="mt-1 font-semibold tabular-nums">
                     {fcfa(remainingToCollect)}
                   </p>

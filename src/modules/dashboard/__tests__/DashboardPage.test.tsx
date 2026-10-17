@@ -268,8 +268,8 @@ describe("DashboardPage", () => {
       logoUrl: null,
     })
     fetchFinancialSummaryMock.mockResolvedValue({
-      school: { total_expected_to_date: "1200000", total_paid: "840000", remaining_to_collect: "400000", recovery_rate: "0.7", students_late_count: 4 },
-      levels: [{ level_id: "level-1", level_name: "6e", total_expected_to_date: "600000", total_paid: "420000", remaining_to_collect: "200000", students_late_count: 2 }],
+      school: { total_expected_to_date: "1200000", total_paid: "840000", remaining_to_collect: "400000", annual_total_due: "1000000", annual_remaining: "-120000", upcoming_due: "-520000", recovery_rate: "0.7", students_late_count: 4 },
+      levels: [{ level_id: "level-1", level_name: "6e", total_expected_to_date: "600000", total_paid: "420000", remaining_to_collect: "200000", annual_total_due: "500000", annual_remaining: "80000", upcoming_due: "-120000", students_late_count: 2 }],
       upcomingInstallments: [{ due_date: "2026-06-15", expected_amount: "350000", student_count: 42 }],
     })
     listSchoolYearsMock.mockResolvedValue([
@@ -294,9 +294,10 @@ describe("DashboardPage", () => {
     expect(screen.getByLabelText("Légende du graphique")).toHaveTextContent("Retards")
     expect(screen.getByLabelText("Légende du graphique")).toHaveTextContent("Absents")
     expect(await screen.findByText("Suivi financier")).toBeInTheDocument()
-    expect(screen.getAllByText("Recouvrement à date")[0]?.parentElement).toHaveTextContent("70%")
-    expect(screen.getAllByText("Impayé à date")[0]?.parentElement).toHaveTextContent(/400\s*000/)
-    expect(screen.getByRole("progressbar", { name: "Recouvrement à date 6e, 70%" })).toHaveClass("[&>div]:bg-blue-600")
+    expect(screen.getAllByText("Recouvrement de scolarité à date")[0]?.parentElement).toHaveTextContent("70%")
+    expect(screen.getAllByText("Impayé de scolarité à date")[0]?.parentElement).toHaveTextContent(/400\s*000/)
+    expect(screen.getByText("Solde annuel de scolarité restant").parentElement).toHaveTextContent(/Avance de 120\s*000 FCFA/)
+    expect(screen.getByRole("progressbar", { name: "Recouvrement de scolarité à date 6e, 70%" })).toHaveClass("[&>div]:bg-blue-600")
     expect(screen.getByRole("link", { name: /Élèves confirmés : 312/ })).toHaveAttribute("href", "/students")
     expect(screen.getByRole("link", { name: /Professeurs : 13/ })).toHaveAttribute("href", "/teachers")
     expect(screen.queryByRole("tab")).not.toBeInTheDocument()
