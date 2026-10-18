@@ -137,9 +137,13 @@ export type HistoricalStudentProfile = StudentDetail & {
 export type StudentYearResults = {
   studentId: string
   schoolYearId: string
-  evaluations: Array<{ id: string; periodLabel: string; subjectName: string | null; label: string; score: number; maxScore: number; coefficient: number }>
-  averages: Array<{ id: string; periodLabel: string; subjectName: string | null; average: number; rank: number | null }>
-  conduct: Array<{ id: string; periodLabel: string; note: number; coefficient: number }>
+  periods: Array<{ id: string; label: string; startDate: string; endDate: string; isCurrent: boolean; isFuture: boolean }>
+  evaluations: Array<{
+    id: string; gradingPeriodId: string; periodLabel: string; subjectName: string | null; label: string;
+    evaluationDate: string | null; teacherName: string | null; score: number; maxScore: number; coefficient: number;
+  }>
+  averages: Array<{ id: string; gradingPeriodId: string; periodLabel: string; subjectName: string | null; average: number; rank: number | null }>
+  conduct: Array<{ id: string; gradingPeriodId: string; periodLabel: string; note: number; coefficient: number }>
 }
 
 export const getStudentYearResults = (studentId: string, schoolYearId: string) =>
