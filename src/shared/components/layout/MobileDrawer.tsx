@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { ChevronDown } from "lucide-react"
@@ -104,29 +104,38 @@ export function MobileDrawer({ open, onClose, variant = "default" }: MobileDrawe
                     </Button>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="space-y-1">
-                    {group.items.map((item) => {
+                    {group.items.map((item, index) => {
                       const Icon = item.icon
 
                       return (
-                        <Link
-                          key={item.href}
-                          to={item.href}
-                          onClick={onClose}
-                          className={cn(
-                            navLinkClassName,
-                            isNavItemActive(item, location.pathname, location.search)
-                              ? "bg-primary/10 text-primary font-medium"
-                              : "text-muted-foreground hover:bg-muted",
-                          )}
-                        >
-                          <Icon size={18} strokeWidth={1.75} />
-                          <span>{item.label}</span>
-                          {item.href === "/academic/conduct" && conductReminderCount > 0 ? (
-                            <span aria-label={`${conductReminderCount} décision${conductReminderCount > 1 ? "s" : ""} de conduite à finaliser`} className="ml-auto inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-semibold text-white">
-                              {conductReminderCount}
-                            </span>
+                        <Fragment key={item.href}>
+                          {item.section && item.section !== group.items[index - 1]?.section ? (
+                            <p className={cn(
+                              "px-3 pt-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground",
+                              item.section === "Abonnements" && "mt-2 border-t border-border pt-3",
+                            )}>
+                              {item.section}
+                            </p>
                           ) : null}
-                        </Link>
+                          <Link
+                            to={item.href}
+                            onClick={onClose}
+                            className={cn(
+                              navLinkClassName,
+                              isNavItemActive(item, location.pathname, location.search)
+                                ? "bg-primary/10 text-primary font-medium"
+                                : "text-muted-foreground hover:bg-muted",
+                            )}
+                          >
+                            <Icon size={18} strokeWidth={1.75} />
+                            <span>{item.label}</span>
+                            {item.href === "/academic/conduct" && conductReminderCount > 0 ? (
+                              <span aria-label={`${conductReminderCount} décision${conductReminderCount > 1 ? "s" : ""} de conduite à finaliser`} className="ml-auto inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-semibold text-white">
+                                {conductReminderCount}
+                              </span>
+                            ) : null}
+                          </Link>
+                        </Fragment>
                       )
                     })}
                   </CollapsibleContent>

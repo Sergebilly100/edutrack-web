@@ -13,7 +13,7 @@ import {
   TeachersIcon,
   ClassIcon,
 } from "@/shared/components/icons"
-import { Building2, ClipboardCheck, FileCheck2, GraduationCap, HandCoins, History, Landmark, LayoutDashboard, MessageSquareCode, NotebookPen, ReceiptText, ScrollText, Settings2, TrendingUp, User, WalletCards } from "lucide-react"
+import { Building2, ClipboardCheck, ClipboardList, FileCheck2, GraduationCap, HandCoins, History, Landmark, LayoutDashboard, MessageSquareCode, NotebookPen, ReceiptText, ScrollText, Settings2, TrendingUp, User, UsersRound, WalletCards } from "lucide-react"
 import { FINANCE_PATHS } from "@/modules/finance/finance.routes"
 
 import { isStaffRole, type AuthRole, type PermissionKey } from "@/shared/store/auth.store"
@@ -23,6 +23,7 @@ export interface NavItem {
   href: string
   icon: LucideIcon
   group: string
+  section?: string
   badge?: () => number | undefined
   roles: AuthRole[]
   requiredPermissions?: PermissionKey[]
@@ -158,6 +159,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: FINANCE_PATHS.dashboard,
     icon: LayoutDashboard,
     group: "Finance",
+    section: "Scolarité",
     roles: ["director", "staff"],
     requiredPermissions: ["payments.view"],
     mobileVisible: true,
@@ -167,6 +169,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: FINANCE_PATHS.recovery,
     icon: HandCoins,
     group: "Finance",
+    section: "Scolarité",
     roles: ["director", "staff"],
     requiredPermissions: ["payments.view"],
     mobileVisible: false,
@@ -174,8 +177,9 @@ export const NAV_ITEMS: NavItem[] = [
   {
     label: "Journal de caisse",
     href: FINANCE_PATHS.journal,
-    icon: WalletCards,
+    icon: ClipboardList,
     group: "Finance",
+    section: "Scolarité",
     roles: ["director", "staff"],
     requiredPermissions: ["payments.view"],
     mobileVisible: false,
@@ -185,6 +189,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: FINANCE_PATHS.entry,
     icon: ReceiptText,
     group: "Finance",
+    section: "Scolarité",
     roles: ["director", "staff"],
     requiredPermissions: ["payments.record"],
     mobileVisible: true,
@@ -194,6 +199,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: FINANCE_PATHS.history,
     icon: History,
     group: "Finance",
+    section: "Scolarité",
     roles: ["director", "staff"],
     requiredPermissions: ["payments.view"],
     mobileVisible: false,
@@ -201,8 +207,9 @@ export const NAV_ITEMS: NavItem[] = [
   {
     label: "Abonnements parents",
     href: "/subscriptions",
-    icon: WalletCards,
+    icon: UsersRound,
     group: "Finance",
+    section: "Abonnements",
     roles: ["director", "staff"],
     requiredPermissions: ["subscriptions.view"],
     mobileVisible: false,
@@ -213,6 +220,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/subscriptions/revenue",
     icon: TrendingUp,
     group: "Finance",
+    section: "Abonnements",
     roles: ["director", "staff"],
     requiredPermissions: ["subscriptions.revenue"],
     mobileVisible: false,

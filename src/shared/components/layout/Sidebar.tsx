@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { Fragment, useEffect, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
@@ -298,13 +298,22 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-0.5">
-                {group.items.map((item) => (
-                  <NavItemComponent
-                    key={item.href}
-                    item={item}
-                    collapsed={false}
-                    badgeCount={item.href === "/validations" ? validationCountQuery.data?.total : item.href === "/academic/conduct" ? conductReminderCount : undefined}
-                  />
+                {group.items.map((item, index) => (
+                  <Fragment key={item.href}>
+                    {item.section && item.section !== group.items[index - 1]?.section ? (
+                      <p className={cn(
+                        "px-3 pt-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground",
+                        item.section === "Abonnements" && "mt-2 border-t border-border pt-3",
+                      )}>
+                        {item.section}
+                      </p>
+                    ) : null}
+                    <NavItemComponent
+                      item={item}
+                      collapsed={false}
+                      badgeCount={item.href === "/validations" ? validationCountQuery.data?.total : item.href === "/academic/conduct" ? conductReminderCount : undefined}
+                    />
+                  </Fragment>
                 ))}
               </CollapsibleContent>
             </Collapsible>

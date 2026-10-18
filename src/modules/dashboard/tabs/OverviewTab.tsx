@@ -16,6 +16,14 @@ import { formatFcfa, formatFcfaBalance, formatRate } from "@/shared/utils/format
 import { formatHours } from "@/modules/dashboard/dashboard.helpers"
 import { fetchFinancialSummary } from "@/modules/finance/finance.api"
 import {
+  calculateAnnualRemainingBalance,
+  calculateToDateBalance,
+  parseFinancialAmount,
+  recoveryProgressValue,
+  recoveryRatePercent,
+  recoveryTone,
+} from "@/modules/finance/financial-dashboard.helpers"
+import {
   getDashboardPilotage,
   getDashboardStats,
   type DashboardCourseItem,
@@ -50,6 +58,12 @@ const ATTENDANCE_SERIES = [
   { key: "lateCount", label: "Retards", swatchClass: "bg-[var(--stat-warning-fg)]" },
   { key: "absentCount", label: "Absents", swatchClass: "bg-[var(--stat-danger-fg)]" },
 ] as const
+
+const RECOVERY_TONE_TEXT_CLASS = {
+  success: "text-green-700",
+  warning: "text-amber-800",
+  danger: "text-red-700",
+} as const
 
 type AttendanceSeriesKey = (typeof ATTENDANCE_SERIES)[number]["key"]
 
@@ -197,7 +211,13 @@ function AttendanceHistoryChart({ history }: { history: DashboardHistoryPoint[] 
       <CardContent className="px-5 pb-5">
         {trend.length > 0 ? <>
           <div className="h-64 min-w-0" aria-label="Graphique empilé des présences professeurs sur sept jours">
-            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+              minWidth={1}
+              minHeight={1}
+              initialDimension={{ width: 1, height: 1 }}
+            >
               <BarChart data={trend} margin={{ top: 12, right: 8, left: -18, bottom: 0 }} accessibilityLayer>
                 <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeDasharray="3 3" />
                 <XAxis dataKey="label" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} axisLine={false} tickLine={false} />
@@ -450,11 +470,113 @@ function TodaySchedule({ courses, date }: { courses: DashboardCourseItem[]; date
 }
 
 function FinancialSnapshot({ summary, levels, isLoading, isError }: { summary: Awaited<ReturnType<typeof fetchFinancialSummary>>["school"]; levels: Awaited<ReturnType<typeof fetchFinancialSummary>>["levels"]; isLoading: boolean; isError: boolean }) {
-  const remaining = Number(summary?.remaining_to_collect ?? 0)
-  const recoveryRate = Math.max(0, Math.min(1, Number(summary?.recovery_rate ?? 0))) * 100
-  const annualRemaining = summary?.annual_remaining
-  const annualAvailable = annualRemaining !== undefined
-  return <Card className="rounded-lg shadow-sm"><CardHeader className="flex flex-row items-center justify-between gap-3 border-none p-5 pb-3"><div><CardTitle className="text-lg">Suivi financier</CardTitle><CardDescription>Les mêmes indicateurs que la vue financière.</CardDescription></div><Button asChild type="button" variant="ghost" size="sm" className="min-h-10 text-blue-700"><Link to="/finance/dashboard">Voir tout</Link></Button></CardHeader><CardContent className="px-5 pb-5">{isLoading ? <Skeleton className="h-56 w-full" /> : isError ? <QueryErrorState message="Impossible de charger le suivi financier." /> : <div className="space-y-4"><div className="grid grid-cols-1 divide-y rounded-lg border bg-muted/20 sm:grid-cols-3 sm:divide-x sm:divide-y-0"><Metric label="Recouvrement de scolarité à date" value={formatRate(recoveryRate)} /><Metric label="Impayé de scolarité à date" value={formatFcfa(remaining)} /><Metric label="Solde annuel de scolarité restant" value={annualAvailable ? formatFcfaBalance(Number(annualRemaining)) : "Indisponible"} /></div>{!annualAvailable ? <p className="text-xs text-muted-foreground">Le solde annuel sera disponible après le déploiement de l’agrégat annuel de la vue financière.</p> : null}{levels.length > 0 ? <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Niveau</TableHead><TableHead>Recouvrement de scolarité à date</TableHead><TableHead className="text-right">Impayé de scolarité à date</TableHead><TableHead className="text-right">Élèves en retard</TableHead></TableRow></TableHeader><TableBody>{levels.slice(0, 4).map((level) => { const expected = Number(level.total_expected_to_date); const paid = Number(level.total_paid); const rate = expected > 0 ? Math.round((paid / expected) * 100) : 100; return <TableRow key={level.level_id}><TableCell className="font-medium">{level.level_name}</TableCell><TableCell className="min-w-40"><div className="flex items-center gap-2"><Progress value={rate} aria-label={`Recouvrement de scolarité à date ${level.level_name}, ${rate}%`} className="h-2 [&>div]:bg-blue-600" /><span className="text-xs font-medium tabular-nums">{rate}%</span></div></TableCell><TableCell className="text-right font-medium tabular-nums">{formatFcfa(Number(level.remaining_to_collect ?? 0))}</TableCell><TableCell className="text-right"><Badge variant="outline" className={level.students_late_count > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-green-200 bg-green-50 text-green-700"}>{level.students_late_count}</Badge></TableCell></TableRow> })}</TableBody></Table></div> : <p className="text-sm text-muted-foreground">Aucun niveau avec des données financières calculées.</p>}</div>}</CardContent></Card>
+  const expectedToDate = parseFinancialAmount(summary?.total_expected_to_date)
+  const collected = parseFinancialAmount(summary?.total_paid)
+  const annualTotalDue = parseFinancialAmount(summary?.annual_total_due)
+  const overdueToDate = expectedToDate !== null && collected !== null
+    ? calculateToDateBalance(expectedToDate, collected)
+    : null
+  const annualRemaining = annualTotalDue !== null && collected !== null
+    ? calculateAnnualRemainingBalance(annualTotalDue, collected)
+    : null
+  const dateRate = expectedToDate !== null && collected !== null
+    ? recoveryRatePercent(expectedToDate, collected)
+    : null
+
+  return (
+    <Card className="rounded-lg shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 p-5 pb-3 border-none">
+        <div>
+          <CardTitle className="text-lg">Suivi financier</CardTitle>
+          <CardDescription>Les mêmes indicateurs que la vue financière.</CardDescription>
+        </div>
+        <Button asChild type="button" variant="ghost" size="sm" className="min-h-12 text-primary">
+          <Link to="/finance/dashboard">Voir tout</Link>
+        </Button>
+      </CardHeader>
+      <CardContent className="px-5 pb-5">
+        {isLoading ? <Skeleton className="h-56 w-full" /> : null}
+        {isError ? <QueryErrorState message="Impossible de charger le suivi financier." /> : null}
+        {!isLoading && !isError ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 divide-y rounded-lg border bg-muted/20 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+              <Metric label="Recouvrement à date" value={dateRate === null ? "Indisponible" : formatRate(dateRate)} />
+              <Metric label="Impayé à date" value={overdueToDate === null ? "Indisponible" : formatFcfaBalance(overdueToDate)} />
+              <Metric label="Solde annuel restant" value={annualRemaining === null ? "Indisponible" : formatFcfaBalance(annualRemaining)} />
+            </div>
+            {annualRemaining === null ? (
+              <p role="status" className="text-xs text-muted-foreground">
+                Le solde annuel ne peut pas être calculé : total annuel ou montant encaissé indisponible.
+              </p>
+            ) : null}
+            {levels.length > 0 ? (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Niveau</TableHead>
+                      <TableHead>Taux à date</TableHead>
+                      <TableHead className="text-right">Impayés à date</TableHead>
+                      <TableHead className="text-right">Élèves en retard</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {levels.slice(0, 4).map((level) => {
+                      const levelExpected = parseFinancialAmount(level.total_expected_to_date)
+                      const levelCollected = parseFinancialAmount(level.total_paid)
+                      const rate = levelExpected !== null && levelCollected !== null
+                        ? recoveryRatePercent(levelExpected, levelCollected)
+                        : null
+                      const levelOverdue = levelExpected !== null && levelCollected !== null
+                        ? calculateToDateBalance(levelExpected, levelCollected)
+                        : null
+                      const overdueClassName = rate === null
+                        ? "text-muted-foreground"
+                        : RECOVERY_TONE_TEXT_CLASS[recoveryTone(rate)]
+                      return (
+                        <TableRow key={level.level_id}>
+                          <TableCell className="font-medium">{level.level_name}</TableCell>
+                          <TableCell className="min-w-40">
+                            <div className="flex items-center gap-2">
+                              <Progress
+                                value={rate === null ? 0 : recoveryProgressValue(rate)}
+                                aria-label={rate === null
+                                  ? `Recouvrement à date ${level.level_name}, données indisponibles`
+                                  : `Recouvrement à date ${level.level_name}, ${rate} %`}
+                                className="h-2 [&>div]:bg-primary"
+                              />
+                              <span className="whitespace-nowrap text-xs font-medium tabular-nums">
+                                {rate === null ? "Indisponible" : `${rate} % à date`}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className={`text-right font-medium tabular-nums ${overdueClassName}`}>
+                            {levelOverdue === null ? "Indisponible" : formatFcfaBalance(levelOverdue)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Badge
+                              variant="outline"
+                              className={level.students_late_count > 0
+                                ? "border-amber-200 bg-amber-50 text-amber-800"
+                                : "border-green-200 bg-green-50 text-green-700"}
+                            >
+                              {level.students_late_count}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Aucun niveau avec des données financières calculées.</p>
+            )}
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  )
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

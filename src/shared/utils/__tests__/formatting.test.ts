@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatFcfa, formatFcfaBalance, formatRate } from '../formatting'
+import { formatFcfa, formatFcfaBalance, formatMillionsFcfa, formatRate } from '../formatting'
 
 // Intl.NumberFormat with the "fr" locale uses U+00A0 (NBSP) or U+202F
 // (NARROW NO-BREAK SPACE) between thousands groups and before the currency
@@ -35,6 +35,13 @@ describe('formatFcfaBalance', () => {
   it('formats non-negative balances as amounts due', () => {
     expect(stripNbsp(formatFcfaBalance(200000))).toBe('200 000 FCFA')
     expect(stripNbsp(formatFcfaBalance(0))).toBe('0 FCFA')
+  })
+})
+
+describe('formatMillionsFcfa', () => {
+  it('formats axis amounts in millions of FCFA', () => {
+    expect(stripNbsp(formatMillionsFcfa(6_000_000))).toBe('6 M FCFA')
+    expect(stripNbsp(formatMillionsFcfa(650_000))).toBe('0,7 M FCFA')
   })
 })
 

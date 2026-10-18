@@ -188,8 +188,8 @@ export default function ReportCardClaimsPage() {
       <Button className="min-h-12" onClick={openCreate}><Plus className="mr-2 h-4 w-4" />Nouvelle réclamation</Button></>}>
 
     <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label="Filtrer par statut">
-      <Button variant={!status ? "default" : "outline"} className="min-h-12 shrink-0 whitespace-nowrap rounded-full px-3 text-xs" aria-pressed={!status} onClick={() => setStatus("")}>Toutes · {searchedClaims.length}</Button>
-      {STATUSES.map((key) => <Button key={key} variant={status === key ? "default" : "outline"} className="min-h-12 shrink-0 whitespace-nowrap rounded-full px-3 text-xs"
+      <Button variant={!status ? "default" : "outline"} className="min-h-10 shrink-0 whitespace-nowrap rounded-md px-3 text-xs" aria-pressed={!status} onClick={() => setStatus("")}>Toutes · {searchedClaims.length}</Button>
+      {STATUSES.map((key) => <Button key={key} variant={status === key ? "default" : "outline"} className="min-h-10 shrink-0 whitespace-nowrap rounded-md px-3 text-xs"
         aria-pressed={status === key} onClick={() => setStatus(key)}>{LABELS[key]} · {searchedClaims.filter((claim) => claim.status === key).length}</Button>)}
     </div>
 

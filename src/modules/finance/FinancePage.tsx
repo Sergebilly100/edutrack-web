@@ -23,7 +23,7 @@ import { RefreshCw } from "lucide-react"
 const VIEW_COPY: Record<FinanceView, { title: string; subtitle: string }> = {
   dashboard: {
     title: "Vue financière",
-    subtitle: "Suivez le recouvrement et les situations de paiement de scolarité par année scolaire.",
+    subtitle: "Suivez les encaissements et les soldes de scolarité par année scolaire.",
   },
   journal: {
     title: "Journal de caisse",
@@ -82,23 +82,29 @@ export default function FinancePage({ view, studentId, initialSchoolYearId }: { 
       title={VIEW_COPY[view].title}
       subtitle={VIEW_COPY[view].subtitle}
       actions={
-        <div className="flex gap-3 justify-end">
-          {view === "dashboard" ? 
-          <div className="space-y-1 text-left">
-            <Button className="min-h-12" disabled={recalculateMutation.isPending} onClick={() => recalculateMutation.mutate()}>
-              {recalculateMutation.isPending ? <Spinner size="sm" className="mr-2" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-              {recalculateMutation.isPending ? "Recalcul en cours…" : "Recalculer les données"}
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              {school?.last_computed_at ? `Dernier calcul: ${new Date(school.last_computed_at).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" })}` : "Aucun calcul disponible"}
-            </p>
-          </div>
-          : null}
-   
+        <div className="flex flex-wrap items-end justify-end gap-3">
           <Select value={schoolYearId} onValueChange={setSchoolYearId}>
             <SelectTrigger className="min-h-12 w-50" aria-label="Année scolaire"><SelectValue placeholder="Année scolaire" /></SelectTrigger>
             <SelectContent>{yearsQuery.data?.map((year) => <SelectItem key={year.id} value={year.id}>{year.label}{year.status === "active" ? " · Active" : ""}</SelectItem>)}</SelectContent>
           </Select> 
+          {view === "dashboard" ? (
+            <div className="flex flex-col items-start gap-1 sm:items-end">
+              <Button
+                variant="outline"
+                className="min-h-12"
+                disabled={recalculateMutation.isPending}
+                onClick={() => recalculateMutation.mutate()}
+              >
+                {recalculateMutation.isPending ? <Spinner size="sm" className="mr-2" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                {recalculateMutation.isPending ? "Recalcul en cours…" : "Recalculer les données"}
+              </Button>
+              <p className="text-xs leading-5 text-muted-foreground sm:text-right">
+                {school?.last_computed_at
+                  ? `Dernier calcul : ${new Date(school.last_computed_at).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" })}`
+                  : "Aucun calcul disponible"}
+              </p>
+            </div>
+          ) : null}
         </div>
       }
     >

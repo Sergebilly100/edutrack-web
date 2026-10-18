@@ -716,9 +716,18 @@ export type FinancialUpcomingInstallment = {
   student_count: number;
 };
 
+export type FinancialAgingBucket = {
+  bucket: "0-30" | "31-60" | ">60";
+  total_amount: string;
+  student_count: number;
+};
+
 export type FinancialRecentPayment = {
+  payment_id: string;
+  student_id: string;
   payment_date: string;
   student_name: string;
+  student_matricule: string | null;
   class_name: string | null;
   method: PaymentMethod;
   amount: string;
@@ -732,6 +741,8 @@ export const fetchFinancialSummary = async (schoolYearId?: string): Promise<{
   collections: FinancialCollectionPoint[];
   paymentMethods: FinancialPaymentMethodSummary[];
   upcomingInstallments: FinancialUpcomingInstallment[];
+  installmentScheduleComplete: boolean;
+  aging: FinancialAgingBucket[] | null;
   recentPayments: FinancialRecentPayment[];
 }> => {
   const response = await apiClient.get("/finance/financial-summary", {
@@ -745,6 +756,8 @@ export const fetchFinancialSummary = async (schoolYearId?: string): Promise<{
     collections: Array.isArray(payload.collections) ? payload.collections : [],
     paymentMethods: Array.isArray(payload.paymentMethods) ? payload.paymentMethods : [],
     upcomingInstallments: Array.isArray(payload.upcomingInstallments) ? payload.upcomingInstallments : [],
+    installmentScheduleComplete: payload.installmentScheduleComplete === true,
+    aging: Array.isArray(payload.aging) ? payload.aging : null,
     recentPayments: Array.isArray(payload.recentPayments) ? payload.recentPayments : [],
   };
 };

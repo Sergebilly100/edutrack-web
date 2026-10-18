@@ -78,28 +78,12 @@ export default function StudentHistoryDirectoryPage() {
   return (
     <PageLayout title="Tous les dossiers élèves" subtitle="Retrouvez un élève par nom ou matricule, même sans inscription active." actions={<Button asChild variant="outline" className="min-h-12"><Link to="/students">Retour aux élèves</Link></Button>}>
       <div className="space-y-5">
-        <section aria-label="Trouver un dossier élève" className="space-y-4 rounded-lg border bg-card p-4 sm:p-6">
-          <div className="space-y-2">
-            <Label htmlFor="records-student-search">Nom ou matricule</Label>
-            <div className="relative max-w-2xl">
-              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="records-student-search"
-                type="search"
-                maxLength={100}
-                className="min-h-12 pl-10 pr-12"
-                value={search}
-                onChange={(event) => setSearchValue(event.target.value)}
-                placeholder="Ex. Koné Aya ou MAT-42"
-              />
-              {search ? <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 min-h-12 min-w-12" aria-label="Effacer la recherche" onClick={() => setSearchValue("")}><X className="h-4 w-4" /></Button> : null}
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2" aria-label="Périmètre des dossiers">
-            <Button type="button" variant={scope === "all" ? "secondary" : "outline"} className="min-h-12" aria-pressed={scope === "all"} onClick={() => setScope("all")}>Tous les dossiers</Button>
-            <Button type="button" variant={scope === "current" ? "secondary" : "outline"} className="min-h-12" aria-pressed={scope === "current"} onClick={() => setScope("current")}>Inscrits cette année</Button>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-wrap items-center gap-2  h-auto w-full rounded-xl border border-border bg-muted/50 p-1" aria-label="Périmètre des dossiers">
+          <Button type="button" variant={scope === "all" ? "outline" : "secondary"} className="min-h-12 rounded-lg text-sm font-medium" aria-pressed={scope === "all"} onClick={() => setScope("all")}>Tous les dossiers</Button>
+          <Button type="button" variant={scope === "current" ? "outline" : "secondary"} className="min-h-12 rounded-lg text-sm font-medium" aria-pressed={scope === "current"} onClick={() => setScope("current")}>Inscrits cette année</Button>
+        </div>
+        <section aria-label="Trouver un dossier élève" className="space-y-4 rounded-lg border bg-card p-4 sm:p-4">
+          <div className="grid gap-4 sm:grid-cols-3">
             {scope === "all" ? <div className="space-y-2">
               <Label htmlFor="records-year-filter">Année scolaire</Label>
               <Select value={schoolYearId || "all"} onValueChange={(value) => setFilter("year", value)}>
@@ -119,6 +103,22 @@ export default function StudentHistoryDirectoryPage() {
                   {(levelsQuery.data ?? []).map((level) => <SelectItem key={level.id} value={level.id}>{level.name}</SelectItem>)}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="records-student-search">Nom ou matricule</Label>
+              <div className="relative max-w-2xl">
+                <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="records-student-search"
+                  type="search"
+                  maxLength={100}
+                  className="min-h-12 pl-10 pr-12"
+                  value={search}
+                  onChange={(event) => setSearchValue(event.target.value)}
+                  placeholder="Ex. Koné Aya ou MAT-42"
+                />
+                {search ? <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 min-h-12 min-w-12" aria-label="Effacer la recherche" onClick={() => setSearchValue("")}><X className="h-4 w-4" /></Button> : null}
+              </div>
             </div>
           </div>
           {yearsQuery.isError || levelsQuery.isError ? <QueryErrorState title="Filtres indisponibles" message="Impossible de charger les années scolaires ou les niveaux." onRetry={() => { void yearsQuery.refetch(); void levelsQuery.refetch() }} /> : null}
@@ -141,7 +141,7 @@ export default function StudentHistoryDirectoryPage() {
                   {(scope === "current" || schoolYearId || levelId) && student.className ? <Badge variant="secondary">{student.className}</Badge> : null}
                 </div>
               </div>
-              <Button variant="outline" className="min-h-12 w-full sm:w-auto" asChild><Link to={detailHref(student.id, student.schoolYearId)}>Ouvrir le dossier</Link></Button>
+              <Button variant="outline" className="min-h-10 w-full sm:w-auto" asChild><Link to={detailHref(student.id, student.schoolYearId)}>Ouvrir le dossier</Link></Button>
             </div>)}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm">

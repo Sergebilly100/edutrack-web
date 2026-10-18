@@ -268,8 +268,8 @@ describe("DashboardPage", () => {
       logoUrl: null,
     })
     fetchFinancialSummaryMock.mockResolvedValue({
-      school: { total_expected_to_date: "1200000", total_paid: "840000", remaining_to_collect: "400000", annual_total_due: "1000000", annual_remaining: "-120000", upcoming_due: "-520000", recovery_rate: "0.7", students_late_count: 4 },
-      levels: [{ level_id: "level-1", level_name: "6e", total_expected_to_date: "600000", total_paid: "420000", remaining_to_collect: "200000", annual_total_due: "500000", annual_remaining: "80000", upcoming_due: "-120000", students_late_count: 2 }],
+      school: { total_expected_to_date: "1200000", total_paid: "840000", remaining_to_collect: "360000", annual_total_due: "1000000", annual_remaining: "160000", upcoming_due: "-200000", recovery_rate: "0.7", students_late_count: 4 },
+      levels: [{ level_id: "level-1", level_name: "6e", total_expected_to_date: "600000", total_paid: "420000", remaining_to_collect: "180000", annual_total_due: "500000", annual_remaining: "80000", upcoming_due: "-100000", students_late_count: 2 }],
       upcomingInstallments: [{ due_date: "2026-06-15", expected_amount: "350000", student_count: 42 }],
     })
     listSchoolYearsMock.mockResolvedValue([
@@ -294,13 +294,36 @@ describe("DashboardPage", () => {
     expect(screen.getByLabelText("Légende du graphique")).toHaveTextContent("Retards")
     expect(screen.getByLabelText("Légende du graphique")).toHaveTextContent("Absents")
     expect(await screen.findByText("Suivi financier")).toBeInTheDocument()
-    expect(screen.getAllByText("Recouvrement de scolarité à date")[0]?.parentElement).toHaveTextContent("70%")
-    expect(screen.getAllByText("Impayé de scolarité à date")[0]?.parentElement).toHaveTextContent(/400\s*000/)
-    expect(screen.getByText("Solde annuel de scolarité restant").parentElement).toHaveTextContent(/Avance de 120\s*000 FCFA/)
-    expect(screen.getByRole("progressbar", { name: "Recouvrement de scolarité à date 6e, 70%" })).toHaveClass("[&>div]:bg-blue-600")
+    expect(screen.getByText("Recouvrement à date").parentElement).toHaveTextContent("70%")
+    expect(screen.getByText("Impayé à date").parentElement).toHaveTextContent(/360\s*000/)
+    expect(screen.getByText("Solde annuel restant").parentElement).toHaveTextContent(/160\s*000 FCFA/)
+    expect(screen.getByRole("progressbar", { name: "Recouvrement à date 6e, 70 %" })).toHaveClass("[&>div]:bg-primary")
     expect(screen.getByRole("link", { name: /Élèves confirmés : 312/ })).toHaveAttribute("href", "/students")
     expect(screen.getByRole("link", { name: /Professeurs : 13/ })).toHaveAttribute("href", "/teachers")
     expect(screen.queryByRole("tab")).not.toBeInTheDocument()
+  })
+
+  it("conserve les indicateurs à date si le total annuel du niveau manque", async () => {
+    fetchFinancialSummaryMock.mockResolvedValueOnce({
+      school: {
+        total_expected_to_date: "1200000",
+        total_paid: "840000",
+        annual_total_due: "1000000",
+      },
+      levels: [{
+        level_id: "level-1",
+        level_name: "6e",
+        total_expected_to_date: "600000",
+        total_paid: "420000",
+      }],
+    })
+
+    renderWithQueryClient(<DashboardPage />)
+
+    expect(await screen.findByText("Suivi financier")).toBeInTheDocument()
+    const levelRate = await screen.findByText("70 % à date")
+    expect(levelRate.closest("tr")).toHaveTextContent(/180\s*000 FCFA/)
+    expect(screen.getByText("Solde annuel restant").parentElement).toHaveTextContent(/160\s*000 FCFA/)
   })
 
   it("explique l'absence d'effectif confirmé sans cacher les niveaux fournis par l'API", async () => {
