@@ -435,8 +435,8 @@ function UpcomingInstallments({
 
 function InstallmentAging({ buckets }: { buckets: FinancialAgingBucket[] | null }) {
   const labels: Record<FinancialAgingBucket["bucket"], string> = {
-    "0-30": "0–30 jours",
-    "31-60": "31–60 jours",
+    "0-30": "0 - 30 jours",
+    "31-60": "31 - 60 jours",
     ">60": "Plus de 60 jours",
   }
   const colors: Record<FinancialAgingBucket["bucket"], string> = {
@@ -458,14 +458,14 @@ function InstallmentAging({ buckets }: { buckets: FinancialAgingBucket[] | null 
       </CardHeader>
       <CardContent>
         {buckets !== null && completeBuckets.length === 3 ? (
-          <div className="space-y-5">
+          <div className="space-y-5 p-3">
             {completeBuckets.map((bucket) => {
               const amount = Number(bucket.total_amount)
               const share = totalOverdue > 0 ? (amount / totalOverdue) * 100 : 0
               return (
                 <div key={bucket.bucket} className="space-y-2">
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className="font-medium">{labels[bucket.bucket]}</span>
+                    <span className="font-medium text-sm">{labels[bucket.bucket]}</span>
                     <span className="text-right text-sm font-semibold tabular-nums">{formatFcfa(amount)}</span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -681,9 +681,9 @@ function LevelClasses({ classes }: { classes: ClassFinancialSummaryRow[] }) {
             >
               <span className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
                 <span className="min-w-0 truncate font-medium">{item.class_name}</span>
-                <span className="text-xs font-medium">{rate} % à date</span>
+                <span className="text-xs font-medium">{rate} %</span>
                 <span className={`text-xs font-medium tabular-nums ${tone.text}`}>
-                  {formatFcfaBalance(balance)} impayés
+                  · {formatFcfaBalance(balance)} impayés
                 </span>
               </span>
               {isOpen

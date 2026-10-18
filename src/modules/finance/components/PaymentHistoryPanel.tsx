@@ -69,23 +69,183 @@ function PaymentHistoryTable({ schoolYearId }: { schoolYearId: string }) {
   useEffect(() => { setPage(1) }, [schoolYearId, from, to, levelId, classId, status])
   useEffect(() => { if (classId !== "all" && !classes.some((schoolClass) => schoolClass.id === classId)) setClassId("all") }, [classId, classes])
 
-  return <section className="space-y-5">
-    <div className="grid gap-4 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2 xl:grid-cols-5">
-      <FilterDate label="Du" id="history-from" value={from} max={to} invalid={Boolean(rangeError)} describedBy={rangeError || dateMessage ? "history-date-message" : undefined} onChange={(value) => changeDate("from", value)} />
-      <FilterDate label="Au" id="history-to" value={to} min={from} invalid={Boolean(rangeError)} describedBy={rangeError || dateMessage ? "history-date-message" : undefined} onChange={(value) => changeDate("to", value)} />
-      {rangeError || dateMessage ? <p id="history-date-message" role="alert" className="text-sm text-destructive sm:col-span-2">{rangeError ?? dateMessage}</p> : null}
-      <FilterSelect label="Niveau" value={levelId} onValueChange={setLevelId} allLabel="Tous les niveaux" items={(levelsQuery.data ?? []).map((level) => ({ value: level.id, label: level.name }))} />
-      <FilterSelect label="Classe" value={classId} onValueChange={setClassId} allLabel="Toutes les classes" items={classes.map((schoolClass) => ({ value: schoolClass.id, label: schoolClass.name }))} />
-      <FilterSelect label="Statut" value={status} onValueChange={(value) => setStatus(value as FinancialCacheStatus | "all")} allLabel="Tous les statuts" items={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} />
-    </div>
-    {historyQuery.isLoading ? <div className="space-y-2">{Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-12 w-full" />)}</div> : null}
-    {historyQuery.isError ? <QueryErrorState message="Impossible de charger l’historique des paiements." onRetry={() => void historyQuery.refetch()} /> : null}
-    {historyQuery.data?.entries.length === 0 ? <EmptyState icon={ReceiptText} title="Aucun paiement sur cette période" message="Modifiez les filtres ou élargissez la période." /> : null}
-    {historyQuery.data && historyQuery.data.entries.length > 0 ? <div className="space-y-4">
-      <div className="overflow-x-auto rounded-lg border"><Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Élève</TableHead><TableHead>Niveau</TableHead><TableHead>Classe</TableHead><TableHead>Reçu</TableHead><TableHead>Statut</TableHead><TableHead className="text-right">Montant</TableHead><TableHead><span className="sr-only">Détails</span></TableHead></TableRow></TableHeader><TableBody>{historyQuery.data.entries.map((entry) => <TableRow key={entry.id}><TableCell>{new Intl.DateTimeFormat("fr-FR").format(new Date(`${entry.paymentDate}T00:00:00`))}</TableCell><TableCell><p className="font-medium">{entry.studentName}</p><p className="text-xs text-muted-foreground">{entry.studentMatricule ?? "Sans matricule"}</p></TableCell><TableCell>{entry.levelName}</TableCell><TableCell>{entry.className}</TableCell><TableCell>{entry.receiptNumber}</TableCell><TableCell>{entry.financialStatus ? <Badge variant="outline" className={statusClassNames[entry.financialStatus]}>{statusLabels[entry.financialStatus]}</Badge> : <span className="text-sm text-muted-foreground">À calculer</span>}</TableCell><TableCell className="text-right font-semibold tabular-nums">{formatFcfa(entry.amount)}</TableCell><TableCell className="text-right"><Button type="button" variant="outline" size="sm" className="min-h-12" onClick={() => navigate(`${FINANCE_PATHS.historyDetail(entry.studentId)}?schoolYearId=${schoolYearId}`)}>Détails</Button></TableCell></TableRow>)}</TableBody></Table></div>
-      <Pagination page={pagination?.page ?? page} totalPages={pagination?.totalPages ?? 1} total={total} pageStart={pageStart} pageEnd={pageEnd} isFetching={historyQuery.isFetching} onPrevious={() => setPage((current) => Math.max(1, current - 1))} onNext={() => setPage((current) => Math.min(pagination?.totalPages ?? 1, current + 1))} />
-    </div> : null}
-  </section>
+  return (
+    <section className="space-y-5">
+      <div className="grid gap-4 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2 xl:grid-cols-5">
+        <FilterDate
+          label="Du"
+          id="history-from"
+          value={from}
+          max={to}
+          invalid={Boolean(rangeError)}
+          describedBy={
+            rangeError || dateMessage ? "history-date-message" : undefined
+          }
+          onChange={(value) => changeDate("from", value)}
+        />
+        <FilterDate
+          label="Au"
+          id="history-to"
+          value={to}
+          min={from}
+          invalid={Boolean(rangeError)}
+          describedBy={
+            rangeError || dateMessage ? "history-date-message" : undefined
+          }
+          onChange={(value) => changeDate("to", value)}
+        />
+        {rangeError || dateMessage ? (
+          <p
+            id="history-date-message"
+            role="alert"
+            className="text-sm text-destructive sm:col-span-2"
+          >
+            {rangeError ?? dateMessage}
+          </p>
+        ) : null}
+        <FilterSelect
+          label="Niveau"
+          value={levelId}
+          onValueChange={setLevelId}
+          allLabel="Tous les niveaux"
+          items={(levelsQuery.data ?? []).map((level) => ({
+            value: level.id,
+            label: level.name,
+          }))}
+        />
+        <FilterSelect
+          label="Classe"
+          value={classId}
+          onValueChange={setClassId}
+          allLabel="Toutes les classes"
+          items={classes.map((schoolClass) => ({
+            value: schoolClass.id,
+            label: schoolClass.name,
+          }))}
+        />
+        <FilterSelect
+          label="Statut"
+          value={status}
+          onValueChange={(value) =>
+            setStatus(value as FinancialCacheStatus | "all")
+          }
+          allLabel="Tous les statuts"
+          items={Object.entries(statusLabels).map(([value, label]) => ({
+            value,
+            label,
+          }))}
+        />
+      </div>
+      {historyQuery.isLoading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <Skeleton key={index} className="h-12 w-full" />
+          ))}
+        </div>
+      ) : null}
+      {historyQuery.isError ? (
+        <QueryErrorState
+          message="Impossible de charger l’historique des paiements."
+          onRetry={() => void historyQuery.refetch()}
+        />
+      ) : null}
+      {historyQuery.data?.entries.length === 0 ? (
+        <EmptyState
+          icon={ReceiptText}
+          title="Aucun paiement sur cette période"
+          message="Modifiez les filtres ou élargissez la période."
+        />
+      ) : null}
+      {historyQuery.data && historyQuery.data.entries.length > 0 ? (
+        <div className="space-y-4">
+          <div className="overflow-x-auto rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Élève</TableHead>
+                  <TableHead>Niveau</TableHead>
+                  <TableHead>Classe</TableHead>
+                  <TableHead>Reçu</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead className="text-right">Montant</TableHead>
+                  <TableHead>
+                    <span className="sr-only">Détails</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {historyQuery.data.entries.map((entry) => (
+                  <TableRow key={entry.id}>
+                    <TableCell>
+                      {new Intl.DateTimeFormat("fr-FR").format(
+                        new Date(`${entry.paymentDate}T00:00:00`),
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <p className="font-medium">{entry.studentName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {entry.studentMatricule ?? "Sans matricule"}
+                      </p>
+                    </TableCell>
+                    <TableCell>{entry.levelName}</TableCell>
+                    <TableCell>{entry.className}</TableCell>
+                    <TableCell>{entry.receiptNumber}</TableCell>
+                    <TableCell>
+                      {entry.financialStatus ? (
+                        <Badge
+                          variant="outline"
+                          className={statusClassNames[entry.financialStatus]}
+                        >
+                          {statusLabels[entry.financialStatus]}
+                        </Badge>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">
+                          À calculer
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">
+                      {formatFcfa(entry.amount)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="min-h-10"
+                        onClick={() =>
+                          navigate(
+                            `${FINANCE_PATHS.historyDetail(entry.studentId)}?schoolYearId=${schoolYearId}`,
+                          )
+                        }
+                      >
+                        Détails
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <Pagination
+            page={pagination?.page ?? page}
+            totalPages={pagination?.totalPages ?? 1}
+            total={total}
+            pageStart={pageStart}
+            pageEnd={pageEnd}
+            isFetching={historyQuery.isFetching}
+            onPrevious={() => setPage((current) => Math.max(1, current - 1))}
+            onNext={() =>
+              setPage((current) =>
+                Math.min(pagination?.totalPages ?? 1, current + 1),
+              )
+            }
+          />
+        </div>
+      ) : null}
+    </section>
+  );
 }
 
 function FilterDate({ label, id, value, min, max, invalid, describedBy, onChange }: { label: string; id: string; value: string; min?: string; max?: string; invalid?: boolean; describedBy?: string; onChange: (value: string) => void }) {
@@ -125,5 +285,5 @@ function StudentPaymentDetails({ schoolYearId, schoolYearLabel, canCancel, stude
 function Metric({ title, value, prominent = false }: { title: string; value: string; prominent?: boolean }) { return <div className={prominent ? "bg-blue-500 p-4 text-blue-50" : "bg-card p-4"}><p className={prominent ? "text-xs text-blue-100" : "text-xs text-muted-foreground"}>{title}</p><p className="mt-1 text-xl font-semibold tabular-nums">{value}</p></div> }
 
 function PaymentCard({ payment, canCancel, isReceiptRunning, isCancelPending, cancelTarget, reason, onRequestReceipt, onStartCancel, onCancel, onReasonChange, onConfirmCancel }: { payment: Payment & { balanceAfter: number }; canCancel: boolean; isReceiptRunning: boolean; isCancelPending: boolean; cancelTarget: string | null; reason: string; onRequestReceipt: () => void; onStartCancel: () => void; onCancel: () => void; onReasonChange: (value: string) => void; onConfirmCancel: () => void }) {
-  return <Card className={payment.status === "cancelled" ? "bg-muted/30" : ""}><CardContent className="p-4 sm:p-5"><div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0 space-y-1"><div className="flex flex-wrap items-center gap-2"><p className="text-lg font-semibold tabular-nums">{formatFcfa(payment.amount)}</p><Badge variant="outline" className={payment.status === "cancelled" ? "border-red-200 bg-red-50 text-red-700" : "border-green-200 bg-green-50 text-green-700"}>{payment.status === "cancelled" ? "Annulé" : "Confirmé"}</Badge></div><p className="text-sm text-muted-foreground">{formatDate(`${payment.paymentDate}T00:00:00`)} · {methodLabels[payment.method]} · {sourceLabels[payment.source]}</p><p className="text-xs text-muted-foreground">Reçu {payment.receiptNumber}{payment.schoolReceiptReference ? ` · Réf. école ${payment.schoolReceiptReference}` : ""}</p><p className="text-sm font-medium text-blue-500 dark:text-blue-200">Solde après mouvement : {formatFcfa(payment.balanceAfter)}</p>{payment.cancellationReason ? <p className="mt-2 text-sm text-red-700">Motif d’annulation : {payment.cancellationReason}</p> : null}</div><div className="flex shrink-0 flex-wrap gap-2">{payment.status !== "cancelled" ? <Button type="button" variant="outline" className="min-h-12" disabled={isReceiptRunning} onClick={onRequestReceipt}>{isReceiptRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Reçu</Button> : null}{canCancel && payment.status !== "cancelled" ? <Button type="button" variant="outline" className="min-h-12 text-red-700 hover:bg-red-50 hover:text-red-800" onClick={onStartCancel}><Ban className="mr-2 h-4 w-4" />Annuler</Button> : null}</div></div>{cancelTarget === payment.id ? <div className="mt-4 space-y-3 rounded-lg border border-red-200 bg-red-50/60 p-4 dark:border-red-900 dark:bg-red-950/20"><div className="flex gap-2 text-sm text-red-800 dark:text-red-200"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><p>Cette action est définitive. Le paiement restera visible avec votre justification.</p></div><div className="space-y-1.5"><Label htmlFor={`cancel-${payment.id}`}>Justification obligatoire</Label><Textarea id={`cancel-${payment.id}`} value={reason} maxLength={1000} onChange={(event) => onReasonChange(event.target.value)} placeholder="Ex. paiement attribué au mauvais élève" /></div><div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="ghost" className="min-h-12" onClick={onCancel}>Conserver le paiement</Button><Button type="button" variant="destructive" className="min-h-12" disabled={!reason.trim() || isCancelPending} onClick={onConfirmCancel}>{isCancelPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Confirmer l’annulation</Button></div></div> : null}</CardContent></Card>
+  return <Card className={payment.status === "cancelled" ? "bg-muted/30" : ""}><CardContent className="p-4 sm:p-5"><div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0 space-y-1"><div className="flex flex-wrap items-center gap-2"><p className="text-lg font-semibold tabular-nums">{formatFcfa(payment.amount)}</p><Badge variant="outline" className={payment.status === "cancelled" ? "border-red-200 bg-red-50 text-red-700" : "border-green-200 bg-green-50 text-green-700"}>{payment.status === "cancelled" ? "Annulé" : "Confirmé"}</Badge></div><p className="text-sm text-muted-foreground">{formatDate(`${payment.paymentDate}T00:00:00`)} · {methodLabels[payment.method]} · {sourceLabels[payment.source]}</p><p className="text-xs text-muted-foreground">Reçu {payment.receiptNumber}{payment.schoolReceiptReference ? ` · Réf. école ${payment.schoolReceiptReference}` : ""}</p><p className="text-sm font-medium text-blue-500 dark:text-blue-200">Reste à payer après mouvement : {formatFcfa(payment.balanceAfter)}</p>{payment.cancellationReason ? <p className="mt-2 text-sm text-red-700">Motif d’annulation : {payment.cancellationReason}</p> : null}</div><div className="flex shrink-0 flex-wrap gap-2">{payment.status !== "cancelled" ? <Button type="button" variant="outline" className="min-h-12" disabled={isReceiptRunning} onClick={onRequestReceipt}>{isReceiptRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Reçu</Button> : null}{canCancel && payment.status !== "cancelled" ? <Button type="button" variant="outline" className="min-h-12 text-red-700 hover:bg-red-50 hover:text-red-800" onClick={onStartCancel}><Ban className="mr-2 h-4 w-4" />Annuler</Button> : null}</div></div>{cancelTarget === payment.id ? <div className="mt-4 space-y-3 rounded-lg border border-red-200 bg-red-50/60 p-4 dark:border-red-900 dark:bg-red-950/20"><div className="flex gap-2 text-sm text-red-800 dark:text-red-200"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><p>Cette action est définitive. Le paiement restera visible avec votre justification.</p></div><div className="space-y-1.5"><Label htmlFor={`cancel-${payment.id}`}>Justification obligatoire</Label><Textarea id={`cancel-${payment.id}`} value={reason} maxLength={1000} onChange={(event) => onReasonChange(event.target.value)} placeholder="Ex. paiement attribué au mauvais élève" /></div><div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="ghost" className="min-h-12" onClick={onCancel}>Conserver le paiement</Button><Button type="button" variant="destructive" className="min-h-12" disabled={!reason.trim() || isCancelPending} onClick={onConfirmCancel}>{isCancelPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Confirmer l’annulation</Button></div></div> : null}</CardContent></Card>
 }
