@@ -30,6 +30,8 @@ const methodLabels: Record<Payment["method"], string> = { cash: "Espèces", mobi
 const sourceLabels: Record<Payment["source"], string> = { cashier_manual: "Saisie manuelle", in_app_button: "Paiement en ligne", bulk_import: "Import courant", migration_import: "Solde de départ" }
 const statusLabels: Record<FinancialCacheStatus, string> = { up_to_date: "À jour", late: "En retard" }
 const statusClassNames: Record<FinancialCacheStatus, string> = { up_to_date: "border-green-200 bg-green-50 text-green-700", late: "border-amber-200 bg-amber-50 text-amber-700"}
+const paymentStatusLabels: Record<Payment["status"], string> = { confirmed: "Confirmé", cancelled: "Annulé" }
+const paymentStatusClassNames: Record<Payment["status"], string> = { confirmed: "border-green-200 bg-green-50 text-green-700", cancelled: "border-red-200 bg-red-50 text-red-700" }
 const formatDate = (value: string): string => value ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "Date inconnue"
 
 type PaymentHistoryPanelProps = { schoolYearId: string; schoolYearLabel: string; canCancel: boolean; studentId?: string }
@@ -124,12 +126,12 @@ function PaymentHistoryTable({ schoolYearId }: { schoolYearId: string }) {
           }))}
         />
         <FilterSelect
-          label="Statut"
+          label="Situation actuelle"
           value={status}
           onValueChange={(value) =>
             setStatus(value as FinancialCacheStatus | "all")
           }
-          allLabel="Tous les statuts"
+          allLabel="Toutes les situations"
           items={Object.entries(statusLabels).map(([value, label]) => ({
             value,
             label,
@@ -167,7 +169,8 @@ function PaymentHistoryTable({ schoolYearId }: { schoolYearId: string }) {
                   <TableHead>Niveau</TableHead>
                   <TableHead>Classe</TableHead>
                   <TableHead>Reçu</TableHead>
-                  <TableHead>Statut</TableHead>
+                  <TableHead>Paiement</TableHead>
+                  <TableHead>Situation actuelle</TableHead>
                   <TableHead className="text-right">Montant</TableHead>
                   <TableHead>
                     <span className="sr-only">Détails</span>
@@ -192,10 +195,19 @@ function PaymentHistoryTable({ schoolYearId }: { schoolYearId: string }) {
                     <TableCell>{entry.className}</TableCell>
                     <TableCell>{entry.receiptNumber}</TableCell>
                     <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={paymentStatusClassNames[entry.status]}
+                      >
+                        {paymentStatusLabels[entry.status]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
                       {entry.financialStatus ? (
                         <Badge
                           variant="outline"
                           className={statusClassNames[entry.financialStatus]}
+                          title="Situation financière actuelle de l’élève"
                         >
                           {statusLabels[entry.financialStatus]}
                         </Badge>
