@@ -325,7 +325,7 @@ export default function NotesPage() {
 
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/50 p-4">
               <p className="text-sm text-muted-foreground">Pour calculer ou valider les moyennes, consultez l’état de chaque matière dans Moyennes.</p>
-              <Button asChild variant="outline" className="min-h-12">
+              <Button asChild variant="outline" className="min-h-10">
                 <Link to={`/academic/notes?tab=moyennes&classId=${encodeURIComponent(classId)}&gradingPeriodId=${encodeURIComponent(gradingPeriodId)}`}>
                   Aller aux moyennes <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>

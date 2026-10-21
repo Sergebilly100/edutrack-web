@@ -32,6 +32,8 @@ export default function RiskDetailsPage() {
   const [searchParams] = useSearchParams()
   const canViewTeachers = hasPermission("teachers.view") || hasPermission("attendance.view")
   const canViewStudents = hasPermission("students.view") || hasPermission("attendance.view")
+  const schoolYearId = searchParams.get("schoolYearId") || undefined
+  const gradingPeriodId = searchParams.get("gradingPeriodId") || undefined
   const openTeachers = canViewTeachers && (searchParams.get("tab") === "teachers" || !canViewStudents)
   const [tab, setTab] = useState<Tab>(openTeachers ? "teachers" : "students")
   const [studentPage, setStudentPage] = useState(1)
@@ -46,7 +48,7 @@ export default function RiskDetailsPage() {
   const levelsQuery = useQuery({ queryKey: ["academic", "levels"], queryFn: listLevels, enabled: canViewStudents })
   const classesQuery = useQuery({ queryKey: ["academic", "classes", "risk-filters"], queryFn: () => listClasses(), enabled: canViewStudents })
   const availableClasses = useMemo(() => (classesQuery.data?.classes ?? []).filter((schoolClass) => schoolLevelId === "all" || schoolClass.level.id === schoolLevelId), [classesQuery.data?.classes, schoolLevelId])
-  const studentFilters = { schoolLevelId: schoolLevelId === "all" ? undefined : schoolLevelId, classId: classId === "all" ? undefined : classId, category: category === "all" ? undefined : category, riskLevel: riskLevel === "all" ? undefined : riskLevel }
+  const studentFilters = { schoolYearId, gradingPeriodId, schoolLevelId: schoolLevelId === "all" ? undefined : schoolLevelId, classId: classId === "all" ? undefined : classId, category: category === "all" ? undefined : category, riskLevel: riskLevel === "all" ? undefined : riskLevel }
   const studentsQuery = useQuery({ queryKey: ["risks", "students", studentFilters, studentPage], queryFn: () => listStudentRisks({ ...studentFilters, atRisk: true, page: studentPage, limit: PAGE_SIZE }), enabled: canViewStudents, staleTime: 3 * 60_000 })
   const teachersQuery = useQuery({ queryKey: ["risks", "teachers", teacherMonth, teacherPage], queryFn: () => listTeacherRisks({ month: teacherMonth || undefined, atRisk: true, page: teacherPage, limit: PAGE_SIZE }), enabled: canViewTeachers, staleTime: 3 * 60_000 })
 
@@ -60,7 +62,7 @@ export default function RiskDetailsPage() {
       <TabsList className="h-auto min-h-12 w-full sm:w-auto">{canViewStudents ? <TabsTrigger value="students" className="min-h-12 flex-1 sm:min-w-40">Élèves</TabsTrigger> : null}{canViewTeachers ? <TabsTrigger value="teachers" className="min-h-12 flex-1 sm:min-w-40">Professeurs</TabsTrigger> : null}</TabsList>
       <TabsContent value="students" className="mt-5 space-y-5">
         <StudentFilters schoolLevelId={schoolLevelId} classId={classId} category={category} riskLevel={riskLevel} onSchoolLevelChange={setSchoolLevelId} onClassChange={setClassId} onCategoryChange={(value) => setCategory(value as StudentRiskCategory | "all")} onRiskLevelChange={(value) => setRiskLevel(value as RiskFilterLevel | "all")} levels={(levelsQuery.data ?? []).map((level) => ({ id: level.id, name: level.name }))} classes={availableClasses.map((schoolClass) => ({ id: schoolClass.id, name: schoolClass.name }))} canViewPayments={canViewPayments} />
-        <RiskCard title="Élèves à suivre" description="Classement par nombre de signaux, puis par nom." icon={<GraduationCap className="h-5 w-5" />}>
+        <RiskCard title="Élèves à suivre" description="Les baisses de moyenne sont comparées à la période précédente et ne sont retenues que si les deux périodes sont clôturées." icon={<GraduationCap className="h-5 w-5" />}>
           {studentsQuery.isLoading ? <TableSkeleton /> : null}
           {studentsQuery.isError ? <QueryErrorState message="Impossible de charger les élèves à suivre." onRetry={() => void studentsQuery.refetch()} /> : null}
           {studentsQuery.data && studentsQuery.data.students.length === 0 ? <EmptyState icon={AlertTriangle} title="Aucun élève à suivre" message="Aucun élève ne correspond aux filtres sélectionnés." /> : null}

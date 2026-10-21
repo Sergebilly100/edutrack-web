@@ -81,6 +81,18 @@ describe("RiskDetailsPage", () => {
     await waitFor(() => expect(listStudentRisksMock).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, limit: 10 })))
   })
 
+  it("conserve l’année et la période du dashboard pour les risques élèves", async () => {
+    renderPage("/dashboard/risks?tab=students&schoolYearId=year-1&gradingPeriodId=period-2")
+    expect(await screen.findByRole("columnheader", { name: "Élève" })).toBeInTheDocument()
+    expect(listStudentRisksMock).toHaveBeenCalledWith(expect.objectContaining({
+      schoolYearId: "year-1",
+      gradingPeriodId: "period-2",
+      atRisk: true,
+      page: 1,
+      limit: 10,
+    }))
+  })
+
   it("affiche les absences répétées dans l’onglet professeur", async () => {
     renderPage()
     const teachersTab = await screen.findByRole("tab", { name: "Professeurs" })

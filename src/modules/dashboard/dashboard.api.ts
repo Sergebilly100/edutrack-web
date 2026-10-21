@@ -991,7 +991,7 @@ export type TeacherRiskItem = {
 }
 
 type RiskListParams = { page: number; limit: number }
-type StudentRiskListParams = RiskListParams & { schoolLevelId?: string; classId?: string; category?: StudentRiskCategory; riskLevel?: Exclude<RiskLevel, "none">; atRisk?: boolean }
+type StudentRiskListParams = RiskListParams & { schoolYearId?: string; gradingPeriodId?: string; schoolLevelId?: string; classId?: string; category?: StudentRiskCategory; riskLevel?: Exclude<RiskLevel, "none">; atRisk?: boolean }
 type TeacherRiskListParams = RiskListParams & { month?: string; atRisk?: boolean }
 
 const parseRiskPagination = (value: unknown): RiskPagination => {

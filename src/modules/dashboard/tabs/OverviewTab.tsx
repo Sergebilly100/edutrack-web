@@ -32,7 +32,7 @@ import {
 
 type DashboardPriorityAction = {
   id: string
-  type: "teacher_absences_high" | "student_at_risk" | "teacher_at_risk" | "validations_pending"
+  type: "validations_pending"
   title: string
   message: string
   href: string
@@ -144,7 +144,12 @@ export function OverviewTab({
           isLoading={pilotageQuery.isLoading}
           isError={pilotageQuery.isError}
         />
-        <RiskSummary risks={pilotage?.risks} canViewTeachers={canViewTeachers} />
+        <RiskSummary
+          risks={pilotage?.risks}
+          canViewTeachers={canViewTeachers}
+          schoolYearId={schoolYearId}
+          gradingPeriodId={gradingPeriodId}
+        />
       </section>
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.12fr)_minmax(21rem,0.88fr)] xl:items-start">
@@ -239,7 +244,6 @@ function AttendanceHistoryChart({ history }: { history: DashboardHistoryPoint[] 
   )
 }
 
-const PRIORITY_ORDER: DashboardPriorityAction["type"][] = ["teacher_absences_high", "student_at_risk", "teacher_at_risk", "validations_pending"]
 const priorityWeight: Record<DashboardPriorityAction["priority"], number> = { high: 0, medium: 1, low: 2 }
 const priorityCounterClass: Record<DashboardPriorityAction["priority"], string> = {
   high: "bg-red-50 text-red-700",
@@ -252,15 +256,8 @@ function priorityCount(message: string): number {
   return Number.isFinite(value) ? value : 0
 }
 
-function priorityMessage(item: DashboardPriorityAction): string {
-  if (item.type === "student_at_risk") return "Élèves à examiner en priorité, niveaux à surveiller ou critiques"
-  if (item.type === "teacher_absences_high") return "Absences de professeurs sur les 7 derniers jours"
-  if (item.type === "teacher_at_risk") return "Assiduité à suivre"
-  return "Décisions à prendre sur les pointages"
-}
-
 function WatchList({ items }: { items: DashboardPriorityAction[] }) {
-  const orderedItems = [...items].sort((a, b) => priorityWeight[a.priority] - priorityWeight[b.priority] || PRIORITY_ORDER.indexOf(a.type) - PRIORITY_ORDER.indexOf(b.type))
+  const orderedItems = [...items].sort((a, b) => priorityWeight[a.priority] - priorityWeight[b.priority])
   return (
     <Card className="rounded-lg shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between gap-3 border-none p-5 pb-3">
@@ -271,7 +268,7 @@ function WatchList({ items }: { items: DashboardPriorityAction[] }) {
         {orderedItems.length > 0 ? orderedItems.map((item) => (
           <Link key={item.id} to={item.href} className="flex min-h-16 items-center gap-3 rounded-lg border px-3 py-2 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
             <span className={`inline-flex min-h-10 min-w-10 items-center justify-center rounded-md px-2 text-lg font-bold tabular-nums ${priorityCounterClass[item.priority]}`}>{priorityCount(item.message)}</span>
-            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{item.title}</span><span className="block text-xs text-muted-foreground">{priorityMessage(item)}</span></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{item.title}</span><span className="block text-xs text-muted-foreground">Décisions à prendre sur les pointages</span></span>
             <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           </Link>
         )) : <div className="rounded-lg bg-green-50 p-4 text-sm text-green-800">Aucun sujet prioritaire sur la période sélectionnée.</div>}
@@ -286,7 +283,7 @@ function AcademicProgress({ levels, confirmedStudents, isLoading, isError }: { l
   return (
     <Card className="rounded-lg shadow-sm">
       <CardHeader className="flex flex-row items-start justify-between gap-3 border-none p-5 pb-3">
-        <div><CardTitle className="text-lg">Performance académique de la période</CardTitle><CardDescription>Moyennes générales réelles, regroupées par niveau.</CardDescription>{!isLoading && hasIncompleteSubjects ? <Badge variant="outline" className="mt-2 border-amber-200 bg-amber-50 text-amber-800">Provisoire</Badge> : null}</div>
+        <div><CardTitle className="text-lg">Performance académique de la période</CardTitle><CardDescription>Moyennes générales réelles, regroupées par niveau.</CardDescription>{!isLoading && hasIncompleteSubjects ? <Badge variant="outline" className="mt-2 border-amber-200 bg-amber-50 text-amber-800">Provisoire : moyennes non clôturées</Badge> : null}</div>
         <Button asChild type="button" variant="ghost" size="sm" className="min-h-10 text-blue-700"><Link to="/academic/evaluations">Détails</Link></Button>
       </CardHeader>
       <CardContent className="overflow-x-auto px-5 pb-5">
@@ -307,8 +304,21 @@ function AcademicProgress({ levels, confirmedStudents, isLoading, isError }: { l
   )
 }
 
-function RiskSummary({ risks, canViewTeachers }: { risks: Awaited<ReturnType<typeof getDashboardPilotage>>["risks"] | undefined; canViewTeachers: boolean }) {
+function studentRisksHref(schoolYearId?: string, gradingPeriodId?: string): string {
+  const params = new URLSearchParams({ tab: "students" })
+  if (schoolYearId) params.set("schoolYearId", schoolYearId)
+  if (gradingPeriodId) params.set("gradingPeriodId", gradingPeriodId)
+  return `/dashboard/risks?${params.toString()}`
+}
+
+function RiskSummary({ risks, canViewTeachers, schoolYearId, gradingPeriodId }: {
+  risks: Awaited<ReturnType<typeof getDashboardPilotage>>["risks"] | undefined
+  canViewTeachers: boolean
+  schoolYearId?: string
+  gradingPeriodId?: string
+}) {
   const studentTotal = (risks?.studentAbsences ?? 0) + (risks?.studentGrades ?? 0) + (risks?.studentPayments ?? 0)
+  const studentHref = studentRisksHref(schoolYearId, gradingPeriodId)
   return (
     <Card className="rounded-lg shadow-sm">
       <CardHeader className="flex flex-row items-start justify-between gap-3 border-none p-5 pb-3">
@@ -327,7 +337,7 @@ function RiskSummary({ risks, canViewTeachers }: { risks: Awaited<ReturnType<typ
           size="sm"
           className="min-h-10 text-blue-700"
         >
-          <Link to="/dashboard/risks">Voir plus</Link>
+          <Link to={studentHref}>Voir plus</Link>
         </Button>
       </CardHeader>
       <CardContent className="space-y-4 px-5 pb-5">
@@ -338,17 +348,17 @@ function RiskSummary({ risks, canViewTeachers }: { risks: Awaited<ReturnType<typ
             {
               label: "Absentéisme à surveiller",
               value: risks?.studentAbsences ?? 0,
-              href: "/dashboard/risks?tab=students",
+              href: studentHref,
             },
             {
               label: "Baisse de moyenne",
               value: risks?.studentGrades ?? 0,
-              href: "/dashboard/risks?tab=students",
+              href: studentHref,
             },
             {
               label: "Paiements en retard",
               value: risks?.studentPayments ?? 0,
-              href: "/dashboard/risks?tab=students",
+              href: studentHref,
             },
           ]}
         />

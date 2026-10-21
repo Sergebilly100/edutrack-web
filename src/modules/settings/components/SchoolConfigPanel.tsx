@@ -901,7 +901,8 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
               </Form>
             ) : (
               <ContextualHelp title="Heures réelles désactivées" tone="warning">
-                La valeur de tolérance existe mais elle est ignorée tant que les heures réelles ne sont pas activées par IvoirEdu.
+                La valeur de tolérance existe mais elle est ignorée tant que les heures réelles ne sont pas activées par IvoirEdu. <br />
+                Les heures courtes sont alors considérées comme des présences normales et validées automatiquement.
               </ContextualHelp>
             )}
           </section>

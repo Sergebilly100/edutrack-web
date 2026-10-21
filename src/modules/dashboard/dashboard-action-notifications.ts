@@ -2,13 +2,13 @@ import type { NotificationPanelItem } from "@/shared/components/layout/Notificat
 import type { DashboardActionItem } from "./dashboard.api"
 
 export const DASHBOARD_ACTION_ROUTES: Record<string, { href: string; label: string }> = {
-  teacher_absences_high: { href: "/teachers", label: "Ouvrir les professeurs" },
+  teacher_absences_high: { href: "/teachers?tab=analyse", label: "Analyser les absences" },
   salary_pending: { href: "/salaries", label: "Ouvrir les salaires" },
   validations_pending: { href: "/validations", label: "Traiter les validations" },
-  commission_overdue: { href: "/subscriptions/revenue", label: "Ouvrir les revenus" },
+  commission_overdue: { href: "/subscriptions/revenue", label: "Ouvrir les revenus abonnements" },
   payment_reminder_needed: { href: "/finance/dashboard", label: "Ouvrir la finance" },
   report_cards_blocked: { href: "/academic/completion", label: "Voir la complétude" },
-  student_at_risk: { href: "/students", label: "Voir les élèves" },
+  student_at_risk: { href: "/students?tab=absences", label: "Analyser les absences" },
   teacher_at_risk: { href: "/dashboard/risks?tab=teachers", label: "Voir les professeurs" },
   dossier_incomplete: { href: "/enrollments", label: "Voir les inscriptions" },
 }

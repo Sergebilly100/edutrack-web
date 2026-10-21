@@ -906,18 +906,18 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
               </Alert>
               <div className="grid gap-2 md:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="student-parent-name">Nom parent 1</Label>
+                  <Label htmlFor="student-parent-name">Nom parent (Principal)</Label>
                   <Input
                     id="student-parent-name"
                     value={parentName}
                     onChange={(event) => setParentName(event.target.value)}
-                    placeholder="Nom parent 1"
+                    placeholder="Nom parent (Principal)"
                     disabled={!canEditStudent}
                   />
                 </div>
                 <div className="flex gap-2">
                   <div className="min-w-0 flex-1 space-y-1.5">
-                    <Label htmlFor="student-parent-phone">Téléphone parent 1</Label>
+                    <Label htmlFor="student-parent-phone">Téléphone parent (Principal)</Label>
                     <Input
                       id="student-parent-phone"
                       value={parentPhone}
@@ -937,7 +937,7 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="student-parent-email">Email parent <span className="text-xs text-muted-foreground">(optionnel)</span></Label>
+                <Label htmlFor="student-parent-email">Email parent (Principal) <span className="text-xs text-muted-foreground">(optionnel)</span></Label>
                 <Input
                   id="student-parent-email"
                   type="email"
@@ -954,7 +954,7 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
 
               <div className="grid gap-2 md:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="student-parent-name-2">Nom parent 2</Label>
+                  <Label htmlFor="student-parent-name-2">Nom parent (secondaire)</Label>
                   <Input
                     id="student-parent-name-2"
                     value={parentName2}
@@ -965,7 +965,7 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
                 </div>
                 <div className="flex gap-2">
                   <div className="min-w-0 flex-1 space-y-1.5">
-                    <Label htmlFor="student-parent-phone-2">Téléphone parent 2</Label>
+                    <Label htmlFor="student-parent-phone-2">Téléphone parent (secondaire)</Label>
                     <Input
                       id="student-parent-phone-2"
                       value={parentPhone2}

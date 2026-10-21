@@ -300,6 +300,10 @@ describe("DashboardPage", () => {
     expect(screen.getByRole("progressbar", { name: "Recouvrement à date 6e, 70 %" })).toHaveClass("[&>div]:bg-primary")
     expect(screen.getByRole("link", { name: /Élèves confirmés : 312/ })).toHaveAttribute("href", "/students")
     expect(screen.getByRole("link", { name: /Professeurs : 13/ })).toHaveAttribute("href", "/teachers")
+    expect(await screen.findByRole("link", { name: /Baisse de moyenne/ })).toHaveAttribute(
+      "href",
+      "/dashboard/risks?tab=students&schoolYearId=school-year-1&gradingPeriodId=period-current",
+    )
     expect(screen.queryByRole("tab")).not.toBeInTheDocument()
   })
 
@@ -486,7 +490,7 @@ describe("DashboardPage", () => {
     expect(screen.queryByRole("button", { name: "Contacter" })).not.toBeInTheDocument()
   })
 
-  it("affiche les quatre seules actions directeur dans l'ordre de leur priorité réelle", async () => {
+  it("affiche uniquement les validations en attente dans les actions prioritaires", async () => {
     getDashboardActionItemsMock.mockResolvedValue([
       { id: "validations", type: "validations_pending", referenceId: null, priority: "high", message: "2 décision(s) à prendre sur les pointages.", generatedAt: "2026-05-12" },
       { id: "students", type: "student_at_risk", referenceId: null, priority: "high", message: "10 élève(s) à examiner (niveau warning/critical)", generatedAt: "2026-05-12" },
@@ -498,9 +502,12 @@ describe("DashboardPage", () => {
 
     const actions = await screen.findByText("Actions prioritaires")
     const actionCard = actions.closest("div[class*='rounded-lg']")
-    expect(actionCard).toHaveTextContent("4 sujets")
-    expect(actionCard).toHaveTextContent("10")
-    expect(actionCard).toHaveTextContent("niveaux à surveiller ou critiques")
+    expect(actionCard).toHaveTextContent("1 sujet")
+    expect(actionCard).toHaveTextContent("Validations en attente")
+    expect(actionCard).toHaveTextContent("2")
+    expect(actionCard).not.toHaveTextContent("Élèves à risque")
+    expect(actionCard).not.toHaveTextContent("Professeurs à suivre")
+    expect(actionCard).not.toHaveTextContent("Absences profs élevées")
     expect(actionCard).not.toHaveTextContent("Salaires à terminer")
   })
 

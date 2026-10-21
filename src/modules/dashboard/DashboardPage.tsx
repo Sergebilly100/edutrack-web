@@ -483,20 +483,19 @@ export default function DashboardPage() {
   }, [dispatchMobileHeaderState, handleDashboardRefresh])
 
   const priorityActions = (actionItemsQuery.data ?? [])
-    .filter((item): item is typeof item & { type: "teacher_absences_high" | "student_at_risk" | "teacher_at_risk" | "validations_pending" } =>
-      (item.type === "teacher_absences_high" || item.type === "student_at_risk" || item.type === "teacher_at_risk" || item.type === "validations_pending")
-      && (canViewValidations || item.type !== "validations_pending")
+    .filter((item): item is typeof item & { type: "validations_pending" } =>
+      item.type === "validations_pending" && canViewValidations
     )
     .map((item) => {
-    const notification = actionItemToNotification(item)
-    return {
-      id: item.id,
+      const notification = actionItemToNotification(item)
+      return {
+        id: item.id,
         type: item.type,
-      title: notification.title,
-      message: notification.message,
-      href: notification.targetHref ?? "/dashboard",
+        title: notification.title,
+        message: notification.message,
+        href: notification.targetHref ?? "/dashboard",
         priority: item.priority,
-    }
+      }
     })
 
   if (isInitialLoading) {
