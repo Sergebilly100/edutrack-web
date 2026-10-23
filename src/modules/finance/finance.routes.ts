@@ -5,9 +5,10 @@ export const FINANCE_PATHS = {
   history: "/finance/history",
   historyDetail: (studentId: string) => `/finance/history/${studentId}`,
   journal: "/finance/journal",
+  agreements: "/finance/agreements",
 } as const
 
-export type FinanceView = "dashboard" | "entry" | "history" | "journal"
+export type FinanceView = "dashboard" | "entry" | "history" | "journal" | "agreements"
 
 export function getFinancePathFromLegacyTab(tab: string | null): string {
   switch (tab) {

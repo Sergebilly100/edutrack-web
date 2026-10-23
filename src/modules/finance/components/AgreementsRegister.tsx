@@ -1,0 +1,20 @@
+import { useQuery } from "@tanstack/react-query"
+import { Link, useSearchParams } from "react-router-dom"
+import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { EmptyState } from "@/shared/components/EmptyState"
+import { QueryErrorState } from "@/shared/components/QueryErrorState"
+import { formatFcfa } from "@/shared/utils/formatting"
+import { listAgreementsRegister } from "../finance.api"
+
+export function AgreementsRegister({ schoolYearId }: { schoolYearId: string }) {
+  const [params, setParams] = useSearchParams(); const kind = params.get("kind") === "schedules" ? "schedules" : "overrides"; const status = params.get("status") === "active" ? "active" : params.get("status") === "withdrawn" ? "withdrawn" : "all"; const search = params.get("q") ?? ""
+  const set = (next: Record<string, string>) => setParams((current) => { Object.entries(next).forEach(([key, value]) => value ? current.set(key, value) : current.delete(key)); return current })
+  const query = useQuery({ queryKey: ["finance", "agreements", schoolYearId, kind, status, search], queryFn: () => listAgreementsRegister({ schoolYearId, kind, status, search }), enabled: Boolean(schoolYearId) })
+  if (query.isLoading) return <Skeleton className="h-72 w-full" />
+  if (query.isError) return <QueryErrorState message="Impossible de charger le registre des accords." onRetry={() => void query.refetch()} />
+  return <section className="space-y-5"><div className="grid gap-3 rounded-lg border bg-muted/20 p-4 md:grid-cols-3"><Input className="min-h-12" value={search} onChange={(event) => set({ q: event.target.value })} placeholder="Élève, matricule, classe ou niveau" aria-label="Rechercher un accord" /><Select value={kind} onValueChange={(value) => set({ kind: value })}><SelectTrigger className="min-h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="overrides">Ajustements individuels</SelectItem><SelectItem value="schedules">Échéanciers négociés</SelectItem></SelectContent></Select><Select value={status} onValueChange={(value) => set({ status: value })}><SelectTrigger className="min-h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Tous les statuts</SelectItem><SelectItem value="active">Actifs</SelectItem><SelectItem value="withdrawn">Retirés</SelectItem></SelectContent></Select></div>{query.data?.entries.length ? <Table><TableHeader><TableRow><TableHead>Élève</TableHead><TableHead>Accord</TableHead><TableHead>Montants</TableHead><TableHead>Situation</TableHead></TableRow></TableHeader><TableBody>{query.data.entries.map((entry) => <TableRow key={entry.id}><TableCell><Link className="font-medium text-primary underline-offset-4 hover:underline" to={`/students/${entry.student_id}`}>{entry.student_name}</Link><p className="text-xs text-muted-foreground">{entry.matricule ?? "Sans matricule"} · {entry.class_name}</p></TableCell><TableCell><Badge variant="outline">{entry.kind === "override" ? entry.override_total_amount ? "Montant personnalisé" : "Remise" : "Échéancier"}</Badge><p className="mt-1 text-xs text-muted-foreground">{entry.status === "active" ? "Actif" : "Retiré"}</p></TableCell><TableCell><p className="tabular-nums">{formatFcfa(entry.plan_total_amount)}</p><p className="text-xs text-muted-foreground">Encaissé : {formatFcfa(entry.total_paid)}</p></TableCell><TableCell><p className="tabular-nums">Solde : {formatFcfa(entry.remaining_due)}</p><Badge variant="outline" className={entry.financial_status === "late" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-green-200 bg-green-50 text-green-700"}>{entry.financial_status === "late" ? "En retard" : "À jour"}</Badge></TableCell></TableRow>)}</TableBody></Table> : <EmptyState title="Aucun accord trouvé" description="Aucun ajustement ou échéancier ne correspond aux filtres sélectionnés." />}</section>
+}

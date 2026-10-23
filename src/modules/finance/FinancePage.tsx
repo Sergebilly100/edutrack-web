@@ -19,6 +19,7 @@ import { useToast } from "@/shared/hooks/use-toast"
 import { fetchFinancialSummary, recalculateFinancialCache } from "./finance.api"
 import { Spinner } from "@/shared/components/Spinner"
 import { RefreshCw } from "lucide-react"
+import { AgreementsRegister } from "./components/AgreementsRegister"
 
 const VIEW_COPY: Record<FinanceView, { title: string; subtitle: string }> = {
   dashboard: {
@@ -37,6 +38,7 @@ const VIEW_COPY: Record<FinanceView, { title: string; subtitle: string }> = {
     title: "Historique & reçus",
     subtitle: "Retrouvez les paiements enregistrés et leurs reçus.",
   },
+  agreements: { title: "Accords & ajustements", subtitle: "Suivez les dérogations individuelles sans modifier les montants financiers de référence." },
 }
 
 export default function FinancePage({ view, studentId, initialSchoolYearId }: { view: FinanceView; studentId?: string; initialSchoolYearId?: string }) {
@@ -122,6 +124,7 @@ export default function FinancePage({ view, studentId, initialSchoolYearId }: { 
       ) : null}
       {schoolYearId && selectedYear && view === "journal" ? <CashJournalPanel schoolYearId={schoolYearId} /> : null}
       {schoolYearId && selectedYear && view === "history" ? <PaymentHistoryPanel schoolYearId={schoolYearId} schoolYearLabel={selectedYear.label} canCancel={hasPermission("payments.cancel")} studentId={studentId} /> : null}
+      {schoolYearId && selectedYear && view === "agreements" ? <AgreementsRegister schoolYearId={schoolYearId} /> : null}
     </PageLayout>
   )
 }

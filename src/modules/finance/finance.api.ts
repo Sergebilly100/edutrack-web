@@ -493,6 +493,12 @@ export async function withdrawTuitionOverride(payload: { studentId: string; scho
   await apiClient.post(`/tuition/overrides/${payload.studentId}/withdraw`, { schoolYearId: payload.schoolYearId, reason: payload.reason, scheduleResolution: payload.scheduleResolution })
 }
 
+export type AgreementRegisterEntry = { id: string; kind: "override" | "schedule"; status: string; student_id: string; student_name: string; matricule: string | null; class_name: string; level_name: string; discount_amount: number; override_total_amount: number; plan_total_amount: number; total_paid: number; remaining_due: number; financial_status: string | null; created_at: string; withdrawn_at: string | null }
+export async function listAgreementsRegister(input: { schoolYearId: string; kind: "overrides" | "schedules"; search?: string; status?: "active" | "withdrawn" | "all"; page?: number }) {
+  const response = await apiClient.get("/finance/agreements", { params: { school_year_id: input.schoolYearId, kind: input.kind, search: input.search || undefined, status: input.status ?? "all", page: input.page ?? 1, limit: 20 } })
+  return { entries: (Array.isArray(response.data.entries) ? response.data.entries : []) as AgreementRegisterEntry[] }
+}
+
 const parseTuitionScheduleSteps = (input: unknown): TuitionScheduleStep[] =>
   Array.isArray(input) ? input.map((step) => {
     const row = isRecord(step) ? step : {}

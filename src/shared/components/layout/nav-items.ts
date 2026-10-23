@@ -205,6 +205,16 @@ export const NAV_ITEMS: NavItem[] = [
     mobileVisible: false,
   },
   {
+    label: "Accords & ajustements",
+    href: FINANCE_PATHS.agreements,
+    icon: ClipboardList,
+    group: "Finance",
+    section: "Scolarité",
+    roles: ["director", "staff"],
+    requiredAnyPermissions: ["tuition.view", "tuition.grant_discount", "tuition.manage_student_schedule"],
+    mobileVisible: false,
+  },
+  {
     label: "Abonnements parents",
     href: "/subscriptions",
     icon: UsersRound,

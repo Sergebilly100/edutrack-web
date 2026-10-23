@@ -704,6 +704,7 @@ export default function App() {
           <Route path={FINANCE_PATHS.history} element={<PermissionRoute href={FINANCE_PATHS.history} requiredAnyPermissions={["payments.view"]} element={<FinancePage view="history" />} />} />
           <Route path="/finance/history/:studentId" element={<PermissionRoute href={FINANCE_PATHS.history} requiredAnyPermissions={["payments.view"]} element={<FinanceHistoryDetailRoute />} />} />
           <Route path={FINANCE_PATHS.journal} element={<PermissionRoute href={FINANCE_PATHS.journal} requiredAnyPermissions={["payments.view"]} element={<FinancePage view="journal" />} />} />
+          <Route path={FINANCE_PATHS.agreements} element={<PermissionRoute href={FINANCE_PATHS.agreements} requiredAnyPermissions={["tuition.view", "tuition.grant_discount", "tuition.manage_student_schedule"]} element={<FinancePage view="agreements" />} />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/admin/schools" element={<AdminPage />} />
           <Route path="/admin/schools/:tenantId" element={<AdminSchoolDetailPage />} />
