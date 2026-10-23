@@ -232,6 +232,65 @@ export type ParentReportCardsResponse = {
   inRevision: boolean
 }
 
+export type ParentGradeEvaluation = {
+  id: string
+  label: string
+  date: string | null
+  type: "scheduled" | "spontaneous"
+  coefficient: number
+  score: number
+  maxScore: number
+}
+
+export type ParentGradeSubject = {
+  id: string
+  name: string
+  average: number | null
+  evaluations: ParentGradeEvaluation[]
+}
+
+export type ParentGradesResponse = {
+  schoolYear: { id: string; label: string }
+  periods: Array<{ id: string; label: string }>
+  selectedGradingPeriodId: string | null
+  subjects: ParentGradeSubject[]
+  conductGrade: number | null
+  resultsInRevision: boolean
+}
+
+const ParentGradesResponseSchema = z.object({
+  schoolYear: z.object({ id: z.string().uuid(), label: z.string() }),
+  periods: z.array(z.object({ id: z.string().uuid(), label: z.string() })),
+  selectedGradingPeriodId: z.string().uuid().nullable(),
+  subjects: z.array(z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    average: z.number().nullable(),
+    evaluations: z.array(z.object({
+      id: z.string().uuid(),
+      label: z.string(),
+      date: z.string().nullable(),
+      type: z.enum(["scheduled", "spontaneous"]),
+      coefficient: z.number(),
+      score: z.number(),
+      maxScore: z.number(),
+    })),
+  })),
+  conductGrade: z.number().nullable(),
+  resultsInRevision: z.boolean(),
+})
+
+export const getParentGrades = async (
+  studentId: string,
+  gradingPeriodId?: string,
+): Promise<ParentGradesResponse> => {
+  const response = await apiClient.get<unknown>(
+    `/parent/students/${studentId}/grades`,
+    { params: gradingPeriodId ? { gradingPeriodId } : undefined },
+  )
+  return ParentGradesResponseSchema.parse(response.data)
+}
+
 export const listParentReportCards = async (studentId: string, schoolYearId?: string): Promise<ParentReportCardsResponse> => {
   const response = await apiClient.get<ParentReportCardsResponse>(
     `/parent/students/${studentId}/report-cards`,

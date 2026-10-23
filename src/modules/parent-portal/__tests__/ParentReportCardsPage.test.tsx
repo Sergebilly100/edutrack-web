@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { MemoryRouter } from "react-router-dom"
 import { afterEach, expect, it, vi } from "vitest"
 
 const api = vi.hoisted(() => ({ students: vi.fn(), cards: vi.fn() }))
@@ -25,6 +26,11 @@ const card = (id: string, yearId: string, average: number) => ({
   generalAverage: average, rank: 1, classHeadcount: 2, publishedAt: "2026-10-01",
 })
 const client = () => new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 30000 } } })
+const renderReportCardsPage = (queryClient: QueryClient, entry = "/parent/report-cards") => render(
+  <MemoryRouter initialEntries={[entry]}>
+    <QueryClientProvider client={queryClient}><ParentReportCardsPage /></QueryClientProvider>
+  </MemoryRouter>,
+)
 const choose = async (name: string, option: string) => {
   fireEvent.click(await screen.findByRole("combobox", { name }))
   fireEvent.click(screen.getByRole("option", { name: option }))
@@ -46,7 +52,7 @@ it("reconsulte les bulletins publiés à l'ouverture même si le cache récent �
   queryClient.setQueryData(["parent", "report-cards", "aya", "years"], {
     reportCards: [], availableSchoolYears: [years[0]], inRevision: false,
   })
-  const view = render(<QueryClientProvider client={queryClient}><ParentReportCardsPage /></QueryClientProvider>)
+  const view = renderReportCardsPage(queryClient)
   try {
     expect(await screen.findByText("16.40/20")).toBeInTheDocument()
     expect(screen.getByText("Rang 1er / 2")).toHaveAttribute("aria-label", "Rang : 1er sur 2")
@@ -72,7 +78,7 @@ it("filtre par année, isole le cache et reprend l'année récente au changement
     }
   })
   const queryClient = client()
-  const view = render(<QueryClientProvider client={queryClient}><ParentReportCardsPage /></QueryClientProvider>)
+  const view = renderReportCardsPage(queryClient)
   try {
     await choose("Enfant", "Aya Recette · QA")
     expect(await screen.findByText("17.00/20")).toBeInTheDocument()
@@ -102,7 +108,7 @@ it("distingue année vide, révision et erreur de chargement", async () => {
     reportCards: [], availableSchoolYears: years, inRevision: yearId === "old",
   }))
   const queryClient = client()
-  const view = render(<QueryClientProvider client={queryClient}><ParentReportCardsPage /></QueryClientProvider>)
+  const view = renderReportCardsPage(queryClient)
   try {
     expect(await screen.findByText("Aucun bulletin publié")).toBeInTheDocument()
     await choose("Année scolaire", "2025-2026")
@@ -115,7 +121,7 @@ it("distingue année vide, révision et erreur de chargement", async () => {
 
   api.cards.mockRejectedValue(new Error("offline"))
   const errorClient = client()
-  const errorView = render(<QueryClientProvider client={errorClient}><ParentReportCardsPage /></QueryClientProvider>)
+  const errorView = renderReportCardsPage(errorClient)
   try {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Impossible de charger les bulletins"))
   } finally {
@@ -128,12 +134,31 @@ it("affiche l'état vide sans sélecteur quand aucun bulletin n'est publié", as
   api.students.mockResolvedValue([students[0]])
   api.cards.mockResolvedValue({ reportCards: [], availableSchoolYears: [], inRevision: false })
   const queryClient = client()
-  const view = render(<QueryClientProvider client={queryClient}><ParentReportCardsPage /></QueryClientProvider>)
+  const view = renderReportCardsPage(queryClient)
   try {
     expect(await screen.findByText("Aucun bulletin publié")).toBeInTheDocument()
     expect(screen.queryByRole("combobox", { name: "Année scolaire" })).not.toBeInTheDocument()
     expect(api.cards).toHaveBeenCalledWith("aya")
     expect(api.cards).toHaveBeenCalledTimes(1)
+  } finally {
+    view.unmount()
+    queryClient.clear()
+  }
+})
+
+it("sélectionne l’enfant indiqué par le lien depuis Notes", async () => {
+  api.students.mockResolvedValue(students)
+  api.cards.mockImplementation(async (studentId: string, yearId?: string) => ({
+    reportCards: yearId ? [card(`${studentId}-card`, yearId, studentId === "yao" ? 12 : 17)] : [],
+    availableSchoolYears: [years[0]],
+    inRevision: false,
+  }))
+  const queryClient = client()
+  const view = renderReportCardsPage(queryClient, "/parent/report-cards?student=yao")
+  try {
+    expect(await screen.findByText("12.00/20")).toBeInTheDocument()
+    expect(api.cards).toHaveBeenCalledWith("yao", "recent")
+    expect(screen.getByRole("combobox", { name: "Enfant" })).toHaveTextContent("Yao Recette · QB")
   } finally {
     view.unmount()
     queryClient.clear()

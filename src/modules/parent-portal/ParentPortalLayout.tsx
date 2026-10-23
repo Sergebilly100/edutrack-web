@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
-import { Bell, CalendarDays, CalendarX2, Info, GraduationCap, Home, LogOut, Moon, ReceiptText, Sun, UserCircle2 } from "lucide-react"
+import { Bell, CalendarDays, CalendarX2, Info, GraduationCap, Home, LogOut, Moon, Sun, UserCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { logout as logoutRequest } from "@/modules/auth/auth.api"
@@ -16,7 +16,7 @@ const tabs = [
   { href: "/parent/dashboard", label: "Accueil", icon: Home, dataTour: "",},
   { href: "/parent/absences", label: "Absences", icon: CalendarX2, dataTour: "parent-absences-tab", },
   { href: "/parent/schedule", label: "EDT", icon: CalendarDays, dataTour: "parent-schedule-tab", },
-  { href: "/parent/payments", label: "Paiements", icon: ReceiptText, dataTour: "parent-payments-tab", },
+  { href: "/parent/grades", label: "Notes", icon: GraduationCap, dataTour: "parent-grades-tab", },
   { href: "/parent/account", label: "Compte", icon: UserCircle2, dataTour: "parent-account-tab", },
 ]
 
@@ -149,7 +149,7 @@ export default function ParentPortalLayout() {
                   to={tab.href}
                   className={({ isActive }) =>
                     cn(
-                      "flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      "flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
                     )
                   }

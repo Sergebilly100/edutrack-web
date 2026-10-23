@@ -34,4 +34,9 @@ it("affiche le rang du dernier bulletin dans le résumé parent", async () => {
 
   const summary = await screen.findByText("Moyenne 16.00/20 · rang 2ème / 30")
   expect(summary).toHaveAttribute("aria-label", "Moyenne 16.00 sur 20, rang 2ème sur 30")
+  expect(screen.getByRole("link", { name: /Frais et paiements/ })).toHaveAttribute(
+    "href",
+    "/parent/payments?student=student-1",
+  )
+  expect(screen.getByRole("link", { name: /Bulletins scolaires/ })).toHaveAttribute("href", "/parent/report-cards")
 })

@@ -13,6 +13,7 @@ import {
   Info,
   MinusCircle,
   PieChart,
+  ReceiptText,
   XCircle,
   CircleX
 } from "lucide-react"
@@ -162,6 +163,9 @@ export default function ParentDashboardPage() {
     () => (studentsQuery.data ?? []).find((item) => item.id === selectedStudentId) ?? null,
     [selectedStudentId, studentsQuery.data]
   )
+  const paymentsHref = selectedStudentId
+    ? `/parent/payments?student=${encodeURIComponent(selectedStudentId)}`
+    : "/parent/payments"
 
   const today = todayInBusinessTimezone()
   const todaySlots = useMemo(() => {
@@ -380,7 +384,7 @@ export default function ParentDashboardPage() {
           ) : null}
 
           {overviewQuery.data?.financial ? (
-            <Link to="/parent/payments" >
+            <Link to={paymentsHref}>
               <div
                 className={cn(
                   "rounded-xl border bg-card p-4 shadow-card",
@@ -538,6 +542,19 @@ export default function ParentDashboardPage() {
 
       <section className="overflow-hidden rounded-xl border bg-card shadow-card" data-tour="parent-nav-links">
         <Link
+          to="/parent/report-cards"
+          className="flex items-center gap-3 border-b p-3.5 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-4"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+            <GraduationCap className="h-[1.125rem] w-[1.125rem]" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold">Bulletins scolaires</p>
+            <p className="truncate text-xs text-muted-foreground sm:text-sm">Consulter les bulletins officiels publiés</p>
+          </div>
+          <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+        </Link>
+        <Link
           to="/parent/absences"
           className="flex items-center gap-3 border-b p-3.5 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-4"
         >
@@ -554,7 +571,7 @@ export default function ParentDashboardPage() {
         </Link>
         <Link
           to="/parent/schedule"
-          className="flex items-center gap-3 p-3.5 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-4"
+          className="flex items-center gap-3 border-b p-3.5 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-4"
         >
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
             <CalendarClock className="h-[1.125rem] w-[1.125rem]" />
@@ -562,6 +579,19 @@ export default function ParentDashboardPage() {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">Emploi du temps (EDT)</p>
             <p className="truncate text-xs text-muted-foreground sm:text-sm">Voir l'emploi du temps complet</p>
+          </div>
+          <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+        </Link>
+        <Link
+          to={paymentsHref}
+          className="flex min-h-12 items-center gap-3 p-3.5 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-4"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+            <ReceiptText className="h-[1.125rem] w-[1.125rem]" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold">Frais et paiements</p>
+            <p className="truncate text-xs text-muted-foreground sm:text-sm">Consulter les frais et les versements de l’établissement</p>
           </div>
           <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
         </Link>

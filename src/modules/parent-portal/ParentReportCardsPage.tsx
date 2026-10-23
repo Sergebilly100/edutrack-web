@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { FileDown, GraduationCap, Loader2 } from "lucide-react"
+import { useSearchParams } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -24,7 +25,9 @@ import { formatStudentRank, formatStudentRankWithHeadcount } from "@/shared/lib/
 
 export default function ParentReportCardsPage() {
   const { toast } = useToast()
-  const [studentId, setStudentId] = useState("")
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedStudentId = searchParams.get("student")
+  const [studentId, setStudentId] = useState(requestedStudentId ?? "")
   const [selectedSchoolYearId, setSelectedSchoolYearId] = useState<string | null>(null)
 
   const studentsQuery = useQuery({
@@ -74,13 +77,25 @@ export default function ParentReportCardsPage() {
       }),
   })
 
-  // Un seul enfant : sélection automatique.
   const students = studentsQuery.data ?? []
   useEffect(() => {
+    if (studentsQuery.isPending) return
+
+    if (requestedStudentId && students.some((student) => student.id === requestedStudentId)) {
+      if (studentId !== requestedStudentId) setStudentId(requestedStudentId)
+      return
+    }
+
+    if (studentId && !students.some((student) => student.id === studentId)) {
+      setStudentId("")
+      setSelectedSchoolYearId(null)
+      return
+    }
+
     if (!studentId && students.length === 1) {
       setStudentId(students[0]!.id)
     }
-  }, [studentId, students])
+  }, [requestedStudentId, studentId, students, studentsQuery.isPending])
 
   return (
     <>
@@ -108,6 +123,12 @@ export default function ParentReportCardsPage() {
             <Select value={studentId || "none"} onValueChange={(value) => {
               setStudentId(value === "none" ? "" : value)
               setSelectedSchoolYearId(null)
+              setSearchParams((current) => {
+                const next = new URLSearchParams(current)
+                if (value === "none") next.delete("student")
+                else next.set("student", value)
+                return next
+              })
             }}>
               <SelectTrigger id="parent-report-student" className="min-h-12"><SelectValue placeholder="Choisir un enfant" /></SelectTrigger>
               <SelectContent>

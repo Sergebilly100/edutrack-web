@@ -43,6 +43,7 @@ const ParentLoginPage = lazy(() => import("@/modules/parent-portal/ParentLoginPa
 const ParentPortalLayout = lazy(() => import("@/modules/parent-portal/ParentPortalLayout"))
 const ParentFirstLoginPasswordPage = lazy(() => import("@/modules/parent-portal/ParentFirstLoginPasswordPage"))
 const ParentDashboardPage = lazy(() => import("@/modules/parent-portal/ParentDashboardPage"))
+const ParentGradesPage = lazy(() => import("@/modules/parent-portal/ParentGradesPage"))
 const ParentReportCardsPage = lazy(() => import("@/modules/parent-portal/ParentReportCardsPage"))
 const ParentSchedulePage = lazy(() => import("@/modules/parent-portal/ParentSchedulePage"))
 const ParentAbsenceHistoryPage = lazy(() => import("@/modules/parent-portal/ParentAbsenceHistoryPage"))
@@ -737,6 +738,7 @@ export default function App() {
         <Route path="/parent" element={<ParentPortalLayout />}>
           <Route path="first-login-password" element={<ParentFirstLoginPasswordPage />} />
           <Route path="dashboard" element={<ParentDashboardPage />} />
+          <Route path="grades" element={<ParentGradesPage />} />
           <Route path="absences" element={<ParentAbsenceHistoryPage />} />
           <Route path="schedule" element={<ParentSchedulePage />} />
           <Route path="payments" element={<ParentPaymentsPage />} />
