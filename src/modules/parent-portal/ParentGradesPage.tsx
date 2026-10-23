@@ -214,7 +214,7 @@ export default function ParentGradesPage() {
           ) : null}
           {periods.length > 1 && gradesQuery.data?.schoolYear.label ? (
             <p className="text-sm text-muted-foreground">
-              Année scolaire active : {gradesQuery.data.schoolYear.label}
+              Année scolaire : {gradesQuery.data.schoolYear.label}
             </p>
           ) : null}
 

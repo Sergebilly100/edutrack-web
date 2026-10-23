@@ -137,7 +137,7 @@ export default function ParentSchedulePage() {
           </div>
         ) : selectedStudent ? (
           <div className="flex items-center gap-3 rounded-xl border bg-card p-2 shadow-card">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+            <div className="flex h-10 w-12 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
               {selectedStudent.last_name[0]} {selectedStudent.first_name[0]}
             </div>
             <div className="min-w-0 flex-1">
