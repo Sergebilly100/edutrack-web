@@ -187,6 +187,7 @@ export function FinancialDashboard({ schoolYearId }: { schoolYearId: string }) {
         collections={summaryQuery.data?.collections ?? []}
         paymentMethods={summaryQuery.data?.paymentMethods ?? []}
       />
+      <AgreementMetrics metrics={summaryQuery.data?.agreementMetrics ?? null} />
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)]">
         <LevelRecovery levels={levels} classes={summaryQuery.data?.classes ?? []} />
         <InstallmentAging buckets={summaryQuery.data?.aging ?? null} />
@@ -194,6 +195,11 @@ export function FinancialDashboard({ schoolYearId }: { schoolYearId: string }) {
       <RecentPayments rows={summaryQuery.data?.recentPayments ?? []} schoolYearId={schoolYearId} />
     </div>
   )
+}
+
+function AgreementMetrics({ metrics }: { metrics: { activeOverrides: number; activeDiscounts: number; activeSchedules: number; lateSchedules: number; lateScheduleRemaining: number } | null }) {
+  if (!metrics) return null
+  return <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Suivi des accords individuels"><Link to={`${FINANCE_PATHS.agreements}?kind=overrides&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Ajustements actifs</p><p className="mt-1 text-2xl font-semibold tabular-nums">{metrics.activeOverrides}</p><p className="mt-1 text-xs text-muted-foreground">Remises : {formatFcfa(metrics.activeDiscounts)}</p></Link><Link to={`${FINANCE_PATHS.agreements}?kind=schedules&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Échéanciers actifs</p><p className="mt-1 text-2xl font-semibold tabular-nums">{metrics.activeSchedules}</p><p className="mt-1 text-xs text-muted-foreground">Calendriers suivis à date</p></Link><Link to={`${FINANCE_PATHS.agreements}?kind=schedules&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Échéanciers en retard</p><p className="mt-1 text-2xl font-semibold tabular-nums">{metrics.lateSchedules}</p><p className="mt-1 text-xs text-muted-foreground">Selon le moteur financier</p></Link><Link to={`${FINANCE_PATHS.agreements}?kind=schedules&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Solde des échéanciers en retard</p><p className="mt-1 text-2xl font-semibold tabular-nums">{formatFcfa(metrics.lateScheduleRemaining)}</p><p className="mt-1 text-xs text-muted-foreground">Montant restant à recouvrer</p></Link></section>
 }
 
 function AmountLine({
@@ -435,8 +441,8 @@ function UpcomingInstallments({
 
 function InstallmentAging({ buckets }: { buckets: FinancialAgingBucket[] | null }) {
   const labels: Record<FinancialAgingBucket["bucket"], string> = {
-    "0-30": "0 - 30 jours",
-    "31-60": "31 - 60 jours",
+    "0-30": "0–30 jours",
+    "31-60": "31–60 jours",
     ">60": "Plus de 60 jours",
   }
   const colors: Record<FinancialAgingBucket["bucket"], string> = {
@@ -639,7 +645,7 @@ function LevelRecovery({
                   </span>
                   <span className="flex items-center justify-between gap-3 sm:justify-end">
                     <Badge variant="outline" className={tone.badge}>
-                      {formatFcfaBalance(balance)} impayés
+                      {formatFcfaBalance(balance)} impayés à date
                     </Badge>
                     {isOpen
                       ? <ChevronDown className="h-5 w-5 text-muted-foreground" />
@@ -681,7 +687,7 @@ function LevelClasses({ classes }: { classes: ClassFinancialSummaryRow[] }) {
             >
               <span className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
                 <span className="min-w-0 truncate font-medium">{item.class_name}</span>
-                <span className="text-xs font-medium">{rate} %</span>
+                <span className="text-xs font-medium">{rate} % à date</span>
                 <span className={`text-xs font-medium tabular-nums ${tone.text}`}>
                   · {formatFcfaBalance(balance)} impayés
                 </span>

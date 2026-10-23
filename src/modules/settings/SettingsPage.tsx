@@ -341,7 +341,7 @@ export default function SettingsPage() {
                 </Select>
               </div>
               {schoolYearsQuery.isError ? <ContextualHelp title="Années scolaires indisponibles" tone="warning">Impossible de charger l&apos;année nécessaire à la configuration des frais.</ContextualHelp> : null}
-              {financeSchoolYearId ? <TuitionConfiguration key={`${financeSchoolYearId}:${recovery?.enrollmentId ?? "normal"}`} schoolYearId={financeSchoolYearId} canEdit={canEditTuition} canGrantDiscount={user?.role === "director" || hasPermission("tuition.grant_discount")} canManageStudentSchedule={canManageStudentSchedule} recovery={recovery} onPlanSaved={resumePayment} /> : null}
+              {financeSchoolYearId ? <TuitionConfiguration key={`${financeSchoolYearId}:${recovery?.enrollmentId ?? "normal"}`} schoolYearId={financeSchoolYearId} canEdit={canEditTuition} canGrantDiscount={false} canManageStudentSchedule={false} recovery={recovery} onPlanSaved={resumePayment} /> : null}
             </section>
           ) : null}
 

@@ -149,6 +149,8 @@ export type NegotiatedTuitionScheduleAgreement = {
 export type StudentTuitionSchedule = {
   agreement: NegotiatedTuitionScheduleAgreement | null
   totalTuitionAmount: number
+  confirmedPaid: number
+  remainingToPlan: number
   currency: string
 }
 
@@ -483,6 +485,16 @@ export async function grantTuitionOverride(payload: {
   await apiClient.post("/tuition/overrides", payload)
 }
 
+export async function replaceTuitionOverride(payload: {
+  studentId: string
+  schoolYearId: string
+  overrideTotalAmount?: number
+  discountAmount?: number
+  reason: string
+}): Promise<void> {
+  await apiClient.put(`/tuition/overrides/${payload.studentId}`, payload)
+}
+
 export type TuitionOverrideWithdrawalPreview = { adjustment: { overrideId: string; type: "discount" | "custom_total"; discountAmount: number | null; overrideTotalAmount: number | null }; currency: string; currentTotalAmount: number; restoredTotalAmount: number; confirmedPaid: number; remainingBefore: number; remainingAfter: number; standingBefore: string; standingAfter: string; potentialOverpayment: boolean; schedule: { present: boolean; compatible: boolean } }
 export async function getTuitionOverrideWithdrawalPreview(studentId: string, schoolYearId: string): Promise<TuitionOverrideWithdrawalPreview> {
   const response = await apiClient.get(`/tuition/overrides/${studentId}/withdrawal-preview`, { params: { school_year_id: schoolYearId } })
@@ -493,10 +505,27 @@ export async function withdrawTuitionOverride(payload: { studentId: string; scho
   await apiClient.post(`/tuition/overrides/${payload.studentId}/withdraw`, { schoolYearId: payload.schoolYearId, reason: payload.reason, scheduleResolution: payload.scheduleResolution })
 }
 
-export type AgreementRegisterEntry = { id: string; kind: "override" | "schedule"; status: string; student_id: string; student_name: string; matricule: string | null; class_name: string; level_name: string; discount_amount: number; override_total_amount: number; plan_total_amount: number; total_paid: number; remaining_due: number; financial_status: string | null; created_at: string; withdrawn_at: string | null }
-export async function listAgreementsRegister(input: { schoolYearId: string; kind: "overrides" | "schedules"; search?: string; status?: "active" | "withdrawn" | "all"; page?: number }) {
-  const response = await apiClient.get("/finance/agreements", { params: { school_year_id: input.schoolYearId, kind: input.kind, search: input.search || undefined, status: input.status ?? "all", page: input.page ?? 1, limit: 20 } })
-  return { entries: (Array.isArray(response.data.entries) ? response.data.entries : []) as AgreementRegisterEntry[] }
+export type AgreementStatus = "active" | "withdrawn" | "replaced" | "reset"
+export type AgreementRegisterEntry = { id: string; kind: "override" | "schedule"; status: AgreementStatus; student_id: string; school_year_id: string; student_name: string; matricule: string | null; class_name: string; level_name: string; discount_amount: number; override_total_amount: number; active_discount_amount: number; plan_total_amount: number; total_paid: number; remaining_due: number; financial_status: "late" | "up_to_date" | null; created_at: string; created_by_name: string | null; withdrawn_at: string | null; step_count: number; schedule_total_amount: number; next_due_date: string | null }
+export type AgreementRegisterFilter = { schoolYearId: string; kind: "overrides" | "schedules"; search?: string; studentId?: string; classId?: string; levelId?: string; from?: string; to?: string; status?: AgreementStatus | "all"; page?: number; limit?: number }
+export type AgreementAuditEvent = { id: string; action: string; actor_role: string; actor_name: string | null; created_at: string; payload_before: Record<string, unknown> | null; payload_after: Record<string, unknown> }
+export type AgreementDetail = { agreement: AgreementRegisterEntry & { reason: string; withdrawal_reason: string | null; schedule_steps?: TuitionScheduleStep[] }; events: AgreementAuditEvent[] }
+
+const parseAgreementEntry = (value: unknown): AgreementRegisterEntry => {
+  const row = record(value)
+  const status = row.status === "withdrawn" || row.status === "replaced" || row.status === "reset" ? row.status : "active"
+  return { id: asString(row.id), kind: row.kind === "schedule" ? "schedule" : "override", status, student_id: asString(row.student_id), school_year_id: asString(row.school_year_id), student_name: asString(row.student_name), matricule: asNullableString(row.matricule), class_name: asString(row.class_name), level_name: asString(row.level_name), discount_amount: asNumber(row.discount_amount), override_total_amount: asNumber(row.override_total_amount), active_discount_amount: asNumber(row.active_discount_amount), plan_total_amount: asNumber(row.plan_total_amount), total_paid: asNumber(row.total_paid), remaining_due: asNumber(row.remaining_due), financial_status: row.financial_status === "late" ? "late" : row.financial_status === "up_to_date" ? "up_to_date" : null, created_at: asString(row.created_at), created_by_name: asNullableString(row.created_by_name), withdrawn_at: asNullableString(row.withdrawn_at), step_count: asNumber(row.step_count), schedule_total_amount: asNumber(row.schedule_total_amount), next_due_date: asNullableString(row.next_due_date) }
+}
+
+export async function listAgreementsRegister(input: AgreementRegisterFilter): Promise<{ entries: AgreementRegisterEntry[]; pagination: CashJournalPagination }> {
+  const response = await apiClient.get("/finance/agreements", { params: { school_year_id: input.schoolYearId, kind: input.kind, search: input.search || undefined, student_id: input.studentId, class_id: input.classId, level_id: input.levelId, from: input.from, to: input.to, status: input.status ?? "all", page: input.page ?? 1, limit: input.limit ?? 20 } })
+  const payload = record(response.data); const pagination = record(payload.pagination)
+  return { entries: (Array.isArray(payload.entries) ? payload.entries : []).map(parseAgreementEntry), pagination: { page: asNumber(pagination.page, 1), limit: asNumber(pagination.limit, input.limit ?? 20), total: asNumber(pagination.total), totalPages: asNumber(pagination.totalPages, 1) } }
+}
+
+export async function getAgreementDetail(kind: "overrides" | "schedules", agreementId: string): Promise<AgreementDetail> {
+  const response = await apiClient.get(`/finance/agreements/${kind}/${agreementId}`); const payload = record(response.data); const agreement = record(payload.agreement)
+  return { agreement: { ...parseAgreementEntry(agreement), reason: asString(agreement.reason), withdrawal_reason: asNullableString(agreement.withdrawal_reason), schedule_steps: parseTuitionScheduleSteps(agreement.schedule_steps) }, events: (Array.isArray(payload.events) ? payload.events : []).map((event) => { const row = record(event); return { id: asString(row.id), action: asString(row.action), actor_role: asString(row.actor_role), actor_name: asNullableString(row.actor_name), created_at: asString(row.created_at), payload_before: isRecord(row.payload_before) ? row.payload_before : null, payload_after: record(row.payload_after) } }) }
 }
 
 const parseTuitionScheduleSteps = (input: unknown): TuitionScheduleStep[] =>
@@ -525,6 +554,8 @@ const parseStudentTuitionSchedule = (input: unknown): StudentTuitionSchedule => 
       scheduleSteps: parseTuitionScheduleSteps(agreement.scheduleSteps ?? agreement.schedule_steps),
     } : null,
     totalTuitionAmount: asNumber(row.totalTuitionAmount ?? row.total_tuition_amount),
+    confirmedPaid: asNumber(row.confirmedPaid ?? row.confirmed_paid),
+    remainingToPlan: asNumber(row.remainingToPlan ?? row.remaining_to_plan),
     currency: asString(row.currency, "FCFA"),
   }
 }
@@ -749,6 +780,7 @@ export type FinancialRecentPayment = {
   amount: string;
   receipt_number: string | null;
 };
+export type AgreementMetrics = { activeOverrides: number; activeDiscounts: number; activeSchedules: number; lateSchedules: number; lateScheduleRemaining: number } | null;
 
 export const fetchFinancialSummary = async (schoolYearId?: string): Promise<{
   school: SchoolFinancialSummary;
@@ -760,6 +792,7 @@ export const fetchFinancialSummary = async (schoolYearId?: string): Promise<{
   installmentScheduleComplete: boolean;
   aging: FinancialAgingBucket[] | null;
   recentPayments: FinancialRecentPayment[];
+  agreementMetrics: AgreementMetrics;
 }> => {
   const response = await apiClient.get("/finance/financial-summary", {
     params: schoolYearId ? { school_year_id: schoolYearId } : undefined,
@@ -775,6 +808,7 @@ export const fetchFinancialSummary = async (schoolYearId?: string): Promise<{
     installmentScheduleComplete: payload.installmentScheduleComplete === true,
     aging: Array.isArray(payload.aging) ? payload.aging : null,
     recentPayments: Array.isArray(payload.recentPayments) ? payload.recentPayments : [],
+    agreementMetrics: payload.agreementMetrics ?? null,
   };
 };
 
