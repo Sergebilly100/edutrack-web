@@ -17,7 +17,7 @@ import { formatFcfa } from "@/shared/utils/formatting"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { addDaysIso } from "@/shared/lib/business-date"
 import { isCivilDate } from "@/shared/lib/date-validation"
-import { getStudentTuitionSchedule, grantTuitionOverride, listTuitionPlans, resetStudentTuitionSchedule, saveStudentTuitionSchedule, upsertTuitionPlan, type TuitionPlan, type TuitionScheduleStep } from "../finance.api"
+import { getStudentTuitionSchedule, getTuitionOverrideWithdrawalPreview, grantTuitionOverride, listTuitionPlans, resetStudentTuitionSchedule, saveStudentTuitionSchedule, upsertTuitionPlan, withdrawTuitionOverride, type TuitionPlan, type TuitionScheduleStep } from "../finance.api"
 import type { TuitionRecovery } from "../tuition-recovery"
 import { StudentSearch } from "./StudentSearch"
 
@@ -64,6 +64,9 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
   const [overrideType, setOverrideType] = useState<"discount" | "total">("discount")
   const [overrideAmount, setOverrideAmount] = useState("")
   const [overrideReason, setOverrideReason] = useState("")
+  const [withdrawReason, setWithdrawReason] = useState("")
+  const [withdrawScheduleResolution, setWithdrawScheduleResolution] = useState<"keep" | "reset">("keep")
+  const [isWithdrawDialogOpen, setIsWithdrawDialogOpen] = useState(false)
   const [scheduleStudent, setScheduleStudent] = useState<StudentItem | null>(null)
   const [studentInstallments, setStudentInstallments] = useState<NegotiatedInstallment[]>([blankInstallment()])
   const [scheduleReason, setScheduleReason] = useState("")
@@ -94,6 +97,7 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
     queryFn: () => getStudentTuitionSchedule(scheduleStudent!.id, schoolYearId),
     enabled: Boolean(schoolYearId && scheduleStudent),
   })
+  const overridePreviewQuery = useQuery({ queryKey: ["finance", "tuition-override-withdrawal-preview", schoolYearId, student?.id], queryFn: () => getTuitionOverrideWithdrawalPreview(student!.id, schoolYearId), enabled: Boolean(schoolYearId && student && canGrantDiscount), retry: false })
 
   useEffect(() => {
     if (!levelId && levels[0]) setLevelId(levels[0].id)
@@ -154,6 +158,11 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
       toast({ title: overrideType === "discount" ? "Remise accordée" : "Montant personnalisé enregistré", description: "Le responsable de l’école a été notifié." })
     },
     onError: (error) => toast({ title: "Modification impossible", description: error instanceof Error ? error.message : "Vérifiez les informations saisies.", variant: "destructive" }),
+  })
+  const withdrawOverrideMutation = useMutation({
+    mutationFn: () => withdrawTuitionOverride({ studentId: student!.id, schoolYearId, reason: withdrawReason.trim(), scheduleResolution: withdrawScheduleResolution }),
+    onSuccess: async () => { setIsWithdrawDialogOpen(false); setWithdrawReason(""); await queryClient.invalidateQueries({ queryKey: ["finance"] }); toast({ title: "Ajustement retiré", description: "Le plan du niveau, les statuts et les indicateurs financiers ont été recalculés." }) },
+    onError: (error) => toast({ title: "Retrait impossible", description: error instanceof Error ? error.message : "Aucun paiement n’a été modifié.", variant: "destructive" }),
   })
 
   const studentScheduleMutation = useMutation({
@@ -282,12 +291,14 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">Une seule remise ou un seul montant personnalisé peut être accordé par élève et par année scolaire.</p>
             <div className="space-y-2"><Label>Élève</Label><StudentSearch schoolYearId={schoolYearId} value={student} onChange={setStudent} /></div>
-            <div className="grid gap-4 sm:grid-cols-2">
+            {student && overridePreviewQuery.isLoading ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Vérification de l’ajustement actif…</p> : null}
+            {student && overridePreviewQuery.data ? <div className="space-y-4 rounded-lg border bg-muted/20 p-4 text-sm"><p className="font-medium">Ajustement actif : {overridePreviewQuery.data.adjustment.type === "discount" ? `remise de ${formatFcfa(overridePreviewQuery.data.adjustment.discountAmount ?? 0)}` : `montant personnalisé de ${formatFcfa(overridePreviewQuery.data.adjustment.overrideTotalAmount ?? 0)}`}</p><div className="grid gap-3 sm:grid-cols-2"><p><span className="block text-xs text-muted-foreground">Montant actuel</span><span className="font-semibold tabular-nums">{formatFcfa(overridePreviewQuery.data.currentTotalAmount)}</span></p><p><span className="block text-xs text-muted-foreground">Montant après retrait</span><span className="font-semibold tabular-nums">{formatFcfa(overridePreviewQuery.data.restoredTotalAmount)}</span></p><p><span className="block text-xs text-muted-foreground">Déjà encaissé</span><span className="font-semibold tabular-nums">{formatFcfa(overridePreviewQuery.data.confirmedPaid)}</span></p><p><span className="block text-xs text-muted-foreground">Reste à payer après retrait</span><span className="font-semibold tabular-nums">{formatFcfa(overridePreviewQuery.data.remainingAfter)}</span></p></div>{overridePreviewQuery.data.potentialOverpayment ? <Alert variant="destructive"><AlertDescription>Le retrait est bloqué : il créerait un trop-perçu à traiter comptablement.</AlertDescription></Alert> : null}{overridePreviewQuery.data.schedule.present && !overridePreviewQuery.data.schedule.compatible ? <Alert><AlertDescription>L’échéancier négocié ne correspond plus au plan restauré. Choisissez son remplacement ou le retour au plan commun dans la confirmation.</AlertDescription></Alert> : null}<Button type="button" variant="destructive" className="min-h-12" disabled={overridePreviewQuery.data.potentialOverpayment} onClick={() => { setWithdrawScheduleResolution(overridePreviewQuery.data!.schedule.compatible ? "keep" : "reset"); setIsWithdrawDialogOpen(true) }}>Retirer l’ajustement</Button></div> : null}
+            {!student || !overridePreviewQuery.data ? <><div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2"><Label htmlFor="override-type">Type d’ajustement</Label><Select value={overrideType} onValueChange={(value) => setOverrideType(value as "discount" | "total")}><SelectTrigger id="override-type" className="min-h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="discount">Remise à déduire</SelectItem><SelectItem value="total">Montant total personnalisé</SelectItem></SelectContent></Select></div>
               <div className="space-y-2"><Label htmlFor="override-amount">Montant</Label><Input id="override-amount" className="min-h-12" inputMode="numeric" value={overrideAmount} onChange={(event) => setOverrideAmount(event.target.value.replace(/\D/g, ""))} placeholder="Montant en FCFA" /></div>
             </div>
             <div className="space-y-2"><Label htmlFor="override-reason">Motif obligatoire</Label><Textarea id="override-reason" value={overrideReason} maxLength={1000} onChange={(event) => setOverrideReason(event.target.value)} placeholder="Décision et contexte de l’ajustement" /></div>
-            <div className="flex justify-end"><Button type="button" className="min-h-12" disabled={!student || !overrideAmount || Number(overrideAmount) < 0 || !overrideReason.trim() || overrideMutation.isPending} onClick={() => overrideMutation.mutate()}>{overrideMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Accorder l’ajustement</Button></div>
+            <div className="flex justify-end"><Button type="button" className="min-h-12" disabled={!student || !overrideAmount || Number(overrideAmount) < 0 || !overrideReason.trim() || overrideMutation.isPending} onClick={() => overrideMutation.mutate()}>{overrideMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Accorder l’ajustement</Button></div></> : null}
           </CardContent>
         </Card>
       ) : null}
@@ -301,6 +312,8 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={isWithdrawDialogOpen} onOpenChange={setIsWithdrawDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Confirmer le retrait de l’ajustement ?</AlertDialogTitle><AlertDialogDescription>Cette action restaure le montant du plan de niveau. Aucun paiement confirmé ne sera modifié.</AlertDialogDescription></AlertDialogHeader><div className="space-y-3"><Label htmlFor="withdraw-reason">Motif obligatoire</Label><Textarea id="withdraw-reason" value={withdrawReason} onChange={(event) => setWithdrawReason(event.target.value)} maxLength={1000} placeholder="Expliquez la décision de retrait" />{overridePreviewQuery.data?.schedule.present && !overridePreviewQuery.data.schedule.compatible ? <div className="space-y-2"><Label>Échéancier négocié</Label><Select value={withdrawScheduleResolution} onValueChange={(value) => setWithdrawScheduleResolution(value as "keep" | "reset")}><SelectTrigger className="min-h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="reset">Revenir au plan du niveau</SelectItem></SelectContent></Select></div> : null}</div><AlertDialogFooter><AlertDialogCancel className="min-h-12">Annuler</AlertDialogCancel><AlertDialogAction className="min-h-12" disabled={!withdrawReason.trim() || withdrawOverrideMutation.isPending} onClick={(event) => { event.preventDefault(); withdrawOverrideMutation.mutate() }}>{withdrawOverrideMutation.isPending ? "Retrait en cours…" : "Confirmer le retrait"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
 
       <AlertDialog open={isResetScheduleDialogOpen} onOpenChange={setIsResetScheduleDialogOpen}>
         <AlertDialogContent>

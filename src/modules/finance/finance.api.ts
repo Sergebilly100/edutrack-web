@@ -483,6 +483,16 @@ export async function grantTuitionOverride(payload: {
   await apiClient.post("/tuition/overrides", payload)
 }
 
+export type TuitionOverrideWithdrawalPreview = { adjustment: { overrideId: string; type: "discount" | "custom_total"; discountAmount: number | null; overrideTotalAmount: number | null }; currency: string; currentTotalAmount: number; restoredTotalAmount: number; confirmedPaid: number; remainingBefore: number; remainingAfter: number; standingBefore: string; standingAfter: string; potentialOverpayment: boolean; schedule: { present: boolean; compatible: boolean } }
+export async function getTuitionOverrideWithdrawalPreview(studentId: string, schoolYearId: string): Promise<TuitionOverrideWithdrawalPreview> {
+  const response = await apiClient.get(`/tuition/overrides/${studentId}/withdrawal-preview`, { params: { school_year_id: schoolYearId } })
+  const data = record(response.data)
+  return { adjustment: record(data.adjustment) as TuitionOverrideWithdrawalPreview["adjustment"], currency: asString(data.currency, "FCFA"), currentTotalAmount: asNumber(data.currentTotalAmount), restoredTotalAmount: asNumber(data.restoredTotalAmount), confirmedPaid: asNumber(data.confirmedPaid), remainingBefore: asNumber(data.remainingBefore), remainingAfter: asNumber(data.remainingAfter), standingBefore: asString(data.standingBefore), standingAfter: asString(data.standingAfter), potentialOverpayment: asBoolean(data.potentialOverpayment), schedule: record(data.schedule) as TuitionOverrideWithdrawalPreview["schedule"] }
+}
+export async function withdrawTuitionOverride(payload: { studentId: string; schoolYearId: string; reason: string; scheduleResolution: "keep" | "reset" }): Promise<void> {
+  await apiClient.post(`/tuition/overrides/${payload.studentId}/withdraw`, { schoolYearId: payload.schoolYearId, reason: payload.reason, scheduleResolution: payload.scheduleResolution })
+}
+
 const parseTuitionScheduleSteps = (input: unknown): TuitionScheduleStep[] =>
   Array.isArray(input) ? input.map((step) => {
     const row = isRecord(step) ? step : {}
