@@ -251,7 +251,7 @@ export type ParentGradeSubject = {
 
 export type ParentGradesResponse = {
   schoolYear: { id: string; label: string }
-  periods: Array<{ id: string; label: string }>
+  periods: Array<{ id: string; label: string; isCurrent: boolean }>
   selectedGradingPeriodId: string | null
   subjects: ParentGradeSubject[]
   conductGrade: number | null
@@ -260,7 +260,11 @@ export type ParentGradesResponse = {
 
 const ParentGradesResponseSchema = z.object({
   schoolYear: z.object({ id: z.string().uuid(), label: z.string() }),
-  periods: z.array(z.object({ id: z.string().uuid(), label: z.string() })),
+  periods: z.array(z.object({
+    id: z.string().uuid(),
+    label: z.string(),
+    isCurrent: z.boolean(),
+  })),
   selectedGradingPeriodId: z.string().uuid().nullable(),
   subjects: z.array(z.object({
     id: z.string().uuid(),

@@ -17,6 +17,7 @@ beforeEach(() => {
       periods: [{
         id: "00000000-0000-4000-8000-000000000002",
         label: "Trimestre 1",
+        isCurrent: true,
       }],
       selectedGradingPeriodId: "00000000-0000-4000-8000-000000000002",
       conductGrade: 14.5,

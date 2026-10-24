@@ -46,7 +46,7 @@ export default function ParentGradesPage() {
     () => sessionStorage.getItem(SELECTED_STUDENT_STORAGE_KEY) ?? ""
   )
   const [selectedGradingPeriodId, setSelectedGradingPeriodId] = useState<string | null>(null)
-  const [periods, setPeriods] = useState<Array<{ id: string; label: string }>>([])
+  const [periods, setPeriods] = useState<Array<{ id: string; label: string; isCurrent: boolean }>>([])
   const [dismissedReportCardId, setDismissedReportCardId] = useState<string | null>(null)
   const [openSubjectId, setOpenSubjectId] = useState<string | null>(null)
 
@@ -200,7 +200,9 @@ export default function ParentGradesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {periods.map((period) => (
-                    <SelectItem key={period.id} value={period.id}>{period.label}</SelectItem>
+                    <SelectItem key={period.id} value={period.id}>
+                      {period.label}{period.isCurrent ? " · En cours" : ""}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -208,7 +210,7 @@ export default function ParentGradesPage() {
           ) : periods.length === 1 ? (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <CalendarDays className="h-4 w-4" aria-hidden="true" />
-              {periods[0]!.label}
+              {periods[0]!.label}{periods[0]!.isCurrent ? " · En cours" : ""}
               {gradesQuery.data?.schoolYear.label ? ` · ${gradesQuery.data.schoolYear.label}` : ""}
             </p>
           ) : null}
@@ -276,7 +278,7 @@ export default function ParentGradesPage() {
           ) : subjects.length === 0 && conductGrade === null ? (
             <EmptyState
               title="Aucun résultat disponible"
-              description="Les résultats apparaîtront ici après validation des moyennes par l’enseignant"
+              description="Les évaluations apparaissent ici après la saisie complète des notes. La moyenne de matière s’affiche après validation."
             />
           ) : (
             <section aria-label="Résultats validés" className="space-y-3">
@@ -324,12 +326,12 @@ export default function ParentGradesPage() {
                               {subject.name}
                             </span>
                             <span className="mt-1 block text-xs text-muted-foreground">
-                              {subject.evaluations.length} évaluation{subject.evaluations.length > 1 ? "s" : ""} · moyenne validée
+                              {subject.evaluations.length} évaluation{subject.evaluations.length > 1 ? "s" : ""} disponible{subject.evaluations.length > 1 ? "s" : ""} · {subject.average === null ? "moyenne à valider" : "moyenne validée"}
                             </span>
                           </span>
                           <span className="flex shrink-0 items-center gap-2">
                             {subject.average === null ? (
-                              <span className="text-right text-sm text-muted-foreground">Indisponible</span>
+                              <span className="text-right text-sm text-muted-foreground">À valider</span>
                             ) : (
                               <span className="text-right">
                                 <span className="block text-xl font-semibold tabular-nums">

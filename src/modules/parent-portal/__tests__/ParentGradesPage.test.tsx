@@ -17,8 +17,8 @@ const students = [
   { id: "aya", first_name: "Aya", last_name: "Koné", class_name: "6ème A" },
   { id: "yao", first_name: "Yao", last_name: "Koné", class_name: "5ème B" },
 ]
-const t1 = { id: "period-t1", label: "Trimestre 1" }
-const t2 = { id: "period-t2", label: "Trimestre 2" }
+const t1 = { id: "period-t1", label: "Trimestre 1", isCurrent: false }
+const t2 = { id: "period-t2", label: "Trimestre 2", isCurrent: true }
 
 const gradeResponse = (periodId: string, withSubject = true, inRevision = false) => ({
   schoolYear: { id: "year-active", label: "2026-2027" },
@@ -113,7 +113,9 @@ describe("ParentGradesPage", () => {
       expect(screen.getByText("Composition écrite avec un libellé volontairement long")).toBeInTheDocument()
       expect(screen.getByText("8,5 / 10")).toBeInTheDocument()
       expect(screen.getByText("-1 / 20")).toBeInTheDocument()
-      expect(screen.getByText("Coefficient 2")).toBeInTheDocument()
+      expect(screen.getByText((_, element) =>
+        element?.tagName === "P" && (element.textContent?.includes("Coefficient 2") ?? false)
+      )).toBeInTheDocument()
       expect(screen.queryByText("Appréciation privée")).not.toBeInTheDocument()
       expect(screen.queryByText("Commentaire réservé à l’équipe")).not.toBeInTheDocument()
       expect(screen.queryByText("Rang 2")).not.toBeInTheDocument()
@@ -216,7 +218,7 @@ describe("ParentGradesPage", () => {
       expect(await screen.findByText("16,25")).toBeInTheDocument()
       expect(api.grades).toHaveBeenCalledWith("yao", undefined)
       expect(queryClient.getQueryData(["parent", "grades", "aya", "period-t1"])).toBeDefined()
-      expect(screen.getByRole("combobox", { name: "Période" })).toHaveTextContent("Trimestre 2")
+      expect(screen.getByRole("combobox", { name: "Période" })).toHaveTextContent("Trimestre 2 · En cours")
     } finally {
       view.unmount()
       queryClient.clear()
@@ -249,7 +251,7 @@ describe("ParentGradesPage", () => {
     const emptyClient = createQueryClient()
     const emptyView = renderGradesPage(emptyClient)
     try {
-      expect(await screen.findByText("Les résultats apparaîtront ici après validation des moyennes par l’enseignant")).toBeInTheDocument()
+      expect(await screen.findByText("Les évaluations apparaissent ici après la saisie complète des notes. La moyenne de matière s’affiche après validation.")).toBeInTheDocument()
     } finally {
       emptyView.unmount()
       emptyClient.clear()

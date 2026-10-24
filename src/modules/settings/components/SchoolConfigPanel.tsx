@@ -660,13 +660,8 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
                     <Label htmlFor="school-address" className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                       Adresse
                     </Label>
-                    <Input id="school-address" value={addressDraft} maxLength={255} disabled={!canManageSchoolSettings || saveSchoolInfoMutation.isPending}
-                      onChange={(event) => setAddressDraft(event.target.value)} />
-                    {canManageSchoolSettings ? <Button type="button" className="min-h-12" variant="outline"
-                      disabled={saveSchoolInfoMutation.isPending || !school || addressDraft.trim().length < 3 || addressDraft.trim() === (school.address ?? "")}
-                      onClick={() => saveSchoolInfoMutation.mutate({ address: addressDraft.trim() })}>
-                      {saveSchoolInfoMutation.isPending ? "Enregistrement..." : "Enregistrer l’adresse"}
-                    </Button> : null}
+                    <Input id="school-address" value={addressDraft} maxLength={255}  readOnly />
+                    
                   </div>
                   <div className="space-y-2 sm:col-span-2">
                     <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
