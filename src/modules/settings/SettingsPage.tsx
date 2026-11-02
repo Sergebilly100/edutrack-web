@@ -1,7 +1,7 @@
-import { OnboardingReturn } from "@/modules/onboarding/OnboardingReturn"
+import { OnboardingReturn, useOnboardingContext } from "@/modules/onboarding/OnboardingReturn"
 import { useEffect, useRef, useState } from "react"
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom"
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -13,6 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormMessage } from "@/component
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
+import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { listSchoolYears } from "@/modules/academic/academic.api"
@@ -58,6 +59,8 @@ export default function SettingsPage() {
   const { toast } = useToast()
   const user = useAuthStore((state) => state.user)
   const { hasPermission } = usePermissions()
+  const onboardingContext = useOnboardingContext()
+  const simplifiedForOnboarding = Boolean(onboardingContext.target)
   const recovery = readTuitionRecovery(searchParams)
   const canEditTuition = hasPermission("tuition.edit")
   const canManageStudentSchedule = user?.role === "director" || hasPermission("tuition.manage_student_schedule")
@@ -68,7 +71,7 @@ export default function SettingsPage() {
   const canEditConductPolicy = user?.role === "director" || hasPermission("school_years.edit")
   const canViewConductSettings = canManagePositions || canEditConductPolicy
   const canManageSchoolSettings = user?.role === "director" || hasPermission("settings.school")
-  const tour = useTourGuide("settings", user?.role === "director")
+  const tour = useTourGuide("settings", user?.role === "director" && !simplifiedForOnboarding)
   const canEditSmsTemplate = hasPermission("settings.sms_templates")
   const canAccessSmsTemplate = user?.role === "director" || canEditSmsTemplate
   const smsTemplateAccessLabel = !canAccessSmsTemplate ? "Lecture restreinte"
@@ -145,6 +148,8 @@ export default function SettingsPage() {
     }
   }, [financeSchoolYearId, schoolYearsQuery.data])
 
+  const tariffValue = useWatch({ control: smsPriceForm.control, name: "smsUnitPriceFcfa" }) ?? 0
+
   const saveSmsPriceMutation = useMutation({
     mutationFn: (values: SmsPriceFormValues) => updateSchoolSmsUnitPrice(values.smsUnitPriceFcfa),
     onSuccess: async () => {
@@ -161,20 +166,6 @@ export default function SettingsPage() {
     },
   })
 
-  const schoolConfigState = schoolConfigQuery.isLoading
-    ? "Chargement"
-    : schoolConfigQuery.isError
-      ? "Erreur"
-      : canManagePositions
-        ? "Accessible"
-        : "Restreint"
-  const smsFeatureState = smsFeatureQuery.isLoading
-    ? "Chargement"
-    : smsFeatureQuery.isError
-      ? "Erreur"
-      : parentSmsMonetized
-        ? "Activé"
-        : "Non activé"
   const canManageGeneralSettings = canManageSchoolSettings
   const defaultTab = canManageGeneralSettings
     ? "general"
@@ -184,13 +175,15 @@ export default function SettingsPage() {
 
   return (
     <>
-      <TourGuide
-        steps={settingsTourSteps}
-        run={tour.run}
-        stepIndex={tour.stepIndex}
-        onStepChange={tour.setStepIndex}
-        onFinish={tour.markDone}
-      />
+      {!simplifiedForOnboarding ? (
+        <TourGuide
+          steps={settingsTourSteps}
+          run={tour.run}
+          stepIndex={tour.stepIndex}
+          onStepChange={tour.setStepIndex}
+          onFinish={tour.markDone}
+        />
+      ) : null}
     <div className="animate-fade-in space-y-6">
       <OfflineIndicator />
       <OnboardingReturn />
@@ -201,10 +194,10 @@ export default function SettingsPage() {
         <div className="space-y-0.5">
           <h1 className="text-2xl font-medium tracking-tight">Paramètres école</h1>
           <p className="text-sm text-muted-foreground">
-            Configuration de l&apos;école et gestion des postes administratifs.
+            Configuration de l&apos;école, du personnel, du suivi académique, des frais de scolarité et des communications.
           </p>
         </div>
-        {user?.role === "director" ? (
+        {user?.role === "director" && !simplifiedForOnboarding ? (
           <Button
             type="button"
             variant="outline"
@@ -219,48 +212,27 @@ export default function SettingsPage() {
         ) : null}
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-        <div className="flex flex-col gap-4 bg-muted/30 px-4 py-4 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-semibold">Centre de configuration</p>
-            <p className="text-xs text-muted-foreground">
-              {parentSmsMonetized
-                ? "Les accès, le service Alertes Parents et les templates sont visibles au même endroit."
-                : "Les accès et les templates sont visibles au même endroit."}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge variant={schoolConfigQuery.isError ? "destructive" : "secondary"} className="rounded-md px-2.5 py-1">
-              École: {schoolConfigState}
-            </Badge>
-            {parentSmsMonetized ? (
-              <Badge variant="default" className="rounded-md px-2.5 py-1">
-                SMS: {smsFeatureState}
-              </Badge>
-            ) : null}
-          </div>
+      <div className={cn("grid gap-px overflow-hidden rounded-lg border border-border bg-border", parentSmsMonetized ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+        <div className="bg-card px-4 py-3">
+          <p className="text-xs font-medium text-muted-foreground">École</p>
+          <p className="mt-1 truncate text-sm font-medium">
+            {schoolConfigQuery.data?.school.name ?? "Configuration école"}
+          </p>
         </div>
-        <div className="grid gap-px bg-border sm:grid-cols-3">
-          <div className="bg-background px-4 py-3">
-            <p className="text-[11px] font-medium uppercase text-muted-foreground">École</p>
-            <p className="mt-1 truncate text-sm font-medium">
-              {schoolConfigQuery.data?.school.name ?? "Configuration école"}
+        {parentSmsMonetized ? (
+          <div className="bg-card px-4 py-3">
+            <p className="text-xs font-medium text-muted-foreground">Tarif Alertes Parents</p>
+            <p className="mt-1 text-sm tabular-nums">
+              <span className="text-lg font-semibold">
+                {smsFeatureQuery.data?.sms_unit_price_fcfa ? `${smsFeatureQuery.data.sms_unit_price_fcfa.toLocaleString("fr-FR")} FCFA` : "-"}
+              </span>
+              {smsFeatureQuery.data?.sms_unit_price_fcfa ? <span className="text-muted-foreground">{` par ${studentLabels.singularLower} et par mois`}</span> : null}
             </p>
           </div>
-          {parentSmsMonetized ? (
-            <div className="bg-background px-4 py-3">
-              <p className="text-[11px] font-medium uppercase text-muted-foreground">Tarif SMS</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums">
-                {smsFeatureQuery.data?.sms_unit_price_fcfa ? `${smsFeatureQuery.data.sms_unit_price_fcfa} FCFA` : "-"}
-              </p>
-            </div>
-          ) : null}
-          <div className="bg-background px-4 py-3">
-            <p className="text-[11px] font-medium uppercase text-muted-foreground">Templates</p>
-            <p className="mt-1 truncate text-sm font-medium">
-              {smsTemplateAccessLabel}
-            </p>
-          </div>
+        ) : null}
+        <div className="bg-card px-4 py-3">
+          <p className="text-xs font-medium text-muted-foreground">Modèles de SMS</p>
+          <p className="mt-1 truncate text-sm font-medium">{smsTemplateAccessLabel}</p>
         </div>
       </div>
 
@@ -294,8 +266,8 @@ export default function SettingsPage() {
       <TabsList className="grid h-auto w-full grid-cols-2 rounded-xl border border-border sm:grid-cols-4 lg:grid-cols-7">
         {canManageGeneralSettings ? <TabsTrigger value="general" className="min-h-12">Général</TabsTrigger> : null}
         {canViewConductSettings ? <TabsTrigger value="personnel" className="min-h-12">Personnel</TabsTrigger> : null}
-        {canViewRequiredDocuments ? <TabsTrigger value="scolarite" className="min-h-12">Scolarité</TabsTrigger> : null}
-        {canManageFinance ? <TabsTrigger value="finance" className="min-h-12">Finance</TabsTrigger> : null}
+        {canViewRequiredDocuments ? <TabsTrigger value="scolarite" className="min-h-12">Académique</TabsTrigger> : null}
+        {canManageFinance ? <TabsTrigger value="finance" className="min-h-12 whitespace-normal text-center">Scolarité &amp; finances</TabsTrigger> : null}
         {canViewFinancialAlerts ? <TabsTrigger value="relances" className="min-h-12">Relances</TabsTrigger> : null}
         {canManageRiskAlerts ? <TabsTrigger value="risques" className="min-h-12">Risques</TabsTrigger> : null}
         {canAccessSmsTemplate ? <TabsTrigger value="communication" className="min-h-12">Communication</TabsTrigger> : null}
@@ -321,8 +293,11 @@ export default function SettingsPage() {
 
       {canViewRequiredDocuments ? (
         <TabsContent value="scolarite" className="space-y-3">
-          <OfflineDisabledFieldset notice="Configuration des documents indisponible hors ligne.">
-            <RequiredDocumentsSettings canEdit={canEditRequiredDocuments} />
+          <OfflineDisabledFieldset notice="Configuration indisponible hors ligne.">
+            <div className="space-y-5">
+              <RequiredDocumentsSettings canEdit={canEditRequiredDocuments} />
+              {canManageSchoolSettings ? <SchoolConfigPanel section="academic" /> : null}
+            </div>
           </OfflineDisabledFieldset>
         </TabsContent>
       ) : null}
@@ -331,7 +306,8 @@ export default function SettingsPage() {
         <TabsContent value="finance" className="space-y-4">
           {canViewTuition && (!recovery || canEditTuition) ? (
             <section className="space-y-4">
-              <div className="max-w-sm space-y-2">
+              <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+              <div className="w-full max-w-sm space-y-2">
                 <Label htmlFor="finance-school-year">Année scolaire</Label>
                 <Select value={financeSchoolYearId} onValueChange={setFinanceSchoolYearId} disabled={schoolYearsQuery.isLoading || schoolYearsQuery.isError}>
                   <SelectTrigger id="finance-school-year" className="min-h-12"><SelectValue placeholder="Choisir une année scolaire" /></SelectTrigger>
@@ -340,11 +316,14 @@ export default function SettingsPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <p className="max-w-md pb-3 text-sm text-muted-foreground">Les frais et les seuils ci-dessous s’appliquent à l’année scolaire choisie.</p>
+              </div>
               {schoolYearsQuery.isError ? <ContextualHelp title="Années scolaires indisponibles" tone="warning">Impossible de charger l&apos;année nécessaire à la configuration des frais.</ContextualHelp> : null}
-              {financeSchoolYearId ? <TuitionConfiguration key={`${financeSchoolYearId}:${recovery?.enrollmentId ?? "normal"}`} schoolYearId={financeSchoolYearId} canEdit={canEditTuition} canGrantDiscount={false} canManageStudentSchedule={false} recovery={recovery} onPlanSaved={resumePayment} /> : null}
+              {financeSchoolYearId ? <TuitionConfiguration key={`${financeSchoolYearId}:${recovery?.enrollmentId ?? "normal"}`} schoolYearId={financeSchoolYearId} canEdit={canEditTuition} canGrantDiscount={false} canManageStudentSchedule={false} simplifiedForOnboarding={simplifiedForOnboarding} recovery={recovery} onPlanSaved={resumePayment} /> : null}
             </section>
           ) : null}
 
+          <div className={cn("grid gap-6", canViewFinanceSettings && canManageSchoolSettings && parentSmsMonetized && "xl:grid-cols-2 xl:items-start")}>
           {canViewFinanceSettings ? <FinanceSettings canManageProviders={canManageSchoolSettings} canViewPlans={user?.role === "director" || hasPermission("subscription_plans.view")} canEditPlans={user?.role === "director" || hasPermission("subscription_plans.edit")} /> : null}
 
           {canManageSchoolSettings && parentSmsMonetized ? (
@@ -359,7 +338,7 @@ export default function SettingsPage() {
 
               {smsFeatureQuery.data?.is_enabled ? (
                 <Form {...smsPriceForm}>
-                  <form onSubmit={smsPriceForm.handleSubmit((values) => saveSmsPriceMutation.mutate(values))} className="space-y-4">
+                  <form onSubmit={smsPriceForm.handleSubmit((values) => saveSmsPriceMutation.mutate(values))} className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                     <FormField control={smsPriceForm.control} name="smsUnitPriceFcfa" render={({ field }) => (
                       <FormItem className="space-y-2">
                         <Label htmlFor="sms-unit-price">{`Tarif par ${studentLabels.singularLower}/mois (FCFA)`}</Label>
@@ -368,15 +347,16 @@ export default function SettingsPage() {
                         <p className="text-xs text-muted-foreground">Entier entre 1 et 50000.</p>
                       </FormItem>
                     )} />
-                    <div className="flex flex-wrap items-center gap-3">
+                    <div className="contents">
                       {saveSmsPriceMutation.isSuccess && !smsPriceForm.formState.isDirty ? <div className="flex items-center gap-2 text-green-600 animate-in fade-in duration-300"><CheckCircle className="h-4 w-4" /><span className="text-sm font-medium">Tarif sauvegardé</span></div> : <OfflineGuard><Button type="submit" disabled={saveSmsPriceMutation.isPending || !smsPriceForm.formState.isDirty || !smsPriceForm.formState.isValid}>{saveSmsPriceMutation.isPending ? "Sauvegarde..." : "Sauvegarder le tarif"}</Button></OfflineGuard>}
-                      <p className="text-sm text-muted-foreground">Commission IvoirEdu : <strong>{smsFeatureQuery.data.commission_pct}%</strong> (défini par IvoirEdu)</p>
+                      <p className="text-sm text-muted-foreground sm:col-span-2">Commission IvoirEdu : <strong>{smsFeatureQuery.data.commission_pct}%</strong> (défini par IvoirEdu){tariffValue > 0 ? `, soit ${(Math.round(tariffValue * smsFeatureQuery.data.commission_pct) / 100).toLocaleString("fr-FR")} FCFA sur ${tariffValue.toLocaleString("fr-FR")}` : ""}</p>
                     </div>
                   </form>
                 </Form>
               ) : <ContextualHelp title="Activation requise" tone="warning">Le portail d&apos;abonnement parent et les notifications Alertes Parents restent masqués tant que le service n&apos;est pas activé par IvoirEdu.</ContextualHelp>}
             </section>
           ) : null}
+          </div>
         </TabsContent>
       ) : null}
 

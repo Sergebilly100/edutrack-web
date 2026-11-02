@@ -56,6 +56,7 @@ import { getStudentById } from "@/modules/students/students.api";
 import { useEndOfYearReviewStatus } from "@/modules/class-decisions/useEndOfYearReviewStatus";
 import {
   createEnrollment,
+  listHistoricalReEnrollmentYears,
   listEnrollments,
   listReEnrollmentCandidates,
   listRequiredDocumentTypes,
@@ -180,6 +181,11 @@ export default function EnrollmentsPage() {
     queryKey: ["academic", "school-years", "re-enrollment"],
     queryFn: listSchoolYears,
   });
+  const historicalSourceYearsQuery = useQuery({
+    queryKey: ["enrollments", "re-enrollment", "historical-source-years"],
+    queryFn: listHistoricalReEnrollmentYears,
+    enabled: selectedTab === "re-enrollment",
+  });
   const activeYears = (yearsQuery.data ?? []).filter((year) => year.status === "active");
   const activeYearId = activeYears.length === 1 ? activeYears[0].id : "";
   const selectedYear = activeYears.length === 1 ? activeYears[0] : null;
@@ -189,14 +195,24 @@ export default function EnrollmentsPage() {
   const viewingPastDossiers = selectedTab === "dossiers" && dossierYear?.status === "closed";
   const closedOriginYears = (yearsQuery.data ?? []).filter((year) => year.status === "closed" && (!selectedYear || year.endDate < selectedYear.startDate))
     .sort((left, right) => right.endDate.localeCompare(left.endDate));
-  const originYears = [...closedOriginYears, ...(selectedYear ? [selectedYear] : [])];
+  const historicalOriginYears = (historicalSourceYearsQuery.data ?? []).map((label) => ({
+    id: `historical:${label}`,
+    label: `${label} (import historique)`,
+    status: "closed" as const,
+  }));
+  const originYears = [...closedOriginYears, ...historicalOriginYears, ...(selectedYear ? [selectedYear] : [])];
   const recentYearId = originYears.some((year) => year.id === recentYearChoice)
-    ? recentYearChoice : closedOriginYears[0]?.id || selectedYear?.id || "";
+    ? recentYearChoice : closedOriginYears[0]?.id || selectedYear?.id || historicalOriginYears[0]?.id || "";
   const originYear = originYears.find((year) => year.id === recentYearId);
-  const followingYear = (yearsQuery.data ?? []).filter((year) => originYear && year.startDate > originYear.endDate)
+  const isHistoricalSourceYear = recentYearId.startsWith("historical:");
+  const historicalSourceYearLabel = isHistoricalSourceYear ? recentYearId.slice("historical:".length) : undefined;
+  const originSchoolYear = (yearsQuery.data ?? []).find((year) => year.id === recentYearId);
+  const followingYear = (yearsQuery.data ?? []).filter((year) => !isHistoricalSourceYear && originSchoolYear && year.startDate > originSchoolYear.endDate)
     .sort((left, right) => left.startDate.localeCompare(right.startDate) || Number(right.status === "active") - Number(left.status === "active"))[0];
-  const targetYear = selectedYear && originYear?.status === "closed" && followingYear?.id === selectedYear.id ? selectedYear : null;
-  const targetLabel = followingYear?.label ?? (originYear?.label.match(/^(\d{4})-(\d{4})$/)
+  const targetYear = isHistoricalSourceYear
+    ? selectedYear
+    : selectedYear && originYear?.status === "closed" && followingYear?.id === selectedYear.id ? selectedYear : null;
+  const targetLabel = (isHistoricalSourceYear ? selectedYear?.label : followingYear?.label) ?? (originYear?.label.match(/^(\d{4})-(\d{4})$/)
     ? `${Number(originYear.label.slice(0, 4)) + 1}-${Number(originYear.label.slice(5)) + 1}`
     : "suivante");
   const enrollmentsQuery = useQuery({
@@ -258,14 +274,15 @@ export default function EnrollmentsPage() {
   const recentClassesQuery = useQuery({
     queryKey: ["academic", "classes", "re-enrollment-filters", recentYearId],
     queryFn: () => listClasses(recentYearId),
-    enabled: Boolean(recentYearId),
+    enabled: Boolean(recentYearId) && !isHistoricalSourceYear,
   });
+  const campaignTargetYearId = isHistoricalSourceYear ? activeYearId : followingYear?.id;
   const candidatesQuery = useQuery({
     queryKey: [
       "enrollments",
       "re-enrollment",
       "candidates",
-      followingYear?.id,
+      campaignTargetYearId,
       campaignStatus,
       recentYearId,
       recentLevelId,
@@ -275,11 +292,12 @@ export default function EnrollmentsPage() {
     ],
     queryFn: () =>
       listReEnrollmentCandidates({
-        schoolYearId: followingYear?.id,
+        schoolYearId: campaignTargetYearId,
         campaignStatus,
-        sourceSchoolYearId: recentYearId || undefined,
-        levelId: recentLevelId || undefined,
-        classId: recentClassId || undefined,
+        sourceSchoolYearId: isHistoricalSourceYear ? undefined : recentYearId || undefined,
+        sourceSchoolYearLabel: historicalSourceYearLabel,
+        levelId: isHistoricalSourceYear ? undefined : recentLevelId || undefined,
+        classId: isHistoricalSourceYear ? undefined : recentClassId || undefined,
         search: candidateSearch || undefined,
         page: candidatePage,
         limit: 20,
@@ -319,15 +337,18 @@ export default function EnrollmentsPage() {
     mutationFn: ({
       studentId,
       classId,
+      sourceSchoolYearLabel,
     }: {
       studentId: string;
       classId: string;
+      sourceSchoolYearLabel?: string;
     }) =>
       createEnrollment({
         studentId,
         classId,
         schoolYearId: activeYearId,
         type: "re_registration",
+        ...(sourceSchoolYearLabel ? { sourceSchoolYearLabel } : {}),
       }),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ["enrollments"] });
@@ -641,6 +662,7 @@ export default function EnrollmentsPage() {
         <TabsContent value="re-enrollment" className="space-y-5">
           {yearsQuery.isLoading ? <p role="status" className="text-sm text-muted-foreground">Chargement de la campagne…</p> : null}
           {yearsQuery.isError ? <QueryErrorState message="Impossible de charger les années scolaires." onRetry={() => void yearsQuery.refetch()} isRetrying={yearsQuery.isFetching} /> : null}
+          {historicalSourceYearsQuery.isError ? <QueryErrorState message="Impossible de charger les années des imports historiques." onRetry={() => void historicalSourceYearsQuery.refetch()} isRetrying={historicalSourceYearsQuery.isFetching} /> : null}
           {levelsQuery.isError ? <QueryErrorState message="Impossible de charger les niveaux scolaires." onRetry={() => void levelsQuery.refetch()} isRetrying={levelsQuery.isFetching} /> : null}
           {classesQuery.isError ? <QueryErrorState message="Impossible de charger les classes de l’année de campagne." onRetry={() => void classesQuery.refetch()} isRetrying={classesQuery.isFetching} /> : null}
           {recentClassesQuery.isError ? <QueryErrorState message="Impossible de charger les classes récentes." onRetry={() => void recentClassesQuery.refetch()} isRetrying={recentClassesQuery.isFetching} /> : null}
@@ -658,6 +680,9 @@ export default function EnrollmentsPage() {
               </div>
               {campaignCounts ? <Progress value={campaignPercentage} aria-valuenow={campaignPercentage}
                 aria-label="Progression de la campagne de réinscription" /> : null}
+              {isHistoricalSourceYear ? <Alert><AlertDescription>
+                Les élèves importés pour {historicalSourceYearLabel} n’ont pas d’impayé antérieur enregistré. Choisissez manuellement leur classe d’accueil; leur inscription reste soumise au paiement de l’année active.
+              </AlertDescription></Alert> : null}
               <div className="flex flex-wrap items-center gap-2 border-t pt-4" role="group" aria-label={`Filtrer les élèves de la campagne ${campaignTargetLabel} par état`}>
                 {visibleCampaignCounters.map(({ status, count }) => (
                   <Button key={status} type="button" variant="outline" aria-pressed={campaignStatus === status}
@@ -685,7 +710,8 @@ export default function EnrollmentsPage() {
             <FilterBar className="lg:grid-cols-4">
             <AcademicContextFilters compact yearIdPrefix="re-enrollment" years={originYears} yearId={recentYearId}
               showPeriod={false} allowAllYears={false} yearLabel="Année d’origine"
-              onYearChange={updateRecentYear} yearDisabled={yearsQuery.isLoading || !originYears.length} />
+             onYearChange={updateRecentYear} yearDisabled={yearsQuery.isLoading || historicalSourceYearsQuery.isLoading || !originYears.length} />
+            {isHistoricalSourceYear ? "" : <>
             <DependentSelect id="recent-level-filter" label="Niveau récent" value={recentLevelId}
               options={(levelsQuery.data ?? []).map((level) => ({ id: level.id, label: level.name }))}
               dependsOn={{ field: "year", value: recentYearId }} allLabel="Tous les niveaux"
@@ -695,6 +721,7 @@ export default function EnrollmentsPage() {
               dependsOn={{ field: "year", value: recentYearId }}
               allLabel="Toutes les classes" loading={recentClassesQuery.isFetching && Boolean(recentYearId)}
               onValueChange={(value) => { setRecentClassId(value); setCandidateSearch(""); setCandidatePage(1) }} />
+            </>}
             <div className="space-y-2">
               <Label htmlFor="candidate-search">Élève, nom ou matricule</Label>
               <div className="relative">
@@ -748,11 +775,15 @@ export default function EnrollmentsPage() {
                 <TableBody>
                   {candidates.map((candidate) => {
                     const existing = candidate.enrollment;
-                    const eligibleClasses = (classesQuery.data?.classes ?? []).filter((item) => item.level.id === candidate.nextLevelId);
+                    const eligibleClasses = (classesQuery.data?.classes ?? []).filter((item) => candidate.isHistoricalSource || item.level.id === candidate.nextLevelId);
                     const canOpenDossier = hasPermission("students.view");
-                    const dossierHref = `/students/${candidate.studentId}/history?year=${candidate.currentSchoolYearId}&returnTo=${encodeURIComponent("/enrollments?tab=re-enrollment")}`;
+                    const dossierHref = candidate.isHistoricalSource
+                      ? `/students/${candidate.studentId}?returnTo=${encodeURIComponent("/enrollments?tab=re-enrollment")}`
+                      : `/students/${candidate.studentId}/history?year=${candidate.currentSchoolYearId}&returnTo=${encodeURIComponent("/enrollments?tab=re-enrollment")}`;
                     const name = `${candidate.studentLastName.toLocaleUpperCase("fr-FR")} ${candidate.studentFirstName}`;
                     const isCreating = reEnrollmentMutation.isPending && reEnrollmentMutation.variables?.studentId === candidate.studentId;
+                    const canChooseClass = Boolean(targetYear && candidate.status === "ready"
+                      && (candidate.isHistoricalSource || (candidate.finalDecision && candidate.finalDecision !== "expelled")));
                     return <TableRow key={candidate.studentId} tabIndex={canOpenDossier ? 0 : undefined}
                       aria-label={canOpenDossier ? `Ouvrir le dossier de ${name}` : undefined}
                       onClick={() => { if (canOpenDossier) navigate(dossierHref) }}
@@ -765,32 +796,38 @@ export default function EnrollmentsPage() {
                         </div>
                       </div></TableCell>
                       <TableCell>{candidate.currentClassName}<span className="block text-xs text-muted-foreground">{candidate.currentSchoolYearLabel}</span></TableCell>
-                      <TableCell>{candidate.finalDecision ? decisionLabel[candidate.finalDecision] : candidate.status === "re_enrolled"
+                      <TableCell>{candidate.finalDecision ? decisionLabel[candidate.finalDecision] : candidate.isHistoricalSource
+                        ? <span className="text-muted-foreground" title="La classe de l’année active est choisie par le directeur">Classe à choisir</span>
+                        : candidate.status === "re_enrolled"
                         ? <span className="text-muted-foreground" title="Aucune décision enregistrée pour l’année d’origine">Non renseignée</span>
-                        : "Non validée"}</TableCell>
+                        : "Non disponible"}</TableCell>
                       <TableCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-                        {existing ? existing.className : !candidate.finalDecision ? "À déterminer" : candidate.finalDecision === "expelled" ? "Sans classe d’accueil" : !targetYear || candidate.status !== "ready" ? <span>{candidate.nextLevelName ?? "Niveau à définir"}<span className="block text-xs text-muted-foreground">{candidate.status === "blocked_unpaid" ? "Classe à choisir après régularisation" : candidate.status === "financial_unavailable" ? "Classe à choisir après vérification du solde" : candidate.status === "decision_pending" ? "Classe à définir dans Fin d’année" : "Classe à choisir après ouverture"}</span></span> : <div className="min-w-44 space-y-1">
+                        {existing ? existing.className : canChooseClass ? <div className="min-w-44 space-y-1">
                           <Label className="sr-only" htmlFor={`target-class-${candidate.studentId}`}>Classe d’accueil de {name}</Label>
                           <Select value={classSelections[candidate.studentId] ?? ""}
                             onValueChange={(value) => setClassSelections((current) => ({ ...current, [candidate.studentId]: value }))}>
                             <SelectTrigger id={`target-class-${candidate.studentId}`} className="min-h-12">
-                              <SelectValue placeholder={classesQuery.isLoading ? "Chargement…" : eligibleClasses.length ? "Choisir la classe" : "Aucune classe compatible"} />
+                              <SelectValue placeholder={classesQuery.isLoading ? "Chargement…" : eligibleClasses.length ? "Choisir la classe" : "Aucune classe disponible"} />
                             </SelectTrigger>
                             <SelectContent>{eligibleClasses.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent>
                           </Select>
-                          <span className="text-xs text-muted-foreground">{candidate.nextLevelName ?? "Niveau à définir"}</span>
-                        </div>}
+                          <span className="text-xs text-muted-foreground">{candidate.isHistoricalSource ? "Choix manuel par le directeur" : candidate.nextLevelName ?? "Niveau à définir"}</span>
+                        </div> : candidate.isHistoricalSource ? "Classe à choisir après ouverture" : !candidate.finalDecision ? "À déterminer" : candidate.finalDecision === "expelled" ? "Sans classe d’accueil" : <span>{candidate.nextLevelName ?? "Niveau à définir"}<span className="block text-xs text-muted-foreground">{candidate.status === "blocked_unpaid" ? "Classe à choisir après régularisation" : candidate.status === "financial_unavailable" ? "Classe à choisir après vérification du solde" : candidate.status === "decision_pending" ? "Classe à définir dans Fin d’année" : "Classe à choisir après ouverture"}</span></span>}
                       </TableCell>
                       <TableCell><Badge variant="outline" className={campaignStatusClassName[candidate.status]}>{campaignStatusLabels[candidate.status]}</Badge></TableCell>
                       <TableCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
                         {candidate.status === "ready" && targetYear ? <Button className="min-h-12"
                           disabled={!classSelections[candidate.studentId] || reEnrollmentMutation.isPending}
-                          onClick={() => reEnrollmentMutation.mutate({ studentId: candidate.studentId, classId: classSelections[candidate.studentId]! })}>
+                          onClick={() => reEnrollmentMutation.mutate({
+                            studentId: candidate.studentId,
+                            classId: classSelections[candidate.studentId]!,
+                            ...(candidate.isHistoricalSource ? { sourceSchoolYearLabel: candidate.currentSchoolYearLabel } : {}),
+                          })}>
                           {isCreating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                           {isCreating ? "Création…" : "Réinscrire"}
                         </Button> : <span className="text-sm text-muted-foreground">
                           {candidate.status === "decision_pending" ? <>{candidate.finalDecision
-                            ? candidate.sourceSchoolYearStatus === "active" ? "La classe d’accueil doit être définie dans le menu Fin d’année." : "Classe d’accueil manquante pour cette décision ; contactez IvoirEdu."
+                            ? candidate.sourceSchoolYearStatus === "active" ? "La classe d’accueil doit être définie dans le menu Fin d’année." : "Classe d’accueil manquante pour cette décision; contactez IvoirEdu."
                             : candidate.sourceSchoolYearStatus === "active" ? "La décision de fin d’année doit être validée dans le menu Fin d’année." : "Décision de fin d’année absente pour cette année clôturée ; contactez IvoirEdu."}{candidate.sourceSchoolYearStatus === "active" && reviewStatusQuery.data?.visible && hasPermission("class_decisions.view") ? <> <Link className="font-medium text-primary underline" to="/end-of-year">Ouvrir Fin d’année</Link></> : null}</>
                             : candidate.status === "ready" ? "La réinscription sera possible après l’ouverture de l’année suivante par IvoirEdu."
                             : candidate.status === "blocked_unpaid" ? "Impayé de l’année d’origine à régulariser à la caisse."

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/components/ui/use-toast"
+import { cn } from "@/lib/utils"
 import {
   archiveRequiredDocumentType, createRequiredDocumentTypes, listRequiredDocumentLevels,
   listRequiredDocumentTypes, syncRequiredDocumentTypes, type RequiredDocumentType,
@@ -52,6 +53,7 @@ export function RequiredDocumentsSettings({ canEdit }: { canEdit: boolean }) {
   const { toast } = useToast()
   const [editing, setEditing] = useState<DocumentGroup | null>(null)
   const [archiveTarget, setArchiveTarget] = useState<DocumentGroup | null>(null)
+  const formRef = useRef<HTMLFormElement>(null)
   const levelsQuery = useQuery({ queryKey: ["enrollments", "required-document-levels"], queryFn: listRequiredDocumentLevels })
   const documentsQueryKey = ["enrollments", "required-document-types"] as const
   const documentsQuery = useQuery({ queryKey: documentsQueryKey, queryFn: () => listRequiredDocumentTypes() })
@@ -76,6 +78,14 @@ export function RequiredDocumentsSettings({ canEdit }: { canEdit: boolean }) {
       hasMixedRequirement: documents.some((document) => document.isMandatory !== documents[0]!.isMandatory),
     }))
   }, [documentsQuery.data])
+
+  const levels = levelsQuery.data ?? []
+  const uncoveredLevels = levels.filter((level) => !groups.some((group) => group.levelIds.includes(level.id)))
+
+  const startEditing = (group: DocumentGroup) => {
+    setEditing(group)
+    requestAnimationFrame(() => formRef.current?.scrollIntoView?.({ behavior: "smooth", block: "center" }))
+  }
 
   useEffect(() => {
     form.reset(editing
@@ -124,56 +134,73 @@ export function RequiredDocumentsSettings({ canEdit }: { canEdit: boolean }) {
         {levelsQuery.isError ? <Alert variant="destructive"><AlertDescription>Impossible de charger les niveaux scolaires.</AlertDescription></Alert> : null}
         {canEdit ? (
           <Form {...form}>
-            <form onSubmit={form.handleSubmit((values) => saveMutation.mutate(values))} className="space-y-5 rounded-lg border border-border bg-background p-4">
-              <div><p className="font-medium">{editing ? `Modifier « ${editing.name} »` : "Ajouter un document"}</p><p className="text-sm text-muted-foreground">Le sélecteur permet d’ajouter ou de retirer plusieurs niveaux en une seule modification.</p></div>
-              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+            <form ref={formRef} onSubmit={form.handleSubmit((values) => saveMutation.mutate(values))} className={cn("space-y-5 rounded-lg border bg-background p-4 transition-colors", editing ? "border-primary" : "border-border")}>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="font-medium">{editing ? `Modifier « ${editing.name} »` : "Ajouter un document"}</p>
+                  <p className="text-sm text-muted-foreground">{editing
+                    ? "Ajoutez ou retirez des niveaux, changez l’exigence, puis enregistrez."
+                    : "Saisissez le nom, choisissez les niveaux concernés, puis indiquez si la pièce est obligatoire. Le sélecteur permet d’ajouter ou de retirer plusieurs niveaux en une seule modification."}</p>
+                </div>
+                {editing ? <Badge variant="secondary">Modification en cours</Badge> : null}
+              </div>
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,15rem)] lg:items-start">
                 <FormField control={form.control} name="name" render={({ field }) => (
-                  <FormItem className="space-y-2"><Label htmlFor="document-name">Nom du document</Label><FormControl><Input id="document-name" placeholder="Ex. Extrait de naissance" {...field} /></FormControl><FormMessage /></FormItem>
+                  <FormItem className="space-y-2"><Label htmlFor="document-name">Nom du document</Label><FormControl><Input className="min-h-12 w-full justify-between font-normal" id="document-name" placeholder="Ex. Extrait de naissance" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
+                <FormField control={form.control} name="levelIds" render={({ field }) => {
+                  const selectedLevels = levels.filter((level) => field.value.includes(level.id))
+                  const allSelected = levels.length > 0 && selectedLevels.length === levels.length
+                  return (
+                    <FormItem className="space-y-2">
+                      <Label>Niveaux concernés</Label>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild disabled={levelsQuery.isLoading}>
+                          <Button type="button" variant="outline" className="min-h-12 w-full justify-between font-normal" aria-label="Niveaux concernés">
+                            <span className={field.value.length === 0 ? "text-muted-foreground" : ""}>
+                              {levelsQuery.isLoading
+                                ? "Chargement des niveaux…"
+                                : field.value.length === 0
+                                  ? "Sélectionner un ou plusieurs niveaux"
+                                  : field.value.length === 1
+                                    ? selectedLevels[0]?.name
+                                    : `${field.value.length} niveaux sélectionnés`}
+                            </span>
+                            <ChevronDown className="ml-3 h-4 w-4 shrink-0 opacity-60" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="max-h-72 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto">
+                          <DropdownMenuLabel>Choisir les niveaux</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuCheckboxItem
+                            checked={allSelected}
+                            onSelect={(event) => event.preventDefault()}
+                            onCheckedChange={(checked) => field.onChange(checked ? levels.map((level) => level.id) : [])}
+                          >
+                            Tous les niveaux
+                          </DropdownMenuCheckboxItem>
+                          <DropdownMenuSeparator />
+                          {levels.map((level) => (
+                            <DropdownMenuCheckboxItem
+                              key={level.id}
+                              checked={field.value.includes(level.id)}
+                              onSelect={(event) => event.preventDefault()}
+                              onCheckedChange={(checked) => field.onChange(checked ? [...field.value, level.id] : field.value.filter((id) => id !== level.id))}
+                            >
+                              {level.name}
+                            </DropdownMenuCheckboxItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      {selectedLevels.length > 0 ? <div className="flex flex-wrap gap-2 pt-1">{selectedLevels.map((level) => <Badge key={level.id} variant="secondary">{level.name}</Badge>)}</div> : null}
+                      <FormMessage />
+                    </FormItem>
+                  )
+                }} />
                 <FormField control={form.control} name="isMandatory" render={({ field }) => (
-                  <FormItem><Label className="mb-2 block">Exigence</Label><label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border border-border px-3 text-sm"><FormControl><Checkbox checked={field.value} onCheckedChange={(checked) => field.onChange(checked === true)} /></FormControl>Obligatoire</label></FormItem>
+                  <FormItem><Label className="mb-2 block">Exigence</Label><label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg px-3 text-sm"><FormControl><Checkbox checked={field.value} onCheckedChange={(checked) => field.onChange(checked === true)} /></FormControl>Obligatoire</label><p className="pt-1 text-xs text-muted-foreground">Décoché : le document est facultatif.</p></FormItem>
                 )} />
               </div>
-              <FormField control={form.control} name="levelIds" render={({ field }) => {
-                const selectedLevels = (levelsQuery.data ?? []).filter((level) => field.value.includes(level.id))
-                return (
-                  <FormItem className="space-y-2">
-                    <Label>Niveaux concernés</Label>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild disabled={levelsQuery.isLoading}>
-                        <Button type="button" variant="outline" className="min-h-12 w-full justify-between font-normal" aria-label="Niveaux concernés">
-                          <span className={field.value.length === 0 ? "text-muted-foreground" : ""}>
-                            {levelsQuery.isLoading
-                              ? "Chargement des niveaux…"
-                              : field.value.length === 0
-                                ? "Sélectionner un ou plusieurs niveaux"
-                                : field.value.length === 1
-                                  ? selectedLevels[0]?.name
-                                  : `${field.value.length} niveaux sélectionnés`}
-                          </span>
-                          <ChevronDown className="ml-3 h-4 w-4 shrink-0 opacity-60" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="max-h-72 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto">
-                        <DropdownMenuLabel>Choisir les niveaux</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        {(levelsQuery.data ?? []).map((level) => (
-                          <DropdownMenuCheckboxItem
-                            key={level.id}
-                            checked={field.value.includes(level.id)}
-                            onSelect={(event) => event.preventDefault()}
-                            onCheckedChange={(checked) => field.onChange(checked ? [...field.value, level.id] : field.value.filter((id) => id !== level.id))}
-                          >
-                            {level.name}
-                          </DropdownMenuCheckboxItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    {selectedLevels.length > 0 ? <div className="flex flex-wrap gap-2 pt-1">{selectedLevels.map((level) => <Badge key={level.id} variant="secondary">{level.name}</Badge>)}</div> : null}
-                    <FormMessage />
-                  </FormItem>
-                )
-              }} />
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 {editing ? <Button type="button" variant="outline" className="min-h-12" onClick={() => setEditing(null)}>Annuler</Button> : null}
                 <Button type="submit" className="min-h-12" disabled={saveMutation.isPending || levelsQuery.isLoading}>{saveMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}{saveMutation.isPending ? "Enregistrement…" : editing ? "Enregistrer les modifications" : "Ajouter aux niveaux sélectionnés"}</Button>
@@ -183,7 +210,14 @@ export function RequiredDocumentsSettings({ canEdit }: { canEdit: boolean }) {
         ) : null}
 
         <div className="space-y-3">
-          <div><h3 className="font-semibold">Récapitulatif</h3><p className="text-sm text-muted-foreground">Une ligne par document, avec tous ses niveaux associés.</p></div>
+          <div>
+            <h3 className="font-semibold">Récapitulatif</h3>
+            <p className="text-sm text-muted-foreground">Une ligne par document, avec tous ses niveaux associés.</p>
+            {groups.length > 0 ? <p className="mt-1 text-sm text-muted-foreground">
+              {groups.length} document{groups.length > 1 ? "s" : ""} configuré{groups.length > 1 ? "s" : ""}
+              {uncoveredLevels.length > 0 ? ` · Sans document requis : ${uncoveredLevels.map((level) => level.name).join(", ")}` : ""}
+            </p> : null}
+          </div>
           {documentsQuery.isLoading ? <div className="space-y-3" aria-label="Chargement des documents">{[0, 1, 2].map((item) => <div key={item} className="h-14 animate-pulse rounded-lg bg-muted" />)}</div> : null}
           {documentsQuery.isError ? <Alert variant="destructive"><AlertDescription>Impossible de charger les documents requis.</AlertDescription></Alert> : null}
           {!documentsQuery.isLoading && !documentsQuery.isError && groups.length === 0 ? <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center"><FileText className="mx-auto h-8 w-8 text-muted-foreground" /><p className="mt-3 font-medium">Aucun document configuré</p><p className="mt-1 text-sm text-muted-foreground">Ajoutez une pièce et sélectionnez les niveaux concernés.</p></div> : null}
@@ -191,7 +225,7 @@ export function RequiredDocumentsSettings({ canEdit }: { canEdit: boolean }) {
             <div className="overflow-hidden rounded-lg border border-border">
               <Table>
                 <TableHeader><TableRow><TableHead>Document</TableHead><TableHead>Niveaux</TableHead><TableHead>Exigence</TableHead>{canEdit ? <TableHead className="text-right">Actions</TableHead> : null}</TableRow></TableHeader>
-                <TableBody>{groups.map((group) => <TableRow key={group.key}><TableCell className="font-medium">{group.name}</TableCell><TableCell><div className="flex flex-wrap gap-1.5">{group.levelNames.map((levelName, index) => <Badge key={`${group.levelIds[index]}-${levelName}`} variant="outline">{levelName}</Badge>)}</div></TableCell><TableCell><Badge variant={group.hasMixedRequirement ? "outline" : group.isMandatory ? "default" : "secondary"}>{group.hasMixedRequirement ? "Variable" : group.isMandatory ? "Obligatoire" : "Facultatif"}</Badge></TableCell>{canEdit ? <TableCell><div className="flex justify-end gap-2"><Button type="button" variant="outline" size="sm" className="min-h-12" onClick={() => setEditing(group)}><Pencil className="mr-2 h-4 w-4" />Modifier</Button><Button type="button" variant="ghost" size="sm" className="min-h-12 text-destructive" onClick={() => setArchiveTarget(group)}><Archive className="mr-2 h-4 w-4" />Archiver</Button></div></TableCell> : null}</TableRow>)}</TableBody>
+                <TableBody>{groups.map((group) => <TableRow key={group.key} className={cn(editing?.key === group.key && "bg-accent")}><TableCell className="font-medium">{group.name}</TableCell><TableCell><div className="flex flex-wrap gap-1.5">{group.levelNames.map((levelName, index) => <Badge key={`${group.levelIds[index]}-${levelName}`} variant="outline">{levelName}</Badge>)}</div></TableCell><TableCell><Badge title={group.hasMixedRequirement ? "Obligatoire pour certains niveaux seulement" : undefined} variant={group.hasMixedRequirement ? "outline" : group.isMandatory ? "default" : "secondary"}>{group.hasMixedRequirement ? "Variable" : group.isMandatory ? "Obligatoire" : "Facultatif"}</Badge></TableCell>{canEdit ? <TableCell><div className="flex justify-end gap-2"><Button type="button" variant="outline" size="sm" className="min-h-12" onClick={() => startEditing(group)}><Pencil className="mr-2 h-4 w-4" />Modifier</Button><Button type="button" variant="ghost" size="sm" className="min-h-12 text-destructive" onClick={() => setArchiveTarget(group)}><Archive className="mr-2 h-4 w-4" />Archiver</Button></div></TableCell> : null}</TableRow>)}</TableBody>
               </Table>
             </div>
           ) : null}

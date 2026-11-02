@@ -1,12 +1,15 @@
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
 
 type RoomFormState = {
   name: string
   building: string
   capacity: string
+  isActive: boolean
   latitude: string
   longitude: string
   geoRadius: string
@@ -19,6 +22,7 @@ type RoomFormDialogProps = {
   setForm: React.Dispatch<React.SetStateAction<RoomFormState>>
   onSubmit: () => void
   isPending: boolean
+  showActiveToggle?: boolean
   mode: "create" | "edit"
 }
 
@@ -36,6 +40,7 @@ export function RoomFormDialog({
   setForm,
   onSubmit,
   isPending,
+  showActiveToggle = false,
   mode,
 }: RoomFormDialogProps) {
   const { toast } = useToast()
@@ -92,41 +97,37 @@ export function RoomFormDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
-          <Input
-            placeholder="Nom de la salle"
-            value={form.name}
-            onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-          />
-          <Input
-            placeholder="Bâtiment (optionnel)"
-            value={form.building}
-            onChange={(event) => setForm((prev) => ({ ...prev, building: event.target.value }))}
-          />
-          <Input
-            placeholder="Capacité (optionnel)"
-            inputMode="numeric"
-            value={form.capacity}
-            onChange={(event) => setForm((prev) => ({ ...prev, capacity: event.target.value }))}
-          />
+          <div className="space-y-1.5">
+            <Label htmlFor={`room-name-${mode}`}>Nom de la salle</Label>
+            <Input id={`room-name-${mode}`} required value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`room-building-${mode}`}>Bâtiment (optionnel)</Label>
+            <Input id={`room-building-${mode}`} value={form.building} onChange={(event) => setForm((prev) => ({ ...prev, building: event.target.value }))} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`room-capacity-${mode}`}>Capacité (optionnel)</Label>
+            <Input id={`room-capacity-${mode}`} placeholder="Ex: 30" inputMode="numeric" value={form.capacity} onChange={(event) => setForm((prev) => ({ ...prev, capacity: event.target.value }))} />
+          </div>
+          {showActiveToggle ? (
+            <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border border-border px-3 text-sm">
+              <Checkbox checked={form.isActive} onCheckedChange={(checked) => setForm((prev) => ({ ...prev, isActive: checked === true }))} />
+              <span>Salle active</span>
+            </label>
+          ) : null}
           <div className="grid gap-2 sm:grid-cols-3">
-            <Input
-              placeholder="Latitude GPS"
-              inputMode="decimal"
-              value={form.latitude}
-              onChange={(event) => setForm((prev) => ({ ...prev, latitude: event.target.value }))}
-            />
-            <Input
-              placeholder="Longitude GPS"
-              inputMode="decimal"
-              value={form.longitude}
-              onChange={(event) => setForm((prev) => ({ ...prev, longitude: event.target.value }))}
-            />
-            <Input
-              placeholder="Rayon GPS (m)"
-              inputMode="numeric"
-              value={form.geoRadius}
-              onChange={(event) => setForm((prev) => ({ ...prev, geoRadius: event.target.value }))}
-            />
+            <div className="space-y-1.5">
+              <Label htmlFor={`room-latitude-${mode}`}>Latitude GPS</Label>
+              <Input id={`room-latitude-${mode}`} inputMode="decimal" value={form.latitude} onChange={(event) => setForm((prev) => ({ ...prev, latitude: event.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`room-longitude-${mode}`}>Longitude GPS</Label>
+              <Input id={`room-longitude-${mode}`} inputMode="decimal" value={form.longitude} onChange={(event) => setForm((prev) => ({ ...prev, longitude: event.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`room-georadius-${mode}`}>Rayon GPS (m)</Label>
+              <Input id={`room-georadius-${mode}`} inputMode="numeric" value={form.geoRadius} onChange={(event) => setForm((prev) => ({ ...prev, geoRadius: event.target.value }))} />
+            </div>
           </div>
           <Button type="button" variant="outline" onClick={capturePosition}>
             Capturer ma position

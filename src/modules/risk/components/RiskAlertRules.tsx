@@ -228,8 +228,8 @@ export function RiskAlertRules() {
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <h2 className="flex items-center gap-2 text-2xl font-medium">
-          <ShieldAlert className="h-6 w-6 shrink-0" aria-hidden="true" /> Règles de risque
+        <h2 className="flex items-center gap-2 text-xl font-semibold">
+          <ShieldAlert className="h-5 w-5 shrink-0" aria-hidden="true" /> Règles de risque
         </h2>
         <p className="max-w-prose text-sm leading-relaxed">Définissez les situations à suivre sur le tableau de bord de direction.</p>
         <p className="max-w-prose text-sm leading-relaxed">Les signaux sont recalculés au plus tard dans 15 minutes. La tolérance des retards s'applique aux prochains pointages après enregistrement.</p>

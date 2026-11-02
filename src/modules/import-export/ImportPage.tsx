@@ -70,7 +70,7 @@ export default function ImportPage() {
   const labelByType = buildLabelByType(studentLabels)
   const user = useAuthStore((state) => state.user)
   const isDirector = user?.role === "director"
-  const tour = useTourGuide("import", true)
+  const tour = useTourGuide("import", !guidedReturn)
   const canImportStudents = isDirector || hasPermission("import.students")
   const canImportTeachers = isDirector || hasPermission("import.teachers")
   const canImportSchedule = isDirector || hasPermission("import.schedule")
@@ -85,7 +85,7 @@ export default function ImportPage() {
     initialProfileContext && searchParams.get("type") !== "students" && canImportTeachers ? "teachers" : null,
     !initialProfileContext && canImportSchedule ? "schedule" : null,
   ].filter((value): value is ImportType => value !== null)), [canImportStudents, canImportTeachers, canImportSchedule, initialProfileContext, searchParams])
-  const canViewHistory = (canImportStudents || canImportTeachers || canImportSchedule) && accessQuery.isSuccess && !initialProfileContext && !onboardingContext.checking
+  const canViewHistory = (canImportStudents || canImportTeachers || canImportSchedule) && accessQuery.isSuccess && !initialProfileContext
   const requestedType = searchParams.get("type")
   const [activeImportType, setActiveImportType] = useState<ImportType>(
     requestedType === "teachers" || requestedType === "schedule" || requestedType === "students" ? requestedType : allowedImportTypes[0] ?? "students"
@@ -93,7 +93,7 @@ export default function ImportPage() {
 
   const selectedImportType = allowedImportTypes.includes(activeImportType) ? activeImportType : allowedImportTypes[0]
   const isHistoricalStudentsImport = initialProfileContext && selectedImportType === "students"
-  const checkingAccess = accessQuery.isLoading || onboardingContext.checking
+  const checkingAccess = accessQuery.isLoading
 
   // History filter state
   const [historyPage, setHistoryPage] = useState(1)
@@ -142,17 +142,19 @@ export default function ImportPage() {
 
   return (
     <>
-      <TourGuide
-        steps={
-          isHistoricalStudentsImport
-            ? historicalStudentsImportTourSteps
-            : importTourSteps
-        }
-        run={tour.run}
-        stepIndex={tour.stepIndex}
-        onStepChange={tour.setStepIndex}
-        onFinish={tour.markDone}
-      />
+      {!guidedReturn ? (
+        <TourGuide
+          steps={
+            isHistoricalStudentsImport
+              ? historicalStudentsImportTourSteps
+              : importTourSteps
+          }
+          run={tour.run}
+          stepIndex={tour.stepIndex}
+          onStepChange={tour.setStepIndex}
+          onFinish={tour.markDone}
+        />
+      ) : null}
       <div className="space-y-6 px-4 md:px-1">
         <OfflineIndicator />
         <OnboardingReturn />
@@ -169,8 +171,9 @@ export default function ImportPage() {
                     ? "Importez les profils et contrats des professeurs. Les affectations viendront après les inscriptions."
                     : "Importez l’emploi du temps et consultez les opérations déjà effectuées."}
               </p>
+              {initialProfileContext ? <p className="text-sm text-muted-foreground">Facultatif : vous pourrez importer ces profils plus tard.</p> : null}
             </div>
-            <Button
+            {!guidedReturn ? <Button
               type="button"
               variant="outline"
               size="sm"
@@ -180,7 +183,7 @@ export default function ImportPage() {
             >
               <Info className="mr-1.5 h-4 w-4" />
               Guide
-            </Button>
+            </Button> : null}
           </div>
         </header>
 
@@ -193,12 +196,11 @@ export default function ImportPage() {
               <Spinner size="sm" />
               Vérification du contexte d’import…
             </div>
-          ) : accessQuery.isError || onboardingContext.error ? (
+          ) : accessQuery.isError ? (
             <QueryErrorState
               message="Impossible de vérifier le contexte d’import."
               onRetry={() => {
                 void accessQuery.refetch();
-                void onboardingContext.retry();
               }}
             />
           ) : (
@@ -247,6 +249,7 @@ export default function ImportPage() {
                     selectedImportType={selectedImportType}
                     onImportTypeChange={setActiveImportType}
                     allowedImportTypes={allowedImportTypes}
+                    maxTeacherFileSizeMb={isInitialTeacherImport ? 10 : undefined}
                   />
                 )
               ) : (

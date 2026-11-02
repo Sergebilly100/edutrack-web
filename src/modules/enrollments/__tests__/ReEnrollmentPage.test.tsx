@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   listYears: vi.fn(), listLevels: vi.fn(), listClasses: vi.fn(),
   listEnrollments: vi.fn(), listCandidates: vi.fn(), createEnrollment: vi.fn(), toast: vi.fn(),
+  listHistoricalYears: vi.fn(),
   reviewVisible: true,
 }))
 vi.mock('@/modules/academic/academic.api', () => ({
@@ -15,6 +16,7 @@ vi.mock('../enrollments.api', async (original) => ({
   ...(await original<typeof import('../enrollments.api')>()),
   listEnrollments: mocks.listEnrollments,
   listReEnrollmentCandidates: mocks.listCandidates,
+  listHistoricalReEnrollmentYears: mocks.listHistoricalYears,
   createEnrollment: mocks.createEnrollment,
 }))
 vi.mock('@/modules/class-decisions/useEndOfYearReviewStatus', () => ({
@@ -29,6 +31,7 @@ type CandidateStatus = 'decision_pending' | 'ready' | 'awaiting_cashier' | 'awai
 const candidate = (id: string, status: CandidateStatus) => ({
   studentId: id, studentFirstName: id, studentLastName: 'Koné', studentMatricule: `MAT-${id}`,
   currentClassName: '6e A', currentSchoolYearId: 'year-1', currentSchoolYearLabel: '2025-2026',
+  isHistoricalSource: false,
   sourceSchoolYearStatus: 'closed' as const,
   finalDecision: status === 'decision_pending' ? null : status === 'excluded' ? 'expelled' as const : 'promoted' as const,
   nextLevelId: status === 'decision_pending' || status === 'excluded' ? null : 'level-2',
@@ -62,6 +65,7 @@ describe('Réinscriptions', () => {
       { id: 'year-2', label: '2026-2027', status: 'active', startDate: '2026-09-01', endDate: '2027-06-30' },
     ])
     mocks.listLevels.mockResolvedValue([{ id: 'level-2', name: '5e' }])
+    mocks.listHistoricalYears.mockResolvedValue(['2024-2025'])
     mocks.listClasses.mockResolvedValue({ classes: [{ id: 'class-2', name: '5e A', isActive: true, level: { id: 'level-2', name: '5e' }, studentCount: 0 }] })
     mocks.listEnrollments.mockResolvedValue({ enrollments: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 1 } })
     mocks.listCandidates.mockResolvedValue({
@@ -87,6 +91,46 @@ describe('Réinscriptions', () => {
     expect(screen.getAllByRole('button', { name: 'Réinscrire' })).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: 'Bloqué par impayé : 1' }))
     await waitFor(() => expect(mocks.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ campaignStatus: 'blocked_unpaid' })))
+  })
+
+  it('propose les élèves d’une année importée et laisse choisir manuellement la classe active', async () => {
+    mocks.listCandidates.mockResolvedValue({
+      candidates: [{
+        ...candidate('historique', 'ready'),
+        currentSchoolYearId: null,
+        currentSchoolYearLabel: '2024-2025',
+        currentClassName: '6e A',
+        finalDecision: null,
+        nextLevelId: null,
+        nextLevelName: null,
+        isHistoricalSource: true,
+        sourceSchoolYearStatus: 'historical',
+      }],
+      counts: { ...counts, decisionPending: 0, ready: 1, awaitingCashier: 0, awaitingDocuments: 0, blockedUnpaid: 0, reEnrolled: 0, excluded: 0, financialUnavailable: 0, toProcess: 1, confirmed: 0, all: 1 },
+      targetSchoolYear: { id: 'year-2', label: '2026-2027', status: 'active' },
+      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+    })
+    renderPage()
+
+    await screen.findByText('KONÉ historique')
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Année d’origine' }), { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByRole('option', { name: '2024-2025 (import historique) · Année clôturée' }))
+    await waitFor(() => expect(mocks.listCandidates).toHaveBeenCalledWith(expect.objectContaining({
+      schoolYearId: 'year-2',
+      sourceSchoolYearLabel: '2024-2025',
+      sourceSchoolYearId: undefined,
+    })))
+    expect(await screen.findByText(/Les élèves importés pour 2024-2025 n’ont pas d’impayé antérieur enregistré/)).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Classe d’accueil de KONÉ historique' }), { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByRole('option', { name: /5e A/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Réinscrire' }))
+    await waitFor(() => expect(mocks.createEnrollment).toHaveBeenCalledWith({
+      studentId: 'historique',
+      classId: 'class-2',
+      schoolYearId: 'year-2',
+      type: 're_registration',
+      sourceSchoolYearLabel: '2024-2025',
+    }))
   })
 
   it('regroupe les statuts à zéro tout en les gardant filtrables', async () => {

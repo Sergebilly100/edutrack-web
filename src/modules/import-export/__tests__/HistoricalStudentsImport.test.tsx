@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { useAuthStore } from '@/shared/store/auth.store'
+import OnboardingFocusLayout from '@/modules/onboarding/OnboardingFocusLayout'
 import { configurationLink } from '@/modules/onboarding/onboarding.progress'
 
 const mocks = vi.hoisted(() => ({ analyze: vi.fn(), save: vi.fn(), confirm: vi.fn(), template: vi.fn(), errors: vi.fn(), toast: vi.fn(), school: vi.fn(), access: vi.fn() }))
@@ -13,6 +14,7 @@ vi.mock('../historical-students.api', async (load) => ({
   downloadHistoricalErrors: mocks.errors,
 }))
 vi.mock('@/components/ui/use-toast', () => ({ useToast: () => ({ toast: mocks.toast }) }))
+vi.mock('@/shared/components/TourGuide', () => ({ TourGuide: () => <div data-testid="tour-guide" /> }))
 vi.mock('@/modules/onboarding/onboarding.api', () => ({ fetchSchoolInfo: mocks.school }))
 vi.mock('../import-export.api', async (load) => ({
   ...(await load<typeof import('../import-export.api')>()), fetchImportContext: mocks.access,
@@ -91,9 +93,22 @@ describe('historical student import', () => {
     expect(screen.queryByText('historique.xlsx')).not.toBeInTheDocument()
   })
   it('keeps historical import within the contextual onboarding return', async () => {
-    mount(<ImportPage />, configurationLink('/import?type=students', 'school-id', 4))
+    const path = configurationLink('/import?type=students', 'school-id', 4)
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path="/import" element={<OnboardingFocusLayout />}>
+              <Route index element={<ImportPage />} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
     await screen.findByRole('heading', { name: 'Profils élèves historiques' })
-    expect(screen.getByRole('link', { name: 'Retour à la configuration initiale' })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Retour à la configuration' })).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'Revoir le guide' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('tour-guide')).not.toBeInTheDocument()
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
     expect(screen.queryByText('Mode de mise à jour')).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: /historique des imports/i })).not.toBeInTheDocument()

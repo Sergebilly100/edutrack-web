@@ -1,4 +1,4 @@
-import { OnboardingReturn } from "@/modules/onboarding/OnboardingReturn"
+import { OnboardingReturn, useOnboardingContext } from "@/modules/onboarding/OnboardingReturn"
 import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Info, Plus } from "lucide-react"
@@ -25,6 +25,7 @@ type RoomFormState = {
   name: string
   building: string
   capacity: string
+  isActive: boolean
   latitude: string
   longitude: string
   geoRadius: string
@@ -34,6 +35,7 @@ const EMPTY_FORM: RoomFormState = {
   name: "",
   building: "",
   capacity: "",
+  isActive: true,
   latitude: "",
   longitude: "",
   geoRadius: "",
@@ -76,11 +78,13 @@ export default function RoomsPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const { hasPermission } = usePermissions()
+  const onboardingContext = useOnboardingContext()
+  const isOnboardingFocus = Boolean(onboardingContext.target)
   const canViewRooms = hasPermission("rooms.view")
   const canCreateRoom = hasPermission("rooms.create")
   const canEditRoom = hasPermission("rooms.edit")
   const canDeleteRoom = hasPermission("rooms.delete")
-  const tour = useTourGuide("rooms", true)
+  const tour = useTourGuide("rooms", !isOnboardingFocus)
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -132,6 +136,7 @@ export default function RoomsPage() {
 
       setCreateDialogOpen(false)
       setForm(EMPTY_FORM)
+      await queryClient.invalidateQueries({ queryKey: ["onboarding-status"] })
       toast({ title: "Salle ajoutée" })
     },
     onError: (error) => {
@@ -151,6 +156,7 @@ export default function RoomsPage() {
         name: string
         building: string | null
         capacity: number | null
+        isActive?: boolean
         latitude?: number | null
         longitude?: number | null
         geoRadius?: number | null
@@ -175,6 +181,7 @@ export default function RoomsPage() {
       setEditDialogOpen(false)
       setSelectedRoom(null)
       setForm(EMPTY_FORM)
+      await queryClient.invalidateQueries({ queryKey: ["onboarding-status"] })
       toast({ title: "Salle mise à jour" })
     },
     onError: (error) => {
@@ -190,7 +197,10 @@ export default function RoomsPage() {
   const deleteMutation = useMutation({
     mutationFn: deleteRoom,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: ["onboarding-status"] }),
+      ])
       toast({ title: "Salle supprimée" })
     },
     onError: () => {
@@ -249,6 +259,7 @@ export default function RoomsPage() {
       latitude: room.latitude === null ? "" : String(room.latitude),
       longitude: room.longitude === null ? "" : String(room.longitude),
       geoRadius: room.geoRadius === null ? "" : String(room.geoRadius),
+      isActive: room.isActive,
     })
     setEditDialogOpen(true)
   }
@@ -285,6 +296,7 @@ export default function RoomsPage() {
       latitude,
       longitude,
       geoRadius: toGeoRadius(form.geoRadius),
+      isActive: form.isActive,
     })
   }
 
@@ -330,19 +342,22 @@ export default function RoomsPage() {
         latitude,
         longitude,
         geoRadius: toGeoRadius(form.geoRadius),
+        isActive: form.isActive,
       },
     })
   }
 
   return (
     <>
-      <TourGuide
-        steps={roomsTourSteps}
-        run={tour.run}
-        stepIndex={tour.stepIndex}
-        onStepChange={tour.setStepIndex}
-        onFinish={tour.markDone}
-      />
+      {!isOnboardingFocus ? (
+        <TourGuide
+          steps={roomsTourSteps}
+          run={tour.run}
+          stepIndex={tour.stepIndex}
+          onStepChange={tour.setStepIndex}
+          onFinish={tour.markDone}
+        />
+      ) : null}
     <div className="space-y-6" data-testid="rooms-page">
       <OfflineIndicator />
       <OnboardingReturn />
@@ -354,7 +369,7 @@ export default function RoomsPage() {
               Gérez les salles de classe et imprimez les QR codes pour le check-in professeur.
             </p>
           </div>
-          <Button
+          {!isOnboardingFocus ? <Button
             type="button"
             variant="outline"
             size="sm"
@@ -364,7 +379,7 @@ export default function RoomsPage() {
           >
             <Info className="mr-1.5 h-4 w-4" />
             Guide
-          </Button>
+          </Button> : null}
         </div>
       </header>
 
@@ -383,7 +398,7 @@ export default function RoomsPage() {
             </OfflineGuard>
           ) : null}
         </CardHeader>
-        <CardContent>
+        <CardContent className="py-4">
           {!canViewRooms ? (
             <Alert variant="destructive">
               <AlertDescription>Permission rooms.view requise pour afficher les salles.</AlertDescription>
@@ -422,6 +437,7 @@ export default function RoomsPage() {
         setForm={setForm}
         onSubmit={handleCreateSubmit}
         isPending={createMutation.isPending}
+        showActiveToggle={isOnboardingFocus}
         mode="create"
       />
 
@@ -432,6 +448,7 @@ export default function RoomsPage() {
         setForm={setForm}
         onSubmit={handleEditSubmit}
         isPending={updateMutation.isPending}
+        showActiveToggle={isOnboardingFocus}
         mode="edit"
       />
 

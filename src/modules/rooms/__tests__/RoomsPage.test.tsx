@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
+import { OnboardingContextProvider } from "@/modules/onboarding/OnboardingReturn"
 
 const listRoomsMock = vi.fn()
 const updateRoomMock = vi.fn()
@@ -36,17 +37,25 @@ vi.mock("@/shared/components/OfflineIndicator", () => ({
   OfflineIndicator: () => null,
 }))
 
+vi.mock("@/shared/components/TourGuide", () => ({
+  TourGuide: () => <div data-testid="tour-guide" />,
+}))
+
 import RoomsPage from "@/modules/rooms/RoomsPage"
 import type { RoomListItem } from "@/modules/rooms/rooms.api"
 
 const createQueryClient = () =>
   new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
 
-const renderRoomsPage = () =>
+const renderRoomsPage = (onboardingFocus = false) =>
   render(
     <QueryClientProvider client={createQueryClient()}>
       <MemoryRouter>
-        <RoomsPage />
+        {onboardingFocus ? (
+          <OnboardingContextProvider value={{ target: "/onboarding?step=3&school=A", focusStep: 3, schoolId: "A" }}>
+            <RoomsPage />
+          </OnboardingContextProvider>
+        ) : <RoomsPage />}
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -102,6 +111,22 @@ describe("RoomsPage", () => {
     })
   })
 
+  it("masque le guide en mode assistant", async () => {
+    listRoomsMock.mockResolvedValue([])
+    renderRoomsPage(true)
+    await screen.findByText(/aucune salle active trouvée/i)
+    expect(screen.queryByRole("button", { name: "Revoir le guide" })).not.toBeInTheDocument()
+    expect(screen.queryByTestId("tour-guide")).not.toBeInTheDocument()
+  })
+
+  it("garde le guide dans la page normale", async () => {
+    listRoomsMock.mockResolvedValue([])
+    renderRoomsPage()
+    await screen.findByText(/aucune salle active trouvée/i)
+    expect(screen.getByRole("button", { name: "Revoir le guide" })).toBeInTheDocument()
+    expect(screen.getByTestId("tour-guide")).toBeInTheDocument()
+  })
+
   it("met à jour le badge GPS immédiatement après ajout de coordonnées", async () => {
     // Salle sans GPS au départ
     listRoomsMock.mockResolvedValue([
@@ -125,8 +150,8 @@ describe("RoomsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Modifier/i }))
 
     // Remplir les coordonnées GPS
-    const latInput = await screen.findByPlaceholderText(/Latitude GPS/i)
-    const lonInput = screen.getByPlaceholderText(/Longitude GPS/i)
+    const latInput = await screen.findByLabelText(/Latitude GPS/i)
+    const lonInput = screen.getByLabelText(/Longitude GPS/i)
     fireEvent.change(latInput, { target: { value: "5.345" } })
     fireEvent.change(lonInput, { target: { value: "-4.012" } })
 

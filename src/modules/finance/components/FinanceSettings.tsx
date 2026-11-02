@@ -133,7 +133,7 @@ export function FinanceSettings({ canManageProviders, canViewPlans, canEditPlans
 
       {canViewPlans ? (
         <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Settings2 className="h-5 w-5 text-primary" />Plans d’abonnement (alerte Parents)</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Settings2 className="h-5 w-5 text-primary" />Plans d’abonnement (Alertes Parents)</CardTitle></CardHeader>
           <CardContent className="space-y-5">
             {(plansQuery.data ?? []).length > 0 ? (
               <div className="divide-y rounded-lg border">
@@ -148,9 +148,9 @@ export function FinanceSettings({ canManageProviders, canViewPlans, canEditPlans
 
             {canEditPlans ? <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
               <div className="flex items-center justify-between"><h3 className="font-medium">{editingPlanId ? "Modifier le plan" : "Nouveau plan"}</h3>{editingPlanId ? <Button type="button" variant="ghost" onClick={() => { setEditingPlanId(null); setPlanDraft(emptyPlan()) }}>Annuler</Button> : null}</div>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="space-y-2 sm:col-span-1"><Label htmlFor="plan-label">Libellé</Label><Input id="plan-label" className="min-h-12" value={planDraft.label} onChange={(event) => setPlanDraft((current) => ({ ...current, label: event.target.value }))} placeholder="Ex. Accès parent" /></div>
-                <div className="space-y-2"><Label htmlFor="plan-amount">Montant</Label><Input id="plan-amount" className="min-h-12" inputMode="numeric" value={planDraft.amount || ""} onChange={(event) => setPlanDraft((current) => ({ ...current, amount: Number(event.target.value.replace(/\D/g, "")) }))} /></div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2 sm:col-span-2"><Label htmlFor="plan-label">Libellé</Label><Input id="plan-label" className="min-h-12" value={planDraft.label} onChange={(event) => setPlanDraft((current) => ({ ...current, label: event.target.value }))} placeholder="Ex. Accès parent" /></div>
+                <div className="space-y-2"><Label htmlFor="plan-amount">Montant</Label><Input id="plan-amount" className="min-h-12" inputMode="numeric" value={planDraft.amount ? planDraft.amount.toLocaleString("fr-FR") : ""} onChange={(event) => setPlanDraft((current) => ({ ...current, amount: Number(event.target.value.replace(/\D/g, "")) }))} /></div>
                 <div className="space-y-2"><Label htmlFor="plan-period">Périodicité</Label><Select value={planDraft.period} onValueChange={(value) => setPlanDraft((current) => ({ ...current, period: value as SubscriptionPeriod }))}><SelectTrigger id="plan-period" className="min-h-12"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(periodLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
               </div>
               <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border bg-background px-3 py-2 text-sm"><Checkbox checked={planDraft.isMandatoryAtEnrollment} onCheckedChange={(checked) => setPlanDraft((current) => ({ ...current, isMandatoryAtEnrollment: checked === true, imposedDuration: checked === true ? (current.imposedDuration ?? current.period) : null }))} /><span>Ajouter automatiquement ce plan au montant dû à l’inscription</span></label>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { BellRing, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { EmptyState } from "@/shared/components/EmptyState"
 import { useToast } from "@/components/ui/use-toast"
 import {
   fetchFinancialAlertLogs,
@@ -18,11 +17,13 @@ import {
   type FinancialAlertRuleRow,
 } from "../finance.api"
 
-const RULE_META: Array<{ type: "preventive" | "late" | "severe_late"; label: string; hint: string }> = [
-  { type: "preventive", label: "Préventive", hint: "Jours avant la prochaine échéance pour prévenir les parents." },
-  { type: "late", label: "Retard", hint: "Jours de retard avant la première relance." },
-  { type: "severe_late", label: "Retard important", hint: "Jours de retard avant la relance urgente." },
+const RULE_META: Array<{ type: "preventive" | "late" | "severe_late"; label: string; hint: string; unit: string }> = [
+  { type: "preventive", label: "Préventive", hint: "Jours avant la prochaine échéance pour prévenir les parents.", unit: "jours avant l’échéance" },
+  { type: "late", label: "Retard", hint: "Jours de retard avant la première relance.", unit: "jours de retard" },
+  { type: "severe_late", label: "Retard important", hint: "Jours de retard avant la relance urgente.", unit: "jours de retard" },
 ]
+
+const CHANNEL_LABELS: Record<string, string> = { sms: "SMS", in_app: "Dans l’application", both: "SMS + application" }
 
 export function FinancialAlertRules({ canEdit }: { canEdit: boolean }) {
   return (
@@ -76,94 +77,112 @@ function RulesEditor({ canEdit }: { canEdit: boolean }) {
       }),
   })
 
+  const isDirty = (type: string) => {
+    const found = existing(type)
+    if (!found) return true
+    const draft = draftFor(type)
+    return draft.daysOffset !== String(found.daysOffset ?? found.days_offset)
+      || draft.channel !== (found.channel ?? "sms")
+      || draft.isActive !== Boolean(found.isActive ?? found.is_active ?? true)
+  }
+  const lateDays = Number(draftFor("late").daysOffset)
+
   return (
     <Card className="rounded-lg shadow-sm">
       <CardHeader className="pb-3">
-        <CardTitle>Règles de relance</CardTitle>
+        <CardTitle className="text-lg font-semibold">Règles de relance</CardTitle>
         <CardDescription>
           Une seule règle par type. Les relances partent chaque matin aux parents concernés.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent>
         {rulesQuery.isLoading ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> Chargement…
           </p>
         ) : (
-          RULE_META.map((meta) => {
-            const draft = draftFor(meta.type)
-            const parsed = Number(draft.daysOffset)
-            const valid = Number.isInteger(parsed) && parsed >= 0 && parsed <= 365
-            return (
-              <div key={meta.type} className="grid items-end gap-3 rounded-lg border p-4 md:grid-cols-[1fr_120px_170px_auto]">
-                <div>
-                  <Label>{meta.label}</Label>
-                  <p className="mt-1 text-xs text-muted-foreground">{meta.hint}</p>
-                </div>
-                <div className="space-y-1">
-                  <Label className="sr-only">Jours</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={365}
-                    value={draft.daysOffset}
-                    disabled={!canEdit}
-                    onChange={(event) =>
-                      setDrafts((prev) => ({ ...prev, [meta.type]: { ...draft, daysOffset: event.target.value } }))
-                    }
-                  />
-                </div>
-                <Select
-                  value={draft.channel}
-                  disabled={!canEdit}
-                  onValueChange={(value) =>
-                    setDrafts((prev) => ({
-                      ...prev,
-                      [meta.type]: { ...draft, channel: value as "sms" | "in_app" | "both" },
-                    }))
-                  }
-                >
-                  <SelectTrigger className="min-h-12"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sms">SMS</SelectItem>
-                    <SelectItem value="in_app">In-app</SelectItem>
-                    <SelectItem value="both">SMS + In-app</SelectItem>
-                  </SelectContent>
-                </Select>
-                <div className="flex items-center justify-end gap-3">
-                  <Label className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Checkbox
-                      checked={draft.isActive}
+          <div className="divide-y">
+            {RULE_META.map((meta) => {
+              const draft = draftFor(meta.type)
+              const parsed = Number(draft.daysOffset)
+              const valid = Number.isInteger(parsed) && parsed >= 0 && parsed <= 365
+              const dirty = isDirty(meta.type)
+              const overlaps = meta.type === "severe_late" && valid && Number.isInteger(lateDays) && parsed <= lateDays
+              const inputId = `alert-days-${meta.type}`
+              return (
+                <div key={meta.type} className="flex flex-wrap items-center gap-3 py-4 last:pb-0 sm:grid sm:grid-cols-[minmax(0,1fr)_5.5rem_10.5rem_12rem_6.5rem_8.5rem]">
+                  <div className="min-w-0 basis-full lg:basis-auto">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Label htmlFor={inputId} className="text-base font-medium">{meta.label}</Label>
+                      {!existing(meta.type) ? <Badge variant="secondary">Non enregistrée</Badge> : null}
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">{meta.hint}</p>
+                    {overlaps ? <p role="status" className="mt-1 text-sm text-amber-700">Le retard important devrait dépasser le délai de « Retard » ({lateDays} jours).</p> : null}
+                  </div>
+                  <>
+                      <Input
+                        id={inputId}
+                        type="number"
+                        min={0}
+                        max={365}
+                        className="min-h-12 w-24 lg:w-full"
+                        value={draft.daysOffset}
+                        disabled={!canEdit}
+                        onChange={(event) =>
+                          setDrafts((prev) => ({ ...prev, [meta.type]: { ...draft, daysOffset: event.target.value } }))
+                        }
+                      />
+                      <span className="text-sm text-muted-foreground">{meta.unit}</span>
+                    <Select
+                      value={draft.channel}
                       disabled={!canEdit}
-                      onCheckedChange={(checked) =>
+                      onValueChange={(value) =>
                         setDrafts((prev) => ({
                           ...prev,
-                          [meta.type]: { ...draft, isActive: Boolean(checked) },
+                          [meta.type]: { ...draft, channel: value as "sms" | "in_app" | "both" },
                         }))
                       }
-                    />
-                    Active
-                  </Label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="min-h-10"
-                    disabled={!canEdit || !valid || saveMutation.isPending}
-                    onClick={() =>
-                      saveMutation.mutate({ type: meta.type, daysOffset: parsed, channel: draft.channel, isActive: draft.isActive })
-                    }
-                  >
-                    Enregistrer
-                  </Button>
+                    >
+                      <SelectTrigger className="min-h-12 w-48 lg:w-full" aria-label={`Canal d’envoi : ${meta.label}`}><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sms">{CHANNEL_LABELS.sms}</SelectItem>
+                        <SelectItem value="in_app">{CHANNEL_LABELS.in_app}</SelectItem>
+                        <SelectItem value="both">{CHANNEL_LABELS.both}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Label className="flex min-h-12 items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={draft.isActive}
+                        disabled={!canEdit}
+                        onCheckedChange={(checked) =>
+                          setDrafts((prev) => ({
+                            ...prev,
+                            [meta.type]: { ...draft, isActive: Boolean(checked) },
+                          }))
+                        }
+                      />
+                      Active
+                    </Label>
+                    <Button
+                      type="button"
+                      variant={existing(meta.type) && dirty ? "default" : "outline"}
+                      className="min-h-12"
+                      disabled={!canEdit || !valid || !dirty || saveMutation.isPending}
+                      onClick={() =>
+                        saveMutation.mutate({ type: meta.type, daysOffset: parsed, channel: draft.channel, isActive: draft.isActive })
+                      }
+                    >
+                      Enregistrer
+                    </Button>
+                  </>
                 </div>
-              </div>
-            )
-          })
+              )
+            })}
+          </div>
         )}
         {!canEdit ? (
-          <p className="text-xs text-muted-foreground">
-            Lecture seule : la permission financial_alerts.edit est requise pour modifier.
+          <p className="mt-4 text-sm text-muted-foreground">
+            Vous pouvez consulter ces règles, mais votre poste ne permet pas de les modifier.
           </p>
         ) : null}
       </CardContent>
@@ -187,14 +206,14 @@ function AlertsLog() {
   return (
     <Card className="rounded-lg shadow-sm">
       <CardHeader className="pb-3">
-        <CardTitle>Historique des relances</CardTitle>
+        <CardTitle className="text-lg font-semibold">Historique des relances</CardTitle>
         <CardDescription>Toutes les relances envoyées par l&apos;école, de la plus récente à la plus ancienne.</CardDescription>
       </CardHeader>
       <CardContent>
         {logsQuery.isLoading ? (
           <p className="text-sm text-muted-foreground">Chargement…</p>
         ) : (logsPage?.logs.length ?? 0) === 0 ? (
-          <EmptyState icon={BellRing} title="Aucune relance envoyée" message="Les relances envoyées aux parents apparaîtront ici." />
+          <p className="text-sm text-muted-foreground py-4">Aucune relance envoyée pour le moment. Elles apparaîtront ici dès qu’une règle se déclenche.</p>
         ) : (
           <div className="space-y-4">
             <div className="overflow-x-auto rounded-lg border">
@@ -214,7 +233,7 @@ function AlertsLog() {
                       <TableCell>{new Date(log.sent_at).toLocaleString("fr-FR")}</TableCell>
                       <TableCell className="font-medium">{log.student_name}</TableCell>
                       <TableCell>{RULE_LABELS[log.rule_type] ?? log.rule_type}</TableCell>
-                      <TableCell>{log.channel === "both" ? "SMS + In-app" : log.channel === "sms" ? "SMS" : "In-app"}</TableCell>
+                      <TableCell>{CHANNEL_LABELS[log.channel] ?? log.channel}</TableCell>
                       <TableCell>
                         {log.status === "sent" ? (
                           <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">Envoyée</Badge>

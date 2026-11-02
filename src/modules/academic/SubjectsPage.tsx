@@ -1,4 +1,4 @@
-import { OnboardingReturn } from "@/modules/onboarding/OnboardingReturn"
+import { OnboardingReturn, useOnboardingContext } from "@/modules/onboarding/OnboardingReturn"
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ColumnDef } from "@tanstack/react-table"
@@ -41,6 +41,8 @@ export default function SubjectsPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const { hasPermission } = usePermissions()
+  const onboardingContext = useOnboardingContext()
+  const isOnboardingFocus = Boolean(onboardingContext.target)
   const canEdit = hasPermission("classes.edit")
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -51,7 +53,10 @@ export default function SubjectsPage() {
   const bulkSaveMutation = useMutation({
     mutationFn: createSubjectsBulk,
     onSuccess: async (subjects) => {
-      await queryClient.invalidateQueries({ queryKey: SUBJECTS_KEY })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: SUBJECTS_KEY }),
+        queryClient.invalidateQueries({ queryKey: ["onboarding-status"] }),
+      ])
       setBulkDialogOpen(false)
       toast({ title: `${subjects.length} matière${subjects.length > 1 ? "s" : ""} ajoutée${subjects.length > 1 ? "s" : ""}` })
     },
@@ -64,7 +69,10 @@ export default function SubjectsPage() {
   const groupSaveMutation = useMutation({
     mutationFn: updateSubjectsBulk,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: SUBJECTS_KEY })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: SUBJECTS_KEY }),
+        queryClient.invalidateQueries({ queryKey: ["onboarding-status"] }),
+      ])
       setDialogOpen(false)
       setSelectedGroup(null)
       toast({ title: "Matière mise à jour" })
@@ -74,6 +82,35 @@ export default function SubjectsPage() {
       description: apiErrorMessage(error, "Vérifiez le nom et les coefficients."),
       variant: "destructive",
     }),
+  })
+  const commonSubjects = ["Mathématiques", "Français", "Anglais", "SVT", "Histoire-Géographie", "EPS", "Physique-Chimie"]
+  const existingSubjectNames = new Set((subjectsQuery.data ?? []).map((subject) => subject.name.trim().toLocaleLowerCase("fr")))
+  const suggestedSubjects = commonSubjects.filter((name) => !existingSubjectNames.has(name.toLocaleLowerCase("fr")))
+  const addCommonSubjectsMutation = useMutation({
+    mutationFn: async (names: string[]) => {
+      const created: Subject[] = []
+      for (const name of names) {
+        created.push(...await createSubjectsBulk({
+          name,
+          assignments: (levelsQuery.data ?? []).map((level) => ({ levelId: level.id, coefficient: 1 })),
+        }))
+      }
+      return created
+    },
+    onSuccess: async (subjects) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: SUBJECTS_KEY }),
+        queryClient.invalidateQueries({ queryKey: ["onboarding-status"] }),
+      ])
+      toast({ title: `${subjects.length} matière${subjects.length > 1 ? "s" : ""} ajoutée${subjects.length > 1 ? "s" : ""}` })
+    },
+    onError: async (error) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: SUBJECTS_KEY }),
+        queryClient.invalidateQueries({ queryKey: ["onboarding-status"] }),
+      ])
+      toast({ title: "Enregistrement impossible", description: apiErrorMessage(error, "Certaines matières n’ont pas pu être ajoutées."), variant: "destructive" })
+    },
   })
 
   const openCreate = () => {
@@ -141,6 +178,27 @@ export default function SubjectsPage() {
     >
       <AcademicNavigation />
       <OnboardingReturn />
+      {isOnboardingFocus && canEdit ? (
+        <section aria-label="Suggestions de matières" className="space-y-3 rounded-lg border bg-card p-4">
+          <div>
+            <h2 className="text-sm font-semibold">Matières courantes</h2>
+            <p className="text-sm text-muted-foreground">Chaque matière est ajoutée aux niveaux disponibles avec un coefficient initial de 1.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {suggestedSubjects.map((name) => (
+              <Button key={name} type="button" variant="outline" disabled={bulkSaveMutation.isPending || addCommonSubjectsMutation.isPending || (levelsQuery.data?.length ?? 0) === 0} onClick={() => bulkSaveMutation.mutate({ name, assignments: (levelsQuery.data ?? []).map((level) => ({ levelId: level.id, coefficient: 1 })) })}>
+                + {name}
+              </Button>
+            ))}
+            {suggestedSubjects.length === 0 ? <p className="text-sm text-muted-foreground">Toutes les matières proposées sont déjà présentes.</p> : null}
+          </div>
+          {suggestedSubjects.length > 1 ? (
+            <Button type="button" disabled={addCommonSubjectsMutation.isPending || (levelsQuery.data?.length ?? 0) === 0} onClick={() => addCommonSubjectsMutation.mutate(suggestedSubjects)}>
+              {addCommonSubjectsMutation.isPending ? "Ajout en cours…" : "Ajouter les matières courantes"}
+            </Button>
+          ) : null}
+        </section>
+      ) : null}
       {pageError ? (
         <QueryErrorState
           onRetry={() => { void levelsQuery.refetch(); void subjectsQuery.refetch() }}

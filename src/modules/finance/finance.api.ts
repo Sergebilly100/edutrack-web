@@ -161,6 +161,7 @@ export type TuitionPlan = {
   schoolYearId: string
   schoolYearLabel: string
   totalAmount: number
+  registrationAmount: number
   currency: string
   scheduleSteps: TuitionScheduleStep[]
 }
@@ -380,6 +381,7 @@ const parseTuitionPlan = (value: unknown): TuitionPlan => {
     schoolYearId: asString(row.school_year_id),
     schoolYearLabel: asString(row.school_year_label),
     totalAmount: asNumber(row.total_amount),
+    registrationAmount: asNumber(row.registration_amount),
     currency: asString(row.currency, "FCFA"),
     scheduleSteps: rawSteps.map((step) => {
       const item = record(step)
@@ -468,6 +470,7 @@ export async function listTuitionPlans(schoolYearId: string): Promise<TuitionPla
 export async function upsertTuitionPlan(levelId: string, payload: {
   schoolYearId: string
   totalAmount: number
+  registrationAmount?: number
   currency: string
   scheduleSteps: Array<{ dueDate: string; cumulativeAmountExpected: number }>
 }): Promise<TuitionPlan> {

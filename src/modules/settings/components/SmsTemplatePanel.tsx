@@ -4,7 +4,6 @@ import { MessageSquareText } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
@@ -17,6 +16,22 @@ import {
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 
 const SMS_TEMPLATE_QUERY_KEY = ["settings", "sms-template", "student-absence"] as const
+
+// Libellés lisibles et valeurs fictives pour l'aperçu. Une variable inconnue reste affichée telle quelle.
+const VARIABLE_LABELS: Record<string, string> = {
+  studentFirstName: "Prénom",
+  subject: "Matière",
+  date: "Date",
+  schoolPhone: "Téléphone de l’école",
+}
+const SAMPLE_VALUES: Record<string, string> = {
+  studentFirstName: "Awa",
+  subject: "Mathématiques",
+  date: "12/10",
+  schoolPhone: "07 00 00 00 00",
+}
+
+const variableKey = (name: string) => name.replace(/^\{|\}$/g, "")
 
 export default function SmsTemplatePanel({ canReadTemplate }: { canReadTemplate: boolean }) {
   const { toast } = useToast()
@@ -78,6 +93,20 @@ export default function SmsTemplatePanel({ canReadTemplate }: { canReadTemplate:
   const source = templateQuery.data?.source
   const sourceLabel = source === "school" ? "Personnalisé (école)"
     : source === "global" ? "Modèle global IvoirEdu" : "Message système"
+  const variables = templateQuery.data?.variables ?? []
+  const preview = messageTemplate.replace(/\{(\w+)\}/g, (match, key: string) => SAMPLE_VALUES[key] ?? match)
+
+  const insertVariable = (name: string) => {
+    const token = `{${variableKey(name)}}`
+    const element = textareaRef.current
+    const start = element?.selectionStart ?? messageTemplate.length
+    const end = element?.selectionEnd ?? start
+    setMessageTemplate((current) => current.slice(0, start) + token + current.slice(end))
+    requestAnimationFrame(() => {
+      element?.focus()
+      element?.setSelectionRange(start + token.length, start + token.length)
+    })
+  }
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
@@ -89,7 +118,7 @@ export default function SmsTemplatePanel({ canReadTemplate }: { canReadTemplate:
           <div>
             <p className="text-sm font-medium">{`Template SMS absence ${studentLabels.singularLower}`}</p>
             <p className="text-xs text-muted-foreground">
-              Visible/modifiable selon autorisation du super admin.
+              Modifiable par votre école, sous réserve de l’autorisation d’IvoirEdu.
             </p>
           </div>
         </div>
@@ -112,12 +141,12 @@ export default function SmsTemplatePanel({ canReadTemplate }: { canReadTemplate:
             <Button type="button" variant="outline" className="min-h-12" onClick={() => void templateQuery.refetch()}>Réessayer</Button>
           </AlertDescription></Alert>
         ) : (
-          <Card className="border-border shadow-none">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">{`Absence ${studentLabels.singularLower} vers parent`}</CardTitle>
-              <CardDescription>Source active : {sourceLabel}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-medium">{`Absence ${studentLabels.singularLower} vers parent`}</h3>
+                <p className="text-sm text-muted-foreground">Source active : {sourceLabel}</p>
+              </div>
               {source === "default" ? <EmptyState
                 title="Aucun modèle SMS personnalisé"
                 description="Le message système ci-dessous est utilisé actuellement. Modifiez-le puis enregistrez pour ajouter votre propre message."
@@ -130,6 +159,19 @@ export default function SmsTemplatePanel({ canReadTemplate }: { canReadTemplate:
                   Le super admin n&apos;a pas autorisé la personnalisation des modèles SMS pour cette école.
                 </AlertDescription></Alert>
               ) : null}
+              {isEnabled && variables.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Insérer une information dans le message</p>
+                  <div className="flex flex-wrap gap-2">
+                    {variables.map((name) => (
+                      <Button key={name} type="button" variant="outline" size="sm" className="min-h-12 sm:min-h-9"
+                        onClick={() => insertVariable(name)}>
+                        {VARIABLE_LABELS[variableKey(name)] ?? variableKey(name)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <Textarea
                 ref={textareaRef}
                 aria-label={`Texte du SMS d’absence ${studentLabels.singularLower}`}
@@ -139,7 +181,9 @@ export default function SmsTemplatePanel({ canReadTemplate }: { canReadTemplate:
                 disabled={!isEnabled}
               />
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs text-muted-foreground">{messageTemplate.trim().length} caractères</p>
+                <p className="text-xs text-muted-foreground">
+                  {messageTemplate.trim().length} caractères. Les informations insérées sont remplacées à l’envoi : la longueur réelle peut varier.
+                </p>
                 <div className="flex flex-wrap gap-2">
                   {source === "school" ? <Button
                     type="button"
@@ -156,8 +200,16 @@ export default function SmsTemplatePanel({ canReadTemplate }: { canReadTemplate:
                   >{source === "school" ? "Enregistrer" : "Créer le modèle SMS"}</Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">Aperçu chez le parent</h3>
+              <p className="whitespace-pre-wrap break-words rounded-lg bg-muted p-4 text-sm" aria-live="polite">
+                {preview.trim() || "Votre message apparaîtra ici."}
+              </p>
+              <p className="text-xs text-muted-foreground">Exemple avec des valeurs fictives.</p>
+            </div>
+          </div>
         )}
       </div>
     </div>

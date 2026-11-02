@@ -1,4 +1,4 @@
-import { OnboardingReturn } from "@/modules/onboarding/OnboardingReturn"
+import { OnboardingReturn, useOnboardingContext } from "@/modules/onboarding/OnboardingReturn"
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ColumnDef } from "@tanstack/react-table"
@@ -22,6 +22,8 @@ export default function LevelsPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const { hasPermission } = usePermissions()
+  const onboardingContext = useOnboardingContext()
+  const isOnboardingFocus = Boolean(onboardingContext.target)
   const canCreate = hasPermission("classes.create")
   const canEdit = hasPermission("classes.edit")
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -31,7 +33,10 @@ export default function LevelsPage() {
     mutationFn: ({ level, payload }: { level: Level | null; payload: LevelPayload }) =>
       level ? updateLevel(level.id, payload) : createLevel(payload),
     onSuccess: async (_, variables) => {
-      await queryClient.invalidateQueries({ queryKey: LEVELS_KEY })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: LEVELS_KEY }),
+        queryClient.invalidateQueries({ queryKey: ["onboarding-status"] }),
+      ])
       setDialogOpen(false)
       setSelected(null)
       toast({ title: variables.level ? "Niveau mis à jour" : "Niveau ajouté" })
@@ -41,6 +46,13 @@ export default function LevelsPage() {
 
   const openCreate = () => { setSelected(null); setDialogOpen(true) }
   const openEdit = (level: Level) => { setSelected(level); setDialogOpen(true) }
+  const suggestedLevels = ["4ème", "3ème", "2nde", "1ère", "Terminale"].filter((name) =>
+    !(query.data ?? []).some((level) => level.name.trim().toLocaleLowerCase("fr") === name.toLocaleLowerCase("fr")),
+  )
+  const addSuggestedLevel = (name: string) => {
+    const nextOrder = Math.max(-1, ...(query.data ?? []).map((level) => level.orderIndex)) + 1
+    mutation.mutate({ level: null, payload: { name, orderIndex: nextOrder, isExamClass: name === "Terminale" } })
+  }
   const columns = useMemo<ColumnDef<Level>[]>(() => [
     { accessorKey: "name", header: "Niveau", cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
     { accessorKey: "orderIndex", header: "Ordre" },
@@ -52,6 +64,19 @@ export default function LevelsPage() {
     <PageLayout title="Structure scolaire" subtitle="Organisez les niveaux dans leur ordre d’affichage." actions={canCreate ? <Button type="button" onClick={openCreate}><AddIcon className="mr-2 h-4 w-4" />Ajouter un niveau</Button> : undefined}>
       <AcademicNavigation />
       <OnboardingReturn />
+      {isOnboardingFocus && canCreate ? (
+        <section aria-label="Suggestions de niveaux" className="space-y-2 rounded-lg border bg-card p-4">
+          <h2 className="text-sm font-semibold">Ajouter rapidement un niveau</h2>
+          <div className="flex flex-wrap gap-2">
+            {suggestedLevels.map((name) => (
+              <Button key={name} type="button" variant="outline" disabled={mutation.isPending} onClick={() => addSuggestedLevel(name)}>
+                + {name}
+              </Button>
+            ))}
+            {suggestedLevels.length === 0 ? <p className="text-sm text-muted-foreground">Tous les niveaux proposés sont déjà présents.</p> : null}
+          </div>
+        </section>
+      ) : null}
       {query.isError ? <QueryErrorState onRetry={() => void query.refetch()} isRetrying={query.isFetching} message="Impossible de charger les niveaux." /> : (
         <DataTable
           columns={columns}

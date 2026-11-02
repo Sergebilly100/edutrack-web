@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import axios from "axios"
-import { Building2, CheckCircle, KeyRound, Pencil, Plus, Settings2, Shield, Trash2, UserPlus, Users, X } from "lucide-react"
+import { Building2, CheckCircle, ChevronDown, KeyRound, Lock, Pencil, Plus, Settings2, Shield, Trash2, UserPlus, Users, X } from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
@@ -27,6 +27,8 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Progress } from "@/components/ui/progress"
 import {
   Select,
   SelectContent,
@@ -79,15 +81,16 @@ const smsPriceSchema = z.object({
 })
 type SmsPriceFormValues = z.infer<typeof smsPriceSchema>
 
-export default function SchoolConfigPanel({ section = "all" }: { section?: "all" | "general" | "personnel" }) {
+export default function SchoolConfigPanel({ section = "all" }: { section?: "all" | "general" | "personnel" | "academic" }) {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const user = useAuthStore((state) => state.user)
   const { hasPermission } = usePermissions()
   const canManagePositions = hasPermission("settings.positions")
   const canManageSchoolSettings = user?.role === "director" || hasPermission("settings.school")
-  const showGeneral = section !== "personnel"
-  const showPersonnel = section !== "general"
+  const showGeneral = section === "all" || section === "general"
+  const showPersonnel = section === "all" || section === "personnel"
+  const showAcademic = section === "all" || section === "academic"
 
   const [positionModalOpen, setPositionModalOpen] = useState(false)
   const [positionToEdit, setPositionToEdit] = useState<PositionPayload | null>(null)
@@ -134,6 +137,16 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
       checkoutToleranceMinutes: smsFeatureQuery.data?.checkout_tolerance_minutes ?? 5,
     },
   })
+
+  // Le formulaire est créé avant l'arrivée des données : on l'aligne dès qu'elles sont chargées
+  // (sans écraser une saisie en cours).
+  useEffect(() => {
+    if (!smsFeatureQuery.data) return
+    smsPriceForm.reset({
+      smsUnitPriceFcfa: smsFeatureQuery.data.sms_unit_price_fcfa ?? 0,
+      checkoutToleranceMinutes: smsFeatureQuery.data.checkout_tolerance_minutes ?? 5,
+    }, { keepDirtyValues: true })
+  }, [smsFeatureQuery.data, smsPriceForm])
 
   const saveRealHoursConfigMutation = useMutation({
     mutationFn: (values: SmsPriceFormValues) => updateRealHoursConfig(values.checkoutToleranceMinutes),
@@ -592,6 +605,11 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
     setCriticalActionTarget(null)
   }
 
+  const maxPositions = schoolConfigQuery.data?.limits.maxAdminPositions ?? 0
+  const positionsUsagePct = maxPositions > 0 ? Math.min(100, Math.round((positions.length / maxPositions) * 100)) : 0
+  const evaluationDelaysFilled = evaluationGraceDraft.trim() !== "" && evaluationLateDraft.trim() !== ""
+  const evaluationDelaysInvalid = evaluationDelaysFilled && Number(evaluationGraceDraft) >= Number(evaluationLateDraft)
+
   const planLabel = school?.plan === "pro" ? "Pro" : school?.plan === "establishment" ? "Establishment" : "Essential"
   const teachingTypeLabel =
     school?.teachingType === "primaire"
@@ -628,196 +646,78 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
     <>
       <div className="space-y-5">
         {showGeneral ? <>
-        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="settings-school-info">
-          <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4" data-tour="settings-school-info-header">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background">
-                <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+          <div className="space-y-5">
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="settings-school-info">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/30 px-5 py-4" data-tour="settings-school-info-header">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background">
+                    <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Informations école</p>
+                    <p className="text-xs text-muted-foreground">Vue synthétique et identité visuelle.</p>
+                  </div>
+                </div>
+                <Badge variant="secondary" className="gap-1.5"><Lock className="h-3 w-3" />Lecture seule</Badge>
               </div>
-              <div>
-                <p className="text-sm font-medium">Informations école</p>
-                <p className="text-xs text-muted-foreground">Vue synthétique et identité visuelle.</p>
+              <div className="space-y-5 p-5">
+                <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+                  <SchoolInfoItem label="Nom de l'école" value={school?.name} />
+                  <SchoolInfoItem label="Ville" value={school?.city} />
+                  <SchoolInfoItem label="Adresse" value={addressDraft} />
+                  <SchoolInfoItem label="Plan actif" value={planLabel}  />
+                  <SchoolInfoItem label="Type d'enseignement" value={teachingTypeLabel} />
+                  <SchoolInfoItem label="Année scolaire" value={school?.activeSchoolYear} />
+                </dl>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-4 text-sm text-muted-foreground">
+                  <span className="inline-flex items-center gap-2">Adresse web de votre espace : <Badge variant="outline">{school?.subdomain ? `${school.subdomain}.ivoiredu.ci` : ""}</Badge></span> 
+                </div> 
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-4 text-xs text-muted-foreground">
+                    <span>Informations gérées par IvoirEdu : contactez-nous pour toute correction.</span>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="p-5">
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.5fr_1fr]">
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Nom de l&apos;école
-                    </Label>
-                    <Input value={school?.name ?? "-"} readOnly />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Ville
-                    </Label>
-                    <Input value={school?.city ?? "-"} readOnly />
-                  </div>
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor="school-address" className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Adresse
-                    </Label>
-                    <Input id="school-address" value={addressDraft} maxLength={255}  readOnly />
-                    
-                  </div>
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Sous-domaine
-                    </Label>
-                    <Input value={school?.subdomain ?? "-"} readOnly />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Type d&apos;enseignement
-                    </Label>
-                    <Input value={teachingTypeLabel} readOnly />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Année scolaire
-                    </Label>
-                    <Input value={school?.activeSchoolYear ?? "-"} readOnly />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 gap-3 text-xs text-muted-foreground sm:grid-cols-3">
-                  <p>Plan actif: <span className="font-medium text-foreground">{planLabel}</span></p>
-                  {showPersonnel && canManagePositions ? <p>Utilisateurs administratifs: <span className="font-medium text-foreground">{school ? `${school.adminUsersCount}` : "-"}</span></p> : null}
-                  <p>Gestion: centralisée par IvoirEdu</p>
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-border bg-background p-4" data-tour="settings-logo">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    {logoUrlDraft ? (
-                      <img
-                        src={logoUrlDraft}
-                        alt="Logo école"
-                        className="h-14 w-14 rounded-md border border-border object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-14 w-14 items-center justify-center rounded-md border border-dashed border-border text-xs text-muted-foreground">
-                        Logo
-                      </div>
-                    )}
-                    <p className="text-xs text-muted-foreground">Logo de l&apos;établissement</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Importer un fichier
-                    </Label>
-                    <Input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                      disabled={uploadLogoMutation.isPending}
-                      onChange={(event) => {
-                        const file = event.target.files?.[0]
-                        if (!file) {
-                          return
-                        }
-                        if (file.size > 500 * 1024) {
-                          toast({ title: "Image trop lourde", description: "Maximum 500 KB.", variant: "destructive" })
-                          event.target.value = ""
-                          return
-                        }
-                        uploadLogoMutation.mutate(file)
-                        event.target.value = ""
-                      }}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      PNG, JPEG, WEBP ou SVG - max 500 KB. Stocké sur CDN.
-                    </p>
-                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Ou saisir une URL
-                    </Label>
-                    <Input
-                      value={logoUrlDraft}
-                      onChange={(event) => setLogoUrlDraft(event.target.value)}
-                      placeholder="https://..."
-                    />
-                  </div>
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    disabled={saveSchoolInfoMutation.isPending || uploadLogoMutation.isPending || !school}
-                    onClick={() =>
-                      saveSchoolInfoMutation.mutate({
-                        logoUrl: logoUrlDraft || null,
-                      })
-                    }
-                  >
-                    {saveSchoolInfoMutation.isPending ? "Sauvegarde..." : uploadLogoMutation.isPending ? "Upload en cours..." : "Enregistrer l'URL"}
-                  </Button>
-                </div>
-              </div>
-
-              <SealsUploadCard />
-            </div>
-            <div className="mt-8 rounded-lg border border-border bg-background p-4" data-tour="settings-qr-skip-policy">
+            <div className="rounded-xl border border-border bg-card p-5 shadow-sm" data-tour="settings-qr-skip-policy">
               <div className="space-y-3">
                 <div>
-                  <p className="text-sm font-medium mb-5">Politique de scan QR Codes des salles</p>
+                  <p className="text-sm font-medium">Politique de scan QR Codes des salles</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Choisissez si l’enseignant doit scanner le QR code de la salle pour terminer son pointage.</p>
 
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="grid items-center gap-3 sm:grid-cols-[1fr_0.5fr] items-baseline ">
+
+                  <Alert className={cn(
+                    "border",
+                    allowTeacherQrSkipDraft
+                      ? "border-amber-200 bg-amber-50 text-amber-900"
+                      : "border-green-200 bg-green-50 text-green-900"
+                  )}>
+                    <AlertTitle>État actuel</AlertTitle>
+                    <AlertDescription>
+                      {allowTeacherQrSkipDraft
+                        ? "Les enseignants peuvent terminer le flux de pointage sans scanner le QR code de salle."
+                        : "Les enseignants doivent scanner le QR code de salle."}
+                    </AlertDescription>
+                  </Alert>
                   <Button
                     type="button"
                     aria-pressed={allowTeacherQrSkipDraft}
                     variant={allowTeacherQrSkipDraft ? "default" : "outline"}
-                    className="min-w-44"
+                    className="min-w-44 "
                     disabled={saveQrSkipPolicyMutation.isPending}
                     onClick={() => setPendingQrSkipState(!allowTeacherQrSkipDraft)}
                   >
                     {allowTeacherQrSkipDraft ? "Désactiver le mode facultatif" : "Activer le mode facultatif"}
                   </Button> 
                 </div>
-                <Alert className={cn(
-                  "border",
-                  allowTeacherQrSkipDraft
-                    ? "border-amber-200 bg-amber-50 text-amber-900"
-                    : "border-green-200 bg-green-50 text-green-900"
-                )}>
-                  <AlertTitle>État actuel</AlertTitle>
-                  <AlertDescription>
-                    {allowTeacherQrSkipDraft
-                      ? "Les enseignants peuvent terminer le flux de pointage sans scanner le QR code de salle."
-                      : "Les enseignants doivent scanner le QR code de salle."}
-                  </AlertDescription>
-                </Alert>
+
                 <p className="text-xs text-muted-foreground">
+                  Obligatoire : le bouton « Passer cette étape » est masqué pendant le pointage. Facultatif : il est proposé à l’enseignant.
                   Ce paramètre est appliqué immédiatement après confirmation.
                 </p>
               </div>
             </div>
-          </div>
-        </div>
-
-        {canManageSchoolSettings ? <section id="evaluation-delays" aria-labelledby="evaluation-delays-title" className="space-y-4 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
-          <div>
-            <h2 id="evaluation-delays-title" className="text-lg font-semibold">Délais de saisie des notes</h2>
-            <p className="text-sm text-muted-foreground">Après le délai de grâce, une saisie devient attendue. Au-delà du seuil de retard, elle apparaît en rouge.</p>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2"><Label htmlFor="evaluation-grace-days">Délai de grâce (jours)</Label>
-              <Input id="evaluation-grace-days" type="number" min={0} max={364} value={evaluationGraceDraft} onChange={(event) => setEvaluationGraceDraft(event.target.value)} /></div>
-            <div className="space-y-2"><Label htmlFor="evaluation-late-days">Seuil de retard (jours)</Label>
-              <Input id="evaluation-late-days" type="number" min={1} max={365} value={evaluationLateDraft} onChange={(event) => setEvaluationLateDraft(event.target.value)} /></div>
-          </div>
-          <p className="text-sm text-muted-foreground">Le seuil de retard doit être supérieur au délai de grâce.</p>
-          <Button type="button" className="min-h-12" disabled={saveEvaluationDelaysMutation.isPending ||
-            !Number.isInteger(Number(evaluationGraceDraft)) || !Number.isInteger(Number(evaluationLateDraft)) ||
-            evaluationGraceDraft.trim() === '' || evaluationLateDraft.trim() === '' ||
-            Number(evaluationGraceDraft) < 0 || Number(evaluationLateDraft) > 365 ||
-            Number(evaluationGraceDraft) >= Number(evaluationLateDraft) ||
-            (Number(evaluationGraceDraft) === school?.evaluationGraceDays && Number(evaluationLateDraft) === school?.evaluationLateDays)}
-            onClick={() => saveEvaluationDelaysMutation.mutate()}>
-            {saveEvaluationDelaysMutation.isPending ? 'Enregistrement…' : 'Enregistrer les délais'}
-          </Button>
-        </section> : null}
-
         {canManageSchoolSettings ? (
           <section
             data-tour="settings-real-hours"
@@ -835,7 +735,7 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
                 </p>
               </div>
               <Badge variant={smsFeatureQuery.data?.use_real_hours ? "default" : "outline"}>
-                {smsFeatureQuery.data?.use_real_hours ? "Activé" : "Ignoré"}
+                {smsFeatureQuery.data?.use_real_hours ? "Activé par IvoirEdu" : "Non activé"}
               </Badge>
             </div>
 
@@ -902,13 +802,121 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
             )}
           </section>
         ) : null}
+          </div>
+          <div className="space-y-5">
+            <div className="rounded-xl border border-border bg-card p-5 shadow-sm" data-tour="settings-logo">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    {logoUrlDraft ? (
+                      <img
+                        src={logoUrlDraft}
+                        alt="Logo école"
+                        className="h-14 w-14 rounded-md border border-border object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-14 w-14 items-center justify-center rounded-md border border-dashed border-border text-xs text-muted-foreground">
+                        Logo
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">Logo de l&apos;établissement</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Importer un fichier
+                    </Label>
+                    <Input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      disabled={uploadLogoMutation.isPending}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0]
+                        if (!file) {
+                          return
+                        }
+                        if (file.size > 500 * 1024) {
+                          toast({ title: "Image trop lourde", description: "Maximum 500 KB.", variant: "destructive" })
+                          event.target.value = ""
+                          return
+                        }
+                        uploadLogoMutation.mutate(file)
+                        event.target.value = ""
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      PNG, JPEG, WEBP ou SVG - max 500 KB. L’image est enregistrée dès l’import.
+                    </p>
+                    </div>
+                  <Collapsible className="space-y-2">
+                    <CollapsibleTrigger asChild>
+                      <Button type="button" variant="ghost" className="group min-h-12 w-full justify-between px-2 text-sm font-medium text-primary">
+                        Options avancées : utiliser une adresse d’image
+                        <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180 motion-reduce:transition-none" />
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-2">
+                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Ou saisir une URL
+                    </Label>
+                    <Input
+                      value={logoUrlDraft}
+                      onChange={(event) => setLogoUrlDraft(event.target.value)}
+                      placeholder="https://..."
+                    />
+                    <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={saveSchoolInfoMutation.isPending || uploadLogoMutation.isPending || !school}
+                    onClick={() =>
+                      saveSchoolInfoMutation.mutate({
+                        logoUrl: logoUrlDraft || null,
+                      })
+                    }
+                  >
+                    {saveSchoolInfoMutation.isPending ? "Sauvegarde..." : uploadLogoMutation.isPending ? "Upload en cours..." : "Enregistrer l'URL"}
+                  </Button>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </div>
+              </div>
+            <SealsUploadCard stampUrl={school?.stampUrl} signatureUrl={school?.signatureUrl} />
+          </div>
+        </div>
 
         </> : null}
 
+        {showAcademic ? <>
+        {canManageSchoolSettings ? <section id="evaluation-delays" aria-labelledby="evaluation-delays-title" className="space-y-4 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
+          <div>
+            <h2 id="evaluation-delays-title" className="text-lg font-semibold">Délais de saisie des notes</h2>
+            <p className="text-sm text-muted-foreground">Après le délai de grâce, une saisie devient attendue. Au-delà du seuil de retard, elle apparaît en rouge.</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2"><Label htmlFor="evaluation-grace-days">Délai de grâce (jours)</Label>
+              <Input id="evaluation-grace-days" type="number" min={0} max={364} value={evaluationGraceDraft} onChange={(event) => setEvaluationGraceDraft(event.target.value)} /></div>
+            <div className="space-y-2"><Label htmlFor="evaluation-late-days">Seuil de retard (jours)</Label>
+              <Input id="evaluation-late-days" type="number" min={1} max={365} value={evaluationLateDraft} onChange={(event) => setEvaluationLateDraft(event.target.value)} /></div>
+          </div>
+          <p className={cn("text-sm", evaluationDelaysInvalid ? "text-destructive" : "text-muted-foreground")} role={evaluationDelaysInvalid ? "alert" : undefined}>Le seuil de retard doit être supérieur au délai de grâce.</p>
+          {evaluationDelaysFilled && !evaluationDelaysInvalid ? <p className="text-sm text-muted-foreground">Avec ces valeurs : la saisie est attendue {evaluationGraceDraft} jour{Number(evaluationGraceDraft) > 1 ? "s" : ""} après l’évaluation, et apparaît en rouge au-delà de {evaluationLateDraft} jours.</p> : null}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"> 
+              
+            <Button type="button" className="min-h-12" disabled={saveEvaluationDelaysMutation.isPending ||
+              !Number.isInteger(Number(evaluationGraceDraft)) || !Number.isInteger(Number(evaluationLateDraft)) ||
+              evaluationGraceDraft.trim() === '' || evaluationLateDraft.trim() === '' ||
+              Number(evaluationGraceDraft) < 0 || Number(evaluationLateDraft) > 365 ||
+              Number(evaluationGraceDraft) >= Number(evaluationLateDraft) ||
+              (Number(evaluationGraceDraft) === school?.evaluationGraceDays && Number(evaluationLateDraft) === school?.evaluationLateDays)}
+              onClick={() => saveEvaluationDelaysMutation.mutate()}>
+              {saveEvaluationDelaysMutation.isPending ? 'Enregistrement…' : 'Enregistrer les délais'}
+            </Button>
+          </div>
+        </section> : null}
+        </> : null}
+
         {showPersonnel && canManagePositions ? <>
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[2fr_1fr]">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="settings-positions-panel">
-            <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/30 px-5 py-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background">
                   <Shield className="h-3.5 w-3.5 text-muted-foreground" />
@@ -924,7 +932,7 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
                     setPositionToEdit(null)
                     setPositionModalOpen(true)
                   }}
-                  className="gap-2"
+                  className="min-h-12 gap-2"
                 >
                   <Plus className="h-4 w-4" />
                   Nouveau poste
@@ -938,12 +946,12 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
                 positions.map((position, index) => (
                   <div
                     key={position.id}
-                    className="flex cursor-pointer items-center justify-between border-b border-border px-5 py-3.5 transition-colors last:border-0 hover:bg-muted/20"
+                    className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3.5 last:border-0"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
                       <div
                         className={cn(
-                          "flex h-8 w-8 items-center justify-center rounded-lg text-xs font-medium",
+                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-medium",
                           index % 3 === 0 && "bg-blue-50 text-blue-700",
                           index % 3 === 1 && "bg-green-50 text-green-700",
                           index % 3 === 2 && "bg-amber-50 text-amber-900",
@@ -951,50 +959,52 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
                       >
                         {position.name.slice(0, 2).toUpperCase()}
                       </div>
-                      <div>
-                        <p className="text-sm font-medium">{position.name}</p>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{position.name}</p>
                         <p className="text-xs text-muted-foreground">
                           {position.assignmentsCount ?? 0} personne{(position.assignmentsCount ?? 0) !== 1 ? "s" : ""} assignée
                           {(position.assignmentsCount ?? 0) !== 1 ? "s" : ""}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary">
                         {position.permissions.length} permission{position.permissions.length !== 1 ? "s" : ""}
-                      </span>
+                      </Badge>
                       {canManagePositions ? (
                         <>
                           <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
+                            variant="outline"
+                            size="sm"
+                            className="min-h-12 gap-2 sm:min-h-9"
                             onClick={() => openAssignDialog(position)}
                             aria-label={`Assigner un utilisateur au poste ${position.name}`}
                           >
-                            <UserPlus className="h-3.5 w-3.5" />
+                            <UserPlus className="h-4 w-4" />
+                            Assigner
                           </Button>
                           <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
+                            variant="outline"
+                            size="sm"
+                            className="min-h-12 gap-2 sm:min-h-9"
                             onClick={() => {
                               setPositionToEdit(position)
                               setPositionModalOpen(true)
                             }}
                             aria-label={`Modifier le poste ${position.name}`}
                           >
-                            <Pencil className="h-3.5 w-3.5" />
+                            <Pencil className="h-4 w-4" />
+                            Modifier
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7"
+                            className="h-12 w-12 text-destructive sm:h-9 sm:w-9"
                             onClick={() => handleDeletePosition(position)}
                             disabled={deleteMutation.isPending}
                             aria-label={`Supprimer le poste ${position.name}`}
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </>
                       ) : null}
@@ -1017,10 +1027,18 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
                 </div>
               </div>
             </div>
-            <div className="p-5">
-              <div className="space-y-3">
+            <div className="space-y-4 p-5">
+              <div>
+                <p className="text-3xl font-bold tabular-nums">
+                  {positions.length}
+                  <span className="text-lg font-medium text-muted-foreground"> / {maxPositions}</span>
+                </p>
+                <p className="text-sm text-muted-foreground">postes utilisés</p>
+              </div>
+              <Progress value={positionsUsagePct} aria-label="Postes utilisés" />
+              {canEditLimits ? (
                 <div className="space-y-2">
-                  <Label htmlFor="max-admin-positions" className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">max_admin_positions</Label>
+                  <Label htmlFor="max-admin-positions" className="text-sm font-medium">Nombre maximum de postes</Label>
                   <Input
                     id="max-admin-positions"
                     type="number"
@@ -1029,26 +1047,22 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
                     step={1}
                     inputMode="numeric"
                     value={maxAdminPositions}
-                    readOnly={!canEditLimits}
                     onChange={(event) => setMaxAdminPositions(event.target.value.replace(/\D/g, "").slice(0, 3))}
                   />
-                  {canEditLimits && !isMaxAdminPositionsValid ? (
+                  {!isMaxAdminPositionsValid ? (
                     <p className="text-xs text-destructive">Saisissez un entier entre 0 et 500.</p>
                   ) : null}
-                </div>
-
-                {!canEditLimits ? (
-                  <p className="text-xs text-muted-foreground">Seul le super admin peut modifier cette limite.</p>
-                ) : (
                   <Button
                     onClick={() => saveLimitMutation.mutate()}
                     disabled={saveLimitMutation.isPending || !isMaxAdminPositionsValid}
-                    className="w-full"
+                    className="min-h-12 w-full"
                   >
                     {saveLimitMutation.isPending ? "Sauvegarde..." : "Mettre à jour"}
                   </Button>
-                )}
-              </div>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">Seul IvoirEdu peut modifier cette limite.</p>
+              )}
             </div>
           </div>
         </div>
@@ -1065,8 +1079,8 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-2">
-            <div className="space-y-4 rounded-lg border border-border bg-background p-4">
+          <div className="grid grid-cols-1 gap-6 p-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+            <div className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="new-admin-name" className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Nom complet</Label>
@@ -1110,7 +1124,7 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
                     placeholder="2250700000000"
                   />
                   <p className={isAdministrativePhoneValid ? "text-xs text-muted-foreground" : "text-xs text-destructive"}>
-                    Format attendu: 225XXXXXXXXXX.
+                    Format attendu : 225 suivi de 10 chiffres (ex. 2250700000000).
                   </p>
                 </div>
               </div>
@@ -1147,13 +1161,13 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
               </div>
             </div>
 
-            <div className="space-y-3 rounded-lg border border-border bg-background p-4">
+            <div className="space-y-3">
               <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">
-                  Compteurs utilisateurs actifs: {school ? `${school.adminUsersCount}` : "-"}
+                <p className="text-sm font-medium">
+                  {school ? school.adminUsersCount : "-"} utilisateur{(school?.adminUsersCount ?? 0) !== 1 ? "s" : ""} actif{(school?.adminUsersCount ?? 0) !== 1 ? "s" : ""}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Accès visibles: postes assignés + total des permissions héritées.
+                  Les accès d’un utilisateur dépendent des postes qui lui sont assignés.
                 </p>
               </div>
               <div className="overflow-hidden rounded-lg border border-border">
@@ -1161,8 +1175,8 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
                   <EmptyState title="Aucun utilisateur administratif" description="Ajoutez un utilisateur pour lui attribuer un poste." />
                 ) : (
                   assignableUsers.map((schoolUser) => (
-                    <div key={schoolUser.id} className="grid grid-cols-1 gap-2 border-b border-border px-4 py-3 text-sm last:border-0 sm:grid-cols-[2fr_2fr_2fr_1fr_auto] sm:items-center sm:gap-2">
-                      <div className="space-y-1">
+                    <div key={schoolUser.id} className="flex flex-col gap-3 border-b border-border px-4 py-3 text-sm last:border-0 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="space-y-1 sm:flex-1">
                         <p className="font-medium">{schoolUser.name}</p>
                         <div className="flex flex-wrap items-center gap-1">
                           {schoolUser.assignedPositions.length > 0 ? (
@@ -1206,42 +1220,46 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
                           </span> */}
                         </div>
                       </div>
-                      <p className="text-muted-foreground">{schoolUser.email ?? "-"}</p>
-                      <p className="text-muted-foreground">{schoolUser.phone ?? "-"}</p>
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="min-w-0 space-y-0.5 text-muted-foreground sm:flex-1">
+                        <p className="break-all">{schoolUser.email ?? "-"}</p>
+                        <p>{schoolUser.phone ?? "-"}</p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                         <Button
                           type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
+                          variant="outline"
+                          size="sm"
+                          className="min-h-12 gap-2 sm:min-h-9"
                           onClick={() => {
                             setResetPasswordTarget(schoolUser)
                             setResetPasswordValue("")
                           }}
                           aria-label={`Réinitialiser le mot de passe de ${schoolUser.name}`}
                         >
-                          <KeyRound className="h-3.5 w-3.5" />
+                          <KeyRound className="h-4 w-4" />
+                          Mot de passe
                         </Button>
                         <Button
                           type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
+                          variant="outline"
+                          size="sm"
+                          className="min-h-12 gap-2 sm:min-h-9"
                           onClick={() => handleEditAdministrativeUser(schoolUser)}
                           aria-label={`Modifier ${schoolUser.name}`}
                         >
-                          <Pencil className="h-3.5 w-3.5" />
+                          <Pencil className="h-4 w-4" />
+                          Modifier
                         </Button>
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-12 w-12 text-destructive sm:h-9 sm:w-9"
                           disabled={deleteUserMutation.isPending || deleteTarget?.type === "user"}
                           onClick={() => handleDeleteAdministrativeUser(schoolUser)}
                           aria-label={`Supprimer ${schoolUser.name}`}
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
@@ -1472,5 +1490,14 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
         </Dialog>
       ) : null}
     </>
+  )
+}
+
+function SchoolInfoItem({ label, value, className }: { label: string; value?: string | null; className?: string }) {
+  return (
+    <div className={className}>
+      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+      <dd className="mt-1 break-words text-sm font-medium">{value || "-"}</dd>
+    </div>
   )
 }

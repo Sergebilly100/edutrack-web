@@ -76,12 +76,13 @@ export type ReEnrollmentCandidate = {
   studentLastName: string
   studentMatricule: string | null
   currentClassName: string
-  currentSchoolYearId: string
+  currentSchoolYearId: string | null
   currentSchoolYearLabel: string
   finalDecision: "promoted" | "repeat" | "expelled" | null
   nextLevelId: string | null
   nextLevelName: string | null
-  sourceSchoolYearStatus: "active" | "closed"
+  sourceSchoolYearStatus: "active" | "closed" | "historical"
+  isHistoricalSource: boolean
   status: "decision_pending" | "ready" | "awaiting_cashier" | "awaiting_documents" | "blocked_unpaid" | "re_enrolled" | "excluded" | "financial_unavailable"
   enrollment: { id: string; status: EnrollmentStatus; className: string } | null
 }
@@ -225,7 +226,7 @@ const parseReEnrollmentCandidate = (value: unknown): ReEnrollmentCandidate | nul
     studentLastName: asString(value.studentLastName ?? value.student_last_name),
     studentMatricule: asString(value.studentMatricule ?? value.student_matricule) || null,
     currentClassName: asString(value.currentClassName ?? value.current_class_name),
-    currentSchoolYearId: asString(value.currentSchoolYearId ?? value.current_school_year_id),
+    currentSchoolYearId: asString(value.currentSchoolYearId ?? value.current_school_year_id) || null,
     currentSchoolYearLabel: asString(value.currentSchoolYearLabel ?? value.current_school_year_label),
     finalDecision: value.finalDecision === "promoted" || value.finalDecision === "repeat" || value.finalDecision === "expelled"
       ? value.finalDecision
@@ -234,7 +235,10 @@ const parseReEnrollmentCandidate = (value: unknown): ReEnrollmentCandidate | nul
       : null,
     nextLevelId: asString(value.nextLevelId ?? value.next_level_id) || null,
     nextLevelName: asString(value.nextLevelName ?? value.next_level_name) || null,
-    sourceSchoolYearStatus: value.sourceSchoolYearStatus === "active" || value.source_school_year_status === "active" ? "active" : "closed",
+    sourceSchoolYearStatus: value.sourceSchoolYearStatus === "historical" || value.source_school_year_status === "historical"
+      ? "historical"
+      : value.sourceSchoolYearStatus === "active" || value.source_school_year_status === "active" ? "active" : "closed",
+    isHistoricalSource: value.isHistoricalSource === true || value.is_historical_source === true,
     status: value.status === "decision_pending" || value.status === "ready" || value.status === "awaiting_cashier" || value.status === "awaiting_documents" || value.status === "blocked_unpaid" || value.status === "re_enrolled" || value.status === "excluded" || value.status === "financial_unavailable" ? value.status : "financial_unavailable",
     enrollment: enrollmentValue && (enrollmentStatus === "pending_cashier" || enrollmentStatus === "pending_dossier" || enrollmentStatus === "confirmed" || enrollmentStatus === "blocked_unpaid")
       ? { id: asString(enrollmentValue.id), status: enrollmentStatus, className: asString(enrollmentValue.className ?? enrollmentValue.class_name) }
@@ -246,6 +250,7 @@ export async function listReEnrollmentCandidates(params: {
   schoolYearId?: string
   campaignStatus?: "decision_pending" | "ready" | "to_process" | "awaiting_cashier" | "awaiting_documents" | "blocked_unpaid" | "confirmed" | "re_enrolled" | "excluded" | "financial_unavailable" | "all"
   sourceSchoolYearId?: string
+  sourceSchoolYearLabel?: string
   levelId?: string
   classId?: string
   search?: string
@@ -261,6 +266,7 @@ export async function listReEnrollmentCandidates(params: {
       ...(params.schoolYearId ? { school_year_id: params.schoolYearId } : {}),
       campaign_status: params.campaignStatus ?? "all",
       ...(params.sourceSchoolYearId ? { source_school_year_id: params.sourceSchoolYearId } : {}),
+      ...(params.sourceSchoolYearLabel ? { source_school_year_label: params.sourceSchoolYearLabel } : {}),
       ...(params.levelId ? { level_id: params.levelId } : {}),
       ...(params.classId ? { class_id: params.classId } : {}),
       ...(params.search?.trim() ? { search: params.search.trim() } : {}),
@@ -301,6 +307,13 @@ export async function listReEnrollmentCandidates(params: {
   }
 }
 
+export async function listHistoricalReEnrollmentYears(): Promise<string[]> {
+  const response = await apiClient.get<{ schoolYearLabels?: unknown }>("/enrollments/re-enrollment/historical-sources")
+  return Array.isArray(response.data.schoolYearLabels)
+    ? response.data.schoolYearLabels.filter((label): label is string => typeof label === "string")
+    : []
+}
+
 export async function getStudentAcademicSummary(studentId: string): Promise<StudentAcademicSummary> {
   const response = await apiClient.get<StudentAcademicSummary>(`/students/${studentId}/academic-history`)
   return response.data
@@ -324,6 +337,7 @@ export async function createEnrollment(payload: {
   levelId?: string
   expectedActiveSchoolYearId?: string
   hasPreviousYearUnpaid?: boolean
+  sourceSchoolYearLabel?: string
 }): Promise<CreateEnrollmentResult> {
   const response = await apiClient.post<CreateEnrollmentResult>("/enrollments", payload)
   return response.data

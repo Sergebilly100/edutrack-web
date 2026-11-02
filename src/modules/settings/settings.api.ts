@@ -42,6 +42,9 @@ export type SchoolConfigData = {
     totalUsers: number
     adminUsersCount: number
     logoUrl: string | null
+    /** Cachet / signature des bulletins : absents tant que l'API ne les renvoie pas (undefined = inconnu, null = non importé). */
+    stampUrl?: string | null
+    signatureUrl?: string | null
     activeSchoolYear: string | null
     canEditSmsTemplate: boolean
     allowTeacherQrSkip: boolean
@@ -172,6 +175,8 @@ const parseConfigEnvelope = (value: unknown): SchoolConfigData => {
       totalUsers: asNumber(schoolRaw.totalUsers ?? schoolRaw.total_users, 0),
       adminUsersCount: asNumber(schoolRaw.adminUsersCount ?? schoolRaw.admin_users_count, 0),
       logoUrl: asNullableString(schoolRaw.logoUrl ?? schoolRaw.logo_url),
+      ...("stampUrl" in schoolRaw || "stamp_url" in schoolRaw ? { stampUrl: asNullableString(schoolRaw.stampUrl ?? schoolRaw.stamp_url) } : {}),
+      ...("signatureUrl" in schoolRaw || "signature_url" in schoolRaw ? { signatureUrl: asNullableString(schoolRaw.signatureUrl ?? schoolRaw.signature_url) } : {}),
       activeSchoolYear: asNullableString(schoolRaw.activeSchoolYear ?? schoolRaw.active_school_year),
       canEditSmsTemplate: Boolean(schoolRaw.canEditSmsTemplate ?? schoolRaw.can_edit_sms_template),
       allowTeacherQrSkip: Boolean(

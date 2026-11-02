@@ -33,6 +33,8 @@ const RiskDetailsPage = lazy(() => import("@/modules/dashboard/RiskDetailsPage")
 const TeacherDashboardPage = lazy(() => import("@/modules/dashboard/TeacherDashboardPage"))
 const ImportPage = lazy(() => import("@/modules/import-export/ImportPage"))
 const OnboardingWizard = lazy(() => import("@/modules/onboarding/OnboardingWizard"))
+const OnboardingFocusLayout = lazy(() => import("@/modules/onboarding/OnboardingFocusLayout"))
+const OnboardingFeesPage = lazy(() => import("@/modules/onboarding/OnboardingFeesPage"))
 const RoomsPage = lazy(() => import("@/modules/rooms/RoomsPage"))
 const SalariesPage = lazy(() => import("@/modules/salaries/SalariesPage"))
 const SchedulePage = lazy(() => import("@/modules/schedule/SchedulePage"))
@@ -408,15 +410,14 @@ function OnboardingRoute() {
     return <Navigate to="/login" replace />
   }
 
-  if (user.role === "teacher") {
-    return <Navigate to="/dashboard" replace />
-  }
+  if (user.role !== "director") return <RoleRedirect />
 
   return <OnboardingWizard />
 }
 
 function NonTeacherShellRoute() {
   const user = useAuthStore((state) => state.user)
+  const location = useLocation()
 
   if (!user) {
     return <Navigate to="/login" replace />
@@ -428,6 +429,10 @@ function NonTeacherShellRoute() {
 
   if (user.role === "teacher") {
     return <Navigate to="/attendance" replace />
+  }
+
+  if (user.role === "director" && new URLSearchParams(location.search).has("returnTo")) {
+    return <OnboardingFocusLayout />
   }
 
   return <AppShell />
@@ -674,6 +679,7 @@ export default function App() {
         <Route path="/dashboard" element={<DashboardEntryRoute />} />
 
         <Route element={<NonTeacherShellRoute />}>
+          <Route path="/onboarding/fees" element={<OnboardingFeesPage />} />
           <Route path="/schedule" element={<PermissionRoute href="/schedule" element={<SchedulePage />} />} />
           <Route path="/teachers" element={<PermissionRoute href="/teachers" element={<TeachersPage />} />} />
           <Route path="/teachers/:teacherId" element={<PermissionRoute href="/teachers" element={<TeacherDetailPage />} />} />

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const { getMock, postMock, putMock, patchMock, deleteMock } = vi.hoisted(() => ({ getMock: vi.fn(), postMock: vi.fn(), putMock: vi.fn(), patchMock: vi.fn(), deleteMock: vi.fn() }))
 vi.mock("@/shared/api/client", () => ({ apiClient: { get: getMock, post: postMock, put: putMock, patch: patchMock, delete: deleteMock } }))
 
-import { archiveRequiredDocumentType, confirmEnrollmentPayment, createRequiredDocumentTypes, getStudentAcademicSummary, listEnrollments, listReEnrollmentCandidates, listRequiredDocumentLevels, listRequiredDocumentTypes, syncRequiredDocumentTypes, updateEnrollment, updateRequiredDocumentType, updateStudentDocument, uploadStudentDocument, verifyStudentDocuments } from "../enrollments.api"
+import { archiveRequiredDocumentType, confirmEnrollmentPayment, createRequiredDocumentTypes, getStudentAcademicSummary, listEnrollments, listHistoricalReEnrollmentYears, listReEnrollmentCandidates, listRequiredDocumentLevels, listRequiredDocumentTypes, syncRequiredDocumentTypes, updateEnrollment, updateRequiredDocumentType, updateStudentDocument, uploadStudentDocument, verifyStudentDocuments } from "../enrollments.api"
 
 describe("enrollments.api", () => {
   beforeEach(() => vi.clearAllMocks())
@@ -67,9 +67,36 @@ describe("enrollments.api", () => {
       candidates: [expect.objectContaining({ studentId: "student-1", finalDecision: "promoted" })],
       pagination: { total: 1 },
     })
+
     await expect(getStudentAcademicSummary("student-1")).resolves.toMatchObject({ student: { matricule: "MAT-001" } })
     expect(getMock).toHaveBeenCalledWith("/enrollments/re-enrollment/candidates", { params: { page: 1, limit: 20, school_year_id: "year-active", campaign_status: "all", source_school_year_id: "year-1", level_id: "level-1", class_id: "class-1", search: "Awa" } })
     expect(getMock).toHaveBeenCalledWith("/students/student-1/academic-history")
+  })
+
+  it("transmet une année historique importée et charge les années disponibles", async () => {
+    getMock.mockResolvedValueOnce({ data: {
+      candidates: [{
+        student_id: "student-1", student_first_name: "Awa", student_last_name: "Koné",
+        current_school_year_id: null, current_school_year_label: "2024-2025",
+        current_class_name: "6e A", source_school_year_status: "historical",
+        is_historical_source: true, enrollment_id: null, status: "ready",
+      }],
+      pagination: { page: 1, limit: 20, total: 1, total_pages: 1 },
+    } }).mockResolvedValueOnce({ data: { schoolYearLabels: ["2024-2025"] } })
+
+    await expect(listReEnrollmentCandidates({
+      schoolYearId: "year-active", sourceSchoolYearLabel: "2024-2025",
+    })).resolves.toMatchObject({
+      candidates: [expect.objectContaining({
+        currentSchoolYearId: null, currentSchoolYearLabel: "2024-2025",
+        sourceSchoolYearStatus: "historical", isHistoricalSource: true, status: "ready",
+      })],
+    })
+    await expect(listHistoricalReEnrollmentYears()).resolves.toEqual(["2024-2025"])
+    expect(getMock).toHaveBeenNthCalledWith(1, "/enrollments/re-enrollment/candidates", {
+      params: expect.objectContaining({ school_year_id: "year-active", source_school_year_label: "2024-2025" }),
+    })
+    expect(getMock).toHaveBeenNthCalledWith(2, "/enrollments/re-enrollment/historical-sources")
   })
 
   it("branche la création, la modification et l’archivage des règles documentaires", async () => {

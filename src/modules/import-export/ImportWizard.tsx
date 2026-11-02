@@ -57,6 +57,7 @@ type ImportWizardProps = {
   selectedImportType?: ImportType
   onImportTypeChange?: (type: ImportType) => void
   allowedImportTypes?: ImportType[]
+  maxTeacherFileSizeMb?: number
 }
 
 const touchFeedbackClass = "active:scale-95 transition-transform duration-100"
@@ -191,6 +192,7 @@ type ImportTypeTabsProps = {
   isDownloadingTemplate: boolean
   isFileLoading: boolean
   dropZoneResetKey: number
+  maxTeacherFileSizeMb?: number
   onImportTypeChange: (type: ImportType) => void
   onTemplateDownload: (type: ImportType) => Promise<void>
   onFileSelected: (file: File) => void
@@ -202,6 +204,7 @@ function ImportTypeTabs({
   isDownloadingTemplate,
   isFileLoading,
   dropZoneResetKey,
+  maxTeacherFileSizeMb,
   onImportTypeChange,
   onTemplateDownload,
   onFileSelected,
@@ -268,7 +271,7 @@ function ImportTypeTabs({
             </Button>
           </div>
 
-          <DropZone key={`${type}-${dropZoneResetKey}`} onFileSelected={onFileSelected} isLoading={isFileLoading} />
+          <DropZone key={`${type}-${dropZoneResetKey}`} onFileSelected={onFileSelected} isLoading={isFileLoading} maxSizeMb={type === "teachers" ? maxTeacherFileSizeMb : undefined} />
         </TabsContent>
       ))}
     </Tabs>
@@ -279,6 +282,7 @@ export default function ImportWizard({
   selectedImportType,
   onImportTypeChange,
   allowedImportTypes,
+  maxTeacherFileSizeMb,
 }: ImportWizardProps) {
   const { toast } = useToast()
   const studentLabels = useStudentLabels()
@@ -858,6 +862,7 @@ export default function ImportWizard({
               isDownloadingTemplate={isDownloadingTemplate}
               isFileLoading={dryRunMutation.isPending}
               dropZoneResetKey={dropZoneResetKey}
+              maxTeacherFileSizeMb={maxTeacherFileSizeMb}
               onImportTypeChange={handleImportTypeValueChange}
               onTemplateDownload={handleTemplateDownload}
               onFileSelected={handleFileSelected}

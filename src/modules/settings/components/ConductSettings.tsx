@@ -18,6 +18,12 @@ const modes: Array<{ value: ConductPolicyMode; label: string }> = [
   { value: "delegated", label: "Éducateur délégué" },
 ]
 
+const modeHelp: Record<ConductPolicyMode, string> = {
+  homeroom: "Le professeur principal de chaque classe décide de la note finale de conduite de ses élèves.",
+  direction: "La direction de l’école décide de la note finale de conduite pour toutes les classes.",
+  delegated: "Un éducateur habilité décide pour les classes ou niveaux qui lui sont affectés ci-dessous.",
+}
+
 function policyErrorMessage(error: unknown): string {
   const failure = error && typeof error === "object" ? error as {
     code?: string; status?: number; response?: { status?: number; data?: { code?: string } }
@@ -84,12 +90,14 @@ export function ConductSettings({ canEditPolicy, canManageAssignments }: { canEd
   return <section className="space-y-5 rounded-lg border p-4" aria-label="Conduite">
     <div><h2 className="font-semibold">Décision de conduite</h2><p className="text-sm text-muted-foreground">Le responsable décide même si des avis enseignants manquent. Seule la note finale entre dans la moyenne.</p></div>
     {yearsQuery.isLoading ? <p role="status">Chargement des années scolaires…</p> : yearsQuery.isError ? <div role="alert" className="space-y-2"><p>Années scolaires indisponibles.</p><Button type="button" variant="outline" className="min-h-12" onClick={() => void yearsQuery.refetch()}>Réessayer</Button></div> : (yearsQuery.data?.length ?? 0) === 0 ? <EmptyState title="Aucune année scolaire" description="Créez une année scolaire avant de configurer la conduite." /> : <>
-      <div className="max-w-sm space-y-2"><Label htmlFor="conduct-year">Année scolaire</Label><Select value={schoolYearId} onValueChange={value => { setSelectedYearId(value); setMode(""); setCoefficient("") }}><SelectTrigger id="conduct-year" className="min-h-12"><SelectValue /></SelectTrigger><SelectContent>{yearsQuery.data?.map(year => <SelectItem key={year.id} value={year.id}>{year.label}</SelectItem>)}</SelectContent></Select></div>
-      {policyQuery.isLoading ? <p role="status">Chargement de la politique…</p> : policyQuery.isError ? <div role="alert" className="space-y-2"><p>{policyErrorMessage(policyQuery.error)}</p><Button type="button" variant="outline" className="min-h-12" onClick={() => void policyQuery.refetch()}>Réessayer</Button></div> : <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_10rem_auto] sm:items-end">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_8rem_auto] lg:items-end"><div className="space-y-2"><Label htmlFor="conduct-year">Année scolaire</Label><Select value={schoolYearId} onValueChange={value => { setSelectedYearId(value); setMode(""); setCoefficient("") }}><SelectTrigger id="conduct-year" className="min-h-12"><SelectValue /></SelectTrigger><SelectContent>{yearsQuery.data?.map(year => <SelectItem key={year.id} value={year.id}>{year.label}</SelectItem>)}</SelectContent></Select></div>
+      {policyQuery.isLoading ? <p role="status" className="lg:col-span-3">Chargement de la politique…</p> : policyQuery.isError ? <div role="alert" className="space-y-2 lg:col-span-3"><p>{policyErrorMessage(policyQuery.error)}</p><Button type="button" variant="outline" className="min-h-12" onClick={() => void policyQuery.refetch()}>Réessayer</Button></div> : <div className="contents">
         <div className="space-y-2"><Label htmlFor="conduct-mode">Responsable de la décision</Label><Select value={chosenMode} onValueChange={value => setMode(value as ConductPolicyMode)} disabled={!canEditPolicy}><SelectTrigger id="conduct-mode" className="min-h-12"><SelectValue /></SelectTrigger><SelectContent>{modes.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
         <div className="space-y-2"><Label htmlFor="conduct-coefficient">Coefficient annuel</Label><Input id="conduct-coefficient" type="number" min="0.001" max="99999.999" step="0.001" className="min-h-12" value={chosenCoefficient} onChange={event => setCoefficient(event.target.value)} disabled={!canEditPolicy} /></div>
         {canEditPolicy ? <Button className="min-h-12" disabled={!Number.isFinite(numericCoefficient) || numericCoefficient <= 0 || numericCoefficient > 99999.999 || savePolicy.isPending} onClick={() => savePolicy.mutate()}>{savePolicy.isPending ? "Enregistrement…" : "Enregistrer"}</Button> : null}
       </div>}
+      </div>
+      {policyQuery.isSuccess ? <p className="text-sm text-muted-foreground">{modeHelp[chosenMode]}</p> : null}
       {chosenMode === "delegated" && canManageAssignments ? <div className="space-y-4 border-t pt-4">
         <div><h3 className="font-medium">Affectations des éducateurs</h3><p className="text-sm text-muted-foreground">Chaque éducateur doit détenir la permission conduct.finalize et être affecté à une classe ou à un niveau.</p></div>
         <div className="grid gap-3 sm:grid-cols-3">

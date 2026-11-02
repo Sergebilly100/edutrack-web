@@ -55,6 +55,7 @@ export const createRoom = async (input: {
   name: string
   building?: string | null
   capacity?: number | null
+  isActive?: boolean
   latitude?: number | null
   longitude?: number | null
   geoRadius?: number | null
@@ -63,6 +64,7 @@ export const createRoom = async (input: {
     name: input.name.trim(),
     building: input.building?.trim() ? input.building.trim() : null,
     capacity: input.capacity ?? null,
+    isActive: input.isActive ?? true,
     latitude: input.latitude ?? null,
     longitude: input.longitude ?? null,
     geoRadius: input.geoRadius ?? 100,
@@ -95,6 +97,7 @@ export const updateRoom = async (
     name?: string
     building?: string | null
     capacity?: number | null
+    isActive?: boolean
     latitude?: number | null
     longitude?: number | null
     geoRadius?: number | null
@@ -104,6 +107,7 @@ export const updateRoom = async (
     ...(input.name !== undefined ? { name: input.name.trim() } : {}),
     ...(input.building !== undefined ? { building: input.building?.trim() ? input.building.trim() : null } : {}),
     ...(input.capacity !== undefined ? { capacity: input.capacity } : {}),
+    ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
     ...(input.latitude !== undefined ? { latitude: input.latitude } : {}),
     ...(input.longitude !== undefined ? { longitude: input.longitude } : {}),
     ...(input.geoRadius !== undefined ? { geoRadius: input.geoRadius } : {}),
