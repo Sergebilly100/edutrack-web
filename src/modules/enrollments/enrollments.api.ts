@@ -60,6 +60,9 @@ const parseRequiredDocumentType = (value: unknown): RequiredDocumentType => {
 export type CreateEnrollmentResult = {
   enrollment: Enrollment
   payment?: { id: string; receiptNumber?: string }
+  allocation?: { totalAmount: number; tuitionAmount: number; parentAlertsAmount: number; showParentAlertsOnSchoolReceipt: boolean } | null
+  subscription?: { id: string; parentId: string; parentPhone: string | null; startsAt: string; endsAt: string; amountFcfa: number; durationMonths: number; status: "active" } | null
+  subscriptionNotificationQueued?: boolean | null
   receiptJobId?: string
   missingMandatoryDocuments: StudentDocument[]
   documentWarning: string | null
@@ -349,6 +352,18 @@ export type EnrollmentPaymentSummary = {
   currency: string
   totalDue: number
   confirmedPaid: number
+  firstTuitionInstallment: number
+  parentAlerts: {
+    required: boolean
+    monthlyPriceFcfa: number
+    durationMonths: 1 | 3 | 6 | 12 | null
+    amountFcfa: number
+    showOnSchoolReceipt: boolean
+    parentContactMissing: boolean
+    parentName: string | null
+    parentPhone: string | null
+  }
+  minimumToConfirm: number
 }
 
 export async function getEnrollmentPaymentSummary(id: string): Promise<EnrollmentPaymentSummary> {

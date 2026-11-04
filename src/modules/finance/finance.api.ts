@@ -5,7 +5,6 @@ import { asBoolean, asNullableString, asNumber, asString, isRecord } from "@/sha
 export type PaymentMethod = "mobile_money" | "cash" | "bank_transfer"
 export type PaymentStatus = "confirmed" | "cancelled"
 export type PaymentProvider = "orange_money" | "mtn_momo" | "moov_money" | "wave"
-export type SubscriptionPeriod = "monthly" | "quarterly" | "semester" | "annual"
 
 export type FinancialStatus = {
   studentId: string
@@ -172,16 +171,6 @@ export type ProviderSetting = {
   merchantNumber: string
   isActive: boolean
   hasCredentials: boolean
-}
-
-export type SubscriptionPlan = {
-  id: string
-  amount: number
-  period: SubscriptionPeriod
-  label: string
-  isMandatoryAtEnrollment: boolean
-  imposedDuration: SubscriptionPeriod | null
-  showOnReceiptAsSeparateLine: boolean
 }
 
 export type PaymentOptions = {
@@ -408,25 +397,6 @@ const parseProviderSetting = (value: unknown): ProviderSetting => {
   }
 }
 
-const parseSubscriptionPlan = (value: unknown): SubscriptionPlan => {
-  const row = record(value)
-  const period = row.period === "quarterly" || row.period === "semester" || row.period === "annual"
-    ? row.period
-    : "monthly"
-  const imposedDuration = row.imposed_duration === "monthly" || row.imposed_duration === "quarterly" || row.imposed_duration === "semester" || row.imposed_duration === "annual"
-    ? row.imposed_duration
-    : null
-  return {
-    id: asString(row.id),
-    amount: asNumber(row.amount),
-    period,
-    label: asString(row.label),
-    isMandatoryAtEnrollment: asBoolean(row.is_mandatory_at_enrollment),
-    imposedDuration,
-    showOnReceiptAsSeparateLine: asBoolean(row.show_on_receipt_as_separate_line),
-  }
-}
-
 export async function getFinancialStatus(studentId: string, schoolYearId: string): Promise<FinancialStatus> {
   const response = await apiClient.get(`/students/${studentId}/financial-status`, { params: { school_year_id: schoolYearId } })
   return parseFinancialStatus(response.data.financialStatus)
@@ -600,27 +570,6 @@ export async function saveProviderSetting(payload: {
   apiCredentials: Record<string, unknown>
 }): Promise<void> {
   await apiClient.put("/payment-provider-settings", { ...payload, isActive: false })
-}
-
-export async function listSubscriptionPlans(): Promise<SubscriptionPlan[]> {
-  const response = await apiClient.get("/subscription-plans")
-  return (Array.isArray(response.data.subscriptionPlans) ? response.data.subscriptionPlans : []).map(parseSubscriptionPlan)
-}
-
-export async function saveSubscriptionPlan(payload: Omit<SubscriptionPlan, "id">, id?: string): Promise<void> {
-  const body = {
-    amount: payload.amount,
-    period: payload.period,
-    label: payload.label,
-    isMandatoryAtEnrollment: payload.isMandatoryAtEnrollment,
-    imposedDuration: payload.imposedDuration,
-    showOnReceiptAsSeparateLine: payload.showOnReceiptAsSeparateLine,
-  }
-  if (id) {
-    await apiClient.put(`/subscription-plans/${id}`, body)
-  } else {
-    await apiClient.post("/subscription-plans", body)
-  }
 }
 
 export async function getParentFinancialStatus(studentId: string, schoolYearId: string): Promise<FinancialStatus> {

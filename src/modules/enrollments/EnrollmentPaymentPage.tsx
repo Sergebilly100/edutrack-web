@@ -64,7 +64,14 @@ export default function EnrollmentPaymentPage() {
     ? tuitionSettingsUrl(missingTuition.context, enrollmentId) : null
   const enrollment = summary?.enrollment
   const paymentAmount = Number(amount)
-  const amountIsValid = Number.isFinite(paymentAmount) && paymentAmount > 0 && Boolean(summary) && paymentAmount <= summary!.amountDue
+  const maximumConfirmationAmount = summary
+    ? summary.amountDue + (summary.parentAlerts.required ? summary.parentAlerts.amountFcfa : 0)
+    : 0
+  const amountIsValid = Number.isFinite(paymentAmount)
+    && paymentAmount > 0
+    && paymentAmount >= (summary?.minimumToConfirm ?? Number.POSITIVE_INFINITY)
+    && Boolean(summary)
+    && paymentAmount <= maximumConfirmationAmount
   const receiptReferenceIsValid = schoolReceiptReference.trim().length > 0
 
   return (
@@ -92,6 +99,32 @@ export default function EnrollmentPaymentPage() {
                 <div className="bg-blue-500 p-4 text-blue-50"><p className="text-sm text-blue-100">Reste de scolarité</p><p className="mt-1 text-2xl font-semibold tabular-nums">{formatFcfa(summary.amountDue)}</p>{summary.confirmedPaid > 0 ? <p className="mt-1 text-xs text-blue-100">{formatFcfa(summary.confirmedPaid)} déjà versés</p> : <p className="mt-1 text-xs text-blue-100">Scolarité totale : {formatFcfa(summary.totalDue)}</p>}</div>
               </div>
 
+              {enrollment?.status !== "confirmed" ? (
+                <div className="space-y-3 rounded-lg border p-4">
+                  <h3 className="font-semibold">Minimum à encaisser pour confirmer</h3>
+                  <div className="flex items-center justify-between gap-4 text-sm">
+                    <span className="text-muted-foreground">Première échéance de scolarité</span>
+                    <span className="font-medium tabular-nums">{formatFcfa(summary.firstTuitionInstallment)}</span>
+                  </div>
+                  {summary.parentAlerts.required ? (
+                    <div className="flex items-center justify-between gap-4 text-sm">
+                      <span className="text-muted-foreground">Alertes Parents ({summary.parentAlerts.durationMonths} mois)</span>
+                      <span className="font-medium tabular-nums">{formatFcfa(summary.parentAlerts.amountFcfa)}</span>
+                    </div>
+                  ) : null}
+                  <div className="flex items-center justify-between gap-4 border-t pt-3 font-semibold">
+                    <span>Total minimum</span><span className="tabular-nums">{formatFcfa(summary.minimumToConfirm)}</span>
+                  </div>
+                  {summary.parentAlerts.required && summary.parentAlerts.parentContactMissing ? (
+                    <Alert variant="destructive">
+                      <AlertDescription>
+                        Le service Alertes Parents est obligatoire, mais le parent titulaire ou son numéro valide manque dans la fiche élève. Complétez les coordonnées du parent avant de confirmer l’inscription.
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
+                </div>
+              ) : null}
+
               {enrollment?.status === "blocked_unpaid" ? (
                 <Alert variant="destructive"><AlertDescription>Cette réinscription est bloquée par un impayé antérieur. Le solde concerné doit d’abord être régularisé.</AlertDescription></Alert>
               ) : enrollment?.status === "confirmed" ? (
@@ -101,13 +134,14 @@ export default function EnrollmentPaymentPage() {
                   <div className="space-y-2">
                     <Label htmlFor="enrollment-payment-amount">Montant reçu *</Label>
                     <div className="relative"><Input id="enrollment-payment-amount" inputMode="numeric" className="min-h-12 pr-16 text-lg font-semibold tabular-nums" value={amount} onChange={(event) => setAmount(event.target.value.replace(/\D/g, ""))} placeholder="Ex. 25000" aria-describedby="enrollment-payment-amount-help" /><span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">FCFA</span></div>
-                    <p id="enrollment-payment-amount-help" className="text-sm text-muted-foreground">Tout montant positif jusqu’à {formatFcfa(summary.amountDue)} est accepté.</p>
-                    {paymentAmount > summary.amountDue ? <p className="text-sm text-destructive" role="alert">Le montant saisi dépasse le reste de scolarité.</p> : null}
+                    <p id="enrollment-payment-amount-help" className="text-sm text-muted-foreground">Saisissez au moins {formatFcfa(summary.minimumToConfirm)} et au plus {formatFcfa(maximumConfirmationAmount)}.</p>
+                    {paymentAmount > maximumConfirmationAmount ? <p className="text-sm text-destructive" role="alert">Le montant saisi dépasse le reste de scolarité et l’abonnement imposé.</p> : null}
+                    {amount.length > 0 && paymentAmount < summary.minimumToConfirm ? <p className="text-sm text-destructive" role="alert">Le montant reçu est inférieur au minimum nécessaire pour confirmer l’inscription.</p> : null}
                   </div>
                   <div className="space-y-2"><Label htmlFor="enrollment-payment-method">Mode de paiement</Label><Select value={method} onValueChange={(value) => setMethod(value as PaymentMethod)}><SelectTrigger id="enrollment-payment-method" className="min-h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="cash">Espèces</SelectItem><SelectItem value="mobile_money">Mobile Money vérifié en caisse</SelectItem><SelectItem value="bank_transfer">Virement bancaire</SelectItem></SelectContent></Select></div>
                   <div className="space-y-2"><Label htmlFor="school-receipt-reference">Référence du reçu de caisse *</Label><Input id="school-receipt-reference" className="min-h-12" value={schoolReceiptReference} onChange={(event) => setSchoolReceiptReference(event.target.value)} placeholder="Ex. RC-2026-0042" autoComplete="off" /><p className="text-sm text-muted-foreground">Recopiez la référence du reçu présenté par le parent.</p></div>
                   <div className="space-y-2"><Label htmlFor="provider-reference">Référence du versement (facultative)</Label><Input id="provider-reference" className="min-h-12" value={providerReference} onChange={(event) => setProviderReference(event.target.value)} placeholder={method === "mobile_money" ? "Référence de transaction Mobile Money" : method === "bank_transfer" ? "Référence du virement bancaire" : "Référence complémentaire, si disponible"} /></div>
-                  <Button className="min-h-12 w-full" disabled={Boolean(missingTuition) || mutation.isPending || !amountIsValid || !receiptReferenceIsValid} onClick={() => mutation.mutate()}>{mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}{mutation.isPending ? "Enregistrement…" : amountIsValid ? `Enregistrer ${formatFcfa(paymentAmount)}` : "Saisir le montant reçu"}</Button>
+                  <Button className="min-h-12 w-full" disabled={Boolean(missingTuition) || summary.parentAlerts.parentContactMissing || mutation.isPending || !amountIsValid || !receiptReferenceIsValid} onClick={() => mutation.mutate()}>{mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}{mutation.isPending ? "Enregistrement…" : amountIsValid ? `Enregistrer ${formatFcfa(paymentAmount)}` : "Saisir le montant reçu"}</Button>
                 </>
               )}
             </>

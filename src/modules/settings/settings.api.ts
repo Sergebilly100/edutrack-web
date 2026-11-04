@@ -229,6 +229,9 @@ export type SchoolSmsFeatureSettings = {
   monetize_parent_alerts: boolean
   commission_pct: number
   sms_unit_price_fcfa: number | null
+  mandatory_at_enrollment: boolean
+  imposed_duration_months: 1 | 3 | 6 | 12 | null
+  show_on_school_receipt: boolean
   use_real_hours: boolean
   geo_check_enabled: boolean
   checkout_tolerance_minutes: number
@@ -316,6 +319,21 @@ export const updateSchoolSmsUnitPrice = async (
 ): Promise<SchoolSmsFeatureSettings> => {
   const response = await apiClient.patch<SchoolSmsFeatureSettings>("/settings/sms-price", {
     sms_unit_price_fcfa: smsUnitPriceFcfa,
+  })
+  return response.data
+}
+
+export const updateParentAlertSettings = async (input: {
+  smsUnitPriceFcfa: number
+  mandatoryAtEnrollment: boolean
+  imposedDurationMonths: 1 | 3 | 6 | 12 | null
+  showOnSchoolReceipt: boolean
+}): Promise<SchoolSmsFeatureSettings> => {
+  const response = await apiClient.patch<SchoolSmsFeatureSettings>("/settings/parent-alerts", {
+    sms_unit_price_fcfa: input.smsUnitPriceFcfa,
+    mandatory_at_enrollment: input.mandatoryAtEnrollment,
+    imposed_duration_months: input.imposedDurationMonths,
+    show_on_school_receipt: input.showOnSchoolReceipt,
   })
   return response.data
 }

@@ -345,7 +345,7 @@ export default function SettingsPage() {
             </section>
           ) : null}
 
-          {canViewFinanceSettings ? <FinanceSettings canManageProviders={canManageSchoolSettings} canViewPlans={user?.role === "director" || hasPermission("subscription_plans.view")} canEditPlans={user?.role === "director" || hasPermission("subscription_plans.edit")} /> : null}
+          {canViewFinanceSettings ? <FinanceSettings canManageProviders={canManageSchoolSettings} /> : null}
 
           {canManageSchoolSettings && parentSmsMonetized ? (
             <section className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/70 dark:bg-emerald-950/20" data-tour="settings-sms">

@@ -9,6 +9,7 @@ import { CheckCircle, Info } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -32,7 +33,7 @@ import {
   fetchSchoolConfig,
   fetchAdministrationConfig,
   getSchoolSmsFeatureSettings,
-  updateSchoolSmsUnitPrice,
+  updateParentAlertSettings,
 } from "@/modules/settings/settings.api"
 import { OfflineDisabledFieldset } from "@/shared/components/OfflineDisabledFieldset"
 import { OfflineGuard } from "@/shared/components/OfflineGuard"
@@ -48,6 +49,12 @@ import { settingsTourSteps } from "@/shared/lib/tour-steps"
 const smsPriceSchema = z.object({
   smsUnitPriceFcfa: z.number().int().min(1).max(50000),
   checkoutToleranceMinutes: z.number().int().min(0).max(30),
+  mandatoryAtEnrollment: z.boolean(),
+  imposedDurationMonths: z.union([z.literal(1), z.literal(3), z.literal(6), z.literal(12)]).nullable(),
+  showOnSchoolReceipt: z.boolean(),
+}).refine((value) => !value.mandatoryAtEnrollment || value.imposedDurationMonths !== null, {
+  path: ["imposedDurationMonths"],
+  message: "Choisissez une période imposée.",
 })
 type SmsPriceFormValues = z.infer<typeof smsPriceSchema>
 
@@ -130,6 +137,9 @@ export default function SettingsPage() {
     defaultValues: {
       smsUnitPriceFcfa: smsFeatureQuery.data?.sms_unit_price_fcfa ?? 0,
       checkoutToleranceMinutes: smsFeatureQuery.data?.checkout_tolerance_minutes ?? 5,
+      mandatoryAtEnrollment: smsFeatureQuery.data?.mandatory_at_enrollment ?? false,
+      imposedDurationMonths: smsFeatureQuery.data?.imposed_duration_months ?? null,
+      showOnSchoolReceipt: smsFeatureQuery.data?.show_on_school_receipt ?? false,
     },
   })
 
@@ -138,6 +148,9 @@ export default function SettingsPage() {
     smsPriceForm.reset({
       smsUnitPriceFcfa: smsFeatureQuery.data.sms_unit_price_fcfa ?? 0,
       checkoutToleranceMinutes: smsFeatureQuery.data.checkout_tolerance_minutes ?? 5,
+      mandatoryAtEnrollment: smsFeatureQuery.data.mandatory_at_enrollment,
+      imposedDurationMonths: smsFeatureQuery.data.imposed_duration_months,
+      showOnSchoolReceipt: smsFeatureQuery.data.show_on_school_receipt,
     }, { keepDirty: false })
   }, [smsFeatureQuery.data, smsPriceForm])
 
@@ -149,13 +162,19 @@ export default function SettingsPage() {
   }, [financeSchoolYearId, schoolYearsQuery.data])
 
   const tariffValue = useWatch({ control: smsPriceForm.control, name: "smsUnitPriceFcfa" }) ?? 0
+  const mandatoryAtEnrollment = useWatch({ control: smsPriceForm.control, name: "mandatoryAtEnrollment" }) ?? false
 
   const saveSmsPriceMutation = useMutation({
-    mutationFn: (values: SmsPriceFormValues) => updateSchoolSmsUnitPrice(values.smsUnitPriceFcfa),
+    mutationFn: (values: SmsPriceFormValues) => updateParentAlertSettings({
+      smsUnitPriceFcfa: values.smsUnitPriceFcfa,
+      mandatoryAtEnrollment: values.mandatoryAtEnrollment,
+      imposedDurationMonths: values.mandatoryAtEnrollment ? values.imposedDurationMonths : null,
+      showOnSchoolReceipt: values.showOnSchoolReceipt,
+    }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["settings", "sms-feature"] })
       await queryClient.invalidateQueries({ queryKey: ["subscriptions", "feature-settings"] })
-      toast({ title: "Tarif SMS sauvegardé" })
+      toast({ title: "Service Alertes Parents sauvegardé" })
     },
     onError: (error) => {
       toast({
@@ -324,32 +343,71 @@ export default function SettingsPage() {
           ) : null}
 
           <div className={cn("grid gap-6", canViewFinanceSettings && canManageSchoolSettings && parentSmsMonetized && "xl:grid-cols-2 xl:items-start")}>
-          {canViewFinanceSettings ? <FinanceSettings canManageProviders={canManageSchoolSettings} canViewPlans={user?.role === "director" || hasPermission("subscription_plans.view")} canEditPlans={user?.role === "director" || hasPermission("subscription_plans.edit")} /> : null}
+          {canViewFinanceSettings ? <FinanceSettings canManageProviders={canManageSchoolSettings} /> : null}
 
           {canManageSchoolSettings && parentSmsMonetized ? (
             <section className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/70 dark:bg-emerald-950/20" data-tour="settings-sms">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-sm font-semibold">Service Alertes Parents</h2>
-                  <p className="text-xs text-muted-foreground">Paramétrage de la souscription parent pour les notifications.</p>
+                  <p className="text-xs text-muted-foreground">Tarif mensuel par élève, obligation à l’inscription, période et reçu scolaire.</p>
                 </div>
                 <Badge variant="default">Activé</Badge>
               </div>
 
               {smsFeatureQuery.data?.is_enabled ? (
                 <Form {...smsPriceForm}>
-                  <form onSubmit={smsPriceForm.handleSubmit((values) => saveSmsPriceMutation.mutate(values))} className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                  <form onSubmit={smsPriceForm.handleSubmit((values) => saveSmsPriceMutation.mutate(values))} className="space-y-4">
                     <FormField control={smsPriceForm.control} name="smsUnitPriceFcfa" render={({ field }) => (
                       <FormItem className="space-y-2">
-                        <Label htmlFor="sms-unit-price">{`Tarif par ${studentLabels.singularLower}/mois (FCFA)`}</Label>
+                        <Label htmlFor="sms-unit-price">Tarif mensuel par élève (FCFA)</Label>
                         <FormControl><Input id="sms-unit-price" inputMode="numeric" maxLength={5} placeholder="Ex: 2000" {...field} onChange={(event) => field.onChange(Number(event.target.value.replace(/\D/g, "")))} value={field.value === 0 ? "" : String(field.value)} /></FormControl>
                         <FormMessage />
                         <p className="text-xs text-muted-foreground">Entier entre 1 et 50000.</p>
                       </FormItem>
                     )} />
-                    <div className="contents">
-                      {saveSmsPriceMutation.isSuccess && !smsPriceForm.formState.isDirty ? <div className="flex items-center gap-2 text-green-600 animate-in fade-in duration-300"><CheckCircle className="h-4 w-4" /><span className="text-sm font-medium">Tarif sauvegardé</span></div> : <OfflineGuard><Button type="submit" disabled={saveSmsPriceMutation.isPending || !smsPriceForm.formState.isDirty || !smsPriceForm.formState.isValid}>{saveSmsPriceMutation.isPending ? "Sauvegarde..." : "Sauvegarder le tarif"}</Button></OfflineGuard>}
-                      <p className="text-sm text-muted-foreground sm:col-span-2">Commission IvoirEdu : <strong>{smsFeatureQuery.data.commission_pct}%</strong> (défini par IvoirEdu){tariffValue > 0 ? `, soit ${(Math.round(tariffValue * smsFeatureQuery.data.commission_pct) / 100).toLocaleString("fr-FR")} FCFA sur ${tariffValue.toLocaleString("fr-FR")}` : ""}</p>
+                    <FormField control={smsPriceForm.control} name="mandatoryAtEnrollment" render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border bg-background px-3 py-2 text-sm">
+                            <Checkbox checked={field.value} onCheckedChange={(checked) => {
+                              field.onChange(checked === true)
+                              if (checked !== true) smsPriceForm.setValue("imposedDurationMonths", null, { shouldDirty: true })
+                              else if (smsPriceForm.getValues("imposedDurationMonths") === null) smsPriceForm.setValue("imposedDurationMonths", 1, { shouldDirty: true })
+                            }} />
+                            <span>Obligatoire à l’inscription</span>
+                          </label>
+                        </FormControl>
+                      </FormItem>
+                    )} />
+                    {mandatoryAtEnrollment ? (
+                      <FormField control={smsPriceForm.control} name="imposedDurationMonths" render={({ field }) => (
+                        <FormItem className="max-w-sm space-y-2">
+                          <Label htmlFor="parent-alerts-duration">Période imposée</Label>
+                          <Select value={field.value ? String(field.value) : ""} onValueChange={(value) => field.onChange(Number(value))}>
+                            <FormControl><SelectTrigger id="parent-alerts-duration" className="min-h-12"><SelectValue placeholder="Choisir une période" /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              <SelectItem value="1">1 mois</SelectItem><SelectItem value="3">3 mois</SelectItem>
+                              <SelectItem value="6">6 mois</SelectItem><SelectItem value="12">12 mois</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                    ) : null}
+                    <FormField control={smsPriceForm.control} name="showOnSchoolReceipt" render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border bg-background px-3 py-2 text-sm">
+                            <Checkbox checked={field.value} onCheckedChange={(checked) => field.onChange(checked === true)} />
+                            <span>Afficher la ligne « Alertes Parents » sur le reçu scolaire</span>
+                          </label>
+                        </FormControl>
+                      </FormItem>
+                    )} />
+                    <div className="flex flex-wrap items-center gap-3">
+                      {saveSmsPriceMutation.isSuccess && !smsPriceForm.formState.isDirty ? <div className="flex items-center gap-2 text-green-600 animate-in fade-in duration-300"><CheckCircle className="h-4 w-4" /><span className="text-sm font-medium">Paramètres sauvegardés</span></div> : <OfflineGuard><Button type="submit" disabled={saveSmsPriceMutation.isPending || !smsPriceForm.formState.isDirty || !smsPriceForm.formState.isValid}>{saveSmsPriceMutation.isPending ? "Sauvegarde..." : "Enregistrer les paramètres"}</Button></OfflineGuard>}
+                      <p className="text-sm text-muted-foreground">Commission plateforme : <strong>{smsFeatureQuery.data.commission_pct}%</strong> (définie par IvoirEdu)</p>
                     </div>
                   </form>
                 </Form>
