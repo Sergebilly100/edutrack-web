@@ -50,6 +50,8 @@ export type CashJournalFilter = {
   to?: string
   classId?: string
   method?: PaymentMethod
+  /** Ignoré par l'API sans la permission payments.cancel. */
+  status?: "confirmed" | "cancelled"
 }
 
 export type CashJournalPagination = {
@@ -60,8 +62,9 @@ export type CashJournalPagination = {
 }
 
 export type CashJournal = {
-  entries: Array<Payment & { studentMatricule: string | null; studentName: string; classId: string; className: string }>
+  entries: Array<Payment & { studentMatricule: string | null; studentName: string; classId: string; className: string; cancelledBy: string | null }>
   totals: Record<PaymentMethod, number> & { grandTotal: number }
+  counts: { confirmed: number; cancelled: number }
   count: number
   pagination: CashJournalPagination
 }
@@ -228,6 +231,7 @@ const journalParams = (filter: CashJournalFilter & Partial<Pick<CashJournalPagin
   to: filter.to,
   class_id: filter.classId,
   method: filter.method,
+  status: filter.status,
   page: filter.page,
   limit: filter.limit,
 })
@@ -265,9 +269,10 @@ export async function getCashJournal(filter: CashJournalFilter & Partial<Pick<Ca
   return {
     entries: (Array.isArray(journal.entries) ? journal.entries : []).map((item) => {
       const row = record(item)
-      return { ...parsePayment(item), studentMatricule: asNullableString(row.studentMatricule), studentName: asString(row.studentName), classId: asString(row.classId), className: asString(row.className) }
+      return { ...parsePayment(item), studentMatricule: asNullableString(row.studentMatricule), studentName: asString(row.studentName), classId: asString(row.classId), className: asString(row.className), cancelledBy: asNullableString(row.cancelledBy) }
     }),
     totals: { cash: asNumber(totals.cash), mobile_money: asNumber(totals.mobile_money), bank_transfer: asNumber(totals.bank_transfer), grandTotal: asNumber(totals.grandTotal) },
+    counts: { confirmed: asNumber(record(journal.counts).confirmed), cancelled: asNumber(record(journal.counts).cancelled) },
     count: asNumber(journal.count),
     pagination: {
       page: asNumber(pagination.page, 1),
@@ -661,9 +666,9 @@ export async function fetchRecoverySummary(schoolYearId: string, levelId?: strin
   return response.data
 }
 
-export async function fetchRecoveryStudents(schoolYearId: string, classId: string, levelId?: string, page = 1): Promise<RecoveryStudents> {
+export async function fetchRecoveryStudents(schoolYearId: string, classId: string, levelId?: string, page = 1, limit = 20): Promise<RecoveryStudents> {
   const response = await apiClient.get<RecoveryStudents>("/finance/recovery/class-students", {
-    params: { school_year_id: schoolYearId, class_id: classId, level_id: levelId, page, limit: 20 },
+    params: { school_year_id: schoolYearId, class_id: classId, level_id: levelId, page, limit },
   })
   return response.data
 }
