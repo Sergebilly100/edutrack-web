@@ -12,15 +12,48 @@ import {
   getParentAccessStatuses,
   resetParentSubscriptionPassword,
   type ParentAccessResetResult,
-  type SubscriptionListItem,
 } from "@/modules/subscriptions/subscriptions.api"
+import type {
+  StudentParentAccessResetResult,
+} from "@/modules/students/students.api"
 
 type Channel = "sms" | "email"
 
 const usablePhone = (phone: string) => /^225\d{10}$/.test(phone)
 const usableEmail = (email: string | null) => z.email().safeParse(email).success
 
-export function ParentAccessResetDialog({ parent, onClose }: { parent: SubscriptionListItem; onClose: () => void }) {
+export type ParentAccessDialogTarget = {
+  parent_id: string
+  full_name: string
+  phone: string
+  email: string | null
+}
+
+export function ParentAccessResetDialog({
+  parent,
+  onClose,
+  resetAccess = resetParentSubscriptionPassword,
+  getStatuses = (parentId, rotationId) => getParentAccessStatuses(parentId, rotationId),
+  onSuccess,
+  initialAccess = false,
+  statusScopeKey = "subscription",
+}: {
+  parent: ParentAccessDialogTarget
+  onClose: () => void
+  resetAccess?: (
+    parentId: string,
+    channels: Channel[],
+    manualOnly?: boolean,
+    signal?: AbortSignal
+  ) => Promise<ParentAccessResetResult | StudentParentAccessResetResult>
+  getStatuses?: (parentId: string, rotationId: string) => Promise<Array<{
+    channel: Channel
+    status: "queued" | "sent" | "delivered" | "failed"
+  }>>
+  onSuccess?: () => Promise<unknown> | void
+  initialAccess?: boolean
+  statusScopeKey?: string
+}) {
   const phoneAvailable = usablePhone(parent.phone)
   const emailAvailable = usableEmail(parent.email)
   const [sms, setSms] = useState(phoneAvailable)
@@ -41,8 +74,8 @@ export function ParentAccessResetDialog({ parent, onClose }: { parent: Subscript
   const manualOnly = physicalDelivery
 
   const statusQuery = useQuery({
-    queryKey: ["subscriptions", "access-status", parent.parent_id, result?.rotation_id],
-    queryFn: () => getParentAccessStatuses(parent.parent_id, result!.rotation_id),
+    queryKey: ["parent-access", "status", statusScopeKey, parent.parent_id, result?.rotation_id],
+    queryFn: () => getStatuses(parent.parent_id, result!.rotation_id),
     enabled: Boolean(result?.rotation_id && result.channels.length),
     refetchInterval: (query) => query.state.data?.some((item) => item.status === "queued") ? 3000 : false,
   })
@@ -55,11 +88,12 @@ export function ParentAccessResetDialog({ parent, onClose }: { parent: Subscript
     const abort = new AbortController()
     controller.current = abort
     try {
-      const access = await resetParentSubscriptionPassword(parent.parent_id, selected, manualOnly, abort.signal)
+      const access = await resetAccess(parent.parent_id, selected, manualOnly, abort.signal)
       if (abort.signal.aborted) return
       setResult(access)
       await queryClient.invalidateQueries({ queryKey: ["subscriptions", "parents"], refetchType: "active" })
       await queryClient.invalidateQueries({ queryKey: ["subscriptions", "details", parent.parent_id], refetchType: "active" })
+      await onSuccess?.()
       toast({ title: "Accès parent réinitialisé", description: selected.length ? "Les envois demandés sont en cours." : "Copiez l’accès dans ce dialogue." })
     } catch (error) {
       if (!abort.signal.aborted) {
@@ -86,8 +120,12 @@ export function ParentAccessResetDialog({ parent, onClose }: { parent: Subscript
     <Dialog open onOpenChange={(open) => { if (!open) { controller.current?.abort(); setResult(null); onClose() } }}>
       <DialogContent className="max-h-[92dvh] w-[calc(100vw-1rem)] max-w-lg overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle>{result ? "Accès parent créé" : "Réinitialiser l’accès parent"}</DialogTitle>
-          <DialogDescription>{parent.full_name}. L’ancien mot de passe cessera de fonctionner.</DialogDescription>
+          <DialogTitle>
+            {result ? "Accès parent créé" : initialAccess ? "Envoyer l’accès parent" : "Réinitialiser l’accès parent"}
+          </DialogTitle>
+          <DialogDescription>
+            {parent.full_name}. {initialAccess ? "Un mot de passe temporaire sera généré." : "L’ancien mot de passe cessera de fonctionner."}
+          </DialogDescription>
         </DialogHeader>
 
         {result ? (
@@ -119,7 +157,7 @@ export function ParentAccessResetDialog({ parent, onClose }: { parent: Subscript
           </div>
         ) : (
           <div className="space-y-4">
-            <p className="text-sm">Choisissez les canaux ou la remise en main propre avant de créer le nouveau mot de passe.</p>
+            <p className="text-sm">Choisissez les canaux ou la remise en main propre avant de créer le mot de passe temporaire.</p>
             <label className="flex min-h-12 items-center gap-3 rounded-lg border p-3">
               <Checkbox checked={sms} onCheckedChange={(checked) => { setSms(checked === true); if (checked === true) setPhysicalDelivery(false) }} disabled={!phoneAvailable || pending} aria-label="Envoyer par SMS" />
               <MessageSquare className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -139,7 +177,15 @@ export function ParentAccessResetDialog({ parent, onClose }: { parent: Subscript
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" className="min-h-12" onClick={onClose} disabled={pending}>Annuler</Button>
               <Button type="button" className="min-h-12" onClick={submit} disabled={pending || (!selected.length && !manualOnly)}>
-                {pending ? "Réinitialisation en cours…" : manualOnly ? "Réinitialiser pour remise en main propre" : "Réinitialiser et envoyer"}
+                {pending
+                  ? "Préparation en cours…"
+                  : manualOnly
+                    ? initialAccess
+                      ? "Préparer pour remise en main propre"
+                      : "Réinitialiser pour remise en main propre"
+                    : initialAccess
+                      ? "Envoyer les identifiants"
+                      : "Réinitialiser et envoyer"}
               </Button>
             </div>
           </div>

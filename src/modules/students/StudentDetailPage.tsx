@@ -33,15 +33,23 @@ import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import {
   excuseAbsence,
+  getStudentParentAccess,
+  getStudentParentAccessStatuses,
   getStudentAbsenceRecords,
   getCurrentStudentProfile,
   getHistoricalStudentProfile,
+  resetStudentParentAccess,
   retrySmsNotification,
   updateStudent,
+  type StudentParentAccessAccount,
   type StudentAbsenceRecord,
   type CurrentStudentProfile,
   type HistoricalStudentProfile,
 } from "@/modules/students/students.api"
+import {
+  ParentAccessResetDialog,
+  type ParentAccessDialogTarget,
+} from "@/modules/subscriptions/components/ParentAccessResetDialog"
 import { DocumentList, DocumentUpload, OfflineDisabledFieldset, PageLayout, PresenceDonut } from "@/shared/components"
 import { StudentDossierTimeline } from "@/modules/students/components/StudentDossierTimeline"
 import { StudentReportCards } from "@/modules/students/components/StudentReportCards"
@@ -129,6 +137,9 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
   // Dialog excuse
   const [excuseDialogId, setExcuseDialogId] = useState<string | null>(null)
   const [excuseReason, setExcuseReason] = useState("")
+  const [parentAccessTarget, setParentAccessTarget] = useState<
+    (ParentAccessDialogTarget & { initialAccess: boolean }) | null
+  >(null)
 
   const lastSavedNoteRef = useRef("")
   const hydratedRef = useRef(false)
@@ -139,6 +150,12 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
     queryFn: async () => historical ? getHistoricalStudentProfile(studentId) : getCurrentStudentProfile(studentId),
     enabled: studentId.trim().length > 0,
     refetchOnMount: "always",
+  })
+
+  const parentAccessQuery = useQuery({
+    queryKey: ["students", "parent-access", studentId],
+    queryFn: () => getStudentParentAccess(studentId),
+    enabled: canEditStudent && !historical && Boolean(studentQuery.data) && !studentQuery.isFetching,
   })
 
   const academicSummaryQuery = useQuery({
@@ -994,6 +1011,58 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
                   {saveContactsMutation.isPending ? "Enregistrement..." : "Modifier les contacts"}
                 </Button>
               ) : null}
+              {canEditStudent && parentAccessQuery.isError ? (
+                <QueryErrorState
+                  title="Accès parent indisponibles"
+                  message="Impossible de charger les comptes parents liés à cet élève."
+                  onRetry={() => void parentAccessQuery.refetch()}
+                  isRetrying={parentAccessQuery.isFetching}
+                />
+              ) : null}
+              {canEditStudent && parentAccessQuery.data?.available ? (
+                <div className="space-y-3 border-t pt-4">
+                  <div>
+                    <h3 className="text-sm font-semibold">Identifiants du portail parent</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Envoyez ou réinitialisez l’accès des comptes parents liés à cet élève.
+                    </p>
+                  </div>
+                  {parentAccessQuery.data.parents.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Aucun compte parent éligible n’est lié à un élève confirmé.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {parentAccessQuery.data.parents.map((parent: StudentParentAccessAccount) => (
+                        <div key={parent.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{parent.fullName}</p>
+                            <p className="truncate text-sm text-muted-foreground">{parent.phone}</p>
+                            {parent.accessPending ? <p className="text-xs text-muted-foreground">Identifiants déjà en file d’envoi</p> : null}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="min-h-11 shrink-0"
+                            disabled={parent.accessPending}
+                            onClick={() => setParentAccessTarget({
+                              parent_id: parent.id,
+                              full_name: parent.fullName,
+                              phone: parent.phone,
+                              email: parent.email,
+                              initialAccess: !parent.accessSentAt,
+                            })}
+                          >
+                            {parent.accessPending
+                              ? "Envoi en cours"
+                              : parent.accessSentAt
+                                ? "Réinitialiser l’accès"
+                                : "Envoyer les identifiants"}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         </TabsContent>
@@ -1095,6 +1164,21 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {parentAccessTarget ? (
+        <ParentAccessResetDialog
+          parent={parentAccessTarget}
+          initialAccess={parentAccessTarget.initialAccess}
+          statusScopeKey={`student-${studentId}`}
+          onClose={() => setParentAccessTarget(null)}
+          resetAccess={(parentId, channels, manualOnly, signal) =>
+            resetStudentParentAccess(studentId, parentId, channels, manualOnly, signal)
+          }
+          getStatuses={(parentId, rotationId) =>
+            getStudentParentAccessStatuses(studentId, parentId, rotationId)
+          }
+          onSuccess={() => parentAccessQuery.refetch()}
+        />
+      ) : null}
       </OfflineDisabledFieldset>
     </PageLayout>
     </>

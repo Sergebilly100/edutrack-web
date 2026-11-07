@@ -15,7 +15,7 @@ import { formatFcfa } from "@/shared/utils/formatting"
 import { analyzePaymentImport, confirmPaymentImport, getPaymentMappingProfile, previewPaymentImport, savePaymentMappingProfile, type PaymentImportAnalysis, type PaymentImportPreview, type PaymentMappingField, type PaymentMethod } from "../finance.api"
 
 const targets = ["matricule", "montant", "date", "reference", "method"] as const
-const targetLabels: Record<typeof targets[number], string> = { matricule: "Matricule", montant: "Montant", date: "Date du paiement", reference: "Référence", method: "Mode de paiement" }
+const targetLabels: Record<typeof targets[number], string> = { matricule: "Matricule", montant: "Montant", date: "Date du paiement", reference: "Référence du paiement", method: "Mode de paiement" }
 const methodLabels: Record<PaymentMethod, string> = { cash: "Espèces", mobile_money: "Mobile Money", bank_transfer: "Virement" }
 type DraftMappingField = Omit<PaymentMappingField, "translations"> & { translations: Array<{ sourceValue: string; targetValue: PaymentMethod | "" }> }
 
@@ -73,11 +73,11 @@ export function PaymentImportPanel() {
 
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         <div className="bg-[var(--surface-chrome)] px-4 py-4 md:flex-row md:items-center md:justify-between">
-          <div className="max-w-2xl space-y-1">
+          <div className="space-y-1">
             <h2 className="text-lg font-semibold">Import des paiements</h2>
             <p className="text-xs text-muted-foreground">
-              Utilisez le fichier de votre caisse. Les correspondances enregistrées
-              seront reprises automatiquement au prochain import.
+              Utilisez le fichier de votre caisse. Vous ferez ensuite une correspondance des colonnes, Les cinq champs sont obligatoires. <br />
+              Les correspondances enregistrées  seront reprises automatiquement au prochain import.
             </p>
           </div>
         </div>
@@ -404,7 +404,7 @@ export function PaymentImportPanel() {
                     <TableHead>Ligne</TableHead>
                     <TableHead>Élève</TableHead>
                     <TableHead>Date</TableHead>
-                    <TableHead>Référence</TableHead>
+                    <TableHead>Référence du paiement</TableHead>
                     <TableHead className="text-right">Montant</TableHead>
                   </TableRow>
                 </TableHeader>

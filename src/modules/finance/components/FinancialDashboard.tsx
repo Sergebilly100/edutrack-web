@@ -137,11 +137,13 @@ export function FinancialDashboard({ schoolYearId }: { schoolYearId: string }) {
               </div>
               <div className="space-y-2">
                 <AmountLine label="Attendu à date" value={formatFcfa(expectedToDate)} />
-                <AmountLine label="Encaissé" value={formatFcfa(totalPaid)} />
+                <AmountLine label="Encaissé" value={formatFcfa(totalPaid)} signe="-" />
                 <AmountLine
                   label="Impayé à date"
                   value={formatFcfaBalance(balances.overdueToDate)}
                   emphasis
+                  emphasisColor="text-red-700"
+                  signe="="
                 />
               </div>
             </section>
@@ -162,11 +164,12 @@ export function FinancialDashboard({ schoolYearId }: { schoolYearId: string }) {
               </div>
               <div className="space-y-2">
                 <AmountLine label="Total annuel à encaisser" value={formatFcfa(annualTotalDue)} />
-                <AmountLine label="Encaissé" value={formatFcfa(totalPaid)} />
+                <AmountLine label="Encaissé" value={formatFcfa(totalPaid)} signe="-" />
                 <AmountLine
                   label="Solde annuel restant"
                   value={formatFcfaBalance(balances.annualRemaining)}
                   emphasis
+                  signe="="
                 />
                 <p className="pt-1 text-xs leading-relaxed text-muted-foreground">
                   Dont impayé à date {formatFcfaBalance(balances.overdueToDate)} + à venir{" "}
@@ -199,22 +202,26 @@ export function FinancialDashboard({ schoolYearId }: { schoolYearId: string }) {
 
 function AgreementMetrics({ metrics }: { metrics: { activeOverrides: number; activeDiscounts: number; activeSchedules: number; lateSchedules: number; lateScheduleRemaining: number } | null }) {
   if (!metrics) return null
-  return <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Suivi des accords individuels"><Link to={`${FINANCE_PATHS.agreements}?kind=overrides&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Ajustements/Remises actifs</p><p className="mt-1 text-2xl font-semibold tabular-nums">{metrics.activeOverrides}</p><p className="mt-1 text-xs text-muted-foreground">Remises : {formatFcfa(metrics.activeDiscounts)}</p></Link><Link to={`${FINANCE_PATHS.agreements}?kind=schedules&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Échéanciers actifs</p><p className="mt-1 text-2xl font-semibold tabular-nums">{metrics.activeSchedules}</p><p className="mt-1 text-xs text-muted-foreground">Calendriers suivis à date</p></Link><Link to={`${FINANCE_PATHS.agreements}?kind=schedules&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Échéanciers en retard</p><p className="mt-1 text-2xl font-semibold tabular-nums">{metrics.lateSchedules}</p><p className="mt-1 text-xs text-muted-foreground">Selon le moteur financier</p></Link><Link to={`${FINANCE_PATHS.agreements}?kind=schedules&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Solde des échéanciers en retard</p><p className="mt-1 text-2xl font-semibold tabular-nums">{formatFcfa(metrics.lateScheduleRemaining)}</p><p className="mt-1 text-xs text-muted-foreground">Montant restant à recouvrer</p></Link></section>
+  return <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Suivi des accords individuels"><Link to={`${FINANCE_PATHS.agreements}?kind=overrides&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Ajustements/Remises actifs</p><p className="mt-1 text-2xl font-semibold tabular-nums">{metrics.activeOverrides}</p><p className="mt-1 text-xs text-muted-foreground">Remises : {formatFcfa(metrics.activeDiscounts)}</p></Link><Link to={`${FINANCE_PATHS.agreements}?kind=schedules&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Échéanciers actifs</p><p className="mt-1 text-2xl font-semibold tabular-nums">{metrics.activeSchedules}</p><p className="mt-1 text-xs text-muted-foreground">Calendriers suivis à date</p></Link><Link to={`${FINANCE_PATHS.agreements}?kind=schedules&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Échéanciers négociés en retard</p><p className="mt-1 text-2xl font-semibold tabular-nums">{metrics.lateSchedules}</p><p className="mt-1 text-xs text-muted-foreground">Selon le moteur financier</p></Link><Link to={`${FINANCE_PATHS.agreements}?kind=schedules&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Solde des échéanciers en retard</p><p className="mt-1 text-2xl font-semibold tabular-nums">{formatFcfa(metrics.lateScheduleRemaining)}</p><p className="mt-1 text-xs text-muted-foreground">Montant restant à recouvrer</p></Link></section>
 }
 
 function AmountLine({
   label,
   value,
   emphasis = false,
+  emphasisColor,
+  signe,
 }: {
   label: string
   value: string
   emphasis?: boolean
+  emphasisColor?: string
+  signe?: " " | "-" | "=" 
 }) {
   return (
-    <div className={`grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 border-b border-border/70 py-2 last:border-0 ${emphasis ? "font-semibold" : ""}`}>
-      <span className={emphasis ? "text-foreground text-sm" : "text-muted-foreground text-sm"}>{label}</span>
-      <span className="text-right tabular-nums text-sm">{value}</span>
+    <div className={`grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 border-b border-border/70 py-2 last:border-0 ${emphasis ? "font-semibold" : ""}`}> 
+      <span className={emphasis ? (emphasisColor || "text-foreground text-sm") : "text-muted-foreground text-sm"}>{signe ? <span className="mr-1">{signe}</span> : <span className="m-[0.4rem]"></span>}{label}</span>
+      <span className={`text-right tabular-nums text-sm ${emphasis ? (emphasisColor || "text-foreground") : "text-muted-foreground"}`}>{value}</span>
     </div>
   )
 }
@@ -756,7 +763,7 @@ function ClassStudentsDrillDown({ classId }: { classId: string }) {
                   >
                     {student.status === "up_to_date"
                       ? "À jour"
-                      : `Retard${student.days_late !== null ? ` · ${student.days_late} j` : ""}`}
+                      : `Retard${student.days_late !== null ? ` · ${student.days_late} jour(s)` : ""}`}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right font-medium tabular-nums">{formatFcfaBalance(overdue)}</TableCell>

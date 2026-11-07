@@ -5,12 +5,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '@/shared/store/auth.store'
 import type { SchoolDetailsResponse } from '../admin.api'
 
-const mocks = vi.hoisted(() => ({ details: vi.fn(), flag: vi.fn(), toast: vi.fn(), year: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  details: vi.fn(),
+  flag: vi.fn(),
+  toast: vi.fn(),
+  year: vi.fn(),
+  smsStats: vi.fn(),
+  activateSms: vi.fn(),
+  deactivateSms: vi.fn(),
+}))
 vi.mock('../admin.api', async (load) => ({
   ...(await load<typeof import('../admin.api')>()),
   getSchoolDetails: mocks.details, setMidYearFlag: mocks.flag, getSchoolYearStatus: mocks.year,
   getSchoolUsers: vi.fn().mockResolvedValue(null), getSchoolPayments: vi.fn().mockResolvedValue([]),
-  getSchoolSmsFeatureStats: vi.fn().mockResolvedValue(null),
+  getSchoolSmsFeatureStats: mocks.smsStats,
+  activateSchoolSmsFeature: mocks.activateSms,
+  deactivateSchoolSmsFeature: mocks.deactivateSms,
 }))
 vi.mock('@/components/ui/use-toast', () => ({ useToast: () => ({ toast: mocks.toast }) }))
 import AdminSchoolDetailPage from '../AdminSchoolDetailPage'
@@ -20,6 +30,26 @@ const school = (enabled: boolean): SchoolDetailsResponse => ({
   metadata: { name: 'École de recette', subdomain: 'recette', schemaName: 'school_recette', plan: 'pro', status: 'active', city: 'Abidjan', address: null, teachingType: 'secondaire', maxAdminPositions: 5, maxUsers: 50, maxSmsPerMonth: 0, studentLabel: 'Élève', directorTitle: 'Directeur', canEditSmsTemplate: false, canExportData: true, midYearOnboarding: enabled, activeSchoolYear: null, logoUrl: null, createdAt: '2026-01-01', updatedAt: '2026-01-01' },
   usageStats: { nbUsers: 1, activeUsers7d: 0, teachersCount: 0, studentsCount: 0, attendanceRecords30d: 0, mrrFcfa: 0, planMonthlyPriceFcfa: 0, subscriptionStartedAt: null, currentPeriodStart: null, currentPeriodEnd: null, billingCycle: null, paidCurrentPeriodFcfa: 0, remainingCurrentPeriodFcfa: 0, nextDueDate: null, lastPaymentReminderAt: null, lastConnection: null },
   connectionHistory30d: [],
+})
+const smsStats = (isEnabled: boolean, monetizeParentAlerts: boolean) => ({
+  config: {
+    is_enabled: isEnabled,
+    commission_pct: 12,
+    sms_cap_per_student: 60,
+    monetize_parent_alerts: monetizeParentAlerts,
+    use_real_hours: false,
+    geo_check_enabled: false,
+  },
+  current_month: {
+    subscriptions_active: 0,
+    subscriptions_new: 0,
+    total_collected_fcfa: 0,
+    commission_due_fcfa: 0,
+    commission_paid_fcfa: 0,
+    commission_remaining_fcfa: 0,
+  },
+  history: [],
+  sms_sent_this_month: 0,
 })
 const mount = (tab = '') => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
   <MemoryRouter initialEntries={[`/admin/schools/tenant-1${tab ? `?tab=${tab}` : ''}`]}><Routes><Route path='/admin/schools/:tenantId' element={<AdminSchoolDetailPage />} /></Routes></MemoryRouter>
@@ -33,6 +63,7 @@ beforeEach(() => {
   useAuthStore.setState({ user: { id: 'admin', role: 'super_admin' } as NonNullable<ReturnType<typeof useAuthStore.getState>['user']> })
   mocks.details.mockResolvedValue(school(false))
   mocks.year.mockResolvedValue({ activeYear: { id: 'year-1', label: '2026-2027' } })
+  mocks.smsStats.mockResolvedValue(smsStats(false, false))
   mocks.flag.mockImplementation(async (_id: string, enabled: boolean) => { mocks.details.mockResolvedValue(school(enabled)); return { enabled } })
 })
 
@@ -83,5 +114,23 @@ describe('school imports regrouping', () => {
     expect(screen.getByText('Cette page est réservée au super admin.')).toBeVisible()
     expect(screen.queryByRole('tab', { name: 'Imports de l’école' })).not.toBeInTheDocument()
     expect(mocks.details).not.toHaveBeenCalled()
+  })
+
+  it('lets the super admin activate parent portal and free alerts independently from paid mode', async () => {
+    mocks.smsStats
+      .mockResolvedValueOnce(smsStats(false, false))
+      .mockResolvedValue(smsStats(true, false))
+    mocks.activateSms.mockResolvedValue({ is_enabled: true, commission_pct: 12, activated_at: '2026-11-04' })
+    mount('sms-revenus')
+
+    expect(await screen.findByText('Désactivé — le portail parent et les alertes ne sont pas opérationnels.')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Activer le portail et les alertes gratuites' }))
+    expect(await screen.findByRole('alertdialog')).toBeVisible()
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(/sans abonnement/)
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }))
+
+    await waitFor(() => expect(mocks.activateSms).toHaveBeenCalledWith('tenant-1', { commission_pct: 12 }))
+    await waitFor(() => expect(screen.getByText('Activé — portail parent et alertes gratuites disponibles.')).toBeVisible())
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Feature SMS activée' }))
   })
 })

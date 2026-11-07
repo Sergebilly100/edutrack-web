@@ -25,7 +25,15 @@ import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { listClasses, listLevels } from "@/modules/academic/academic.api"
 import StudentAbsencePanel from "@/modules/students/components/StudentAbsencePanel"
-import { createStudent, getAttendanceHistory, listStudents, type StudentItem } from "@/modules/students/students.api"
+import {
+  createStudent,
+  getAttendanceHistory,
+  getParentAccessMode,
+  listStudents,
+  sendPendingStudentParentAccess,
+  type StudentItem,
+  type StudentParentAccessDispatchResult,
+} from "@/modules/students/students.api"
 import { DataTable, EmptyState, OfflineGuard, PageLayout } from "@/shared/components"
 import { TourGuide } from "@/shared/components/TourGuide"
 import { HomeroomTeacherReminder } from "@/shared/components/HomeroomTeacherReminder"
@@ -94,7 +102,9 @@ export default function StudentsPage() {
   const listPage = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
   const returnTo = `${window.location.pathname}${window.location.search}`
   const canCreateStudent = hasPermission("students.create")
+  const canEditStudents = hasPermission("students.edit")
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [parentDispatchResult, setParentDispatchResult] = useState<StudentParentAccessDispatchResult | null>(null)
   const [birthInputError, setBirthInputError] = useState<string | null>(null)
   const [newStudent, setNewStudent] = useState({
     classId: "",
@@ -182,6 +192,36 @@ export default function StudentsPage() {
         search: searchTerm.trim() || undefined,
       }),
     enabled: canViewStudents,
+  })
+
+  const parentAccessModeQuery = useQuery({
+    queryKey: ["students", "parent-access-mode"],
+    queryFn: getParentAccessMode,
+    enabled: canEditStudents,
+  })
+
+  const sendPendingParentAccessMutation = useMutation({
+    mutationFn: sendPendingStudentParentAccess,
+    onSuccess: (result) => {
+      setParentDispatchResult(result)
+      const alreadySent = result.items.filter((item) => item.status === "already_sent").length
+      const missing = result.items.filter((item) => item.status === "not_found").length
+      const failed = result.items.filter((item) => item.status === "failed").length
+      toast({
+        title: "Envoi groupé terminé",
+        description: `${result.queued} en file, ${alreadySent} déjà transmis, ${missing} introuvable(s), ${failed} échec(s).`,
+      })
+    },
+    onError: (error) => {
+      toast({
+        title: "Envoi impossible",
+        description:
+          axios.isAxiosError(error) && typeof error.response?.data?.error === "string"
+            ? error.response.data.error
+            : "Impossible d’envoyer les accès parents.",
+        variant: "destructive",
+      })
+    },
   })
 
   useEffect(() => {
@@ -372,6 +412,20 @@ export default function StudentsPage() {
       actions={
         <div className="flex flex-wrap gap-2">
           {canViewStudents ? <Button asChild variant="outline" className="min-h-12"><Link to="/students/history">Tous les dossiers élèves</Link></Button> : null}
+          {parentAccessModeQuery.data?.available ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-12"
+              disabled={sendPendingParentAccessMutation.isPending}
+              onClick={() => {
+                setParentDispatchResult(null)
+                sendPendingParentAccessMutation.mutate()
+              }}
+            >
+              {sendPendingParentAccessMutation.isPending ? "Envoi des accès…" : "Envoyer les accès parents en attente"}
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -409,6 +463,18 @@ export default function StudentsPage() {
 
         {canViewStudents ? (
         <TabsContent value="liste" className="space-y-4">
+          {parentAccessModeQuery.isError ? (
+            <Alert variant="destructive"><AlertDescription>Impossible de vérifier le mode d’accès parent.</AlertDescription></Alert>
+          ) : null}
+          {parentDispatchResult ? (
+            <Alert aria-live="polite">
+              <AlertDescription>
+                {parentDispatchResult.items.length === 0
+                  ? "Aucun compte parent éligible n’est lié à un élève confirmé."
+                  : `${parentDispatchResult.queued} en file · ${parentDispatchResult.items.filter((item) => item.status === "already_sent").length} déjà transmis · ${parentDispatchResult.items.filter((item) => item.status === "not_found").length} introuvable(s) · ${parentDispatchResult.items.filter((item) => item.status === "failed").length} échec(s).`}
+              </AlertDescription>
+            </Alert>
+          ) : null}
           <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
             <div className="flex flex-col gap-4 bg-[var(--surface-chrome)] px-4 py-4 md:flex-row md:items-center md:justify-between">
               <div className="space-y-1">

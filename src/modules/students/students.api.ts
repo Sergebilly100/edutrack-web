@@ -44,6 +44,36 @@ export type StudentsListResponse = {
   }
 }
 
+export type StudentParentAccessAccount = {
+  id: string
+  fullName: string
+  phone: string
+  email: string | null
+  accessSentAt: string | null
+  accessPending: boolean
+}
+
+export type StudentParentAccessResponse = {
+  available: boolean
+  parents: StudentParentAccessAccount[]
+}
+
+export type StudentParentAccessDispatchResult = {
+  items: Array<{
+    parentId: string
+    status: "queued" | "already_sent" | "not_found" | "failed"
+  }>
+  queued: number
+}
+
+export type StudentParentAccessResetResult = {
+  parent_id: string
+  login: string
+  new_temp_password: string
+  rotation_id: string
+  channels: Array<{ channel: "sms" | "email"; status: "queued" | "failed" }>
+}
+
 export type CreateStudentPayload = {
   classId?: string
   firstName: string
@@ -320,6 +350,40 @@ export const listHistoryProfiles = (query: StudentsListQuery = {}) => fetchStude
 export const listFinancialProfiles = (query: StudentsListQuery = {}) => fetchStudentList("/students/financial-profiles", query)
 
 export const listCashierCandidates = (query: StudentsListQuery) => fetchStudentList("/students/cashier-candidates", query)
+
+export const getParentAccessMode = () =>
+  api.get<{ available: boolean }>("/students/parent-access/mode").then((response) => response.data)
+
+export const sendPendingStudentParentAccess = () =>
+  api.post<StudentParentAccessDispatchResult>("/students/parents/access/send").then((response) => response.data)
+
+export const getStudentParentAccess = (studentId: string) =>
+  api.get<StudentParentAccessResponse>(`/students/${studentId}/parent-access`).then((response) => response.data)
+
+export const resetStudentParentAccess = (
+  studentId: string,
+  parentId: string,
+  channels: Array<"sms" | "email">,
+  manualOnly = false,
+  signal?: AbortSignal
+) =>
+  api.post<StudentParentAccessResetResult>(
+    `/students/${studentId}/parents/${parentId}/access/reset`,
+    { channels, manual_only: manualOnly },
+    { signal }
+  ).then((response) => response.data)
+
+export const getStudentParentAccessStatuses = (
+  studentId: string,
+  parentId: string,
+  rotationId: string
+) =>
+  api.get<{ channels: Array<{
+    channel: "sms" | "email"
+    status: "queued" | "sent" | "delivered" | "failed"
+  }> }>(
+    `/students/${studentId}/parents/${parentId}/access/${rotationId}/status`
+  ).then((response) => response.data.channels)
 
 export const createStudent = (payload: CreateStudentPayload) =>
   api

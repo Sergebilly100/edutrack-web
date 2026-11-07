@@ -182,7 +182,7 @@ export default function EvaluationReviewPage() {
         </CardContent></Card>)}
         <Card><CardContent className="space-y-2 p-4 sm:p-5">
           <strong className="block text-3xl font-semibold tabular-nums">{completionPercent(result.summary.grades, result.summary.grades + result.summary.missing)} %</strong>
-          <span className="text-sm text-muted-foreground">Complétion</span>
+          <span className="text-sm text-muted-foreground">Complétion des notes</span>
           <Progress value={completionPercent(result.summary.grades, result.summary.grades + result.summary.missing)}
             aria-label="Complétion des notes" aria-valuenow={completionPercent(result.summary.grades, result.summary.grades + result.summary.missing)} aria-valuemin={0} aria-valuemax={100} />
         </CardContent></Card>
@@ -279,9 +279,9 @@ export default function EvaluationReviewPage() {
           {open ? <div id={`spontaneous-notes-${student.id}`} className="space-y-4 border-t px-4 pb-4 pt-3">{student.subjects.map((subjectItem) => <div key={subjectItem.id}>
             <h4 className="text-sm font-medium">{subjectItem.name}</h4>
             <div className="mt-1 divide-y">{subjectItem.notes.map((note) => <div key={note.evaluationId} className="grid gap-1 py-2 text-sm sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-x-5">
-              <span className="font-semibold tabular-nums">{displayAdjustment(note.adjustment)} point{Math.abs(note.adjustment) > 1 ? "s" : ""}</span>
+              <span className={`font-semibold tabular-nums ${Math.abs(note.adjustment) > 1 ? "text-green-500" : "text-red-500"}`}>{displayAdjustment(note.adjustment)} point{Math.abs(note.adjustment) > 1 ? "s" : ""}</span>
               <div><span>{displayDate(note.date)} · {note.teacher.name}</span><span className="text-muted-foreground"> · {note.className}</span>
-                {note.comment ? <p className="mt-1 text-muted-foreground">{note.comment}</p> : null}</div>
+              {note.comment ? <p className="mt-1 text-muted-foreground">Motif : {note.comment}</p> : null}</div>
             </div>)}</div>
           </div>)}</div> : null}
         </article>})}</div>}

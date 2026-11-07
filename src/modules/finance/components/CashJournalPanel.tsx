@@ -150,7 +150,7 @@ export function CashJournalPanel({ schoolYearId }: { schoolYearId: string }) {
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
         <Button
           variant="outline"
-          className="min-h-12"
+          className="min-h-8"
           disabled={isExcelRunning}
           onClick={() => void downloadExcel()}
         >
@@ -162,7 +162,7 @@ export function CashJournalPanel({ schoolYearId }: { schoolYearId: string }) {
           Excel
         </Button>
         <Button
-          className="min-h-12"
+          className="min-h-8"
           disabled={pdf.isRunning}
           onClick={() => void pdf.launch(() => exportCashJournalPdf(filter))}
         >

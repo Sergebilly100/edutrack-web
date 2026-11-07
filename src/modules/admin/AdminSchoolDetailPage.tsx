@@ -2000,43 +2000,85 @@ export default function AdminSchoolDetailPage() {
                     </CardContent>
                   </Card>
 
-                  {/* Étape 2 : Activation opérationnelle + paramètres financiers (seulement si mode payant) */}
+                  {/* L’activation opérationnelle est indépendante du mode gratuit/payant. */}
+                  <Card className="shadow-sm">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm">
+                        Étape 2 - Activation du service parents
+                      </CardTitle>
+                      <CardDescription>
+                        {smsFeatureStatsQuery.data?.config.monetize_parent_alerts
+                          ? "En mode payant, l’activation permet de créer des abonnements parents."
+                          : "En mode gratuit, l’activation ouvre le portail parent et les alertes d’absence à tous les parents liés à un élève confirmé, sans abonnement."}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {smsFeatureStatsQuery.isError ? (
+                        <Alert variant="destructive">
+                          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+                            <span>Impossible de vérifier l’état du service parents.</span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="min-h-12"
+                              onClick={() => void smsFeatureStatsQuery.refetch()}
+                            >
+                              Réessayer
+                            </Button>
+                          </AlertDescription>
+                        </Alert>
+                      ) : null}
+                      <div className="flex flex-col items-start justify-between gap-3 rounded-md border p-3 sm:flex-row sm:items-center">
+                        <div>
+                          <p className="text-sm font-medium">État du service</p>
+                          <p className="text-sm text-muted-foreground" aria-live="polite">
+                            {smsFeatureStatsQuery.isPending
+                              ? "Vérification en cours…"
+                              : smsFeatureStatsQuery.data?.config.is_enabled
+                                ? smsFeatureStatsQuery.data.config.monetize_parent_alerts
+                                  ? "Activé — les abonnements parents peuvent fonctionner."
+                                  : "Activé — portail parent et alertes gratuites disponibles."
+                                : "Désactivé — le portail parent et les alertes ne sont pas opérationnels."}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant={smsFeatureStatsQuery.data?.config.is_enabled ? "destructive" : "default"}
+                          className="min-h-12 w-full sm:w-auto"
+                          disabled={
+                            smsFeatureStatsQuery.isPending ||
+                            smsFeatureStatsQuery.isError ||
+                            activateSmsFeatureMutation.isPending ||
+                            deactivateSmsFeatureMutation.isPending
+                          }
+                          onClick={() => {
+                            setSmsFeatureToggleNextValue(!(smsFeatureStatsQuery.data?.config.is_enabled ?? false))
+                            setSmsFeatureToggleOpen(true)
+                          }}
+                        >
+                          {activateSmsFeatureMutation.isPending || deactivateSmsFeatureMutation.isPending
+                            ? "Mise à jour…"
+                            : smsFeatureStatsQuery.data?.config.is_enabled
+                              ? "Désactiver le service parents"
+                              : smsFeatureStatsQuery.data?.config.monetize_parent_alerts
+                                ? "Ouvrir les souscriptions"
+                                : "Activer le portail et les alertes gratuites"}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
                   {smsConfigDraft.monetizeParentAlerts ? (
                     <Card className="shadow-sm">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-sm">
-                          Étape 2 - Activation opérationnelle des abonnements
+                          Étape 3 - Paramètres des abonnements payants
                         </CardTitle>
                         <CardDescription>
-                          Une fois le mode payant activé (étape 1), cette étape ouvre réellement la création
-                          de nouvelles souscriptions côté école. Sans cette activation, le menu est visible
-                          mais les souscriptions ne peuvent pas être créées. Définissez aussi la commission
-                          et le plafond SMS avant d&apos;activer.
+                          Définissez la commission IvoirEdu et le plafond des alertes SMS des abonnements.
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        <div className="flex items-center justify-between rounded-md border p-3">
-                          <div>
-                            <p className="text-sm font-medium">Création de souscriptions</p>
-                            <p className="text-xs text-muted-foreground">
-                              État actuel :{" "}
-                              {smsFeatureStatsQuery.data?.config.is_enabled
-                                ? <span className="text-green-600 font-medium">Ouverte - les souscriptions peuvent être créées</span>
-                                : <span className="text-amber-600 font-medium">Fermée - menu visible mais souscriptions bloquées</span>}
-                            </p>
-                          </div>
-                          <Button
-                            type="button"
-                            variant={smsFeatureStatsQuery.data?.config.is_enabled ? "destructive" : "default"}
-                            onClick={() => {
-                              setSmsFeatureToggleNextValue(!(smsFeatureStatsQuery.data?.config.is_enabled ?? false))
-                              setSmsFeatureToggleOpen(true)
-                            }}
-                          >
-                            {smsFeatureStatsQuery.data?.config.is_enabled ? "Fermer les souscriptions" : "Ouvrir les souscriptions"}
-                          </Button>
-                        </div>
-
                         <div className="grid gap-4 md:grid-cols-2">
                           <div className="space-y-2">
                             <Label>
@@ -2079,7 +2121,7 @@ export default function AdminSchoolDetailPage() {
                     </Card>
                   ) : (
                     <div className="rounded-md border border-muted bg-muted/30 p-3 text-sm text-muted-foreground">
-                      Passez en mode payant (étape 1) pour accéder aux paramètres d&apos;activation et de commission.
+                      Les paramètres de commission et d’abonnement ne sont nécessaires qu’en mode payant.
                     </div>
                   )}
 
@@ -2513,17 +2555,20 @@ export default function AdminSchoolDetailPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {smsFeatureToggleNextValue ? "Activer la feature SMS ?" : "Désactiver la feature SMS ?"}
+              {smsFeatureToggleNextValue ? "Activer le service parents ?" : "Désactiver le service parents ?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {smsFeatureToggleNextValue
-                ? `Activer génère un accès au service SMS pour cette école. Commission : ${smsConfigDraft.commissionPct}%.`
-                : "Les souscriptions en cours restent actives jusqu'à expiration. Aucune nouvelle souscription ne sera possible."}
+                ? smsFeatureStatsQuery.data?.config.monetize_parent_alerts
+                  ? `Cette activation permet la création de nouveaux abonnements parents. Commission configurée : ${smsConfigDraft.commissionPct}%.`
+                  : "Cette activation autorise les parents liés à un élève confirmé à utiliser le portail et à recevoir les alertes d’absence sans abonnement."
+                : "Le portail parent et les alertes d’absence seront désactivés pour cette école, y compris pour les parents disposant d’un abonnement."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction
+              disabled={activateSmsFeatureMutation.isPending || deactivateSmsFeatureMutation.isPending}
               onClick={() => {
                 if (smsFeatureToggleNextValue) {
                   activateSmsFeatureMutation.mutate(Number(smsConfigDraft.commissionPct))
@@ -2532,7 +2577,9 @@ export default function AdminSchoolDetailPage() {
                 }
               }}
             >
-              Confirmer
+              {activateSmsFeatureMutation.isPending || deactivateSmsFeatureMutation.isPending
+                ? "Mise à jour…"
+                : "Confirmer"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

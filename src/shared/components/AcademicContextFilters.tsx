@@ -56,9 +56,9 @@ export function AcademicContextFilters({
             </SelectItem>)}
           </SelectContent>
         </Select>
-        {activeYear ? <p className="text-xs text-muted-foreground">Année active : {activeYear.label}</p> : null}
-        {yearHint ? <p className="text-xs text-muted-foreground">{yearHint}</p> : null}
-        {isArchive && !compact ? <p className="text-xs font-medium text-amber-700">Vous consultez une année archivée.</p> : null}
+        {/* {activeYear ? <p className="text-xs text-muted-foreground">Année active : {activeYear.label}</p> : null} */}
+        {/* {yearHint ? <p className="text-xs text-muted-foreground">{yearHint}</p> : null} */}
+        {/* {isArchive && !compact ? <p className="text-xs font-medium text-amber-700">Vous consultez une année archivée.</p> : null} */}
       </div>
       {showPeriod ? <div className="min-w-0 space-y-2">
         <div className="flex min-h-6 items-center"><Label htmlFor={periodControlId}>Période</Label></div>

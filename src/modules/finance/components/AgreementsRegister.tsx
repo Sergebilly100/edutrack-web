@@ -86,13 +86,229 @@ function NewScheduleModal({ schoolYearId, editing, open, onChange }: { schoolYea
 }
 
 export function AgreementsRegister({ schoolYearId }: { schoolYearId: string }) {
-  const [params, setParams] = useSearchParams(); const { hasPermission } = usePermissions(); const kind: AgreementKind = params.get("kind") === "schedules" ? "schedules" : "overrides"; const rawStatus = params.get("status"); const status = rawStatus === "active" || rawStatus === "withdrawn" || rawStatus === "replaced" || rawStatus === "reset" ? rawStatus : "all"; const search = params.get("q") ?? ""; const page = Math.max(1, Number(params.get("page")) || 1); const id = params.get("detail"); const [overrideOpen, setOverrideOpen] = useState(false); const [scheduleOpen, setScheduleOpen] = useState(false); const [editingOverride, setEditingOverride] = useState<AgreementRegisterEntry | null>(null); const [editingSchedule, setEditingSchedule] = useState<AgreementRegisterEntry | null>(null)
-  const set = (next: Record<string, string>) => setParams((current) => { Object.entries(next).forEach(([key, value]) => value ? current.set(key, value) : current.delete(key)); return current })
-  const query = useQuery({ queryKey: ["finance", "agreements", schoolYearId, kind, status, search, page], queryFn: () => listAgreementsRegister({ schoolYearId, kind, status, search, page }), enabled: Boolean(schoolYearId) })
-  if (query.isLoading) return <Skeleton className="h-72 w-full" />
-  if (query.isError) return <QueryErrorState message="Impossible de charger le registre des accords." onRetry={() => void query.refetch()} />
-  const entries = query.data?.entries ?? []; const pagination = query.data?.pagination
-  return <section className="space-y-5"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div role="tablist" aria-label="Types d’accord" className="flex w-full gap-1 rounded-lg bg-muted p-1 sm:w-auto"><Button role="tab" aria-selected={kind === "overrides"} variant={kind === "overrides" ? "default" : "ghost"} onClick={() => set({ kind: "overrides", status: "all", page: "1", detail: "" })}>Remises et ajustements</Button><Button role="tab" aria-selected={kind === "schedules"} variant={kind === "schedules" ? "default" : "ghost"} onClick={() => set({ kind: "schedules", status: "all", page: "1", detail: "" })}>Échéanciers négociés</Button></div>{kind === "overrides" && hasPermission("tuition.grant_discount") ? <Button onClick={() => { setEditingOverride(null); setOverrideOpen(true) }}><Plus className="mr-2 h-4 w-4" />Nouvel ajustement</Button> : null}{kind === "schedules" && hasPermission("tuition.manage_student_schedule") ? <Button onClick={() => { setEditingSchedule(null); setScheduleOpen(true) }}><Plus className="mr-2 h-4 w-4" />Nouvel échéancier</Button> : null}</div><div className="grid gap-3 rounded-lg border bg-muted/20 p-4 md:grid-cols-2"><Input className="min-h-12" value={search} onChange={(event) => set({ q: event.target.value, page: "1" })} placeholder="Élève, matricule, classe ou niveau" aria-label="Rechercher un accord" /><Select value={status} onValueChange={(value) => set({ status: value, page: "1" })}><SelectTrigger className="min-h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Tous les statuts</SelectItem><SelectItem value="active">Actifs</SelectItem>{kind === "overrides" ? <SelectItem value="withdrawn">Retirés</SelectItem> : <><SelectItem value="replaced">Remplacés</SelectItem><SelectItem value="reset">Réinitialisés</SelectItem></>}</SelectContent></Select></div>{entries.length ? <><div className="overflow-x-auto rounded-lg border"><Table><TableHeader><TableRow><TableHead>Élève</TableHead><TableHead>{kind === "overrides" ? "Remise ou ajustement" : "Arrangement d’échéancier"}</TableHead><TableHead>Situation financière</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader><TableBody>{entries.map((entry) => <AgreementRow entry={entry} key={entry.id} onDetail={() => set({ detail: entry.id })} onEditOverride={() => { setEditingOverride(entry); setOverrideOpen(true) }} onEditSchedule={() => { setEditingSchedule(entry); setScheduleOpen(true) }} />)}</TableBody></Table></div><div className="flex items-center justify-between"><p className="text-sm text-muted-foreground">{pagination?.total ?? 0} accord{(pagination?.total ?? 0) > 1 ? "s" : ""}</p><div className="flex gap-2"><Button size="sm" variant="outline" disabled={page <= 1} onClick={() => set({ page: String(page - 1) })}>Précédent</Button><Button size="sm" variant="outline" disabled={!pagination || page >= pagination.totalPages} onClick={() => set({ page: String(page + 1) })}>Suivant</Button></div></div></> : <EmptyState title="Aucun accord trouvé" description="Aucun ajustement ou échéancier ne correspond aux filtres sélectionnés." />}<DetailModal kind={kind} id={id} close={() => set({ detail: "" })} /><NewOverrideModal schoolYearId={schoolYearId} editing={editingOverride} open={overrideOpen} onChange={(open) => { if (!open) setEditingOverride(null); setOverrideOpen(open) }} /><NewScheduleModal schoolYearId={schoolYearId} editing={editingSchedule} open={scheduleOpen} onChange={(open) => { if (!open) setEditingSchedule(null); setScheduleOpen(open) }} /></section>
+  const [params, setParams] = useSearchParams();
+  const { hasPermission } = usePermissions();
+  const kind: AgreementKind =
+    params.get("kind") === "schedules" ? "schedules" : "overrides";
+  const rawStatus = params.get("status");
+  const status =
+    rawStatus === "active" ||
+    rawStatus === "withdrawn" ||
+    rawStatus === "replaced" ||
+    rawStatus === "reset"
+      ? rawStatus
+      : "all";
+  const search = params.get("q") ?? "";
+  const page = Math.max(1, Number(params.get("page")) || 1);
+  const id = params.get("detail");
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [editingOverride, setEditingOverride] =
+    useState<AgreementRegisterEntry | null>(null);
+  const [editingSchedule, setEditingSchedule] =
+    useState<AgreementRegisterEntry | null>(null);
+  const set = (next: Record<string, string>) =>
+    setParams((current) => {
+      Object.entries(next).forEach(([key, value]) =>
+        value ? current.set(key, value) : current.delete(key),
+      );
+      return current;
+    });
+  const query = useQuery({
+    queryKey: [
+      "finance",
+      "agreements",
+      schoolYearId,
+      kind,
+      status,
+      search,
+      page,
+    ],
+    queryFn: () =>
+      listAgreementsRegister({ schoolYearId, kind, status, search, page }),
+    enabled: Boolean(schoolYearId),
+  });
+  if (query.isLoading) return <Skeleton className="h-72 w-full" />;
+  if (query.isError)
+    return (
+      <QueryErrorState
+        message="Impossible de charger le registre des accords."
+        onRetry={() => void query.refetch()}
+      />
+    );
+  const entries = query.data?.entries ?? [];
+  const pagination = query.data?.pagination;
+  return (
+    <section className="space-y-5">
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div
+          role="tablist"
+          aria-label="Types d’accord"
+          className="flex w-full gap-1 rounded-lg bg-muted p-1 sm:w-auto"
+        >
+          <Button
+            role="tab"
+            className="min-h-12"
+            aria-selected={kind === "overrides"}
+            variant={kind === "overrides" ? "outline" : "ghost"}
+            onClick={() =>
+              set({ kind: "overrides", status: "all", page: "1", detail: "" })
+            }
+          >
+            Remises et ajustements
+          </Button>
+          <Button
+            role="tab"
+            className="min-h-12"
+            aria-selected={kind === "schedules"}
+            variant={kind === "schedules" ? "outline" : "ghost"}
+            onClick={() =>
+              set({ kind: "schedules", status: "all", page: "1", detail: "" })
+            }
+          >
+            Échéanciers négociés
+          </Button>
+        </div>
+        {kind === "overrides" && hasPermission("tuition.grant_discount") ? (
+          <Button
+            onClick={() => {
+              setEditingOverride(null);
+              setOverrideOpen(true);
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Nouvel ajustement
+          </Button>
+        ) : null}
+        {kind === "schedules" &&
+        hasPermission("tuition.manage_student_schedule") ? (
+          <Button
+            onClick={() => {
+              setEditingSchedule(null);
+              setScheduleOpen(true);
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Nouvel échéancier
+          </Button>
+        ) : null}
+      </div>
+      <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 md:grid-cols-2">
+        <Input
+          className="min-h-12"
+          value={search}
+          onChange={(event) => set({ q: event.target.value, page: "1" })}
+          placeholder="Élève, matricule, classe ou niveau"
+          aria-label="Rechercher un accord"
+        />
+        <Select
+          value={status}
+          onValueChange={(value) => set({ status: value, page: "1" })}
+        >
+          <SelectTrigger className="min-h-12">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les statuts</SelectItem>
+            <SelectItem value="active">Actifs</SelectItem>
+            {kind === "overrides" ? (
+              <SelectItem value="withdrawn">Retirés</SelectItem>
+            ) : (
+              <>
+                <SelectItem value="replaced">Remplacés</SelectItem>
+                <SelectItem value="reset">Réinitialisés</SelectItem>
+              </>
+            )}
+          </SelectContent>
+        </Select>
+      </div>
+      {entries.length ? (
+        <>
+          <div className="overflow-x-auto rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Élève</TableHead>
+                  <TableHead>
+                    {kind === "overrides"
+                      ? "Remise ou ajustement"
+                      : "Arrangement d’échéancier"}
+                  </TableHead>
+                  <TableHead>Situation financière</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {entries.map((entry) => (
+                  <AgreementRow
+                    entry={entry}
+                    key={entry.id}
+                    onDetail={() => set({ detail: entry.id })}
+                    onEditOverride={() => {
+                      setEditingOverride(entry);
+                      setOverrideOpen(true);
+                    }}
+                    onEditSchedule={() => {
+                      setEditingSchedule(entry);
+                      setScheduleOpen(true);
+                    }}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              {pagination?.total ?? 0} accord
+              {(pagination?.total ?? 0) > 1 ? "s" : ""}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={page <= 1}
+                onClick={() => set({ page: String(page - 1) })}
+              >
+                Précédent
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!pagination || page >= pagination.totalPages}
+                onClick={() => set({ page: String(page + 1) })}
+              >
+                Suivant
+              </Button>
+            </div>
+          </div>
+        </>
+      ) : (
+        <EmptyState
+          title="Aucun accord trouvé"
+          description="Aucun ajustement ou échéancier ne correspond aux filtres sélectionnés."
+        />
+      )}
+      <DetailModal kind={kind} id={id} close={() => set({ detail: "" })} />
+      <NewOverrideModal
+        schoolYearId={schoolYearId}
+        editing={editingOverride}
+        open={overrideOpen}
+        onChange={(open) => {
+          if (!open) setEditingOverride(null);
+          setOverrideOpen(open);
+        }}
+      />
+      <NewScheduleModal
+        schoolYearId={schoolYearId}
+        editing={editingSchedule}
+        open={scheduleOpen}
+        onChange={(open) => {
+          if (!open) setEditingSchedule(null);
+          setScheduleOpen(open);
+        }}
+      />
+    </section>
+  );
 }
 
 function AgreementRow({ entry, onDetail, onEditOverride, onEditSchedule }: { entry: AgreementRegisterEntry; onDetail: () => void; onEditOverride: () => void; onEditSchedule: () => void }) {

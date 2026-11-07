@@ -4,9 +4,10 @@ import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ApiError } from "@/shared/api/client"
 
-const mocks = vi.hoisted(() => ({ getCurrentProfile: vi.fn(), getHistoricalProfile: vi.fn(), getAcademicSummary: vi.fn(), getFinancialStatus: vi.fn(), permissions: new Set<string>() }))
+const mocks = vi.hoisted(() => ({ getCurrentProfile: vi.fn(), getHistoricalProfile: vi.fn(), getAcademicSummary: vi.fn(), getFinancialStatus: vi.fn(), getParentAccess: vi.fn(), permissions: new Set<string>() }))
 vi.mock("@/modules/students/students.api", () => ({
   getCurrentStudentProfile: mocks.getCurrentProfile, getHistoricalStudentProfile: mocks.getHistoricalProfile, getStudentAbsenceRecords: vi.fn(),
+  getStudentParentAccess: mocks.getParentAccess,
   updateStudent: vi.fn(), excuseAbsence: vi.fn(), retrySmsNotification: vi.fn(),
 }))
 vi.mock("@/modules/enrollments/enrollments.api", async (original) => ({
@@ -107,6 +108,69 @@ describe("StudentDetailPage loading errors", () => {
     expect(await screen.findByText(/30\s*000 FCFA/)).toBeInTheDocument()
     expect(screen.getByText("Échéances en retard")).toBeInTheDocument()
     expect(mocks.getFinancialStatus).toHaveBeenCalledWith(studentId, "year-active")
+  })
+
+  it("affiche les comptes parents éligibles dans Infos Parents et ouvre la réinitialisation", async () => {
+    mocks.permissions.add("students.edit")
+    mocks.getCurrentProfile.mockResolvedValue({
+      id: studentId, firstName: "Awa", lastName: "Koné", matricule: "MAT-1", birthDate: null,
+      className: "6e A", classId: "class-1", isActive: true, parentPhone: "2250700000001", parentEmail: null,
+      parentPhone2: null, parentName: "M. Koné", parentName2: null, note: null, createdAt: "2026-01-01T00:00:00Z",
+      absenceSummary: { total: 0, excused: 0, thisMonth: 0, thisWeek: 0 },
+      recentAbsences: [], documents: [], parentSms: [],
+      activeSchoolYear: { id: "year-active", label: "2026-2027" },
+    })
+    mocks.getParentAccess.mockResolvedValue({
+      available: true,
+      parents: [{
+        id: "parent-1", fullName: "Awa Kouassi", phone: "2250700000001", email: null,
+        accessSentAt: "2026-01-01T00:00:00Z", accessPending: false,
+      }],
+    })
+    renderPage()
+
+    fireEvent.mouseDown(await screen.findByRole("tab", { name: "Infos Parents" }), { button: 0 })
+    await waitFor(() => expect(mocks.getParentAccess).toHaveBeenCalledWith(studentId))
+    expect(await screen.findByText("Awa Kouassi")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Réinitialiser l’accès" }))
+    expect(await screen.findByRole("heading", { name: "Réinitialiser l’accès parent" })).toBeInTheDocument()
+    expect(mocks.getParentAccess).toHaveBeenCalledWith(studentId)
+  })
+
+  it("affiche un état vide quand aucun compte parent n’est lié", async () => {
+    mocks.permissions.add("students.edit")
+    mocks.getCurrentProfile.mockResolvedValue({
+      id: studentId, firstName: "Awa", lastName: "Koné", matricule: "MAT-1", birthDate: null,
+      className: "6e A", classId: "class-1", isActive: true, parentPhone: null, parentEmail: null,
+      parentPhone2: null, parentName: null, parentName2: null, note: null, createdAt: "2026-01-01T00:00:00Z",
+      absenceSummary: { total: 0, excused: 0, thisMonth: 0, thisWeek: 0 },
+      recentAbsences: [], documents: [], parentSms: [],
+      activeSchoolYear: { id: "year-active", label: "2026-2027" },
+    })
+    mocks.getParentAccess.mockResolvedValueOnce({ available: true, parents: [] })
+    renderPage()
+
+    fireEvent.mouseDown(await screen.findByRole("tab", { name: "Infos Parents" }), { button: 0 })
+    expect(await screen.findByText("Aucun compte parent éligible n’est lié à un élève confirmé.")).toBeInTheDocument()
+  })
+
+  it("permet de réessayer si le chargement des comptes parents échoue", async () => {
+    mocks.permissions.add("students.edit")
+    mocks.getCurrentProfile.mockResolvedValue({
+      id: studentId, firstName: "Awa", lastName: "Koné", matricule: "MAT-1", birthDate: null,
+      className: "6e A", classId: "class-1", isActive: true, parentPhone: null, parentEmail: null,
+      parentPhone2: null, parentName: null, parentName2: null, note: null, createdAt: "2026-01-01T00:00:00Z",
+      absenceSummary: { total: 0, excused: 0, thisMonth: 0, thisWeek: 0 },
+      recentAbsences: [], documents: [], parentSms: [],
+      activeSchoolYear: { id: "year-active", label: "2026-2027" },
+    })
+    mocks.getParentAccess.mockRejectedValue(new Error("network"))
+    renderPage()
+
+    fireEvent.mouseDown(await screen.findByRole("tab", { name: "Infos Parents" }), { button: 0 })
+    expect(await screen.findByText("Accès parent indisponibles")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Réessayer" }))
+    await waitFor(() => expect(mocks.getParentAccess).toHaveBeenCalledTimes(2))
   })
 
   it("montre le dossier ancien et les finances de l’année choisie", async () => {

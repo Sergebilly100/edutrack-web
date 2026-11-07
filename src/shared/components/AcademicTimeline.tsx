@@ -5,7 +5,7 @@ type Props = { year: SchoolYear; periods: GradingPeriod[]; currentPeriodId: stri
 function visibleStatus(period: GradingPeriod, year: SchoolYear, currentPeriodId: string, today: string) {
   if (period.isClosed) return "Clôturée"
   if (year.status === "closed") return "Année clôturée"
-  if (period.id === currentPeriodId) return "Courante"
+  if (period.id === currentPeriodId) return "En cours"
   return period.startDate > today ? "À venir" : "Autre période"
 }
 
