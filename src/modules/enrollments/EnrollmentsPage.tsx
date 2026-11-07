@@ -177,6 +177,10 @@ export default function EnrollmentsPage() {
   const [classSelections, setClassSelections] = useState<
     Record<string, string>
   >({});
+  // Redoublant choisi par l’utilisateur pour chaque réinscription ; « Non » par défaut, jamais déduit.
+  const [repeatingSelections, setRepeatingSelections] = useState<
+    Record<string, "true" | "false">
+  >({});
   const yearsQuery = useQuery({
     queryKey: ["academic", "school-years", "re-enrollment"],
     queryFn: listSchoolYears,
@@ -338,16 +342,19 @@ export default function EnrollmentsPage() {
       studentId,
       classId,
       sourceSchoolYearLabel,
+      isRepeating,
     }: {
       studentId: string;
       classId: string;
       sourceSchoolYearLabel?: string;
+      isRepeating: boolean;
     }) =>
       createEnrollment({
         studentId,
         classId,
         schoolYearId: activeYearId,
         type: "re_registration",
+        isRepeating,
         ...(sourceSchoolYearLabel ? { sourceSchoolYearLabel } : {}),
       }),
     onSuccess: async (result) => {
@@ -575,6 +582,7 @@ export default function EnrollmentsPage() {
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline">{enrollment.type === "re_registration" ? "Réinscription" : "Nouvelle"}</Badge>
+                    {enrollment.isRepeating ? <Badge variant="outline">Redoublant</Badge> : null}
                     <Badge className={`border ${statusClassName[enrollment.status]}`}>{enrollmentStatusLabel[enrollment.status]}</Badge>
                     {documentsConfigured && enrollment.documentStatus !== "not_configured" ? <EnrollmentDocumentBadge enrollment={enrollment} /> : null}
                     <div className="ml-auto">{dossierActions(enrollment, isActiveYear)}</div>
@@ -812,6 +820,18 @@ export default function EnrollmentsPage() {
                             <SelectContent>{eligibleClasses.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent>
                           </Select>
                           <span className="text-xs text-muted-foreground">{candidate.isHistoricalSource ? "Choix manuel par le directeur" : candidate.nextLevelName ?? "Niveau à définir"}</span>
+                          <Label className="sr-only" htmlFor={`repeating-${candidate.studentId}`}>Redoublant : {name}</Label>
+                          <Select value={repeatingSelections[candidate.studentId] ?? "false"}
+                            onValueChange={(value) => setRepeatingSelections((current) => ({ ...current, [candidate.studentId]: value as "true" | "false" }))}>
+                            <SelectTrigger id={`repeating-${candidate.studentId}`} className="min-h-12" aria-label={`Redoublant : ${name}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="false">Redoublant : Non</SelectItem>
+                              <SelectItem value="true">Redoublant : Oui</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {candidate.finalDecision === "repeat" ? <span className="text-xs text-muted-foreground">Décision de fin d’année : redoublement. À confirmer ci-dessus.</span> : null}
                         </div> : candidate.isHistoricalSource ? "Classe à choisir après ouverture" : !candidate.finalDecision ? "À déterminer" : candidate.finalDecision === "expelled" ? "Sans classe d’accueil" : <span>{candidate.nextLevelName ?? "Niveau à définir"}<span className="block text-xs text-muted-foreground">{candidate.status === "blocked_unpaid" ? "Classe à choisir après régularisation" : candidate.status === "financial_unavailable" ? "Classe à choisir après vérification du solde" : candidate.status === "decision_pending" ? "Classe à définir dans Fin d’année" : "Classe à choisir après ouverture"}</span></span>}
                       </TableCell>
                       <TableCell><Badge variant="outline" className={campaignStatusClassName[candidate.status]}>{campaignStatusLabels[candidate.status]}</Badge></TableCell>
@@ -821,6 +841,7 @@ export default function EnrollmentsPage() {
                           onClick={() => reEnrollmentMutation.mutate({
                             studentId: candidate.studentId,
                             classId: classSelections[candidate.studentId]!,
+                            isRepeating: repeatingSelections[candidate.studentId] === "true",
                             ...(candidate.isHistoricalSource ? { sourceSchoolYearLabel: candidate.currentSchoolYearLabel } : {}),
                           })}>
                           {isCreating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}

@@ -9,6 +9,10 @@ export type TeacherListItem = {
   lastName: string
   fullName: string
   matricule: string | null
+  birthDate: string | null
+  sex: "M" | "F" | null
+  nationality: string | null
+  birthPlace: string | null
   phone: string | null
   email: string | null
   type: TeacherType
@@ -141,6 +145,11 @@ export type TeacherUpsertPayload = {
   firstName: string
   lastName: string
   matricule: string | null
+  /** Identité facultative : undefined = ne pas envoyer (ne touche pas la valeur), null = effacer. */
+  birthDate?: string | null
+  sex?: "M" | "F" | null
+  nationality?: string | null
+  birthPlace?: string | null
   phone: string | null
   email: string | null
   type: TeacherType
@@ -224,6 +233,10 @@ const mapTeacher = (value: unknown): TeacherListItem => {
     lastName,
     fullName,
     matricule: asNullableString(item.matricule),
+    birthDate: asNullableString(item.birth_date ?? item.birthDate),
+    sex: ((value) => (value === "M" || value === "F" ? value : null))(asNullableString(item.sex)),
+    nationality: asNullableString(item.nationality),
+    birthPlace: asNullableString(item.birth_place ?? item.birthPlace),
     phone: asNullableString(item.phone),
     email: asNullableString(item.email),
     type: (asString(item.type) === "permanent" ? "permanent" : "vacataire") as TeacherType,
@@ -265,6 +278,13 @@ const mapPagination = (value: unknown, defaults?: GetTeachersParams): TeachersPa
   )
   return { page, limit, total, totalPages }
 }
+
+const identityBody = (payload: TeacherUpsertPayload) => ({
+  ...(payload.birthDate === undefined ? {} : { birth_date: payload.birthDate }),
+  ...(payload.sex === undefined ? {} : { sex: payload.sex }),
+  ...(payload.nationality === undefined ? {} : { nationality: payload.nationality }),
+  ...(payload.birthPlace === undefined ? {} : { birth_place: payload.birthPlace }),
+})
 
 const extractFilename = (disposition?: string) => {
   if (!disposition) return null
@@ -318,6 +338,7 @@ export async function createTeacher(payload: TeacherUpsertPayload): Promise<Teac
     first_name: payload.firstName,
     last_name: payload.lastName,
     matricule: payload.matricule,
+    ...identityBody(payload),
     phone: payload.phone,
     email: payload.email,
     type: payload.type,
@@ -352,6 +373,7 @@ export async function updateTeacher(
     first_name: payload.firstName,
     last_name: payload.lastName,
     matricule: payload.matricule,
+    ...identityBody(payload),
     phone: payload.phone,
     email: payload.email,
     type: payload.type,

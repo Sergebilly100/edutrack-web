@@ -99,6 +99,10 @@ describe("TeacherForm", () => {
         firstName: "Awa",
         lastName: "Kouamé",
         matricule: null,
+        birthDate: null,
+        sex: null,
+        nationality: null,
+        birthPlace: null,
         phone: "2250701234567",
         email: null,
         type: "permanent",
@@ -156,5 +160,25 @@ describe("C10 formulaire par blocs", () => {
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }))
     await waitFor(() => expect(onSubmit).toHaveBeenCalled())
     expect(onSubmit.mock.calls[0][0]).not.toHaveProperty("teachingAssignments")
+  })
+  it("création en 2 étapes : l’étape 1 est validée avant d’afficher les affectations", async () => {
+    const onSubmit = vi.fn()
+    renderTeacherForm(<TeacherForm onSubmit={onSubmit} />)
+    expect(screen.getByRole("navigation", { name: "Progression du formulaire" })).toHaveTextContent("Informations du professeur")
+    expect(screen.queryByRole("button", { name: "Enregistrer" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /Suivant/ }))
+    expect(await screen.findByText("Le prénom est requis")).toBeInTheDocument()
+    expect(screen.getByRole("navigation", { name: "Progression du formulaire" })).toHaveTextContent("Informations du professeur")
+
+    fireEvent.change(screen.getByLabelText("Prénom"), { target: { value: "Awa" } })
+    fireEvent.change(screen.getByLabelText("Nom"), { target: { value: "Kouamé" } })
+    fireEvent.change(screen.getByLabelText("Téléphone"), { target: { value: "2250701234567" } })
+    fireEvent.change(screen.getByLabelText("Taux horaire (FCFA)"), { target: { value: "5000" } })
+    fireEvent.click(screen.getByRole("button", { name: /Suivant/ }))
+    await waitFor(() => expect(screen.getByRole("listitem", { current: "step" })).toHaveTextContent("Affectations pédagogiques"))
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ firstName: "Awa", sex: null, nationality: null })))
+    fireEvent.click(screen.getByRole("button", { name: "Retour" }))
+    await waitFor(() => expect(screen.getByRole("listitem", { current: "step" })).toHaveTextContent("Informations du professeur"))
   })
 })

@@ -18,6 +18,8 @@ export type Enrollment = {
   status: EnrollmentStatus
   enrolledAt: string
   confirmedByUserId: string | null
+  /** null = non renseigné (inscriptions antérieures). */
+  isRepeating: boolean | null
   documentStatus: "not_configured" | "complete" | "incomplete"
   missingMandatoryDocumentCount: number
 }
@@ -140,6 +142,7 @@ const parseEnrollment = (value: unknown): Enrollment | null => {
       : "pending_cashier",
     enrolledAt: asString(value.enrolledAt ?? value.enrolled_at),
     confirmedByUserId: asString(value.confirmedByUserId ?? value.confirmed_by_user_id) || null,
+    isRepeating: typeof (value.isRepeating ?? value.is_repeating) === "boolean" ? (value.isRepeating ?? value.is_repeating) as boolean : null,
     documentStatus: documentStatusValue === "complete" || documentStatusValue === "incomplete"
       ? documentStatusValue
       : "not_configured",
@@ -327,7 +330,7 @@ export async function getEnrollment(id: string): Promise<Enrollment> {
   return response.data.enrollment
 }
 
-export async function updateEnrollment(id: string, payload: { classId: string; levelId?: string; expectedActiveSchoolYearId?: string }): Promise<Enrollment> {
+export async function updateEnrollment(id: string, payload: { classId?: string; levelId?: string; expectedActiveSchoolYearId?: string; isRepeating?: boolean | null }): Promise<Enrollment> {
   const response = await apiClient.patch<{ enrollment: Enrollment }>(`/enrollments/${id}`, payload)
   return response.data.enrollment
 }
@@ -341,6 +344,8 @@ export async function createEnrollment(payload: {
   expectedActiveSchoolYearId?: string
   hasPreviousYearUnpaid?: boolean
   sourceSchoolYearLabel?: string
+  /** Absent = non renseigné. Les formulaires envoient false par défaut. */
+  isRepeating?: boolean | null
 }): Promise<CreateEnrollmentResult> {
   const response = await apiClient.post<CreateEnrollmentResult>("/enrollments", payload)
   return response.data

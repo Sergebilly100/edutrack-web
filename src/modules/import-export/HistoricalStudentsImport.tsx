@@ -19,6 +19,12 @@ import {
   downloadHistoricalTemplate, downloadHistoricalErrors, type HistoricalAnalysis, type HistoricalMappingField,
   type HistoricalResult,
 } from "./historical-students.api"
+import { SEX_LABELS } from "@/shared/lib/identity"
+import { getCountryName } from "@/shared/lib/nationality"
+
+const identitySummary = (values: Record<string, string>): string =>
+  [values.sex === "M" || values.sex === "F" ? SEX_LABELS[values.sex] : "", values.nationality ? getCountryName(values.nationality) : "", values.birth_place ? `né(e) à ${values.birth_place}` : ""]
+    .filter(Boolean).join(" · ")
 
 const labels = Object.fromEntries(HISTORICAL_TARGETS.map((target) => [target.key, target.label]))
 const message = (error: unknown) => axios.isAxiosError(error) && typeof error.response?.data?.error === "string"
@@ -104,7 +110,7 @@ export function HistoricalStudentsImport() {
           {year && !isValidYear(schoolYearLabel) ? <p className="text-sm text-destructive">Renseignez deux années consécutives, par exemple 2024-2025.</p> : null}
         </div>
         <div className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1"><p className="text-sm font-medium">Le même modèle élèves que l’import habituel</p><p className="max-w-2xl text-sm text-muted-foreground">Identité, date de naissance et contacts des deux parents. Toutes les feuilles élèves sont lues. Supprimez les lignes d’exemple. La classe peut rester vide ; la colonne Classe ou le nom de feuille indique uniquement l’ancienne classe.</p></div>
+          <div className="space-y-1"><p className="text-sm font-medium">Le même modèle élèves que l’import habituel</p><p className="max-w-2xl text-sm text-muted-foreground">Identité, date de naissance, sexe, nationalité, lieu de naissance et contacts des deux parents (colonnes facultatives). Toutes les feuilles élèves sont lues. Supprimez les lignes d’exemple. La classe peut rester vide ; la colonne Classe ou le nom de feuille indique uniquement l’ancienne classe.</p></div>
           <Button variant="outline" className="min-h-12 shrink-0" disabled={template.isPending} onClick={() => template.mutate()}>{template.isPending ? <Spinner size="sm" className="mr-2" /> : <Download className="mr-2 h-4 w-4" />}Télécharger le modèle élèves</Button>
         </div>
         <div data-tour="historical-students-file"><DropZone inputLabel="Fichier Excel des élèves" maxSizeMb={10} isLoading={busy} onFileSelected={setFile} onFileRejected={() => setFile(null)} /></div>
@@ -126,7 +132,7 @@ export function HistoricalStudentsImport() {
             <TableHeader><TableRow><TableHead>Feuille · ligne</TableHead><TableHead>Élève</TableHead><TableHead>Ancienne classe</TableHead><TableHead>Parent principal</TableHead><TableHead>Second parent</TableHead></TableRow></TableHeader>
             <TableBody>{analysis.sampleRows.map((row) => <TableRow key={`${row.sheetName}-${row.rowNumber}`}>
               <TableCell className="text-xs">{row.sheetName || "Élèves"} · {row.rowNumber}</TableCell>
-              <TableCell><p className="whitespace-nowrap font-medium">{row.values.nom} {row.values.prenom}</p><p className="text-xs text-muted-foreground">{row.values.matricule || "Sans matricule"}{row.values.birth_date ? ` · ${row.values.birth_date}` : ""}</p></TableCell>
+              <TableCell><p className="whitespace-nowrap font-medium">{row.values.nom} {row.values.prenom}</p><p className="text-xs text-muted-foreground">{row.values.matricule || "Sans matricule"}{row.values.birth_date ? ` · ${row.values.birth_date}` : ""}</p>{identitySummary(row.values) ? <p className="text-xs text-muted-foreground">{identitySummary(row.values)}</p> : null}</TableCell>
               <TableCell>{row.values.historical_class || "Non renseignée"}</TableCell>
               <TableCell><p>{row.values.parent_name || "Non renseigné"}</p><p className="whitespace-nowrap text-xs text-muted-foreground">{row.values.parent_phone || "Sans téléphone"}</p><p className="text-xs text-muted-foreground">{row.values.parent_email}</p></TableCell>
               <TableCell><p>{row.values.parent_name_2 || "Non renseigné"}</p><p className="whitespace-nowrap text-xs text-muted-foreground">{row.values.parent_phone_2}</p></TableCell>

@@ -7,6 +7,10 @@ export type EnrollmentIdentityDraft = {
   firstName: string; lastName: string; birthDate: string; matricule: string
   parentName: string; parentPhone: string; parentEmail: string
   parentName2: string; parentPhone2: string
+  /** Identité facultative : "" = non renseigné. */
+  sex: "" | "M" | "F"; nationality: string; birthPlace: string
+  /** "true" | "false" | "" (non renseigné). Nouvelle inscription : "false" présélectionné. */
+  isRepeating: "true" | "false" | ""
 }
 
 const contextSchema = z.object({

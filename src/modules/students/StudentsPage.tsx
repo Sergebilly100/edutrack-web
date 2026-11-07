@@ -1,4 +1,3 @@
-import { birthDateIssue, yesterdayInBusinessTimezone } from "@/shared/lib/date-validation"
 import { useEffect, useMemo, useState } from "react"
 import type { Column, ColumnDef } from "@tanstack/react-table"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -26,7 +25,6 @@ import { cn } from "@/lib/utils"
 import { listClasses, listLevels } from "@/modules/academic/academic.api"
 import StudentAbsencePanel from "@/modules/students/components/StudentAbsencePanel"
 import {
-  createStudent,
   getAttendanceHistory,
   getParentAccessMode,
   listStudents,
@@ -103,64 +101,26 @@ export default function StudentsPage() {
   const returnTo = `${window.location.pathname}${window.location.search}`
   const canCreateStudent = hasPermission("students.create")
   const canEditStudents = hasPermission("students.edit")
-  const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [parentDispatchResult, setParentDispatchResult] = useState<StudentParentAccessDispatchResult | null>(null)
-  const [birthInputError, setBirthInputError] = useState<string | null>(null)
-  const [newStudent, setNewStudent] = useState({
-    classId: "",
-    firstName: "",
-    lastName: "",
-    matricule: "",
-    birthDate: "",
-    parentName: "",
-    parentPhone: "",
-    parentEmail: "",
-    parentName2: "",
-    parentPhone2: "",
-  })
-
-  const resetCreateStudentForm = () => {
-    setBirthInputError(null)
-    setNewStudent({
-      classId: "",
-      firstName: "",
-      lastName: "",
-      matricule: "",
-      birthDate: "",
-      parentName: "",
-      parentPhone: "",
-      parentEmail: "",
-      parentName2: "",
-      parentPhone2: "",
-    })
-  }
-
   const setListParam = (key: string, value: string, fallback: string) => {
     const next = new URLSearchParams(searchParams)
-    if (value === fallback || value.length === 0) {
-      next.delete(key)
-    } else {
-      next.set(key, value)
-    }
+    if (value === fallback || value.length === 0) next.delete(key)
+    else next.set(key, value)
     if (key !== "list_page") next.delete("list_page")
-    if (!next.has("tab")) {
-      next.set("tab", "liste")
-    }
+    if (!next.has("tab")) next.set("tab", "liste")
     setSearchParams(next, { replace: true })
   }
-
   const resetListFilters = () => {
     const next = new URLSearchParams(searchParams)
-    for (const key of ["list_level", "list_class", "list_status", "list_search", "list_page"]) next.delete(key)
+    for (const key of ["list_class", "list_level", "list_status", "list_search", "list_page"]) next.delete(key)
     setSearchParams(next, { replace: true })
   }
 
   const monthRange = useMemo(() => toMonthRange(), [])
-
   const classesQuery = useQuery({
     queryKey: ["students", "classes"],
     queryFn: () => listClasses(),
-    enabled: canViewStudents || canCreateStudent,
+    enabled: canViewStudents,
   })
   const levelsQuery = useQuery({
     queryKey: ["students", "levels"],
@@ -233,29 +193,6 @@ export default function StudentsPage() {
     setSearchParams(next, { replace: true })
   }, [studentsQuery.data?.pagination.totalPages, listPage, searchParams, setSearchParams])
 
-  const createStudentMutation = useMutation({
-    mutationFn: createStudent,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["students"] })
-      setCreateDialogOpen(false)
-      resetCreateStudentForm()
-      toast({
-        title: "Profil créé",
-        description: "Le profil est créé. Il apparaîtra dans la liste après confirmation de son inscription avec le premier versement.",
-      })
-    },
-    onError: (error) => {
-      const description =
-        axios.isAxiosError(error) && typeof error.response?.data?.error === "string"
-          ? error.response.data.error
-          : `Impossible d'ajouter l'${studentLabels.singularLower}.`
-      toast({
-        title: "Erreur",
-        description,
-        variant: "destructive",
-      })
-    },
-  })
 
   const students = studentsQuery.data?.data ?? []
 
@@ -310,18 +247,6 @@ export default function StudentsPage() {
   const inactiveStudentsCount = Math.max(students.length - activeStudentsCount, 0)
   const absenceWatchCount = canViewAttendance ? tableData.filter((student) => student.monthlyAbsences > 3).length : 0
   const visibleClassesCount = new Set(students.map((student) => student.classId).filter(Boolean)).size
-
-  const birthDateError = birthDateIssue(newStudent.birthDate) ?? birthInputError
-  const isCreateStudentValid =
-    !birthDateError &&
-    newStudent.classId.length > 0 &&
-    newStudent.firstName.trim().length > 0 &&
-    newStudent.lastName.trim().length > 0 &&
-    isValidOptionalPhone(newStudent.parentPhone) &&
-    isValidOptionalPhone(newStudent.parentPhone2) &&
-    (newStudent.parentEmail.trim().length === 0 || /.+@.+\..+/.test(newStudent.parentEmail.trim())) &&
-    ((newStudent.parentName.trim().length === 0 && newStudent.parentPhone.trim().length === 0) ||
-      (newStudent.parentName.trim().length >= 2 && newStudent.parentPhone.trim().length > 0))
 
   const columns = useMemo<ColumnDef<StudentTableRow>[]>(
     () => [

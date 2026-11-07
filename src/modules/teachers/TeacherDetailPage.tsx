@@ -29,6 +29,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import TeacherForm from "@/modules/teachers/components/TeacherForm"
+import { SEX_LABELS, formatNationality } from "@/shared/lib/identity"
 import {
   blockTeacher,
   getTeacherById,
@@ -468,11 +469,11 @@ function DocumentsPanel({ teacherId }: { teacherId: string }) {
   )
 }
 
-function InfoValue({ label, value }: { label: string; value: string }) {
+function InfoValue({ label, value }: { label: string; value: string | null }) {
   return (
     <div className="rounded-lg border border-border bg-muted/20 p-3">
       <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
-      <p className="mt-1 text-sm font-medium">{value}</p>
+      {value === null ? <p className="mt-1 text-sm text-muted-foreground">Non renseigné</p> : <p className="mt-1 text-sm font-medium">{value}</p>}
     </div>
   )
 }
@@ -570,6 +571,10 @@ function InfosPanel({
                 firstName: teacher.firstName,
                 lastName: teacher.lastName,
                 matricule: teacher.matricule,
+                birthDate: teacher.birthDate,
+                sex: teacher.sex,
+                nationality: teacher.nationality,
+                birthPlace: teacher.birthPlace,
                 phone: teacher.phone,
                 email: teacher.email,
                 type: teacher.type,
@@ -591,6 +596,10 @@ function InfosPanel({
               <InfoValue label="Prénom" value={teacher.firstName || "-"} />
               <InfoValue label="Nom" value={teacher.lastName || "-"} />
               <InfoValue label="Matricule" value={teacher.matricule || "-"} />
+              <InfoValue label="Sexe" value={teacher.sex ? SEX_LABELS[teacher.sex] : null} />
+              <InfoValue label="Date de naissance" value={teacher.birthDate ? new Date(`${teacher.birthDate.slice(0, 10)}T00:00:00Z`).toLocaleDateString("fr-FR", { timeZone: "UTC" }) : null} />
+              <InfoValue label="Lieu de naissance" value={teacher.birthPlace} />
+              <InfoValue label="Nationalité" value={formatNationality(teacher.nationality, teacher.sex)} />
               <InfoValue label="Téléphone" value={teacher.phone || "-"} />
               <InfoValue label="Email" value={teacher.email || "-"} />
               <InfoValue label="Type" value={teacher.type} />

@@ -42,6 +42,16 @@ vi.mock("../components/DocumentChecklist", () => ({ DocumentChecklist: () => <p>
 
 import NewEnrollmentPage from "../NewEnrollmentPage"
 
+export async function fillRequiredIdentity() {
+  fireEvent.keyDown(screen.getByLabelText("Sexe *"), { key: "ArrowDown" })
+  fireEvent.click(await screen.findByRole("option", { name: "Féminin" }))
+  // Radix Select rend le focus au déclencheur de façon asynchrone ; on laisse passer ce tick avant d’ouvrir la liste suivante.
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  fireEvent.keyDown(screen.getByLabelText("Nationalité *"), { key: "ArrowDown" })
+  fireEvent.click(await screen.findByRole("option", { name: "Côte d'Ivoire" }))
+  fireEvent.change(screen.getByLabelText("Lieu de naissance *"), { target: { value: "Abidjan" } })
+}
+
 describe("NewEnrollmentPage historical edit", () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -59,6 +69,7 @@ describe("NewEnrollmentPage historical edit", () => {
       status: "pending_cashier",
       enrolledAt: "2026-08-01T00:00:00.000Z",
       confirmedByUserId: null,
+      isRepeating: false,
       documentStatus: "complete",
       missingMandatoryDocumentCount: 0,
     })
@@ -70,6 +81,9 @@ describe("NewEnrollmentPage historical edit", () => {
       matricule: "MAT-001",
       classId: "class-1",
       className: "CP1 A",
+      sex: "F",
+      nationality: "CI",
+      birthPlace: "Abidjan",
       parentName: "M. Koné",
       parentPhone: "2250700000000",
       parentEmail: "parent@example.com",
@@ -108,7 +122,8 @@ describe("NewEnrollmentPage historical edit", () => {
       lastName: "Koné",
       parentName: "M. Koné",
     })))
-    expect(mocks.updateEnrollment).toHaveBeenCalledWith("enrollment-1", { classId: "class-1" })
+    // Inscription existante : la valeur enregistrée est reprise telle quelle.
+    expect(mocks.updateEnrollment).toHaveBeenCalledWith("enrollment-1", { classId: "class-1", isRepeating: false })
     expect(mocks.updateStudent.mock.calls[0][1]).not.toHaveProperty("classId")
     expect(await screen.findByText("Liste des documents")).toBeInTheDocument()
     expect(screen.queryByText("Caisse", { selector: "li span" })).not.toBeInTheDocument()
@@ -118,7 +133,7 @@ describe("NewEnrollmentPage historical edit", () => {
   })
 
   it("préserve une ancienne naissance invalide lors d'une modification sans toucher ce champ", async () => {
-    mocks.getStudent.mockResolvedValue({ id: "student-1", firstName: "Awa", lastName: "Koné", birthDate: "9999-12-31",
+    mocks.getStudent.mockResolvedValue({ id: "student-1", firstName: "Awa", lastName: "Koné", birthDate: "9999-12-31", sex: "F", nationality: "CI", birthPlace: "Abidjan",
       matricule: "MAT-001", classId: "class-1", className: "CP1 A", parentName: null, parentPhone: null,
       parentEmail: null, parentName2: null, parentPhone2: null })
     render(
@@ -179,9 +194,15 @@ describe("NewEnrollmentPage historical edit", () => {
     expect(screen.getByText("Complétez le nom et le téléphone du parent, ou laissez les deux champs vides.")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Créer et continuer" })).toBeDisabled()
     fireEvent.change(screen.getByLabelText("Téléphone"), { target: { value: "2250700000000" } })
+    // Sexe, nationalité et lieu de naissance sont obligatoires.
+    expect(screen.getByRole("button", { name: "Créer et continuer" })).toBeDisabled()
+    await fillRequiredIdentity()
+    // « Non » est présélectionné pour une nouvelle inscription (modifiable, jamais déduit).
+    expect(screen.getByRole("radio", { name: "Non" })).toBeChecked()
+    expect(screen.getByRole("radio", { name: "Oui" })).not.toBeChecked()
     fireEvent.click(screen.getByRole("button", { name: "Créer et continuer" }))
     await waitFor(() => expect(mocks.createEnrollment).toHaveBeenCalledWith({
-      studentId: "student-new", classId: "class-1", schoolYearId: "year-1", type: "new_registration", levelId: "level-1", expectedActiveSchoolYearId: "year-1",
+      studentId: "student-new", classId: "class-1", schoolYearId: "year-1", type: "new_registration", isRepeating: false, levelId: "level-1", expectedActiveSchoolYearId: "year-1",
     }))
     expect(mocks.createStudent).toHaveBeenCalledWith(expect.objectContaining({ firstName: "Aya", lastName: "Kone", matricule: null }))
     expect(mocks.getStudent).not.toHaveBeenCalled()

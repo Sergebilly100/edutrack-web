@@ -68,7 +68,7 @@ describe('historical student import', () => {
     await screen.findByRole('heading', { name: 'Correspondance des colonnes' })
     expect(mocks.analyze).toHaveBeenCalledWith(file, '2024-2025')
     fireEvent.click(screen.getByRole('button', { name: 'Vérifier les correspondances' }))
-    expect(screen.getAllByRole('combobox')).toHaveLength(10)
+    expect(screen.getAllByRole('combobox')).toHaveLength(13)
     expect(screen.getByRole('combobox', { name: /Ancienne classe/ })).not.toHaveAttribute('aria-required', 'true')
   })
   it('previews both parents and historical class, confirms, exports errors and permits another batch', async () => {

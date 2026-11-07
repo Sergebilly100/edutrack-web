@@ -10,6 +10,10 @@ export type StudentItem = {
   lastName: string
   matricule: string | null
   birthDate: string | null
+  /** Présents uniquement sur les lectures de fiche (jamais dans les listes). */
+  sex?: "M" | "F" | null
+  nationality?: string | null
+  birthPlace?: string | null
   parentName?: string | null
   parentPhone: string | null
   parentEmail?: string | null
@@ -80,6 +84,10 @@ export type CreateStudentPayload = {
   lastName: string
   matricule?: string | null
   birthDate?: string | null
+  /** undefined = ne pas envoyer ; null = « non renseigné ». */
+  sex?: "M" | "F" | null
+  nationality?: string | null
+  birthPlace?: string | null
   parentName?: string | null
   parentPhone?: string | null
   parentEmail?: string | null
@@ -95,6 +103,10 @@ export type UpdateStudentPayload = {
   lastName?: string
   matricule?: string | null
   birthDate?: string | null
+  /** undefined = ne pas envoyer ; null = « non renseigné ». */
+  sex?: "M" | "F" | null
+  nationality?: string | null
+  birthPlace?: string | null
   parentName?: string | null
   parentPhone?: string | null
   parentEmail?: string | null
@@ -111,6 +123,9 @@ export type StudentDetail = {
   lastName: string
   matricule: string | null
   birthDate: string | null
+  sex?: "M" | "F" | null
+  nationality?: string | null
+  birthPlace?: string | null
   className: string | null
   classId: string | null
   isActive: boolean
@@ -155,10 +170,14 @@ export type StudentDetail = {
 }
 
 export type CurrentStudentProfile = StudentDetail & {
+  /** Redoublant de l’inscription de l’année active ; null = non renseigné. */
+  isRepeating: boolean | null
   activeSchoolYear: { id: string; label: string; startDate?: string; endDate?: string }
 }
 
 export type HistoricalStudentProfile = StudentDetail & {
+  /** Redoublant de la dernière inscription confirmée ; null = non renseigné. */
+  isRepeating: boolean | null
   activeSchoolYear: { id: string; label: string; startDate?: string; endDate?: string } | null
   latestConfirmedSchoolYear: { id: string; label: string; className: string } | null
   confirmedInActiveYear: boolean
@@ -393,6 +412,9 @@ export const createStudent = (payload: CreateStudentPayload) =>
       last_name: payload.lastName,
       matricule: payload.matricule ?? null,
       birth_date: payload.birthDate ?? null,
+      sex: payload.sex ?? null,
+      nationality: payload.nationality ?? null,
+      birth_place: payload.birthPlace ?? null,
       parent_name: payload.parentName ?? null,
       parent_phone: payload.parentPhone ?? null,
       parent_email: payload.parentEmail ?? null,
@@ -411,6 +433,9 @@ export const updateStudent = (studentId: string, payload: UpdateStudentPayload) 
       last_name: payload.lastName,
       matricule: payload.matricule,
       birth_date: payload.birthDate,
+      sex: payload.sex,
+      nationality: payload.nationality,
+      birth_place: payload.birthPlace,
       parent_name: payload.parentName,
       parent_phone: payload.parentPhone,
       parent_email: payload.parentEmail,

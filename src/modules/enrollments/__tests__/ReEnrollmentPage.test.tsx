@@ -129,6 +129,7 @@ describe('Réinscriptions', () => {
       classId: 'class-2',
       schoolYearId: 'year-2',
       type: 're_registration',
+      isRepeating: false,
       sourceSchoolYearLabel: '2024-2025',
     }))
   })
@@ -164,7 +165,7 @@ describe('Réinscriptions', () => {
     fireEvent.click(await screen.findByRole('option', { name: /5e A/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Réinscrire' }))
     await waitFor(() => expect(mocks.createEnrollment).toHaveBeenCalledWith({
-      studentId: 'ready', classId: 'class-2', schoolYearId: 'year-2', type: 're_registration',
+      studentId: 'ready', classId: 'class-2', schoolYearId: 'year-2', type: 're_registration', isRepeating: false,
     }))
     fireEvent.click(screen.getByRole('row', { name: 'Ouvrir le dossier de KONÉ ready' }))
     expect(screen.getByTestId('location')).toHaveTextContent('/students/ready/history')

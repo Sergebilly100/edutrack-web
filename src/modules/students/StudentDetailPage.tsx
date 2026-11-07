@@ -63,6 +63,8 @@ import { BackIcon, InfoIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabel, useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { EmptyState } from "@/shared/components/EmptyState"
+import { IdentityValue } from "@/shared/components/IdentityFields"
+import { SEX_LABELS, formatNationality } from "@/shared/lib/identity"
 import { TourGuide } from "@/shared/components/TourGuide"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { studentDetailTourSteps } from "@/shared/lib/tour-steps"
@@ -430,6 +432,8 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
   const resultsYearId = historical ? selectedYear?.schoolYearId : student.activeSchoolYear?.id
   const resultsYearLabel = historical ? selectedYear?.schoolYearLabel : student.activeSchoolYear?.label
   const latestConfirmedSchoolYear = "latestConfirmedSchoolYear" in student ? student.latestConfirmedSchoolYear : null
+  // Le redoublant dépend de l’inscription : en mode archive, seulement pour la dernière année confirmée.
+  const showRepeating = !historical || (selectedYear?.schoolYearId ?? latestConfirmedSchoolYear?.id) === latestConfirmedSchoolYear?.id
   const parentSmsRows = student.parentSms.filter((row) => !historical || (selectedYear &&
     row.date.slice(0, 10) >= selectedYear.startDate && row.date.slice(0, 10) <= selectedYear.endDate))
   const params = new URLSearchParams(location.search)
@@ -538,8 +542,14 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
               <h2 className="truncate text-xl font-semibold tracking-tight">{student.lastName} {student.firstName}</h2>
               <p className="mt-0.5 truncate text-sm text-muted-foreground">{historical ? selectedYear?.className ?? latestConfirmedSchoolYear?.className ?? "Classe indisponible" : student.className ?? "Classe indisponible"} · {historical ? selectedYear?.schoolYearLabel ?? latestConfirmedSchoolYear?.label : student.activeSchoolYear?.label}</p>
               {student.matricule ? (
-                <p className="mt-1 truncate text-sm text-muted-foreground">Matricule : {student.matricule}{student.birthDate ? ` · Né(e) le ${new Date(student.birthDate).toLocaleDateString("fr-FR")}` : ""}</p>
+                <p className="mt-1 truncate text-sm text-muted-foreground">Matricule : {student.matricule}{student.birthDate ? ` · Né(e) le ${new Date(student.birthDate).toLocaleDateString("fr-FR")}` : ""} à {student.birthPlace}</p>
               ) : null}
+              <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm" aria-label="Identité">
+                <div className="flex gap-1.5"><dt className="text-muted-foreground">Sexe :</dt><dd><IdentityValue>{student.sex ? SEX_LABELS[student.sex] : null}</IdentityValue></dd></div>
+                <div className="flex gap-1.5"><dt className="text-muted-foreground">Nationalité :</dt><dd><IdentityValue>{formatNationality(student.nationality, student.sex)}</IdentityValue></dd></div>
+                <div className="flex gap-1.5"><dt className="text-muted-foreground">Lieu de naissance :</dt><dd><IdentityValue>{student.birthPlace}</IdentityValue></dd></div>
+                {showRepeating ? <div className="flex gap-1.5"><dt className="text-muted-foreground">Redoublant :</dt><dd><IdentityValue>{student.isRepeating === null ? null : student.isRepeating ? "Oui" : "Non"}</IdentityValue></dd></div> : null}
+              </dl>
             </div>
           </div>
           {historical ? (

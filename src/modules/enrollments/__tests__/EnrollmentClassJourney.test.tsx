@@ -48,6 +48,12 @@ async function choose(name: string, option: string) {
 async function leaveEnrollment() {
   fireEvent.change(screen.getByLabelText("Prénom *"), { target: { value: "Aya" } })
   fireEvent.change(screen.getByLabelText("Nom *", { exact: true }), { target: { value: "Koné" } })
+  fireEvent.keyDown(screen.getByLabelText("Sexe *"), { key: "ArrowDown" })
+  fireEvent.click(await screen.findByRole("option", { name: "Féminin" }))
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  fireEvent.keyDown(screen.getByLabelText("Nationalité *"), { key: "ArrowDown" })
+  fireEvent.click(await screen.findByRole("option", { name: "Côte d'Ivoire" }))
+  fireEvent.change(screen.getByLabelText("Lieu de naissance *"), { target: { value: "Abidjan" } })
   await screen.findByText("2026-2027")
   await choose("Niveau visé", "CP1")
   await waitFor(() => expect(screen.getByRole("button", { name: "Créer une classe" })).toBeEnabled())

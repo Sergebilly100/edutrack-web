@@ -28,11 +28,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ChevronDown, Search, X, Plus, Trash2 } from "lucide-react"
+import { Check, ChevronDown, Search, X, Plus, Trash2 } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/shared/components/Spinner"
+import { BirthPlaceField, IdentityFields } from "@/shared/components/IdentityFields"
+import { birthDateIssue, yesterdayInBusinessTimezone } from "@/shared/lib/date-validation"
+import { birthPlaceError, cleanBirthPlace } from "@/shared/lib/identity"
 import { groupTeachingAssignments, resolveAssignmentBlocks } from "../teaching-assignments"
 import { cn } from "@/lib/utils"
 import { listClasses, listSubjects } from "@/modules/academic/academic.api"
@@ -45,6 +48,10 @@ const teacherFormSchema = z
     firstName: z.string().trim().min(1, "Le prénom est requis").max(100),
     lastName: z.string().trim().min(1, "Le nom est requis").max(100),
     matricule: z.string().trim().max(50, "Le matricule ne doit pas dépasser 50 caractères"),
+    birthDate: z.string().refine((value) => !value || !birthDateIssue(value), { message: "Date de naissance invalide : indiquez une date réelle antérieure à aujourd’hui." }),
+    sex: z.enum(["", "M", "F"]),
+    nationality: z.string(),
+    birthPlace: z.string().refine((value) => !birthPlaceError(value), { message: "Le lieu de naissance doit contenir entre 2 et 120 caractères." }),
     phone: z.string().trim().refine((value) => !value || PHONE_CI_REGEX.test(value), {
         message: "Le téléphone doit respecter le format 225XXXXXXXXXX",
       }),
@@ -200,10 +207,52 @@ function MultiSelectCombobox({
   )
 }
 
+const TEACHER_STEPS = [
+  { title: "Informations du professeur"},
+  { title: "Affectations pédagogiques"},
+] as const
+
+function TeacherFormStepper({ step }: { step: 1 | 2 }) {
+  return (
+    <nav aria-label="Progression du formulaire" className="mb-4">
+      <p className="sr-only" aria-live="polite">Étape {step} sur 2 · {TEACHER_STEPS[step - 1].title}</p>
+      <ol className="flex items-start gap-3">
+        {TEACHER_STEPS.map((item, index) => {
+          const number = index + 1
+          const done = step > number
+          const current = step === number
+          return (
+            <li key={item.title} className="flex min-w-0 flex-1 flex-col gap-2" aria-current={current ? "step" : undefined}>
+              <div className="flex items-center gap-2">
+                <span className={cn(
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-sm font-semibold",
+                  done && "border-primary bg-primary text-primary-foreground",
+                  current && "border-primary bg-primary/10 text-primary",
+                  !done && !current && "border-border bg-background text-muted-foreground"
+                )}>
+                  {done ? <Check className="h-4 w-4" aria-hidden="true" /> : number}
+                </span>
+                <span className={cn("h-1 flex-1 rounded-full", number <= step ? "bg-primary" : "bg-border")} aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-medium  tracking-wide text-muted-foreground">Étape {number} · <span className={cn("truncate text-xs font-semibold", !current && "text-muted-foreground")}>{item.title}</span></p>
+              </div>
+            </li>
+          )
+        })}
+      </ol>
+    </nav>
+  )
+}
+
 export type TeacherFormInitialValues = {
   firstName: string
   lastName: string
   matricule: string | null
+  birthDate?: string | null
+  sex?: "M" | "F" | null
+  nationality?: string | null
+  birthPlace?: string | null
   phone: string | null
   email: string | null
   type: TeacherType
@@ -236,6 +285,10 @@ export default function TeacherForm({
       firstName: initialValues?.firstName ?? "",
       lastName: initialValues?.lastName ?? "",
       matricule: initialValues?.matricule ?? "",
+      birthDate: initialValues?.birthDate?.slice(0, 10) ?? "",
+      sex: initialValues?.sex ?? "",
+      nationality: initialValues?.nationality ?? "",
+      birthPlace: initialValues?.birthPlace ?? "",
       phone: initialValues?.phone ?? "",
       email: initialValues?.email ?? "",
       type: initialValues?.type ?? "vacataire",
@@ -245,7 +298,23 @@ export default function TeacherForm({
     },
   })
 
+  // Création : 2 étapes (informations, puis affectations). Modification : formulaire unique.
+  const twoSteps = !initialValues
+  const [step, setStep] = useState<1 | 2>(1)
+  const showInfo = !twoSteps || step === 1
+  const showAssignments = !twoSteps || step === 2
+  const goToAssignments = async () => {
+    const valid = await form.trigger(["firstName", "lastName", "matricule", "birthDate", "sex", "nationality", "birthPlace", "phone", "email", "type", "hourlyRate", "monthlySalary"])
+    if (valid) setStep(2)
+  }
   const type = useWatch({ control: form.control, name: "type" })
+  const [watchedSex, watchedNationality, watchedBirthPlace] = useWatch({ control: form.control, name: ["sex", "nationality", "birthPlace"] })
+  const identity = { sex: watchedSex, nationality: watchedNationality, birthPlace: watchedBirthPlace }
+  const onIdentityChange = (next: typeof identity) => {
+    form.setValue("sex", next.sex, { shouldDirty: true })
+    form.setValue("nationality", next.nationality, { shouldDirty: true })
+    form.setValue("birthPlace", next.birthPlace, { shouldDirty: true, shouldValidate: true })
+  }
   const { fields: blocks, append, remove } = useFieldArray({ control: form.control, name: "assignmentBlocks" })
   const assignmentBlocks = useWatch({ control: form.control, name: "assignmentBlocks" })
   const subjectsQuery = useQuery({ queryKey: ["academic", "subjects", "teacher-form"], queryFn: () => listSubjects() })
@@ -284,6 +353,10 @@ export default function TeacherForm({
       firstName: values.firstName.trim(),
       lastName: values.lastName.trim(),
       matricule: values.matricule.trim() || null,
+      birthDate: values.birthDate || null,
+      sex: values.sex || null,
+      nationality: values.nationality || null,
+      birthPlace: cleanBirthPlace(values.birthPlace) || null,
       phone: values.phone || null,
       email: values.email ? values.email.trim() : null,
       type: values.type,
@@ -297,6 +370,8 @@ export default function TeacherForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit((values) => void handleSubmit(values))} className="space-y-4">
+        {twoSteps ? <TeacherFormStepper step={step} /> : null}
+        <div className={showInfo ? "space-y-4" : "hidden"}>
         <div className="grid gap-4 md:grid-cols-2">
           <FormField
             control={form.control}
@@ -326,6 +401,27 @@ export default function TeacherForm({
             )}
           />
         </div>
+
+        <fieldset className="space-y-4 rounded-lg border p-4 ">
+          <legend className="px-1 text-sm font-medium">Identité (facultatif)</legend>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="birthDate"
+              render={({ field }) => (
+                <FormItem className="!mt-0">
+                  <FormLabel>Date de naissance</FormLabel>
+                  <FormControl>
+                    <Input type="date" max={yesterdayInBusinessTimezone()} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <BirthPlaceField idPrefix="teacher" value={identity} onChange={onIdentityChange} />
+          </div>
+          <IdentityFields idPrefix="teacher" value={identity} onChange={onIdentityChange} />
+        </fieldset>
 
         <FormField
           control={form.control}
@@ -460,7 +556,9 @@ export default function TeacherForm({
           )}
         </div>
 
-        <section className="space-y-3 border-t pt-4 pb-4" aria-label="Affectations pédagogiques">
+        </div>
+
+        <section className={showAssignments ? "space-y-3 border-t pt-4 pb-4" : "hidden"} aria-label="Affectations pédagogiques">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <div className="min-w-0 space-y-1">
               <h2 className="font-medium">Affectations pédagogiques <span className="text-xs font-normal text-muted-foreground">Facultatif</span></h2>
@@ -483,16 +581,23 @@ export default function TeacherForm({
                   <MultiSelectCombobox title={`Classes du bloc ${index + 1}`} description="Classes de l’année active. La matière doit être configurée pour leur niveau." selectedValues={field.value} options={activeClasses.map((schoolClass) => ({ value: schoolClass.id, label: schoolClass.name, description: `${schoolClass.level.name} · ${schoolClass.studentCount} élèves` }))} disabled={assignmentsLocked || isPending} onChange={field.onChange} />
                   <FormMessage />
                 </FormItem>} />
-                <Button type="button" variant="ghost" size="icon" className="mt-[calc(0.875rem+0.5rem)] h-12 w-12 self-start text-muted-foreground hover:text-destructive" disabled={assignmentsLocked || isPending} onClick={() => remove(index)} aria-label={`Supprimer le bloc ${index + 1}`} title={`Supprimer le bloc ${index + 1}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button>
+                <Button type="button" variant="ghost" size="icon" className="mt-[calc(1rem+1rem)] h-12 w-12 self-start text-muted-foreground hover:text-destructive" disabled={assignmentsLocked || isPending} onClick={() => remove(index)} aria-label={`Supprimer le bloc ${index + 1}`} title={`Supprimer le bloc ${index + 1}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button>
               </div>
             </fieldset>)}
             {!activeYearId ? <p className="text-sm text-muted-foreground">Ouvrez une année scolaire active avant de définir les affectations.</p> : null}
           </>}
         </section>
 
+        {twoSteps && step === 1 ? (
+          <Button type="button" className="min-h-12 w-full" onClick={() => void goToAssignments()}>Suivant : affectations pédagogiques</Button>
+        ) : (
+          <div className="flex flex-col-reverse gap-2 sm:flex-row">
+            {twoSteps ? <Button type="button" variant="outline" className="min-h-12 sm:w-1/3" disabled={isPending} onClick={() => setStep(1)}>Retour</Button> : null}
         <Button type="submit" className="min-h-12 w-full" disabled={isPending || (!assignmentsLocked && (subjectsQuery.isLoading || classesQuery.isLoading || subjectsQuery.isError || classesQuery.isError))}>
-          {isPending ? <><Spinner size="sm" className="mr-2" />Enregistrement...</> : submitLabel}
-        </Button>
+            {isPending ? <><Spinner size="sm" className="mr-2" />Enregistrement...</> : submitLabel}
+          </Button>
+            </div>
+        )}
       </form>
     </Form>
   )
