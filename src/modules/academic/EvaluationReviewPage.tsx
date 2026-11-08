@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmptyState } from "@/shared/components/EmptyState"
+import { ConfirmActionDialog } from "@/shared/components/ConfirmActionDialog"
 import { AcademicContextFilters } from "@/shared/components/AcademicContextFilters"
 import { DependentSelect } from "@/shared/components/DependentSelect"
 import { FilterBar } from "@/shared/components/FilterBar"
@@ -21,6 +22,7 @@ import { PageLayout } from "@/shared/components/PageLayout"
 import { currentReviewPeriodId } from "@/shared/lib/academic-context"
 import { useToast } from "@/components/ui/use-toast"
 import { completionPercent, evaluationStatus, todayInAbidjan } from "./evaluation-review.logic"
+import type { ReviewEvaluation } from "./evaluation-review.api"
 import { fetchEvaluationReview, fetchReviewOptions, fetchSpontaneousReview, remindEvaluationTeacher } from "./evaluation-review.api"
 
 const displayDate = (date: string | null) => date ? new Date(`${date}T00:00:00`).toLocaleDateString("fr-FR") : "Sans date"
@@ -85,6 +87,7 @@ export default function EvaluationReviewPage() {
   const [openStudentId, setOpenStudentId] = useState<string | null>(null)
   const [studentSearchInput, setStudentSearchInput] = useState("")
   const [studentSearch, setStudentSearch] = useState("")
+  const [remindTarget, setRemindTarget] = useState<ReviewEvaluation | null>(null)
 
   const yearsQuery = useQuery({ queryKey: ["evaluation-review", "years"], queryFn: () => fetchReviewOptions({}) })
   const activeYear = yearsQuery.data?.schoolYears.find((item) => item.active)
@@ -115,10 +118,12 @@ export default function EvaluationReviewPage() {
   const remindMutation = useMutation({
     mutationFn: remindEvaluationTeacher,
     onSuccess: async () => {
+      setRemindTarget(null)
       await queryClient.invalidateQueries({ queryKey: ["evaluation-review", "list"] })
       toast({ title: "Relance envoyée au professeur" })
     },
     onError: (error) => {
+      setRemindTarget(null)
       const message = axios.isAxiosError(error) && typeof error.response?.data?.error === 'string'
         ? error.response.data.error : "Impossible d’envoyer la relance. Réessayez."
       toast({ title: "Relance non envoyée", description: message, variant: "destructive" })
@@ -230,13 +235,13 @@ export default function EvaluationReviewPage() {
             </Button>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline" className={badgeClass}>{status.label}</Badge>
-              {status.canRemind ? <Button type="button" variant="outline" className="min-h-12" disabled={remindedRecently || remindMutation.isPending}
-                onClick={() => remindMutation.mutate(evaluation.id)}>{remindMutation.isPending && remindMutation.variables === evaluation.id ? "Envoi…" : "Relancer"}</Button> : null}
+              {status.canRemind ? <Button type="button" variant="outline" className="min-h-12" disabled={remindMutation.isPending}
+                onClick={() => setRemindTarget(evaluation)}>Relancer</Button> : null}
             </div>
             </div>
             <div className="mt-3 flex items-center gap-3"><Progress value={completionPercent(entered, expected)} aria-label={`Progression des notes de ${evaluation.label}`} aria-valuenow={completionPercent(entered, expected)} aria-valuemin={0} aria-valuemax={100} className="flex-1" />
               <span className="shrink-0 text-sm font-medium tabular-nums">{entered}/{expected} notes</span></div>
-            {lastReminder && !Number.isNaN(lastReminder.getTime()) ? <p className="mt-2 text-xs text-muted-foreground">Dernière relance : {lastReminder.toLocaleString("fr-FR", { timeZone: "Africa/Abidjan", dateStyle: "short", timeStyle: "short" })}{remindedRecently ? " · nouvelle relance possible après 24 h" : ""}</p> : null}
+            {lastReminder && !Number.isNaN(lastReminder.getTime()) ? <p className="mt-2 text-xs text-muted-foreground">Dernière relance : {lastReminder.toLocaleString("fr-FR", { timeZone: "Africa/Abidjan", dateStyle: "short", timeStyle: "short" })}{remindedRecently ? " · relance récente" : ""}</p> : null}
             {open ? <div id={`notes-${evaluation.id}`} className="mt-4 border-t pt-3">
               {evaluation.notes.length === 0 ? <EmptyState title="Aucun élève dans cette classe" description="Aucun élève rattaché à cette classe pour l’année sélectionnée." classNameRendu="py-6" /> :
                 <div className="divide-y">{evaluation.notes.map((note) => <div key={note.studentId} className="grid gap-1 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-4">
@@ -292,5 +297,25 @@ export default function EvaluationReviewPage() {
     </section> : null}
       </TabsContent>
     </Tabs>
+    {remindTarget ? (() => {
+      const last = remindTarget.lastReminderAt ? new Date(remindTarget.lastReminderAt) : null
+      const recent = last !== null && renderedAt - last.getTime() < 24 * 60 * 60 * 1000
+      const pending = remindTarget.expectedCount - remindTarget.enteredCount
+      return <ConfirmActionDialog open onOpenChange={(open) => { if (!open && !remindMutation.isPending) setRemindTarget(null) }}
+        title="Relancer le professeur" description={`Un message sera envoyé à ${remindTarget.teacher.name}.`}
+        confirmLabel={recent ? "Relancer quand même" : "Envoyer la relance"} pendingLabel="Envoi…"
+        isPending={remindMutation.isPending}
+        consequences={recent && last ? [`Une relance a déjà été envoyée le ${last.toLocaleString("fr-FR", { timeZone: "Africa/Abidjan", dateStyle: "short", timeStyle: "short" })}. Confirmez uniquement si cette nouvelle relance est nécessaire.`] : undefined}
+        variant={recent ? "destructive" : "default"}
+        onConfirm={() => remindMutation.mutate({ evaluationId: remindTarget.id, force: recent })}>
+        <dl className="space-y-2 text-sm">
+          <div><dt className="font-medium">Destinataire</dt><dd>{remindTarget.teacher.name}</dd></div>
+          <div><dt className="font-medium">Évaluation en attente</dt><dd>{remindTarget.label?.trim() || remindTarget.subject.name} · {remindTarget.class.name} · {pending} note{pending > 1 ? "s" : ""} manquante{pending > 1 ? "s" : ""}</dd></div>
+          <div><dt className="font-medium">Canal</dt><dd>Notification dans l’application</dd></div>
+          <div><dt className="font-medium">Aperçu du message</dt><dd className="rounded-lg border bg-muted/60 p-3">Merci de saisir les notes de {remindTarget.label} en {remindTarget.subject.name} ({remindTarget.class.name}).</dd></div>
+          <div><dt className="font-medium">Dernière relance</dt><dd>{last ? last.toLocaleString("fr-FR", { timeZone: "Africa/Abidjan", dateStyle: "short", timeStyle: "short" }) : "Aucune"}</dd></div>
+        </dl>
+      </ConfirmActionDialog>
+    })() : null}
   </PageLayout>
 }

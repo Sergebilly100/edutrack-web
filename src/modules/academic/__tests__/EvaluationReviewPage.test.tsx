@@ -60,7 +60,7 @@ describe("EvaluationReviewPage", () => {
     expect(screen.queryByRole("button", { name: /modifier|supprimer|créer/i })).not.toBeInTheDocument()
   })
 
-  it("montre Relancer après le délai, puis bloque une nouvelle relance pendant 24 h", async () => {
+  it("demande confirmation avant d'envoyer la relance, puis avertit en cas de relance récente", async () => {
     const date = new Date(`${todayInAbidjan()}T00:00:00Z`)
     date.setUTCDate(date.getUTCDate() - 8)
     const due = { ...evaluation, date: date.toISOString().slice(0, 10) }
@@ -69,13 +69,23 @@ describe("EvaluationReviewPage", () => {
       .mockResolvedValue({ items: [{ ...due, lastReminderAt: new Date().toISOString() }],
         summary: { evaluations: 1, grades: 1, missing: 1 }, policy: { graceDays: 7, lateDays: 14 }, page: 1, pageSize: 20, total: 1 })
     mount()
-    const remind = await screen.findByRole("button", { name: "Relancer" })
-    expect(screen.getByText("Saisie attendue")).toBeInTheDocument()
-    expect(remind).toBeEnabled()
-    fireEvent.click(remind)
-    await waitFor(() => expect(remindTeacher).toHaveBeenCalledWith("e1", expect.anything()))
-    await waitFor(() => expect(screen.getByRole("button", { name: "Relancer" })).toBeDisabled())
-    expect(screen.getByText(/Dernière relance/)).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole("button", { name: "Relancer" }))
+    expect(remindTeacher).not.toHaveBeenCalled()
+    const dialog = await screen.findByRole("dialog")
+    expect(within(dialog).getByText(/Merci de saisir les notes/)).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Annuler" }))
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+    expect(remindTeacher).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Relancer" }))
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Envoyer la relance" }))
+    await waitFor(() => expect(remindTeacher).toHaveBeenCalledTimes(1))
+    expect(remindTeacher).toHaveBeenCalledWith({ evaluationId: "e1", force: false }, expect.anything())
+    await waitFor(() => expect(screen.getByText(/Dernière relance/)).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Relancer" }))
+    const second = await screen.findByRole("dialog")
+    expect(within(second).getByText(/Une relance a déjà été envoyée/)).toBeInTheDocument()
+    fireEvent.click(within(second).getByRole("button", { name: "Relancer quand même" }))
+    await waitFor(() => expect(remindTeacher).toHaveBeenLastCalledWith({ evaluationId: "e1", force: true }, expect.anything()))
   })
 
   it("transmet le tri global à l’API et regroupe par professeur", async () => {

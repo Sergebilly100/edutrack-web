@@ -79,5 +79,5 @@ export const fetchEvaluationReview = (params: ReviewFilters) =>
 export const fetchSpontaneousReview = (params: ReviewFilters) =>
   apiClient.get<SpontaneousReviewResult>("/academic/evaluations/spontaneous", { params }).then((response) => response.data)
 
-export const remindEvaluationTeacher = (evaluationId: string): Promise<{ lastReminderAt: string }> =>
-  apiClient.post<{ lastReminderAt: string }>(`/academic/evaluations/${evaluationId}/remind`).then((response) => response.data)
+export const remindEvaluationTeacher = ({ evaluationId, force }: { evaluationId: string; force?: boolean }): Promise<{ lastReminderAt: string }> =>
+  apiClient.post<{ lastReminderAt: string }>(`/academic/evaluations/${evaluationId}/remind`, force ? { force: true } : {}).then((response) => response.data)
