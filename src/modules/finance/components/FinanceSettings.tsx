@@ -67,7 +67,6 @@ export function FinanceSettings({ canManageProviders }: { canManageProviders: bo
 
   return (
     <section className="space-y-6">
-      <div className="max-w-2xl space-y-1"><h2 className="text-xl font-semibold">Paramètres financiers</h2><p className="text-sm text-muted-foreground">Gérez les coordonnées utilisées pour les versements manuels.</p></div>
 
       {canManageProviders ? (
         <Card>

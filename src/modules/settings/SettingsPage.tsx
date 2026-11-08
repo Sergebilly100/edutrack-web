@@ -342,14 +342,15 @@ export default function SettingsPage() {
             </section>
           ) : null}
 
-          <div className={cn("grid gap-6", canViewFinanceSettings && canManageSchoolSettings && parentSmsMonetized && "xl:grid-cols-2 xl:items-start")}>
-          {canViewFinanceSettings ? <FinanceSettings canManageProviders={canManageSchoolSettings} /> : null}
+          <div className="space-y-1 !mt-[3rem]"><h2 className="text-xl font-semibold">Paramètres financiers & Service Alertes Parents</h2><p className="text-sm text-muted-foreground">Gérez les coordonnées utilisées pour les versements manuels.</p></div>
 
+          <div className={cn("grid gap-6", canViewFinanceSettings && canManageSchoolSettings && parentSmsMonetized && "xl:grid-cols-2 xl:items-start")}>
+          
           {canManageSchoolSettings && parentSmsMonetized ? (
             <section className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/70 dark:bg-emerald-950/20" data-tour="settings-sms">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-sm font-semibold">Service Alertes Parents</h2>
+                  <h2 className="text-lg font-semibold">Service Alertes Parents</h2>
                   <p className="text-xs text-muted-foreground">Tarif mensuel par élève, obligation à l’inscription, période et reçu scolaire.</p>
                 </div>
                 <Badge variant="default">Activé</Badge>
@@ -414,6 +415,9 @@ export default function SettingsPage() {
               ) : <ContextualHelp title="Activation requise" tone="warning">Le portail d&apos;abonnement parent et les notifications Alertes Parents restent masqués tant que le service n&apos;est pas activé par IvoirEdu.</ContextualHelp>}
             </section>
           ) : null}
+          
+          {canViewFinanceSettings ? <FinanceSettings canManageProviders={canManageSchoolSettings} /> : null}
+
           </div>
         </TabsContent>
       ) : null}
