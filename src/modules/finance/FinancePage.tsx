@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useSearchParams } from "react-router-dom"
+import { Link, useLocation, useSearchParams } from "react-router-dom"
 
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { listSchoolYears } from "@/modules/academic/academic.api"
@@ -13,10 +14,11 @@ import { PaymentHistoryPanel } from "./components/PaymentHistoryPanel"
 import { QuickPaymentEntry } from "./components/QuickPaymentEntry"
 import { CashJournalPanel } from "./components/CashJournalPanel"
 import { PaymentImportPanel } from "./components/PaymentImportPanel"
-import type { FinanceView } from "./finance.routes"
+import { FINANCE_PATHS, type FinanceView } from "./finance.routes"
+import { listFinancialProfiles } from "@/modules/students/students.api"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/shared/hooks/use-toast"
-import { fetchFinancialSummary, recalculateFinancialCache } from "./finance.api"
+import { fetchFinancialSummary, getStudentAccountStatement, recalculateFinancialCache } from "./finance.api"
 import { Spinner } from "@/shared/components/Spinner"
 import { RefreshCw } from "lucide-react"
 import { AgreementsRegister } from "./components/AgreementsRegister"
@@ -75,6 +77,34 @@ export default function FinancePage({ view, studentId, initialSchoolYearId }: { 
 
   const selectedYear = yearsQuery.data?.find((year) => year.id === schoolYearId)
 
+  // Détail financier d'un élève : le fil d'Ariane remplace le titre. La requête partage sa clé avec le panneau (une seule requête réseau).
+  const isStudentDetail = view === "history" && Boolean(studentId)
+  const detailNameQuery = useQuery({
+    queryKey: ["finance", "account-statement", studentId, schoolYearId],
+    queryFn: () => getStudentAccountStatement(studentId!, schoolYearId),
+    enabled: isStudentDetail && Boolean(schoolYearId),
+  })
+  const breadcrumb = isStudentDetail ? (
+    <Breadcrumb>
+      <BreadcrumbList className="text-base">
+        <BreadcrumbItem><BreadcrumbLink asChild><Link to={`${FINANCE_PATHS.history}?schoolYearId=${schoolYearId}`}>Historique &amp; reçus</Link></BreadcrumbLink></BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem><BreadcrumbPage className="font-semibold">{detailNameQuery.data?.student.name ?? "Élève"}</BreadcrumbPage></BreadcrumbItem>
+      </BreadcrumbList>
+    </Breadcrumb>
+  ) : undefined
+
+  // Encaissement pré-rempli depuis le détail financier : l'élève est retrouvé via la même recherche que le champ « Élève ».
+  const location = useLocation()
+  const payFor = (location.state as { payFor?: { studentId: string; search: string } } | null)?.payFor
+  const prefillQuery = useQuery({
+    queryKey: ["finance", "payment-prefill", schoolYearId, payFor?.studentId],
+    queryFn: () => listFinancialProfiles({ schoolYearId, search: payFor!.search, limit: 8, isActive: true }),
+    enabled: view === "entry" && Boolean(payFor?.studentId && payFor.search && schoolYearId),
+    staleTime: 30_000,
+  })
+  const initialStudent = prefillQuery.data?.data.find((candidate) => candidate.id === payFor?.studentId) ?? null
+
   if (yearsQuery.isError) {
     return <PageLayout title={VIEW_COPY[view].title}><QueryErrorState message="Impossible de charger les années scolaires." onRetry={() => void yearsQuery.refetch()} /></PageLayout>
   }
@@ -83,6 +113,7 @@ export default function FinancePage({ view, studentId, initialSchoolYearId }: { 
     <PageLayout
       title={VIEW_COPY[view].title}
       subtitle={VIEW_COPY[view].subtitle}
+      breadcrumb={breadcrumb}
       actions={
         <div className="flex flex-wrap items-end justify-end gap-3">
           <Select value={schoolYearId} onValueChange={setSchoolYearId}>
@@ -118,7 +149,7 @@ export default function FinancePage({ view, studentId, initialSchoolYearId }: { 
           <TabsTrigger value="enregistrement" className="min-h-12">Enregistrement</TabsTrigger>
           <TabsTrigger value="import" className="min-h-12">Importer les paiements</TabsTrigger>
         </TabsList>
-        <TabsContent value="enregistrement"><QuickPaymentEntry key={schoolYearId} schoolYearId={schoolYearId} schoolYearLabel={selectedYear.label} /></TabsContent>
+        <TabsContent value="enregistrement"><QuickPaymentEntry key={`${schoolYearId}-${initialStudent?.id ?? "none"}`} schoolYearId={schoolYearId} schoolYearLabel={selectedYear.label} initialStudent={initialStudent} /></TabsContent>
         <TabsContent value="import"><PaymentImportPanel /></TabsContent>
       </Tabs>
       ) : null}

@@ -18,14 +18,14 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { SalaryTableSkeleton } from "@/modules/salaries/components/SalaryTableSkeleton"
+import { MarkPaidDialog } from "@/modules/salaries/components/MarkPaidDialog"
+import { SalaryDetailsDialog } from "@/modules/salaries/components/SalaryDetailsDialog"
 import {
   STALE_TIME,
   attendanceStatusMeta,
-  formatHours,
   formatSalaryDescriptor,
   getSchoolYearBounds,
   getStatusBadgeClass,
-  parseHoursInput,
   resolveDownloadFileName,
   toDisplayedStatus,
   toSalaryRowStatus,
@@ -115,8 +115,8 @@ export default function SalariesPage() {
   const [selectedSalaryRow, setSelectedSalaryRow] = useState<SalarySummaryItem | null>(null)
   const [payDialogDetails, setPayDialogDetails] = useState<SalaryTeacherDetails | null>(null)
   const [payDialogDetailsLoading, setPayDialogDetailsLoading] = useState(false)
+  const [payDialogDetailsError, setPayDialogDetailsError] = useState(false)
   const [payTargetMonth, setPayTargetMonth] = useState(getCurrentMonth)
-  const [hoursToPayInput, setHoursToPayInput] = useState("")
   const [paymentNotes, setPaymentNotes] = useState("")
   const [exportJobId, setExportJobId] = useState<string | null>(null)
   const [bulkExportDialogOpen, setBulkExportDialogOpen] = useState(false)
@@ -190,14 +190,14 @@ export default function SalariesPage() {
     queueKey: OFFLINE_QUEUE_KEYS.salaryCompute,
   })
 
-  const runCompute = async () => {
+  const runCompute = async (options: { auto?: boolean } = {}) => {
     try {
       const result = await computeMutation.mutateAsync(selectedMonth)
       setComputeDialogOpen(false)
       await queryClient.invalidateQueries({ queryKey: ["salaries", "summary", selectedMonth] })
       await queryClient.invalidateQueries({ queryKey: ["salaries-stats", selectedMonth] })
       toast({
-        title: "Calcul terminé",
+        title: options.auto ? "Salaires mis à jour automatiquement" : "Calcul terminé",
         description: `${result.updatedCount} fiche(s) salaire recalculée(s).`,
       })
     } catch (error) {
@@ -281,7 +281,7 @@ export default function SalariesPage() {
     setSelectedSalaryRow(null)
     setPayDialogDetails(null)
     setPayDialogDetailsLoading(false)
-    setHoursToPayInput("")
+    setPayDialogDetailsError(false)
     setPaymentNotes("")
   }
 
@@ -576,7 +576,23 @@ export default function SalariesPage() {
   )
   const unpaidAlert = unpaidAlertsQuery.data
 
+  // Fiches manquantes ou périmées (pointages modifiés depuis le dernier calcul) : sans recalcul, les paiements
+  // ne peuvent pas être validés et l'écran peut afficher « rien à payer » à tort.
+  const staleRecordsCount = useMemo(() => items.filter((item) => item.needsRecalculation).length, [items])
+  const autoComputedMonthsRef = useRef(new Set<string>())
+
   const isSelectedMonthFuture = isFutureMonth(selectedMonth)
+
+  // Automatisation : une seule tentative par mois affiché, pour les utilisateurs autorisés à calculer.
+  // En cas d'échec ou sans droit de calcul, le bandeau ci-dessous prend le relais.
+  useEffect(() => {
+    if (!canComputeSalaries || !isOnline || isSelectedMonthFuture) return
+    if (!salarySummaryQuery.isSuccess || staleRecordsCount === 0) return
+    if (autoComputedMonthsRef.current.has(selectedMonth) || computeMutation.isPending) return
+    autoComputedMonthsRef.current.add(selectedMonth)
+    void runCompute({ auto: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runCompute est recréée à chaque rendu ; la garde par mois évite toute boucle
+  }, [canComputeSalaries, isOnline, isSelectedMonthFuture, salarySummaryQuery.isSuccess, staleRecordsCount, selectedMonth])
   const teacherOptions = useMemo(
     () => items.map((item) => ({ id: item.teacherId, label: item.teacherName })),
     [items]
@@ -584,10 +600,12 @@ export default function SalariesPage() {
 
   const loadPayDialogDetails = async (teacherId: string, month: string) => {
     setPayDialogDetailsLoading(true)
+    setPayDialogDetailsError(false)
     try {
       const details = await getTeacherSalaryDetails(teacherId, month)
       setPayDialogDetails(details)
     } catch {
+      setPayDialogDetailsError(true)
       toast({
         title: "Erreur",
         description: "Impossible de charger les informations de paiement détaillées.",
@@ -604,6 +622,8 @@ export default function SalariesPage() {
   // 3. Si OK → ouvrir le dialog
   // Note : on n'utilise plus de mutation de paramètre (let + réassignation propre)
   const openMarkPaidDialog = async (initialRow: SalarySummaryItem) => {
+    // Défense en profondeur : l'API refuse de toute façon sans salary.mark_paid.
+    if (!canMarkSalaryAsPaid) return
     // On travaille sur une copie locale pour éviter la mutation du paramètre
     let row: SalarySummaryItem = initialRow
 
@@ -642,7 +662,6 @@ export default function SalariesPage() {
     // Ici row.salaryRecordId est garanti non-null pour les vacataires
     setSelectedSalaryRow(row)
     setPayDialogDetails(null)
-    setHoursToPayInput("")
     setPaymentNotes("")
 
     const initialMonth =
@@ -691,54 +710,6 @@ export default function SalariesPage() {
     () => resolveDownloadFileName(exportJobQuery.data?.downloadUrl ?? null),
     [exportJobQuery.data?.downloadUrl]
   )
-  const payHoursAlreadyPaid = useMemo(() => {
-    if (!payDialogDetails) {
-      return 0
-    }
-    if (
-      payDialogDetails.teacher.type === "vacataire" &&
-      payDialogDetails.teacher.hourlyRate !== null &&
-      payDialogDetails.summary.amountAlreadyPaid !== null
-    ) {
-      return Math.round((payDialogDetails.summary.amountAlreadyPaid / payDialogDetails.teacher.hourlyRate) * 100) / 100
-    }
-    return payDialogDetails.payments.reduce((sum, item) => sum + (item.hoursPaid ?? 0), 0)
-  }, [payDialogDetails])
-
-  const payHoursRemaining = useMemo(() => {
-    if (!payDialogDetails) {
-      return 0
-    }
-    return Math.max(0, Math.round((payDialogDetails.summary.hoursDone - payHoursAlreadyPaid) * 100) / 100)
-  }, [payDialogDetails, payHoursAlreadyPaid])
-
-  const payHoursSinceLastPayment = useMemo(() => {
-    if (!payDialogDetails || !payDialogDetails.payment.paidAt) {
-      return 0
-    }
-    return Math.max(0, Math.round(payDialogDetails.summary.hoursDoneSinceLastPayment * 100) / 100)
-  }, [payDialogDetails])
-  const payHoursRemainingFromAlreadyDone = useMemo(
-    () => Math.max(0, Math.round((payHoursRemaining - payHoursSinceLastPayment) * 100) / 100),
-    [payHoursRemaining, payHoursSinceLastPayment]
-  )
-  const payHoursRemainingFromNew = useMemo(
-    () => Math.max(0, Math.round(Math.min(payHoursRemaining, payHoursSinceLastPayment) * 100) / 100),
-    [payHoursRemaining, payHoursSinceLastPayment]
-  )
-  const parsedHoursToPay = useMemo(() => parseHoursInput(hoursToPayInput), [hoursToPayInput])
-  const payAmountRemainingFromAlreadyDone = useMemo(() => {
-    if (!payDialogDetails || payDialogDetails.teacher.hourlyRate === null) {
-      return 0
-    }
-    return Math.round(payHoursRemainingFromAlreadyDone * payDialogDetails.teacher.hourlyRate)
-  }, [payDialogDetails, payHoursRemainingFromAlreadyDone])
-  const payAmountRemainingFromNew = useMemo(() => {
-    if (!payDialogDetails || payDialogDetails.teacher.hourlyRate === null) {
-      return 0
-    }
-    return Math.round(payHoursRemainingFromNew * payDialogDetails.teacher.hourlyRate)
-  }, [payDialogDetails, payHoursRemainingFromNew])
   const historyMonthOptions = useMemo(() => {
     const fromHistory = paymentHistoryMutation.data?.items.map((item) => item.month) ?? []
     return Array.from(new Set([selectedMonth, ...fromHistory])).sort((a, b) => b.localeCompare(a))
@@ -750,13 +721,6 @@ export default function SalariesPage() {
     }
     return items.filter((item) => item.month === historySelectedMonth)
   }, [historySelectedMonth, historyTeacherRow?.teacherType, paymentHistoryMutation.data?.items])
-  const payAmountForInput = useMemo(() => {
-    if (!payDialogDetails || payDialogDetails.teacher.hourlyRate === null || parsedHoursToPay === null) {
-      return 0
-    }
-    return Math.round(parsedHoursToPay * payDialogDetails.teacher.hourlyRate)
-  }, [payDialogDetails, parsedHoursToPay])
-
   const handleDownloadExport = () => {
     const downloadUrl = exportJobQuery.data?.downloadUrl
     if (!downloadUrl) {
@@ -944,6 +908,33 @@ export default function SalariesPage() {
               <Button asChild variant="outline" className="min-h-[48px] border-amber-300 bg-white">
                 <Link to="/validations">Valider maintenant</Link>
               </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {staleRecordsCount > 0 && !isSelectedMonthFuture ? (
+          <div role="status" data-testid="salaries-recalc-banner" className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-100">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm font-semibold">
+                    {computeMutation.isPending
+                      ? "Mise à jour des fiches de salaire…"
+                      : `${staleRecordsCount} fiche${staleRecordsCount > 1 ? "s" : ""} de salaire à recalculer`}
+                  </p>
+                  <p className="text-sm">
+                    {canComputeSalaries
+                      ? "Les pointages ont changé depuis le dernier calcul. Tant que les salaires ne sont pas recalculés, certains montants peuvent apparaître à zéro et les paiements concernés ne peuvent pas être validés."
+                      : "Les pointages ont changé depuis le dernier calcul. Demandez à un responsable autorisé à calculer les salaires de lancer le recalcul : en attendant, certains montants peuvent apparaître à zéro."}
+                  </p>
+                </div>
+              </div>
+              {canComputeSalaries ? (
+                <Button type="button" variant="outline" className="min-h-10 shrink-0 bg-background" disabled={computeMutation.isPending || !isOnline} title={!isOnline ? OFFLINE_ACTION_TITLE : undefined} onClick={() => void runCompute()}>
+                  {computeMutation.isPending ? "Recalcul en cours…" : "Recalculer maintenant"}
+                </Button>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -1274,220 +1265,31 @@ export default function SalariesPage() {
         </section>
       </div>
 
-      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Détails salaire professeur</DialogTitle>
-            <DialogDescription>
-              {detailsRow
-                ? `${detailsRow.teacherName} • ${formatMonthLabel(selectedMonth)} - ${formatSalaryDescriptor(
-                    detailsRow,
-                    detailsMutation.data ?? null
-                  )}`
-                : ""}
-            </DialogDescription>
-          </DialogHeader>
-
-          {detailsMutation.isPending ? (
-            <SalaryTableSkeleton />
-          ) : detailsMutation.data && detailsRow ? (
-            <div className="space-y-4">
-              {detailsMutation.data.teacher.type === "permanent" ? (
-                <>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                      <p className="text-xs text-blue-700">Heures prévues (mois)</p>
-                      <p className="text-lg font-semibold text-blue-900">
-                        {formatDecimalHours(detailsMutation.data.summary.hoursPlanned)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                      <p className="text-xs text-green-700">Heures effectuées (hors HAV)</p>
-                      <p className="text-lg font-semibold text-green-900">
-                        {formatDecimalHours(detailsMutation.data.summary.hoursDone)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                      <p className="text-xs text-red-700">Heures manquées</p>
-                      <p className="text-lg font-semibold text-red-900">
-                        {formatDecimalHours(detailsMutation.data.summary.absenceHours)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                    <div className="rounded-lg border border-violet-200 bg-violet-50 p-3">
-                      <p className="text-xs text-violet-700">Statut paie</p>
-                      <p className="text-base font-semibold text-violet-900">{toDisplayedStatus(detailsRow, detailsMutation.data)}</p>
-                    </div>
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                      <p className="text-xs text-slate-700">Paiement déjà effectué</p>
-                      <p className="text-base font-semibold text-slate-900">
-                        {detailsMutation.data.payment.paidAt ? "Oui" : "Non"}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                      <p className="text-xs text-amber-900">Montant fixe mensuel</p>
-                      <p className="text-base font-semibold text-amber-900">
-                        {detailsMutation.data.teacher.monthlySalary !== null
-                          ? formatFcfa(detailsMutation.data.teacher.monthlySalary)
-                          : "Non renseigné"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 rounded-lg border border-border bg-muted/10 p-3 text-sm">
-                    <p>
-                      Heures restantes prévues:{" "}
-                      <span className="font-semibold">
-                        {formatDecimalHours(detailsMutation.data.summary.remainingPlannedHours)}
-                      </span>
-                    </p>
-                    <p>
-                      Taux de présence du mois:{" "}
-                      <span className="font-semibold">
-                        {detailsMutation.data.summary.hoursPlanned > 0
-                          ? `${Math.round(
-                              (detailsMutation.data.summary.hoursDone / detailsMutation.data.summary.hoursPlanned) * 100
-                            )}%`
-                          : "0%"}
-                      </span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Dernier paiement:{" "}
-                      {detailsMutation.data.payment.paidAt
-                        ? new Date(detailsMutation.data.payment.paidAt).toLocaleString("fr-FR")
-                        : "Aucun paiement enregistré sur la période."}
-                      {detailsMutation.data.payment.paidAt && detailsMutation.data.payment.paidByName
-                        ? ` • par ${detailsMutation.data.payment.paidByName}${detailsMutation.data.payment.paidByRole ? ` (${detailsMutation.data.payment.paidByRole})` : ""}`
-                        : ""}
-                      {detailsMutation.data.payment.paidAt && detailsMutation.data.payment.notes
-                        ? ` • note: ${detailsMutation.data.payment.notes}`
-                        : ""}
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                      <p className="text-xs text-blue-700">Heures totales prévues (mois)</p>
-                      <p className="text-lg font-semibold text-blue-900">
-                        {formatDecimalHours(detailsMutation.data.summary.hoursPlanned)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                      <p className="text-xs text-green-700">Heures effectuées (hors absences et HAV)</p>
-                      <p className="text-lg font-semibold text-green-900">
-                        {formatDecimalHours(detailsMutation.data.summary.hoursDone)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                      <p className="text-xs text-red-700">Heure d'absences/Non validées</p>
-                      <p className="text-lg font-semibold text-red-900">
-                        {formatDecimalHours(detailsMutation.data.summary.absenceHours)}
-                      </p>
-                    </div>
-                    {/* <div className="rounded-lg border border-border bg-card p-3">
-                      <p className="text-xs text-muted-foreground">Montant / heure</p>
-                      <p className="text-lg font-semibold text-foreground">
-                        {detailsMutation.data.teacher.hourlyRate === null
-                          ? "Salaire fixe"
-                          : formatFcfa(detailsMutation.data.teacher.hourlyRate)}
-                      </p>
-                    </div> */}
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                    <div className="rounded-lg border border-violet-200 bg-blue-50 p-3">
-                      <p className="text-xs text-blue-700">Statut paie</p>
-                      <p className="text-base font-semibold text-violet-900">{toDisplayedStatus(detailsRow, detailsMutation.data)}</p>
-                    </div>
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                      <p className="text-xs text-emerald-700">Salaire actuel (heures effectuées hors HAV)</p>
-                      <p className="text-base font-semibold text-emerald-900">
-                        {formatFcfa(detailsMutation.data.summary.currentEarnedAmount ?? 0)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-orange-200 bg-red-50 p-3">
-                      <p className="text-xs text-red-700">Montant retranché (absences et heures non validées)</p>
-                      <p className="text-base font-semibold text-red-900">
-                        {formatFcfa(detailsMutation.data.summary.absenceAmount ?? 0)}
-                      </p>
-                    </div>
-                  </div>
-
-                <div className="space-y-2 rounded-lg border border-border bg-muted/10 p-3 text-sm">
-                  <p>
-                    Salaire déjà payé: <span className="font-semibold">{formatFcfa(detailsMutation.data.summary.amountAlreadyPaid ?? 0)}</span>
-                  </p>
-                  <p>
-                    Salaire restant à payer (depuis le dernier paiement):{" "}
-                    <span className="font-semibold text-red-700">
-                      {formatFcfa(detailsMutation.data.summary.amountRemainingToPayNow ?? 0)}
-                    </span>
-                  </p>
-                  <p>
-                    Salaire à obtenir sur les heures restantes prévues:{" "}
-                    <span className="font-semibold text-blue-700">
-                      {formatFcfa(detailsMutation.data.summary.remainingPotentialAmount ?? 0)}
-                    </span>
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Heures restantes prévues (à faire):{" "}
-                    {formatDecimalHours(detailsMutation.data.summary.remainingPlannedHours)}
-                  </p>
-                  {detailsMutation.data.payment.paidAt ? (
-                    <p className="text-xs text-muted-foreground">
-                      Dernier paiement:{" "}
-                      {new Date(detailsMutation.data.payment.paidAt).toLocaleString("fr-FR")}{" "}
-                      {detailsMutation.data.payment.paidByName
-                        ? `• par ${detailsMutation.data.payment.paidByName}${detailsMutation.data.payment.paidByRole ? ` (${detailsMutation.data.payment.paidByRole})` : ""}`
-                        : ""}
-                      {detailsMutation.data.payment.notes ? ` • note: ${detailsMutation.data.payment.notes}` : ""}
-                    </p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">Aucun paiement enregistré pour cette période.</p>
-                  )}
-                </div>
-                </>
-              )}
-
-              <div className="max-h-64 overflow-y-auto rounded-lg border border-border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="sticky top-0 z-10 bg-background">Date</TableHead>
-                      <TableHead className="sticky top-0 z-10 bg-background">Cours</TableHead>
-                      <TableHead className="sticky top-0 z-10 bg-background">Statut</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {detailsMutation.data.rows.map((row, index) => (
-                      <TableRow key={`${row.date}-${index}`}>
-                        <TableCell className="font-normal">{row.date}</TableCell>
-                        <TableCell className="font-normal">
-                          {row.subject} • {row.className} ({row.startTime}-{row.endTime})
-                        </TableCell>
-                        <TableCell className="font-normal">
-                          <Badge
-                            variant="outline"
-                            className={cn("text-xs font-medium", attendanceStatusMeta[row.attendanceStatus].className)}
-                          >
-                            {attendanceStatusMeta[row.attendanceStatus].label}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">Aucun détail disponible.</p>
-          )}
-        </DialogContent>
-      </Dialog>
+      <SalaryDetailsDialog
+        open={detailsDialogOpen}
+        onOpenChange={setDetailsDialogOpen}
+        row={detailsRow}
+        details={detailsMutation.data ?? null}
+        isLoading={detailsMutation.isPending}
+        isError={detailsMutation.isError}
+        onRetry={() => {
+          if (detailsRow) void openDetailsDialog(detailsRow)
+        }}
+        monthLabel={formatMonthLabel(selectedMonth)}
+        canMarkPaid={canMarkSalaryAsPaid}
+        canExport={canExportSalaries}
+        isExporting={exportBulkMutation.isPending}
+        onExport={() => {
+          if (!detailsRow) return
+          exportBulkMutation.mutate({ periodFrom: selectedMonth, periodTo: selectedMonth, teacherId: detailsRow.teacherId })
+        }}
+        onValidatePayment={() => {
+          if (!detailsRow || !canMarkSalaryAsPaid) return
+          const target = detailsRow
+          setDetailsDialogOpen(false)
+          void openMarkPaidDialog(target)
+        }}
+      />
 
       <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
         <DialogContent className="sm:max-w-2xl">
@@ -1632,15 +1434,36 @@ export default function SalariesPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={payDialogOpen}
+      <MarkPaidDialog
+        key={selectedSalaryRow?.salaryRecordId ?? "mark-paid-none"}
+        open={payDialogOpen && selectedSalaryRow?.teacherType === "vacataire"}
         onOpenChange={(open) => {
-          setPayDialogOpen(open)
-          if (!open) {
-            setPayDialogDetails(null)
-            setPayDialogDetailsLoading(false)
-            setHoursToPayInput("")
-          }
+          if (!open) closePayDialog()
+        }}
+        row={selectedSalaryRow}
+        details={payDialogDetails}
+        isLoading={payDialogDetailsLoading}
+        isError={payDialogDetailsError}
+        onRetry={() => {
+          if (selectedSalaryRow) void loadPayDialogDetails(selectedSalaryRow.teacherId, payTargetMonth)
+        }}
+        monthLabel={formatMonthLabel(payTargetMonth)}
+        isSubmitting={markPaidMutation.isPending}
+        onConfirm={async ({ hoursToPay, notes }) => {
+          // Vacataire : salaryRecordId est garanti non-null (openMarkPaidDialog l'assure via le fallback compute).
+          if (!selectedSalaryRow?.salaryRecordId) return
+          await runMarkPaid({
+            recordId: selectedSalaryRow.salaryRecordId,
+            notes,
+            hoursToPay,
+          })
+        }}
+      />
+
+      <Dialog
+        open={payDialogOpen && selectedSalaryRow?.teacherType === "permanent"}
+        onOpenChange={(open) => {
+          if (!open) closePayDialog()
         }}
       >
         <DialogContent>
@@ -1654,33 +1477,31 @@ export default function SalariesPage() {
           </DialogHeader>
 
           <div className="space-y-3">
-            {selectedSalaryRow?.teacherType === "permanent" ? (
-              <div className="space-y-2">
-                <label htmlFor="pay-target-month" className="text-sm font-medium">
-                  Mois à payer
-                </label>
-                <Select
-                  value={payTargetMonth}
-                  onValueChange={(value) => {
-                    setPayTargetMonth(value)
-                    if (selectedSalaryRow) {
-                      void loadPayDialogDetails(selectedSalaryRow.teacherId, value)
-                    }
-                  }}
-                >
-                  <SelectTrigger id="pay-target-month">
-                    <SelectValue placeholder="Sélectionner un mois" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {payMonthOptions.map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {formatMonthLabel(option)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : null}
+            <div className="space-y-2">
+              <label htmlFor="pay-target-month" className="text-sm font-medium">
+                Mois à payer
+              </label>
+              <Select
+                value={payTargetMonth}
+                onValueChange={(value) => {
+                  setPayTargetMonth(value)
+                  if (selectedSalaryRow) {
+                    void loadPayDialogDetails(selectedSalaryRow.teacherId, value)
+                  }
+                }}
+              >
+                <SelectTrigger id="pay-target-month">
+                  <SelectValue placeholder="Sélectionner un mois" />
+                </SelectTrigger>
+                <SelectContent>
+                  {payMonthOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {formatMonthLabel(option)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="rounded-lg border border-border bg-muted/10 p-3 text-sm">
               {payDialogDetailsLoading ? (
                 <p className="text-xs text-muted-foreground">Chargement des informations de paiement...</p>
@@ -1704,59 +1525,7 @@ export default function SalariesPage() {
                 <p className="text-xs text-muted-foreground">Aucun paiement précédent enregistré sur cette période.</p>
               )}
             </div>
-            {selectedSalaryRow?.teacherType === "vacataire" && payDialogDetails ? (
-              <div className="space-y-2 rounded-lg border border-border bg-muted/10 p-3 text-sm">
-                <p>
-                  Nombre d'heure prévue ce mois :{" "}
-                  <span className="font-semibold">{formatDecimalHours(payDialogDetails.summary.hoursPlanned)}</span>
-                </p>
-                <p>
-                  Nombre d'heure effectué :{" "}
-                  <span className="font-semibold">{formatDecimalHours(payDialogDetails.summary.hoursDone)}</span>
-                </p>
-                <p>
-                  Nombre d'heure déjà payé : <span className="font-semibold">{formatDecimalHours(payHoursAlreadyPaid)}</span>
-                </p>
-                <p>
-                  Nombre d'heure restant à payer :{" "}
-                  <span className="font-semibold text-red-700">{formatHours(payHoursRemaining)} ({formatDecimalHours(payHoursRemaining)})</span>
-                </p>
-                {/* <p>
-                  Reste sur heures déjà effectuées :{" "}
-                  <span className="font-semibold">
-                    {formatDecimalHours(payHoursRemainingFromAlreadyDone)} ({formatFcfa(payAmountRemainingFromAlreadyDone)})
-                  </span>
-                </p>
-                <p>
-                  Nouvelles heures depuis dernier paiement :{" "}
-                  <span className="font-semibold">
-                    {formatDecimalHours(payHoursRemainingFromNew)} ({formatFcfa(payAmountRemainingFromNew)})
-                  </span>
-                </p> */}
-                <p>
-                  Reste à payer :{" "}
-                  <span className="font-semibold">{formatFcfa(payDialogDetails?.summary.amountRemainingToPayNow ?? selectedSalaryRow.totalFcfa ?? 0)}</span>
-                </p>
-              </div>
-            ) : null}
-            {selectedSalaryRow?.teacherType === "vacataire" ? (
-              <div className="space-y-2">
-                <label htmlFor="hours-to-pay" className="text-sm font-medium">
-                  Saisissez le nombre d'heure que vous souhaitez payer
-                </label>
-                <Input
-                  id="hours-to-pay"
-                  inputMode="decimal"
-                  placeholder="Ex: 10.5"
-                  value={hoursToPayInput}
-                  onChange={(event) => setHoursToPayInput(event.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Montant : <span className="font-semibold">{formatFcfa(payAmountForInput)}</span>
-                </p>
-              </div>
-            ) : null}
-            {selectedSalaryRow?.teacherType === "permanent" && payDialogDetails?.summary.status === "paid" ? (
+            {payDialogDetails?.summary.status === "paid" ? (
               <p className="text-xs text-red-700">
                 Ce mois est déjà payé. Le système bloque les doublons de paiement mensuel.
               </p>
@@ -1774,76 +1543,32 @@ export default function SalariesPage() {
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setPayDialogOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => closePayDialog()}>
               Annuler
             </Button>
             <Button
               type="button"
               onClick={() => {
                 if (!selectedSalaryRow) return
-
-                if (selectedSalaryRow.teacherType === "permanent") {
-                  // Déclenche la mutation qui encapsule compute → getSummary → markPaid
-                  computeAndMarkPaidMutation.mutate({
-                    teacherId: selectedSalaryRow.teacherId,
-                    month: payTargetMonth,
-                    notes: paymentNotes,
-                  })
-                  return
-                }
-
-                // Vacataire : salaryRecordId est garanti non-null ici
-                // (openMarkPaidDialog l'assure via le fallback compute)
-                if (!selectedSalaryRow.salaryRecordId) return
-
-                if (parsedHoursToPay === null) {
-                  toast({
-                    title: "Saisie invalide",
-                    description: "Veuillez saisir un nombre d'heures valide.",
-                    variant: "destructive",
-                  })
-                  return
-                }
-
-                if (parsedHoursToPay - payHoursRemaining > 0.0001) {
-                  toast({
-                    title: "Saisie invalide",
-                    description: "Le nombre d'heures dépasse le restant à payer.",
-                    variant: "destructive",
-                  })
-                  return
-                }
-
-                void runMarkPaid({
-                  recordId: selectedSalaryRow.salaryRecordId,
+                // Déclenche la mutation qui encapsule compute → getSummary → markPaid
+                computeAndMarkPaidMutation.mutate({
+                  teacherId: selectedSalaryRow.teacherId,
+                  month: payTargetMonth,
                   notes: paymentNotes,
-                  hoursToPay: parsedHoursToPay,
                 })
               }}
               disabled={
-                // On désactive si l'une ou l'autre mutation est en cours.
                 // Le permanent passe par computeAndMarkPaidMutation qui reste
                 // online-only (compute + GET intermédiaire pour récupérer le
                 // salaryRecordId, impossible offline).
-                markPaidMutation.isPending ||
                 computeAndMarkPaidMutation.isPending ||
                 !selectedSalaryRow ||
-                (selectedSalaryRow.teacherType === "permanent" && !isOnline) ||
-                (selectedSalaryRow.teacherType !== "permanent" && !selectedSalaryRow.salaryRecordId) ||
-                (selectedSalaryRow.teacherType === "vacataire" && parsedHoursToPay === null) ||
-                (selectedSalaryRow.teacherType === "permanent" &&
-                  payDialogDetails?.summary.status === "paid" &&
-                  !payDialogDetails?.summary.isPartiallyPaid)
+                !isOnline ||
+                (payDialogDetails?.summary.status === "paid" && !payDialogDetails?.summary.isPartiallyPaid)
               }
-              title={
-                selectedSalaryRow?.teacherType === "permanent" && !isOnline
-                  ? OFFLINE_ACTION_TITLE
-                  : undefined
-              }
+              title={!isOnline ? OFFLINE_ACTION_TITLE : undefined}
             >
-              {(markPaidMutation.isPending || computeAndMarkPaidMutation.isPending)
-                ? "En cours…"
-                : "Confirmer le paiement"}
+              {computeAndMarkPaidMutation.isPending ? "En cours…" : "Confirmer le paiement"}
             </Button>
           </DialogFooter>
         </DialogContent>

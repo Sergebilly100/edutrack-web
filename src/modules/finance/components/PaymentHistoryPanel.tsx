@@ -1,13 +1,12 @@
 import { dateRangeIssue, updateDateRange } from "@/shared/lib/date-validation"
 import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, Ban, ChevronLeft, ChevronRight, Download, Loader2, ReceiptText } from "lucide-react"
+import { ChevronLeft, ChevronRight, Download, Loader2, MoreHorizontal, ReceiptText } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -16,11 +15,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import { listClasses, listLevels } from "@/modules/academic/academic.api"
+import { ConfirmActionDialog } from "@/shared/components/ConfirmActionDialog"
 import { EmptyState } from "@/shared/components/EmptyState"
+import { KeyFigure } from "@/shared/components/KeyFigure"
+import { ProgressMeter } from "@/shared/components/ProgressMeter"
+import { StatusPill } from "@/shared/components/StatusPill"
+import { usePermissions } from "@/shared/hooks/usePermissions"
+import { getInitials } from "@/shared/utils/avatar"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
 import { formatFcfa } from "@/shared/utils/formatting"
 import { FINANCE_PATHS } from "../finance.routes"
+import { buildFinancialGap, formatPaymentDate, hasActiveDiscount, paymentPlural, sortPaymentsMostRecentFirst, summarizeConfirmedPayments } from "../payment-detail.helpers"
 import { cancelPayment, getFinancialStatus, getPaymentHistory, getStudentAccountStatement, requestPaymentReceipt, type FinancialCacheStatus, type Payment } from "../finance.api"
 
 const HISTORY_PAGE_SIZE = 20
@@ -32,7 +38,7 @@ const statusLabels: Record<FinancialCacheStatus, string> = { up_to_date: "À jou
 const statusClassNames: Record<FinancialCacheStatus, string> = { up_to_date: "border-green-200 bg-green-50 text-green-700", late: "border-amber-200 bg-amber-50 text-amber-700"}
 const paymentStatusLabels: Record<Payment["status"], string> = { confirmed: "Confirmé", cancelled: "Annulé" }
 const paymentStatusClassNames: Record<Payment["status"], string> = { confirmed: "border-green-200 bg-green-50 text-green-700", cancelled: "border-red-200 bg-red-50 text-red-700" }
-const formatDate = (value: string): string => value ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "Date inconnue"
+const paymentStatusTones: Record<Payment["status"], "success" | "danger"> = { confirmed: "success", cancelled: "danger" }
 
 type PaymentHistoryPanelProps = { schoolYearId: string; schoolYearLabel: string; canCancel: boolean; studentId?: string }
 
@@ -276,26 +282,92 @@ function StudentPaymentDetails({ schoolYearId, schoolYearLabel, canCancel, stude
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const navigate = useNavigate()
+  const { hasPermission } = usePermissions()
+  // Mêmes codes que les routes API : POST /payments (payments.record), POST /payments/:id/receipt (payments.view), POST /payments/:id/cancel (payments.cancel).
+  const canRecord = hasPermission("payments.record")
+  const canDownloadReceipt = hasPermission("payments.view")
   const [cancelTarget, setCancelTarget] = useState<string | null>(null)
   const [reason, setReason] = useState("")
   const statusQuery = useQuery({ queryKey: ["finance", "financial-status", studentId, schoolYearId], queryFn: () => getFinancialStatus(studentId, schoolYearId) })
   const paymentsQuery = useQuery({ queryKey: ["finance", "account-statement", studentId, schoolYearId], queryFn: () => getStudentAccountStatement(studentId, schoolYearId) })
   const receipt = usePdfExportJob({ fallbackFileName: "recu-paiement.pdf", startedMessage: "Le reçu est en cours de préparation.", successMessage: "Reçu téléchargé", errorMessage: "Impossible de générer le reçu." })
   const cancelMutation = useMutation({ mutationFn: ({ id, reason: cancellationReason }: { id: string; reason: string }) => cancelPayment(id, cancellationReason), onSuccess: async () => { await Promise.all([queryClient.invalidateQueries({ queryKey: ["finance", "account-statement", studentId, schoolYearId] }), queryClient.invalidateQueries({ queryKey: ["finance", "financial-status", studentId, schoolYearId] }), queryClient.invalidateQueries({ queryKey: ["finance", "payment-history"] })]); setCancelTarget(null); setReason(""); toast({ title: "Paiement annulé", description: "La transaction reste visible dans l’historique." }) }, onError: (error) => toast({ title: "Annulation impossible", description: error instanceof Error ? error.message : "Réessayez.", variant: "destructive" }) })
-  const payments = paymentsQuery.data?.movements ?? []
+  const payments = sortPaymentsMostRecentFirst(paymentsQuery.data?.movements ?? [])
+  const summary = summarizeConfirmedPayments(payments)
+  const student = paymentsQuery.data?.student
+  const status = statusQuery.data
+  const gap = status ? buildFinancialGap(status) : null
+  const startPayment = () => navigate(`${FINANCE_PATHS.entry}?schoolYearId=${schoolYearId}`, { state: { payFor: { studentId, search: student?.matricule ?? student?.name ?? "" } } })
+  const closeCancel = (open: boolean) => { if (!open) { setCancelTarget(null); setReason("") } }
 
-  return <section className="space-y-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-medium">Détail financier</h2><p className="text-sm text-muted-foreground">Année scolaire {schoolYearLabel}</p>{paymentsQuery.data ? <p className="mt-1 text-sm text-muted-foreground">Élève : <span className="font-medium text-foreground">{paymentsQuery.data.student.name}</span> · Matricule : <span className="font-medium text-foreground">{paymentsQuery.data.student.matricule ?? "Non renseigné"}</span></p> : null}</div><Button type="button" variant="outline" className="min-h-12" onClick={() => navigate(`${FINANCE_PATHS.history}?schoolYearId=${schoolYearId}`)}>Retour à l’historique</Button></div>
+  return <section className="space-y-5">
     {statusQuery.isError || paymentsQuery.isError ? <QueryErrorState message="Impossible de charger le dossier financier de cet élève." onRetry={() => { void statusQuery.refetch(); void paymentsQuery.refetch() }} isRetrying={statusQuery.isFetching || paymentsQuery.isFetching} /> : null}
-    {statusQuery.data ? <div className="grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-4"><Metric title="Total dû" value={formatFcfa(statusQuery.data.totalDue)} prominent /><Metric title="Cumul versé" value={formatFcfa(statusQuery.data.confirmedPaid)} /><Metric title="Reste à payer" value={formatFcfa(statusQuery.data.remainingDue)} /><div className="bg-card p-4"><p className="text-xs text-muted-foreground">Situation à date</p><Badge variant="outline" className={statusQuery.data.standing === "late" ? "mt-2 border-amber-200 bg-amber-50 text-amber-700" : "mt-2 border-green-200 bg-green-50 text-green-700"}>{statusQuery.data.standing === "late" ? "En retard" : "À jour"}</Badge></div></div> : null}
-    {statusQuery.data?.standing === "late" ? <Alert variant={"destructive"}><AlertTriangle className="h-4 w-4" /><AlertDescription>Le cumul versé est inférieur au seuil attendu à ce jour ({formatFcfa(statusQuery.data.cumulativeExpectedAtDate)}).</AlertDescription></Alert> : null}
-    {paymentsQuery.isLoading ? <div className="space-y-2">{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-28 w-full" />)}</div> : null}
+
+    <div className="flex flex-col gap-4 rounded-xl border bg-card p-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-center gap-4">
+        <span aria-hidden="true" className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-muted text-base font-semibold text-muted-foreground">{student ? getInitials(student.name) : "…"}</span>
+        <div className="min-w-0">
+          {student ? <><h2 className="truncate text-xl font-semibold">{student.name}</h2><p className="text-sm text-muted-foreground">Matricule {student.matricule ?? "non renseigné"} · Année {schoolYearLabel}</p></> : <div className="space-y-2" aria-busy="true"><Skeleton className="h-6 w-48" /><Skeleton className="h-4 w-64" /></div>}
+        </div>
+      </div>
+      {canRecord ? <Button type="button" className="min-h-12" onClick={startPayment}>Enregistrer un paiement</Button> : null}
+    </div>
+
+    {statusQuery.isLoading ? <Skeleton className="h-44 w-full rounded-xl" /> : null}
+    {status && gap ? <div className="rounded-xl border bg-card p-5">
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <KeyFigure variant="plain" size="lg" label="Total dû" value={formatFcfa(status.totalDue)} hint={hasActiveDiscount(status) ? `Remise : ${formatFcfa(status.discountAmount)}` : undefined} />
+        <KeyFigure variant="plain" size="lg" label="Cumul versé" value={formatFcfa(status.confirmedPaid)} />
+        <KeyFigure variant="plain" size="lg" label="Reste à payer" value={formatFcfa(status.remainingDue)} />
+        <div><p className="text-xs font-medium text-muted-foreground">Situation à date</p><div className="mt-2"><StatusPill tone={gap.isLate ? "warning" : "success"} className="px-4 py-1.5 text-sm">{gap.isLate ? "En retard" : "À jour"}</StatusPill></div></div>
+      </div>
+      <ProgressMeter className="mt-5" percent={gap.percentPaid} label="Part du total dû réglée" caption={`${gap.percentPaid} % réglé`} aside={gap.isLate ? <span className="font-medium text-amber-800 dark:text-amber-300">{`Seuil attendu à ce jour : ${formatFcfa(gap.threshold)} · il manque ${formatFcfa(gap.missing)}`}</span> : null} />
+    </div> : null}
+
+    <div className="flex flex-wrap items-baseline justify-between gap-2"><h3 className="text-xl font-semibold">Paiements</h3>{paymentsQuery.data ? <p className="text-sm text-muted-foreground">{paymentPlural(summary.count)} · {formatFcfa(summary.total)}</p> : null}</div>
+    {paymentsQuery.isLoading ? <div className="space-y-2">{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-14 w-full" />)}</div> : null}
     {!paymentsQuery.isLoading && payments.length === 0 && !paymentsQuery.isError ? <EmptyState icon={ReceiptText} title="Aucun paiement" message="Aucun versement n’est enregistré pour cette année scolaire." /> : null}
-    {payments.length > 0 ? <div className="space-y-3">{payments.map((payment) => <PaymentCard key={payment.id} payment={payment} canCancel={canCancel} isReceiptRunning={receipt.isRunning} isCancelPending={cancelMutation.isPending} cancelTarget={cancelTarget} reason={reason} onRequestReceipt={() => void receipt.launch(() => requestPaymentReceipt(payment.id))} onStartCancel={() => { setCancelTarget(payment.id); setReason("") }} onCancel={() => setCancelTarget(null)} onReasonChange={setReason} onConfirmCancel={() => cancelMutation.mutate({ id: payment.id, reason: reason.trim() })} />)}</div> : null}
+    {payments.length > 0 ? <>
+      <div className="hidden rounded-xl border bg-card md:block">
+        <Table>
+          <TableHeader><TableRow><TableHead className="px-4">Date</TableHead><TableHead>Mode</TableHead><TableHead>Reçu</TableHead><TableHead>Réf. école</TableHead><TableHead className="text-right">Montant</TableHead><TableHead className="text-right">Reste après</TableHead><TableHead>Statut</TableHead><TableHead><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
+          <TableBody>{payments.map((payment) => <TableRow key={payment.id} className={payment.status === "cancelled" ? "bg-muted/30" : undefined}>
+            <TableCell className="px-4 py-4"><PaymentDate value={payment.paymentDate} /></TableCell>
+            <TableCell className="py-4"><p>{methodLabels[payment.method]}</p><p className="text-sm text-muted-foreground">{sourceLabels[payment.source]}</p></TableCell>
+            <TableCell className="py-4 tabular-nums">{payment.receiptNumber}</TableCell>
+            <TableCell className="py-4">{payment.schoolReceiptReference ?? "—"}</TableCell>
+            <TableCell className="py-4 text-right font-semibold tabular-nums">{formatFcfa(payment.amount)}</TableCell>
+            <TableCell className="py-4 text-right tabular-nums text-muted-foreground">{formatFcfa(payment.balanceAfter)}</TableCell>
+            <TableCell className="py-4"><StatusPill tone={paymentStatusTones[payment.status]}>{paymentStatusLabels[payment.status]}</StatusPill>{payment.cancellationReason ? <p className="mt-1 max-w-48 text-xs text-muted-foreground">Motif : {payment.cancellationReason}</p> : null}</TableCell>
+            <TableCell className="py-4"><PaymentActions payment={payment} canDownloadReceipt={canDownloadReceipt} canCancel={canCancel} isReceiptRunning={receipt.isRunning} onReceipt={() => void receipt.launch(() => requestPaymentReceipt(payment.id))} onCancel={() => { setCancelTarget(payment.id); setReason("") }} /></TableCell>
+          </TableRow>)}</TableBody>
+        </Table>
+      </div>
+      <ul className="space-y-3 md:hidden">{payments.map((payment) => <li key={payment.id} className={`rounded-xl border bg-card p-4 ${payment.status === "cancelled" ? "bg-muted/30" : ""}`}>
+        <div className="flex items-start justify-between gap-3"><div><p className="text-lg font-semibold tabular-nums">{formatFcfa(payment.amount)}</p><PaymentDate value={payment.paymentDate} /></div><StatusPill tone={paymentStatusTones[payment.status]}>{paymentStatusLabels[payment.status]}</StatusPill></div>
+        <p className="mt-2 text-sm">{methodLabels[payment.method]} · <span className="text-muted-foreground">{sourceLabels[payment.source]}</span></p>
+        <p className="text-xs text-muted-foreground">Reçu {payment.receiptNumber}{payment.schoolReceiptReference ? ` · Réf. école ${payment.schoolReceiptReference}` : ""}</p>
+        <p className="mt-1 text-sm text-muted-foreground">Reste après : {formatFcfa(payment.balanceAfter)}</p>
+        {payment.cancellationReason ? <p className="mt-1 text-xs text-muted-foreground">Motif : {payment.cancellationReason}</p> : null}
+        <div className="mt-3 flex justify-end"><PaymentActions payment={payment} canDownloadReceipt={canDownloadReceipt} canCancel={canCancel} isReceiptRunning={receipt.isRunning} onReceipt={() => void receipt.launch(() => requestPaymentReceipt(payment.id))} onCancel={() => { setCancelTarget(payment.id); setReason("") }} /></div>
+      </li>)}</ul>
+    </> : null}
+
+    <ConfirmActionDialog open={cancelTarget !== null} onOpenChange={closeCancel} variant="destructive" title="Annuler le paiement" description="Cette action est définitive. Le paiement restera visible avec votre justification." confirmLabel="Confirmer l’annulation" pendingLabel="Annulation…" isPending={cancelMutation.isPending} disabled={!reason.trim()} onConfirm={() => { if (cancelTarget) cancelMutation.mutate({ id: cancelTarget, reason: reason.trim() }) }}>
+      <div className="space-y-1.5"><Label htmlFor="cancel-reason">Justification obligatoire</Label><Textarea id="cancel-reason" value={reason} maxLength={1000} onChange={(event) => setReason(event.target.value)} placeholder="Ex. paiement attribué au mauvais élève" /></div>
+    </ConfirmActionDialog>
   </section>
 }
 
-function Metric({ title, value, prominent = false }: { title: string; value: string; prominent?: boolean }) { return <div className={prominent ? "bg-blue-500 p-4 text-blue-50" : "bg-card p-4"}><p className={prominent ? "text-xs text-blue-100" : "text-xs text-muted-foreground"}>{title}</p><p className="mt-1 text-xl font-semibold tabular-nums">{value}</p></div> }
+function PaymentDate({ value }: { value: string }) {
+  const { date, time } = formatPaymentDate(value)
+  return <><p className="font-semibold">{date}</p>{time ? <p className="text-sm text-muted-foreground">{time}</p> : null}</>
+}
 
-function PaymentCard({ payment, canCancel, isReceiptRunning, isCancelPending, cancelTarget, reason, onRequestReceipt, onStartCancel, onCancel, onReasonChange, onConfirmCancel }: { payment: Payment & { balanceAfter: number }; canCancel: boolean; isReceiptRunning: boolean; isCancelPending: boolean; cancelTarget: string | null; reason: string; onRequestReceipt: () => void; onStartCancel: () => void; onCancel: () => void; onReasonChange: (value: string) => void; onConfirmCancel: () => void }) {
-  return <Card className={payment.status === "cancelled" ? "bg-muted/30" : ""}><CardContent className="p-4 sm:p-5"><div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0 space-y-1"><div className="flex flex-wrap items-center gap-2"><p className="text-lg font-semibold tabular-nums">{formatFcfa(payment.amount)}</p><Badge variant="outline" className={payment.status === "cancelled" ? "border-red-200 bg-red-50 text-red-700" : "border-green-200 bg-green-50 text-green-700"}>{payment.status === "cancelled" ? "Annulé" : "Confirmé"}</Badge></div><p className="text-sm text-muted-foreground">{formatDate(`${payment.paymentDate}T00:00:00`)} · {methodLabels[payment.method]} · {sourceLabels[payment.source]}</p><p className="text-xs text-muted-foreground">Reçu {payment.receiptNumber}{payment.schoolReceiptReference ? ` · Réf. école ${payment.schoolReceiptReference}` : ""}</p><p className="text-sm font-medium text-blue-500 dark:text-blue-200">Reste à payer après mouvement : {formatFcfa(payment.balanceAfter)}</p>{payment.cancellationReason ? <p className="mt-2 text-sm text-red-700">Motif d’annulation : {payment.cancellationReason}</p> : null}</div><div className="flex shrink-0 flex-wrap gap-2">{payment.status !== "cancelled" ? <Button type="button" variant="outline" className="min-h-12" disabled={isReceiptRunning} onClick={onRequestReceipt}>{isReceiptRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Reçu</Button> : null}{canCancel && payment.status !== "cancelled" ? <Button type="button" variant="outline" className="min-h-12 text-red-700 hover:bg-red-50 hover:text-red-800" onClick={onStartCancel}><Ban className="mr-2 h-4 w-4" />Annuler</Button> : null}</div></div>{cancelTarget === payment.id ? <div className="mt-4 space-y-3 rounded-lg border border-red-200 bg-red-50/60 p-4 dark:border-red-900 dark:bg-red-950/20"><div className="flex gap-2 text-sm text-red-800 dark:text-red-200"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><p>Cette action est définitive. Le paiement restera visible avec votre justification.</p></div><div className="space-y-1.5"><Label htmlFor={`cancel-${payment.id}`}>Justification obligatoire</Label><Textarea id={`cancel-${payment.id}`} value={reason} maxLength={1000} onChange={(event) => onReasonChange(event.target.value)} placeholder="Ex. paiement attribué au mauvais élève" /></div><div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="ghost" className="min-h-12" onClick={onCancel}>Conserver le paiement</Button><Button type="button" variant="destructive" className="min-h-12" disabled={!reason.trim() || isCancelPending} onClick={onConfirmCancel}>{isCancelPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Confirmer l’annulation</Button></div></div> : null}</CardContent></Card>
+function PaymentActions({ payment, canDownloadReceipt, canCancel, isReceiptRunning, onReceipt, onCancel }: { payment: Payment; canDownloadReceipt: boolean; canCancel: boolean; isReceiptRunning: boolean; onReceipt: () => void; onCancel: () => void }) {
+  const confirmed = payment.status !== "cancelled"
+  return <div className="flex items-center justify-end gap-2">
+    {confirmed && canDownloadReceipt ? <Button type="button" variant="outline" className="min-h-10" disabled={isReceiptRunning} onClick={onReceipt}>{isReceiptRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="mr-2 h-4 w-4" aria-hidden="true" />}Reçu</Button> : null}
+    {confirmed && canCancel ? <DropdownMenu><DropdownMenuTrigger asChild><Button type="button" variant="outline" size="icon" className="min-h-10 w-10" aria-label={`Autres actions pour le reçu ${payment.receiptNumber}`}><MoreHorizontal className="h-4 w-4" aria-hidden="true" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem className="min-h-10 font-medium text-red-700 focus:bg-red-50 focus:text-red-800 dark:text-red-300 dark:focus:bg-red-950" onSelect={onCancel}>Annuler le paiement</DropdownMenuItem></DropdownMenuContent></DropdownMenu> : null}
+  </div>
 }

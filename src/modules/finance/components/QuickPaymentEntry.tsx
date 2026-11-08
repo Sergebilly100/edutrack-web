@@ -37,13 +37,15 @@ const methodLabels: Record<PaymentMethod, string> = {
 type QuickPaymentEntryProps = {
   schoolYearId: string
   schoolYearLabel: string
+  /** Élève pré-sélectionné sur la première ligne (ex. depuis le détail financier). */
+  initialStudent?: StudentItem | null
 }
 
-export function QuickPaymentEntry({ schoolYearId, schoolYearLabel }: QuickPaymentEntryProps) {
+export function QuickPaymentEntry({ schoolYearId, schoolYearLabel, initialStudent = null }: QuickPaymentEntryProps) {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const [method, setMethod] = useState<PaymentMethod>("cash")
-  const [rows, setRows] = useState<EntryRow[]>([newRow()])
+  const [rows, setRows] = useState<EntryRow[]>(() => [{ ...newRow(), student: initialStudent }])
   const inputRefs = useRef(new Map<string, HTMLInputElement>())
   const pendingRowIds = useRef(new Set<string>())
 

@@ -28,6 +28,8 @@ export type SalarySummaryItem = {
   salaryRecordId: string | null
   isPartiallyPaid: boolean
   paidAt: string | null
+  /** La fiche manque ou ses heures ne correspondent plus aux pointages : un recalcul est nécessaire. */
+  needsRecalculation: boolean
 }
 
 export type SalaryUnpaidAlertMonth = {
@@ -185,6 +187,7 @@ const parseSalaryItem = (value: unknown): SalarySummaryItem => {
     salaryRecordId: asNullableString(row.salaryRecordId),
     isPartiallyPaid: Boolean(row.isPartiallyPaid),
     paidAt: asNullableString(row.paidAt),
+    needsRecalculation: row.needsRecalculation === true,
   }
 }
 

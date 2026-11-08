@@ -353,7 +353,8 @@ export const updateSchoolInfo = async (payload: {
   city?: string
   address?: string
   teachingType?: TeachingType
-  logoUrl?: string | null
+  /** Seul le retrait (null) est accepté par l'API : tout nouveau logo passe par l'import. */
+  logoUrl?: null
   allowTeacherQrSkip?: boolean
   evaluationGraceDays?: number
   evaluationLateDays?: number
@@ -370,17 +371,6 @@ export const updateSchoolInfo = async (payload: {
     ...(payload.evaluationGraceDays !== undefined ? { evaluationGraceDays: payload.evaluationGraceDays } : {}),
     ...(payload.evaluationLateDays !== undefined ? { evaluationLateDays: payload.evaluationLateDays } : {}),
   })
-}
-
-export const uploadSchoolLogo = async (file: File): Promise<string> => {
-  const formData = new FormData()
-  formData.append("file", file)
-  const response = await apiClient.post<{ logoUrl: string }>(
-    "/permissions/config/school/logo",
-    formData,
-    { headers: { "Content-Type": "multipart/form-data" } }
-  )
-  return response.data.logoUrl
 }
 
 export const updateSchoolLimit = async (maxAdminPositions: number): Promise<void> => {
@@ -471,13 +461,122 @@ export const updatePosition = async (payload: {
   return parsePosition(envelope["position"])
 }
 
-/** Upload du cachet ou de la signature (bulletins PDF). kind = stamp | signature */
-export const uploadSchoolSeal = async (kind: "stamp" | "signature", file: File): Promise<string> => {
+// ─── Identité visuelle des documents (logo, cachet et signature du chef de l'établissement) ───
+
+export type SchoolImageMeta = {
+  fileName: string | null
+  mime: string | null
+  sizeBytes: number | null
+  width: number | null
+  height: number | null
+  updatedAt: string | null
+}
+
+export type SchoolIdentity = {
+  logo: (SchoolImageMeta & { url: string }) | null
+  seal: (SchoolImageMeta & { removeWhite: boolean }) | null
+  /** Anciennes images séparées (toujours lisibles, supprimables). */
+  legacy: { stamp: boolean; signature: boolean }
+}
+
+export type LegacySealKind = "stamp" | "signature"
+export type SchoolImageKind = "logo" | "seal"
+
+const IDENTITY_BASE = "/permissions/config/school"
+/** Un envoi de 2 Mo sur réseau mobile dépasse le délai de 15 s des requêtes JSON. */
+const UPLOAD_TIMEOUT_MS = 60_000
+
+const multipart = (file: File): FormData => {
   const formData = new FormData()
   formData.append("file", file)
-  const response = await apiClient.post<{ url: string }>("/permissions/config/school/seal", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-    params: { kind },
+  return formData
+}
+
+export const fetchSchoolIdentity = async (): Promise<SchoolIdentity> => {
+  const response = await apiClient.get<SchoolIdentity>(`${IDENTITY_BASE}/identity`)
+  return response.data
+}
+
+/** Valide et traite le fichier côté serveur sans rien enregistrer ; renvoie l'image à prévisualiser. */
+export const previewSchoolImage = async (
+  kind: SchoolImageKind,
+  file: File,
+  removeWhite: boolean,
+  signal?: AbortSignal
+): Promise<Blob> => {
+  const response = await apiClient.post<Blob>(`${IDENTITY_BASE}/image-preview`, multipart(file), {
+    params: { kind, removeWhite },
+    responseType: "blob",
+    timeout: UPLOAD_TIMEOUT_MS,
+    signal,
   })
-  return response.data.url
+  return response.data
+}
+
+export const saveSchoolSeal = async (
+  file: File,
+  removeWhite: boolean,
+  onProgress?: (percent: number) => void
+): Promise<SchoolIdentity> => {
+  const response = await apiClient.put<SchoolIdentity>(`${IDENTITY_BASE}/seal`, multipart(file), {
+    params: { removeWhite },
+    timeout: UPLOAD_TIMEOUT_MS,
+    onUploadProgress: (event) => {
+      if (event.total) onProgress?.(Math.round((event.loaded / event.total) * 100))
+    },
+  })
+  return response.data
+}
+
+export const setSealRemoveWhite = async (removeWhite: boolean): Promise<SchoolIdentity> => {
+  const response = await apiClient.patch<SchoolIdentity>(`${IDENTITY_BASE}/seal/background`, { removeWhite })
+  return response.data
+}
+
+export const deleteSchoolSeal = async (): Promise<SchoolIdentity> => {
+  const response = await apiClient.delete<SchoolIdentity>(`${IDENTITY_BASE}/seal`)
+  return response.data
+}
+
+/** Lecture authentifiée (jamais d'URL publique) : le navigateur reçoit un Blob. */
+export const fetchSealImage = async (variant: "processed" | "original" = "processed"): Promise<Blob> => {
+  const response = await apiClient.get<Blob>(`${IDENTITY_BASE}/seal/image`, {
+    params: { variant },
+    responseType: "blob",
+  })
+  return response.data
+}
+
+export const fetchLegacySealImage = async (kind: LegacySealKind): Promise<Blob> => {
+  const response = await apiClient.get<Blob>(`${IDENTITY_BASE}/seal/legacy/${kind}/image`, { responseType: "blob" })
+  return response.data
+}
+
+export const deleteLegacySeal = async (kind: LegacySealKind): Promise<SchoolIdentity> => {
+  const response = await apiClient.delete<SchoolIdentity>(`${IDENTITY_BASE}/seal/legacy/${kind}`)
+  return response.data
+}
+
+export const uploadSchoolLogo = async (
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<SchoolIdentity> => {
+  const response = await apiClient.post<SchoolIdentity>(`${IDENTITY_BASE}/logo`, multipart(file), {
+    timeout: UPLOAD_TIMEOUT_MS,
+    onUploadProgress: (event) => {
+      if (event.total) onProgress?.(Math.round((event.loaded / event.total) * 100))
+    },
+  })
+  return response.data
+}
+
+/** Le serveur télécharge l'image UNE fois, la valide et en conserve une copie. */
+export const importSchoolLogoFromUrl = async (url: string): Promise<SchoolIdentity> => {
+  const response = await apiClient.post<SchoolIdentity>(`${IDENTITY_BASE}/logo/from-url`, { url }, { timeout: UPLOAD_TIMEOUT_MS })
+  return response.data
+}
+
+export const deleteSchoolLogo = async (): Promise<SchoolIdentity> => {
+  const response = await apiClient.delete<SchoolIdentity>(`${IDENTITY_BASE}/logo`)
+  return response.data
 }

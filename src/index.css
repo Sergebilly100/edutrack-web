@@ -223,3 +223,18 @@
     }
   }
 }
+
+/* Damier discret : rend visible la transparence d'une image (aperçus des cartes d'identité visuelle).
+   Aplats à arêtes vives en tokens du thème, sans dégradé décoratif. */
+@layer components {
+  .bg-checkerboard {
+    background-color: hsl(var(--background));
+    background-image: conic-gradient(
+      hsl(var(--muted)) 25%,
+      transparent 0 50%,
+      hsl(var(--muted)) 0 75%,
+      transparent 0
+    );
+    background-size: 16px 16px;
+  }
+}

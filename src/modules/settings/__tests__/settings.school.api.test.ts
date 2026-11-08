@@ -7,10 +7,10 @@ vi.mock("@/shared/api/client", () => ({ apiClient: { patch: vi.fn(), get: vi.fn(
 beforeEach(() => { vi.resetAllMocks() })
 
 describe("mise à jour partielle de l’école", () => {
-  it("ne renvoie pas une adresse vide lors d’un changement de logo", async () => {
-    await updateSchoolInfo({ logoUrl: "https://example.test/logo.png" })
+  it("ne renvoie pas une adresse vide lors du retrait du logo (seul null est accepté par l’API)", async () => {
+    await updateSchoolInfo({ logoUrl: null })
     const [, payload] = vi.mocked(apiClient.patch).mock.calls[0]
-    expect(JSON.parse(JSON.stringify(payload))).toEqual({ logoUrl: "https://example.test/logo.png" })
+    expect(JSON.parse(JSON.stringify(payload))).toEqual({ logoUrl: null })
   })
 
   it("transmet l’adresse explicitement modifiée", async () => {

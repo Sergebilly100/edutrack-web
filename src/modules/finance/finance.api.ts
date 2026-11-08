@@ -649,6 +649,8 @@ export type RecoveryStudent = {
 
 export type RecoveryStudents = {
   students: RecoveryStudent[];
+  /** Compteurs des pastilles, indépendants de la recherche et du filtre. */
+  counts: { all: number; late: number; upToDate: number };
   pagination: CashJournalPagination;
 }
 
@@ -666,9 +668,9 @@ export async function fetchRecoverySummary(schoolYearId: string, levelId?: strin
   return response.data
 }
 
-export async function fetchRecoveryStudents(schoolYearId: string, classId: string, levelId?: string, page = 1, limit = 20): Promise<RecoveryStudents> {
+export async function fetchRecoveryStudents(schoolYearId: string, classId: string, levelId?: string, page = 1, limit = 20, options: { search?: string; status?: "late" | "up_to_date" } = {}): Promise<RecoveryStudents> {
   const response = await apiClient.get<RecoveryStudents>("/finance/recovery/class-students", {
-    params: { school_year_id: schoolYearId, class_id: classId, level_id: levelId, page, limit },
+    params: { school_year_id: schoolYearId, class_id: classId, level_id: levelId, page, limit, search: options.search || undefined, status: options.status },
   })
   return response.data
 }

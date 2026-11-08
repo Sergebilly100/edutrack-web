@@ -17,41 +17,17 @@ import { EmptyState } from "@/shared/components/EmptyState"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { formatFcfa } from "@/shared/utils/formatting"
-import { getAgreementDetail, getStudentTuitionSchedule, getTuitionOverrideWithdrawalPreview, grantTuitionOverride, listAgreementsRegister, replaceTuitionOverride, resetStudentTuitionSchedule, saveStudentTuitionSchedule, withdrawTuitionOverride, type AgreementDetail, type AgreementRegisterEntry, type AgreementStatus } from "../finance.api"
+import { getStudentTuitionSchedule, grantTuitionOverride, listAgreementsRegister, replaceTuitionOverride, saveStudentTuitionSchedule, type AgreementRegisterEntry } from "../finance.api"
+import { AGREEMENT_STATUS_LABELS } from "../agreement-detail.helpers"
+import { AgreementActionDialog, Metric } from "./AgreementActionDialog"
+import { AgreementDetailDialog } from "./AgreementDetailDialog"
 import { StudentSearch } from "./StudentSearch"
 
 type AgreementKind = "overrides" | "schedules"
 type Installment = { dueDate: string; amount: number }
 
-const statuses: Record<AgreementStatus, string> = { active: "Actif", withdrawn: "Retiré", replaced: "Remplacé", reset: "Réinitialisé" }
-const eventNames: Record<string, string> = { "tuition.override.created": "Ajustement accordé", "tuition.override.withdrawn": "Ajustement retiré", "tuition.student_schedule.created": "Échéancier créé", "tuition.student_schedule.updated": "Échéancier remplacé", "tuition.student_schedule.reset": "Échéancier réinitialisé" }
+const statuses = AGREEMENT_STATUS_LABELS
 const formatDate = (value: string | null) => value ? new Intl.DateTimeFormat("fr-CI", { dateStyle: "medium" }).format(new Date(`${value.slice(0, 10)}T12:00:00`)) : "Non planifiée"
-
-function DetailModal({ kind, id, close }: { kind: AgreementKind; id: string | null; close: () => void }) {
-  const query = useQuery({ queryKey: ["finance", "agreement-detail", kind, id], queryFn: () => getAgreementDetail(kind, id!), enabled: Boolean(id) })
-  const detail = query.data
-  return <Dialog open={Boolean(id)} onOpenChange={(open) => { if (!open) close() }}><DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>Détail de l’accord</DialogTitle><DialogDescription>{detail ? `${detail.agreement.student_name} · ${detail.agreement.class_name} · ${detail.agreement.level_name}` : "Chargement"}</DialogDescription></DialogHeader>{query.isLoading ? <Skeleton className="h-64 w-full" /> : query.isError ? <QueryErrorState message="Impossible de charger le détail de cet accord." onRetry={() => void query.refetch()} /> : detail ? <DetailBody detail={detail} /> : null}</DialogContent></Dialog>
-}
-
-function DetailBody({ detail }: { detail: AgreementDetail }) {
-  const agreement = detail.agreement
-  const decision = agreement.kind === "override" ? agreement.override_total_amount > 0 ? `Montant personnalisé : ${formatFcfa(agreement.override_total_amount)}` : `Remise sur frais : ${formatFcfa(agreement.discount_amount)}` : null
-  return <div className="space-y-5 text-sm"><div className="grid gap-3 sm:grid-cols-3"><Metric label="Plan de référence" value={formatFcfa(agreement.plan_total_amount)} /><Metric label="Déjà encaissé" value={formatFcfa(agreement.total_paid)} /><Metric label="Solde actuel" value={formatFcfa(agreement.remaining_due)} /></div><div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2"><Metric label="Créé le" value={formatDate(agreement.created_at)} /><Metric label="Responsable" value={agreement.created_by_name ?? "Utilisateur archivé"} /></div>{decision ? <div className="rounded-lg bg-muted/50 p-3"><p className="text-xs text-muted-foreground">Décision financière</p><p className="mt-1 font-semibold">{decision}</p></div> : null}{agreement.kind === "schedule" && agreement.active_discount_amount > 0 ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-900"><Badge className="border-emerald-300 bg-white text-emerald-800" variant="outline">Remise</Badge><p className="mt-2">Une remise active de {formatFcfa(agreement.active_discount_amount)} est appliquée à cet élève.</p></div> : null}<div><p className="font-medium">Motif</p><p className="mt-1 whitespace-pre-wrap text-muted-foreground">{agreement.reason}</p>{agreement.withdrawal_reason ? <p className="mt-2 whitespace-pre-wrap text-muted-foreground">Motif de clôture : {agreement.withdrawal_reason}</p> : null}</div>{agreement.schedule_steps?.length ? <div><p className="font-medium">Arrangement convenu</p><div className="mt-2 overflow-hidden rounded-lg border"><Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead className="text-right">Montant cumulé</TableHead></TableRow></TableHeader><TableBody>{agreement.schedule_steps.map((step) => <TableRow key={step.dueDate}><TableCell>{formatDate(step.dueDate)}</TableCell><TableCell className="text-right tabular-nums">{formatFcfa(step.cumulativeAmountExpected)}</TableCell></TableRow>)}</TableBody></Table></div></div> : null}<div><p className="font-medium">Historique</p><ol className="mt-2 space-y-2">{detail.events.length ? detail.events.map((event) => <li className="rounded-lg border p-3" key={event.id}><p className="font-medium">{eventNames[event.action] ?? event.action}</p><p className="text-muted-foreground">{event.actor_name ?? "Utilisateur archivé"} · {event.actor_role} · {new Intl.DateTimeFormat("fr-CI", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.created_at))}</p></li>) : <li className="text-muted-foreground">Aucun événement d’audit disponible.</li>}</ol></div></div>
-}
-
-function AgreementActionDialog({ agreement, action, open, onOpenChange }: { agreement: AgreementRegisterEntry; action: "withdraw" | "reset"; open: boolean; onOpenChange: (open: boolean) => void }) {
-  const client = useQueryClient(); const { toast } = useToast(); const [reason, setReason] = useState(""); const [scheduleResolution, setScheduleResolution] = useState<"keep" | "reset">("keep")
-  const close = (next: boolean) => { if (!next) { setReason(""); setScheduleResolution("keep") }; onOpenChange(next) }
-  const isWithdrawal = action === "withdraw"
-  const preview = useQuery({ queryKey: ["finance", "withdrawal-preview", agreement.student_id, agreement.school_year_id], queryFn: () => getTuitionOverrideWithdrawalPreview(agreement.student_id, agreement.school_year_id), enabled: open && isWithdrawal })
-  const complete = async (title: string) => { await client.invalidateQueries({ queryKey: ["finance"] }); toast({ title }); close(false) }
-  const withdraw = useMutation({ mutationFn: () => withdrawTuitionOverride({ studentId: agreement.student_id, schoolYearId: agreement.school_year_id, reason: reason.trim(), scheduleResolution: preview.data?.schedule.compatible ? "keep" : scheduleResolution }), onSuccess: () => void complete("Ajustement retiré"), onError: (error) => toast({ title: "Retrait impossible", description: error instanceof Error ? error.message : "Actualisez la situation financière.", variant: "destructive" }) })
-  const reset = useMutation({ mutationFn: () => resetStudentTuitionSchedule(agreement.student_id, agreement.school_year_id, reason.trim()), onSuccess: () => void complete("Échéancier réinitialisé"), onError: (error) => toast({ title: "Réinitialisation impossible", description: error instanceof Error ? error.message : "Actualisez l’accord.", variant: "destructive" }) })
-  const overpayment = preview.data?.potentialOverpayment === true
-  return <Dialog open={open} onOpenChange={close}><DialogContent><DialogHeader><DialogTitle>{isWithdrawal ? "Retirer l’ajustement" : "Réinitialiser l’échéancier"}</DialogTitle><DialogDescription>{isWithdrawal ? "Cette action restaure le plan de niveau ; aucun paiement confirmé ne sera modifié." : "Cette action rétablit le plan commun et conserve cet échéancier dans l’historique."}</DialogDescription></DialogHeader><div className="space-y-4 text-sm">{isWithdrawal && preview.isLoading ? <Skeleton className="h-24 w-full" /> : null}{isWithdrawal && preview.data ? <><p className="rounded-lg border border-amber-200 bg-amber-50 p-3 font-medium text-amber-950">Vous allez retirer {preview.data.adjustment.type === "discount" ? `la remise de ${formatFcfa(preview.data.adjustment.discountAmount ?? 0)}` : `le montant total personnalisé de ${formatFcfa(preview.data.adjustment.overrideTotalAmount ?? 0)}`}.</p><div className="grid grid-cols-2 gap-3 rounded-lg bg-muted/50 p-3"><Metric label="Montant actuel" value={formatFcfa(preview.data.currentTotalAmount)} /><Metric label="Montant restauré" value={formatFcfa(preview.data.restoredTotalAmount)} /><Metric label="Déjà encaissé" value={formatFcfa(preview.data.confirmedPaid)} /><Metric label="Solde après retrait" value={formatFcfa(preview.data.remainingAfter)} /></div></> : null}{isWithdrawal && preview.data && !preview.data.schedule.compatible ? <div><Label>Conséquence sur l’échéancier</Label><Select value={scheduleResolution} onValueChange={(value) => setScheduleResolution(value as "keep" | "reset")}><SelectTrigger className="mt-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="reset">Réinitialiser l’échéancier et revenir au plan</SelectItem><SelectItem value="keep" disabled>Conserver (incompatible)</SelectItem></SelectContent></Select></div> : null}{overpayment ? <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 font-medium text-destructive">Retrait bloqué : un trop-perçu potentiel doit d’abord être traité par remboursement, avoir ou réaffectation.</p> : null}<div><Label>Motif obligatoire</Label><Textarea className="mt-2" value={reason} maxLength={1000} onChange={(event) => setReason(event.target.value)} /></div></div><DialogFooter><Button variant="outline" onClick={() => close(false)}>Annuler</Button>{isWithdrawal ? <Button variant="destructive" disabled={!reason.trim() || preview.isLoading || overpayment || withdraw.isPending} onClick={() => withdraw.mutate()}>{withdraw.isPending ? "Retrait…" : "Confirmer le retrait"}</Button> : <Button variant="destructive" disabled={!reason.trim() || reset.isPending} onClick={() => reset.mutate()}>{reset.isPending ? "Réinitialisation…" : "Confirmer la réinitialisation"}</Button>}</DialogFooter></DialogContent></Dialog>
-}
-
-function Metric({ label, value }: { label: string; value: string }) { return <div><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-semibold tabular-nums">{value}</p></div> }
 
 function NewOverrideModal({ schoolYearId, editing, open, onChange }: { schoolYearId: string; editing: AgreementRegisterEntry | null; open: boolean; onChange: (open: boolean) => void }) {
   const client = useQueryClient(); const { toast } = useToast(); const [student, setStudent] = useState<StudentItem | null>(null); const [type, setType] = useState<"discount" | "total">("discount"); const [amount, setAmount] = useState(""); const [reason, setReason] = useState("")
@@ -288,7 +264,21 @@ export function AgreementsRegister({ schoolYearId }: { schoolYearId: string }) {
           description="Aucun ajustement ou échéancier ne correspond aux filtres sélectionnés."
         />
       )}
-      <DetailModal kind={kind} id={id} close={() => set({ detail: "" })} />
+      <AgreementDetailDialog
+        kind={kind}
+        id={id}
+        onClose={() => set({ detail: "" })}
+        onEdit={(entry) => {
+          set({ detail: "" });
+          if (entry.kind === "override") {
+            setEditingOverride(entry);
+            setOverrideOpen(true);
+          } else {
+            setEditingSchedule(entry);
+            setScheduleOpen(true);
+          }
+        }}
+      />
       <NewOverrideModal
         schoolYearId={schoolYearId}
         editing={editingOverride}

@@ -6,6 +6,8 @@ import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 type PageLayoutProps = {
   title: string
   subtitle?: string
+  /** Fil d'Ariane : remplace le titre visible (le titre reste présent pour les lecteurs d'écran). */
+  breadcrumb?: ReactNode
   actions?: ReactNode
   contentClassName?: string
   // Passer true si toutes les actions critiques de la page passent par
@@ -15,15 +17,24 @@ type PageLayoutProps = {
   children: ReactNode
 }
 
-export function PageLayout({ title, subtitle, actions, contentClassName, offlineCapable = false, children }: PageLayoutProps) {
+export function PageLayout({ title, subtitle, breadcrumb, actions, contentClassName, offlineCapable = false, children }: PageLayoutProps) {
   return (
     <div className="min-h-full bg-background">
       <OfflineIndicator offlineCapable={offlineCapable} />
       <header className="-mx-4 border-b bg-[var(--surface-chrome)] px-4 backdrop-blur md:-mx-6 md:top-0 md:z-40 md:px-6">
         <div className="flex min-h-16 flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:py-3">
           <div className="min-w-0">
-            <h1 className="text-balance text-2xl font-semibold tracking-tight sm:text-2xl">{title}</h1>
-            {subtitle ? <p className="mt-1 max-w-2xl text-sm leading-5 text-muted-foreground">{subtitle}</p> : null}
+            {breadcrumb ? (
+              <>
+                <h1 className="sr-only">{title}</h1>
+                {breadcrumb}
+              </>
+            ) : (
+              <>
+                <h1 className="text-balance text-2xl font-semibold tracking-tight sm:text-2xl">{title}</h1>
+                {subtitle ? <p className="mt-1 max-w-2xl text-sm leading-5 text-muted-foreground">{subtitle}</p> : null}
+              </>
+            )}
           </div>
           {actions ? (
             <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto [&>button]:w-full sm:[&>button]:w-auto [&>a]:w-full sm:[&>a]:w-auto">

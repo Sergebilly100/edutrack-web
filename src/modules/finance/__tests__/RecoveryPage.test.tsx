@@ -36,6 +36,12 @@ const students = [
   { studentId: "s3", name: "Nadia Diabaté", matricule: "MAT-3", status: "late", expected: 100000, paid: 0, remaining: 100000, daysLate: 1 },
 ]
 
+const studentsFor = (_y: string, _c: string, _l: string | undefined, _p: number, _limit: number, options: { search?: string; status?: string } = {}) => {
+  const term = (options.search ?? "").toLowerCase()
+  const list = students.filter((item) => (!options.status || item.status === options.status) && (!term || item.name.toLowerCase().includes(term) || item.matricule.toLowerCase().includes(term)))
+  return Promise.resolve({ students: list, counts: { all: 3, late: 2, upToDate: 1 }, pagination: { page: 1, limit: 20, total: list.length, totalPages: 1 } })
+}
+
 const renderPage = () => render(<MemoryRouter initialEntries={["/finance/recovery"]}><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><Routes><Route path="/finance/recovery" element={<RecoveryPage />} /><Route path="/finance/history/:studentId" element={<p>Dossier élève</p>} /></Routes></QueryClientProvider></MemoryRouter>)
 
 const tableView = (name: string) => within(screen.getByRole("table")).getByRole("button", { name: `Voir les élèves de ${name}` })
@@ -49,7 +55,7 @@ describe("RecoveryPage", () => {
     Element.prototype.scrollIntoView = vi.fn()
     mocks.fetchRecoveryYears.mockResolvedValue([{ id: "year", label: "2026-2027", status: "active" }])
     mocks.fetchRecoverySummary.mockImplementation(summaryFor)
-    mocks.fetchRecoveryStudents.mockResolvedValue({ students, pagination: { page: 1, limit: 100, total: 3, totalPages: 1 } })
+    mocks.fetchRecoveryStudents.mockImplementation(studentsFor)
   })
 
   it("renders one table with a total row and the configured follow-up header", async () => {
@@ -96,12 +102,14 @@ describe("RecoveryPage", () => {
     expect(within(dialog).getByText("4 jours de retard")).toBeInTheDocument()
     expect(within(dialog).getByRole("button", { name: "Tous · 3" })).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole("button", { name: "À jour · 1" }))
-    expect(within(dialog).queryByText("Awa Koné")).not.toBeInTheDocument()
+    await waitFor(() => expect(within(dialog).queryByText("Awa Koné")).not.toBeInTheDocument())
+    expect(mocks.fetchRecoveryStudents).toHaveBeenLastCalledWith("year", "class-a", "level-a", 1, 20, { search: "", status: "up_to_date" })
     expect(within(dialog).getByText("Mariam Bamba")).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole("button", { name: "Tous · 3" }))
     fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: "mat-3" } })
+    await waitFor(() => expect(within(dialog).queryByText("Awa Koné")).not.toBeInTheDocument())
+    expect(mocks.fetchRecoveryStudents).toHaveBeenLastCalledWith("year", "class-a", "level-a", 1, 20, { search: "mat-3", status: undefined })
     expect(within(dialog).getByText("Nadia Diabaté")).toBeInTheDocument()
-    expect(within(dialog).queryByText("Awa Koné")).not.toBeInTheDocument()
     fireEvent.keyDown(dialog, { key: "Escape" })
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
     await waitFor(() => expect(trigger).toHaveFocus())
@@ -134,7 +142,7 @@ describe("RecoveryPage", () => {
     renderPage()
     fireEvent.click(await findView("6e A"))
     expect(await screen.findByText(/Impossible de charger les élèves de cette classe/)).toBeInTheDocument()
-    mocks.fetchRecoveryStudents.mockResolvedValue({ students: [], pagination: { page: 1, limit: 100, total: 0, totalPages: 1 } })
+    mocks.fetchRecoveryStudents.mockResolvedValue({ students: [], counts: { all: 0, late: 0, upToDate: 0 }, pagination: { page: 1, limit: 20, total: 0, totalPages: 1 } })
     fireEvent.click(screen.getByRole("button", { name: /réessayer/i }))
     expect(await screen.findByText("Aucun élève dans cette sélection")).toBeInTheDocument()
   })

@@ -47,7 +47,6 @@ import {
   fetchAdministrationConfig,
   resetAdministrativeUserPassword,
   unassignUserFromPosition,
-  uploadSchoolLogo,
   type AssignableUser,
   type CreateAdministrativeUserInput,
   type PositionItem,
@@ -68,7 +67,7 @@ import { zodResolver } from "@hookform/resolvers/zod/dist/zod.js"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
-import { SealsUploadCard } from "./SealsUploadCard"
+import { SchoolIdentitySection } from "../identity/SchoolIdentitySection"
 
 const SETTINGS_QUERY_KEY = ["settings", "school-config"] as const
 const PHONE_CI_REGEX = /^225\d{10}$/
@@ -165,7 +164,6 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
 
   const [maxAdminPositions, setMaxAdminPositions] = useState("0")
   const [addressDraft, setAddressDraft] = useState("")
-  const [logoUrlDraft, setLogoUrlDraft] = useState("")
   const [allowTeacherQrSkipDraft, setAllowTeacherQrSkipDraft] = useState(false)
   const [evaluationGraceDraft, setEvaluationGraceDraft] = useState('7')
   const [evaluationLateDraft, setEvaluationLateDraft] = useState('14')
@@ -178,17 +176,15 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
 
     setMaxAdminPositions(String(schoolConfigQuery.data.limits.maxAdminPositions))
     setAddressDraft(schoolConfigQuery.data.school.address ?? "")
-    setLogoUrlDraft(schoolConfigQuery.data.school.logoUrl ?? "")
     setAllowTeacherQrSkipDraft(Boolean(schoolConfigQuery.data.school.allowTeacherQrSkip))
     setEvaluationGraceDraft(String(schoolConfigQuery.data.school.evaluationGraceDays))
     setEvaluationLateDraft(String(schoolConfigQuery.data.school.evaluationLateDays))
   }, [schoolConfigQuery.data])
 
   const saveSchoolInfoMutation = useMutation({
-    mutationFn: (payload: { address?: string; logoUrl?: string | null }) =>
+    mutationFn: (payload: { address?: string }) =>
       updateSchoolInfo({
         ...(payload.address !== undefined ? { address: payload.address } : {}),
-        ...(payload.logoUrl !== undefined ? { logoUrl: payload.logoUrl } : {}),
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY })
@@ -203,21 +199,6 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
     },
   })
 
-  const uploadLogoMutation = useMutation({
-    mutationFn: (file: File) => uploadSchoolLogo(file),
-    onSuccess: async (logoUrl) => {
-      setLogoUrlDraft(logoUrl)
-      await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY })
-      toast({ title: "Logo uploadé et enregistré" })
-    },
-    onError: (error) => {
-      const description =
-        axios.isAxiosError(error) && typeof error.response?.data?.error === "string"
-          ? error.response.data.error
-          : "Impossible d'uploader le logo."
-      toast({ title: "Erreur", description, variant: "destructive" })
-    },
-  })
   const saveQrSkipPolicyMutation = useMutation({
     mutationFn: (allowTeacherQrSkip: boolean) =>
       updateSchoolInfo({
@@ -804,81 +785,7 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
         ) : null}
           </div>
           <div className="space-y-5">
-            <div className="rounded-xl border border-border bg-card p-5 shadow-sm" data-tour="settings-logo">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    {logoUrlDraft ? (
-                      <img
-                        src={logoUrlDraft}
-                        alt="Logo école"
-                        className="h-14 w-14 rounded-md border border-border object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-14 w-14 items-center justify-center rounded-md border border-dashed border-border text-xs text-muted-foreground">
-                        Logo
-                      </div>
-                    )}
-                    <p className="text-xs text-muted-foreground">Logo de l&apos;établissement</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Importer un fichier
-                    </Label>
-                    <Input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                      disabled={uploadLogoMutation.isPending}
-                      onChange={(event) => {
-                        const file = event.target.files?.[0]
-                        if (!file) {
-                          return
-                        }
-                        if (file.size > 500 * 1024) {
-                          toast({ title: "Image trop lourde", description: "Maximum 500 KB.", variant: "destructive" })
-                          event.target.value = ""
-                          return
-                        }
-                        uploadLogoMutation.mutate(file)
-                        event.target.value = ""
-                      }}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      PNG, JPEG, WEBP ou SVG - max 500 KB. L’image est enregistrée dès l’import.
-                    </p>
-                    </div>
-                  <Collapsible className="space-y-2">
-                    <CollapsibleTrigger asChild>
-                      <Button type="button" variant="ghost" className="group min-h-12 w-full justify-between px-2 text-sm font-medium text-primary">
-                        Options avancées : utiliser une adresse d’image
-                        <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180 motion-reduce:transition-none" />
-                      </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="space-y-2">
-                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Ou saisir une URL
-                    </Label>
-                    <Input
-                      value={logoUrlDraft}
-                      onChange={(event) => setLogoUrlDraft(event.target.value)}
-                      placeholder="https://..."
-                    />
-                    <Button
-                    variant="outline"
-                    className="w-full"
-                    disabled={saveSchoolInfoMutation.isPending || uploadLogoMutation.isPending || !school}
-                    onClick={() =>
-                      saveSchoolInfoMutation.mutate({
-                        logoUrl: logoUrlDraft || null,
-                      })
-                    }
-                  >
-                    {saveSchoolInfoMutation.isPending ? "Sauvegarde..." : uploadLogoMutation.isPending ? "Upload en cours..." : "Enregistrer l'URL"}
-                  </Button>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </div>
-              </div>
-            <SealsUploadCard stampUrl={school?.stampUrl} signatureUrl={school?.signatureUrl} />
+            <SchoolIdentitySection canManage={canManageSchoolSettings} />
           </div>
         </div>
 

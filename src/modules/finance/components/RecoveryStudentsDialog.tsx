@@ -18,7 +18,7 @@ import { FINANCE_PATHS } from "../finance.routes"
 import { RateBar, ratePercent } from "./RateBar"
 import { StatusPill } from "./StatusPill"
 
-const PAGE_LIMIT = 100
+const PAGE_LIMIT = 20
 const INITIAL_VISIBLE = 6
 
 type StatusFilter = "all" | "late" | "up_to_date"
@@ -37,7 +37,6 @@ type Props = {
 }
 
 const initials = (name: string): string => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join("")
-const normalize = (value: string): string => value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
 export const daysLateText = (days: number): string => `${days} jour${days > 1 ? "s" : ""} de retard`
 
 function StudentRow({ student, href }: { student: RecoveryStudent; href: string | null }) {
@@ -62,26 +61,31 @@ export function RecoveryStudentsDialog({ open, onClose, schoolYearId, levelId, s
 
   useEffect(() => { setSearch(""); setFilter("all"); setShowAll(false) }, [classId, schoolYearId, open])
 
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 250)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  const status = filter === "all" ? undefined : filter
   const query = useInfiniteQuery({
-    queryKey: ["finance", "recovery", "students", schoolYearId, classId, levelId ?? "", PAGE_LIMIT],
-    queryFn: ({ pageParam }) => fetchRecoveryStudents(schoolYearId, classId, levelId, pageParam, PAGE_LIMIT),
+    queryKey: ["finance", "recovery", "students", schoolYearId, classId, levelId ?? "", PAGE_LIMIT, debouncedSearch, status ?? ""],
+    queryFn: ({ pageParam }) => fetchRecoveryStudents(schoolYearId, classId, levelId, pageParam, PAGE_LIMIT, { search: debouncedSearch, status }),
     initialPageParam: 1,
     getNextPageParam: (last) => (last.pagination.page < last.pagination.totalPages ? last.pagination.page + 1 : undefined),
     enabled: open && Boolean(schoolYearId && classId),
+    placeholderData: (previous) => previous,
   })
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = query
-  useEffect(() => { if (hasNextPage && !isFetchingNextPage) void fetchNextPage() }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
   const students = useMemo(() => query.data?.pages.flatMap((page) => page.students) ?? [], [query.data])
-  const counts = useMemo(() => ({ all: students.length, late: students.filter((item) => item.status === "late").length, upToDate: students.filter((item) => item.status === "up_to_date").length }), [students])
-  const filtered = useMemo(() => {
-    const term = normalize(search.trim())
-    return students.filter((item) => (filter === "all" || item.status === filter) && (!term || normalize(item.name).includes(term) || normalize(item.matricule ?? "").includes(term)))
-  }, [students, search, filter])
-  const narrowed = Boolean(search.trim()) || filter !== "all"
-  const visible = showAll || narrowed ? filtered : filtered.slice(0, INITIAL_VISIBLE)
-  const hidden = filtered.length - visible.length
-  const loading = query.isLoading || (query.isFetching && !query.data) || (Boolean(hasNextPage) && !query.isError)
+  const counts = query.data?.pages[0]?.counts ?? { all: 0, late: 0, upToDate: 0 }
+  const total = query.data?.pages[0]?.pagination.total ?? 0
+  const narrowed = Boolean(debouncedSearch) || filter !== "all"
+  const visible = showAll || narrowed ? students : students.slice(0, INITIAL_VISIBLE)
+  const hidden = Math.max(0, total - visible.length)
+  const loading = query.isLoading || (query.isFetching && !query.data)
+  const showMore = () => { if (!showAll && !narrowed) setShowAll(true); if (visible.length >= students.length && hasNextPage && !isFetchingNextPage) void fetchNextPage() }
   const pluralCap = studentPlural(labels, { capitalized: true })
   const hrefFor = (id: string) => canOpenStudent ? `${FINANCE_PATHS.historyDetail(id)}?schoolYearId=${encodeURIComponent(schoolYearId)}` : null
   const filters: Array<{ value: StatusFilter; label: string; count: number }> = [
@@ -106,9 +110,9 @@ export function RecoveryStudentsDialog({ open, onClose, schoolYearId, levelId, s
         </div>
         {loading ? <div aria-label={`Chargement des ${studentPlural(labels)}`} className="space-y-3">{Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-14 w-full" />)}</div> : null}
         {query.isError ? <QueryErrorState message={`Impossible de charger les ${studentPlural(labels)} de cette classe.`} onRetry={() => void query.refetch()} /> : null}
-        {!loading && !query.isError && filtered.length === 0 ? <EmptyState icon={Users} title={`Aucun ${studentNoun(labels, 1)} dans cette sélection`} message="Modifiez la recherche ou le filtre." /> : null}
+        {!loading && !query.isError && students.length === 0 ? <EmptyState icon={Users} title={`Aucun ${studentNoun(labels, 1)} dans cette sélection`} message="Modifiez la recherche ou le filtre." /> : null}
         {!loading && visible.length > 0 ? <ul aria-label={`Liste des ${studentPlural(labels)}`}>{visible.map((item) => <StudentRow key={item.studentId} student={item} href={hrefFor(item.studentId)} />)}</ul> : null}
-        {!loading && hidden > 0 ? <Button type="button" variant="link" className="min-h-10 px-0" onClick={() => setShowAll(true)}>Afficher les {hidden} autres {studentNoun(labels, hidden)}</Button> : null}
+        {!loading && hidden > 0 ? <Button type="button" variant="link" className="min-h-10 px-0" onClick={showMore} disabled={isFetchingNextPage}>Afficher les {hidden} autres {studentNoun(labels, hidden)}</Button> : null}
       </div>
       <DialogFooter className="border-t p-4 sm:justify-end sm:space-x-0"><DialogClose asChild><Button type="button" variant="outline" className="min-h-11">Fermer</Button></DialogClose></DialogFooter>
     </DialogContent>
