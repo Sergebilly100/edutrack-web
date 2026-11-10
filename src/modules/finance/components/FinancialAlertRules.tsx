@@ -88,7 +88,7 @@ function RulesEditor({ canEdit }: { canEdit: boolean }) {
   const lateDays = Number(draftFor("late").daysOffset)
 
   return (
-    <Card className="rounded-lg shadow-sm">
+    <Card className="rounded-lg shadow-sm" data-tour="settings-alert-rules">
       <CardHeader className="pb-3">
         <CardTitle className="text-lg font-semibold">Règles de relance</CardTitle>
         <CardDescription>
@@ -204,7 +204,7 @@ function AlertsLog() {
   }, [page, pagination])
 
   return (
-    <Card className="rounded-lg shadow-sm">
+    <Card className="rounded-lg shadow-sm" data-tour="settings-alert-log">
       <CardHeader className="pb-3">
         <CardTitle className="text-lg font-semibold">Historique des relances</CardTitle>
         <CardDescription>Toutes les relances envoyées par l&apos;école, de la plus récente à la plus ancienne.</CardDescription>

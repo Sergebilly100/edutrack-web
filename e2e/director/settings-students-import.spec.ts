@@ -119,9 +119,11 @@ test.describe("Directeur - settings/students/import", () => {
     await expect(page.getByText("Informations école")).toBeVisible()
   })
 
-  test("navigation vers la page import", async ({ page }) => {
+  test("le menu n'a plus d'entrée « Import de données » : l'import passe par l'emploi du temps", async ({ page }) => {
     await loginAsDirectorUI(page)
-    await navigateMenu(page, "Administration", "Import de données")
+    await expect(page.getByRole("link", { name: "Import de données" })).toHaveCount(0)
+    await page.goto("/schedule")
+    await page.getByRole("button", { name: "Importer l'EDT" }).click()
 
     await expect(page).toHaveURL(/\/import/)
     await expect(page.getByRole("heading", { name: "Import de données" })).toBeVisible()

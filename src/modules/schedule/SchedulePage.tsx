@@ -42,6 +42,7 @@ import { OfflineIndicator, WeekCoverageAlert } from "@/shared/components"
 import { EmptyState } from "@/shared/components/EmptyState"
 import {
   AddIcon,
+  ImportIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   DeleteIcon,
@@ -62,6 +63,7 @@ import {
   type ScheduleUpdateOfflinePayload,
 } from "@/shared/store/offline-processors"
 import { useAuthStore } from "@/shared/store/auth.store"
+import { PageHeader, HEADER_CONTROL_HEIGHT } from "@/shared/components/PageHeader"
 import { TourGuide } from "@/shared/components/TourGuide"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { scheduleTourSteps } from "@/shared/lib/tour-steps"
@@ -229,6 +231,9 @@ export default function SchedulePage() {
   const schoolYearFinished = Boolean(data?.schoolYear && (data.schoolYear.status === "closed" || toISODate(new Date()) > data.schoolYear.endDate))
   const schoolYearNotStarted = Boolean(data?.schoolYear && toISODate(new Date()) < data.schoolYear.startDate)
   const selectedWeekAfterSchoolYear = Boolean(data?.schoolYear && selectedWeekMonday > data.schoolYear.endDate)
+  // Sans période active sur la semaine, l'import est l'action principale (on ne peut pas poser un créneau).
+  const importAvailable = canImportSchedule && Boolean(data) && !schoolYearFinished && !schoolYearNotStarted && !selectedWeekAfterSchoolYear
+  const importIsPrimaryAction = importAvailable && !data?.period
   const schoolYearEndMessage = data?.schoolYear ? `Année scolaire ${data.schoolYear.label} terminée.` : "Année scolaire terminée."
   const schoolYearUnavailableMessage = schoolYearNotStarted ? `L’année scolaire ${data?.schoolYear?.label} n’a pas encore commencé.` : schoolYearEndMessage
 
@@ -705,33 +710,26 @@ export default function SchedulePage() {
         onStepChange={tour.setStepIndex}
         onFinish={tour.markDone}
       />
-    <div className="space-y-6 px-4 md:px-1">
+    <div className="space-y-6">
       <OfflineIndicator offlineCapable />
-      <header className="space-y-4">
-
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight">Emploi du temps</h1>
-            <p className="text-sm text-muted-foreground">Vue hebdomadaire et gestion des créneaux de cours.</p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="text-muted-foreground"
-              onClick={() => tour.restart()}
-              aria-label="Revoir le guide"
-            >
-              <InfoIcon className="mr-1.5 h-4 w-4" />
-              Guide
-            </Button>
-            {canImportSchedule && data && !data.period && !schoolYearFinished && !schoolYearNotStarted && !selectedWeekAfterSchoolYear ? (
-              <Button onClick={() => navigate("/import?type=schedule")} className="w-full sm:w-auto">
-                Importer l&apos;EDT
+      <div className="!mt-0 space-y-4">
+        <PageHeader
+          title="Emploi du temps"
+          subtitle="Vue hebdomadaire et gestion des créneaux de cours."
+          actions={
+            <>
+            {importAvailable ? (
+              <Button
+                type="button"
+                variant={importIsPrimaryAction ? "default" : "outline"}
+                onClick={() => navigate("/import?type=schedule")}
+                className="w-full sm:w-auto"
+                data-tour="schedule-import-btn"
+              >
+                <ImportIcon aria-hidden="true" className="mr-2 h-4 w-4" />Importer l&apos;EDT
               </Button>
-            ) : canEditSchedule ? (
+            ) : null}
+            {importIsPrimaryAction ? null : canEditSchedule ? (
               <Button
                 onClick={() => openCreateModal()}
                 // Pas de période active sur la semaine affichée = impossible de
@@ -747,10 +745,9 @@ export default function SchedulePage() {
             ) : (
               <Badge variant="outline">Lecture seule</Badge>
             )}
-          </div>
-
-
-        </div>
+            </>
+          }
+        />
         {schoolYearFinished ? (
           <Alert><AlertDescription>{schoolYearEndMessage}</AlertDescription></Alert>
         ) : null}
@@ -764,8 +761,8 @@ export default function SchedulePage() {
         /> : null}
 
         {/* ── Barre de contrôles ─────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-2 shadow-sm" data-tour="schedule-periods">
-          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-2 shadow-sm">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto" data-tour="schedule-week-nav">
             <Button
               type="button"
               variant="outline"
@@ -800,7 +797,7 @@ export default function SchedulePage() {
           <div className="h-7 w-px bg-border" aria-hidden="true" />
 
           {/* Vue grille / liste */}
-          <div className="flex items-center rounded-md border bg-muted/40 p-0.5">
+          <div className="flex items-center rounded-md border bg-muted/40 p-0.5" data-tour="schedule-view-toggle">
             <Button
               type="button"
               variant={viewMode === "list" ? "secondary" : "ghost"}
@@ -830,7 +827,7 @@ export default function SchedulePage() {
 
           {/* Filtre niveau */}
           <Select value={levelFilter} onValueChange={changeLevelFilter} disabled={!data}>
-            <SelectTrigger aria-label="Filtrer par niveau" className="min-h-[48px] w-full min-w-0 text-xs sm:w-auto sm:min-w-[150px]">
+            <SelectTrigger data-tour="schedule-filters" aria-label="Filtrer par niveau" className="min-h-[48px] w-full min-w-0 text-xs sm:w-auto sm:min-w-[150px]">
               <SelectValue placeholder="Tous les niveaux" />
             </SelectTrigger>
             <SelectContent>
@@ -897,7 +894,7 @@ export default function SchedulePage() {
             </Button>
           )}
         </div>
-      </header>
+      </div>
 
       {scheduleQuery.isLoading ? (
         <div className="rounded-lg border bg-card p-4 text-sm text-muted-foreground shadow-sm">

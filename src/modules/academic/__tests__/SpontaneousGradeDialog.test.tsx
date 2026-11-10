@@ -55,7 +55,7 @@ describe("SpontaneousGradeDialog", () => {
     expect(screen.queryByText(/Impossible de vérifier ce cours ou ses élèves/)).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Ajouter un point" })).toBeEnabled()
     fireEvent.click(screen.getByRole("combobox", { name: "Élève" }))
-    fireEvent.click(await screen.findByRole("option", { name: "Awa Koné" }))
+    fireEvent.click(await screen.findByRole("option", { name: "KONÉ Awa" }))
     fireEvent.change(screen.getByLabelText("Justificatif"), { target: { value: "Participation" } })
     fireEvent.click(screen.getByRole("button", { name: "Ajouter un point" }))
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }))

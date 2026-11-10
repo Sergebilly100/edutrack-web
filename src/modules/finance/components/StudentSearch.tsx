@@ -1,3 +1,4 @@
+import { formatPersonName } from "@/shared/utils/person-name"
 import { useEffect, useId, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Check, Search, X } from "lucide-react"
@@ -20,7 +21,7 @@ type StudentSearchProps = {
 }
 
 const studentLabel = (student: StudentItem): string =>
-  `${student.lastName} ${student.firstName}${student.matricule ? ` · ${student.matricule}` : ""}`
+  `${formatPersonName({ lastName: student.lastName, firstName: student.firstName })}${student.matricule ? ` · ${student.matricule}` : ""}`
 
 export function StudentSearch({
   schoolYearId,
@@ -146,7 +147,7 @@ export function StudentSearch({
             >
               <Check className={cn("h-4 w-4 shrink-0", index === activeIndex ? "opacity-100" : "opacity-0")} />
               <span className="min-w-0">
-                <span className="block truncate font-medium">{student.lastName} {student.firstName}</span>
+                <span className="block truncate font-medium">{formatPersonName({ lastName: student.lastName, firstName: student.firstName })}</span>
                 <span className="block truncate text-xs text-muted-foreground">{student.className}{student.matricule ? ` · ${student.matricule}` : ""}</span>
                 {student.blockedReEnrollment ? <span className="block text-xs font-medium text-amber-700">Réinscription bloquée · dette {student.paymentSchoolYearLabel}</span> : null}
               </span>

@@ -1,4 +1,4 @@
-import { QueryClient } from "@tanstack/react-query"
+import { MutationCache, QueryClient } from "@tanstack/react-query"
 import type { QueryKey } from "@tanstack/react-query"
 import { del, get, set } from "idb-keyval"
 
@@ -38,7 +38,28 @@ const removePersistedQueryCache = async (): Promise<void> => {
   }
 }
 
+/**
+ * Sources uniques des alertes directeur et des pastilles du menu : après toute mutation réussie
+ * elles sont rechargées (le serveur recalcule les actions prioritaires à la lecture), sans rechargement de page.
+ */
+export const ACTION_SURFACE_QUERY_KEYS: ReadonlyArray<QueryKey> = [
+  ["dashboard", "action-items"],
+  ["validations", "pending", "count"],
+  ["conduct", "decision-workspace"],
+]
+
+let actionSurfaceTimer: ReturnType<typeof setTimeout> | null = null
+const refreshActionSurfaces = (): void => {
+  if (actionSurfaceTimer !== null) return
+  // Regroupe les mutations rapprochées (sélection groupée, mutations en chaîne) en un seul rechargement.
+  actionSurfaceTimer = setTimeout(() => {
+    actionSurfaceTimer = null
+    for (const queryKey of ACTION_SURFACE_QUERY_KEYS) void queryClient.invalidateQueries({ queryKey })
+  }, 300)
+}
+
 export const queryClient = new QueryClient({
+  mutationCache: new MutationCache({ onSuccess: refreshActionSurfaces }),
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,

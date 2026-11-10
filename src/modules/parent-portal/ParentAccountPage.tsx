@@ -59,7 +59,7 @@ export default function ParentAccountPage() {
   return (
     <div className="space-y-4 text-base">
       <OfflineIndicator />
-      <Card>
+      <Card data-tour="parent-account-info">
         <CardHeader className="pb-3 p-3">
           <CardTitle className="text-xl">Mon compte</CardTitle>
         </CardHeader>
@@ -113,7 +113,7 @@ export default function ParentAccountPage() {
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground">Abonnement</p>
+                  <p className="text-xs font-medium text-muted-foreground" data-tour="parent-account-subscription">Abonnement</p>
                   <p className="mt-1 text-sm font-semibold">
                     {subscriptionStatusLabel[subscriptionQuery.data.subscription.status]} jusqu'au {formatShortDate(subscriptionQuery.data.subscription.ends_at)}
                   </p>
@@ -142,7 +142,7 @@ export default function ParentAccountPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card data-tour="parent-account-password">
         <CardHeader className="pb-3 p-3">
           <CardTitle className="text-xl">Changer mon mot de passe</CardTitle>
         </CardHeader>

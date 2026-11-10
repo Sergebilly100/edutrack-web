@@ -3,7 +3,7 @@ import { Link } from "react-router-dom"
 import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
-import { ChevronLeft, ChevronRight, Info } from "lucide-react"
+import { ArrowLeft, ChevronLeft, ChevronRight, Info } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -22,6 +22,7 @@ import { CalendarClockIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabels, type StudentLabels } from "@/shared/hooks/useStudentLabel"
 import { useAuthStore } from "@/shared/store/auth.store"
+import { PageHeader, HEADER_CONTROL_HEIGHT } from "@/shared/components/PageHeader"
 import { TourGuide } from "@/shared/components/TourGuide"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { historicalStudentsImportTourSteps, importTourSteps } from "@/shared/lib/tour-steps"
@@ -74,6 +75,7 @@ export default function ImportPage() {
   const canImportStudents = isDirector || hasPermission("import.students")
   const canImportTeachers = isDirector || hasPermission("import.teachers")
   const canImportSchedule = isDirector || hasPermission("import.schedule")
+  const canReturnToSchedule = isDirector || hasPermission("schedule.view")
   const accessQuery = useQuery({
     queryKey: ["import-context", user?.schemaName, user?.tenantId], queryFn: fetchImportContext,
     enabled: canImportStudents || canImportTeachers || canImportSchedule, staleTime: 0,
@@ -155,37 +157,32 @@ export default function ImportPage() {
           onFinish={tour.markDone}
         />
       ) : null}
-      <div className="space-y-6 px-4 md:px-1">
+      <div className="space-y-6">
         <OfflineIndicator />
         <OnboardingReturn />
-        <header className="space-y-1" data-tour="import-header">
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">
-                Import de données
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                {isHistoricalStudentsImport
-                  ? "Profils élèves et contacts parents pour les réinscriptions."
-                  : isInitialTeacherImport
-                    ? "Importez les profils et contrats des professeurs. Les affectations viendront après les inscriptions."
-                    : "Importez l’emploi du temps et consultez les opérations déjà effectuées."}
-              </p>
-              {initialProfileContext ? <p className="text-sm text-muted-foreground">Facultatif : vous pourrez importer ces profils plus tard.</p> : null}
-            </div>
-            {!guidedReturn ? <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="min-h-12 text-muted-foreground"
-              onClick={() => tour.restart()}
-              aria-label="Revoir le guide"
-            >
-              <Info className="mr-1.5 h-4 w-4" />
-              Guide
-            </Button> : null}
-          </div>
-        </header>
+        <PageHeader
+          tourId="import-header"
+          className="!mt-0"
+          title="Import de données"
+          hideAide={Boolean(guidedReturn)}
+          subtitle={
+            <>
+              {isHistoricalStudentsImport
+                ? "Profils élèves et contacts parents pour les réinscriptions."
+                : isInitialTeacherImport
+                  ? "Importez les profils et contrats des professeurs. Les affectations viendront après les inscriptions."
+                  : "Importez l’emploi du temps et consultez les opérations déjà effectuées."}
+              {initialProfileContext ? <span className="mt-1 block">Facultatif : vous pourrez importer ces profils plus tard.</span> : null}
+            </>
+          }
+          actions={
+            !guidedReturn && canReturnToSchedule ? (
+              <Button asChild variant="outline" className={HEADER_CONTROL_HEIGHT}>
+                <Link to="/schedule"><ArrowLeft aria-hidden="true" className="mr-1.5 h-4 w-4" />Retour à l&apos;EDT</Link>
+              </Button>
+            ) : null
+          }
+        />
 
         <div>
           {checkingAccess ? (

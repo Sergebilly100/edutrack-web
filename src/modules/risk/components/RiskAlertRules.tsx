@@ -236,7 +236,7 @@ export function RiskAlertRules() {
       </header>
       {rulesQuery.isError ? <QueryErrorState title="Actualisation impossible" message="Les règles affichées restent disponibles. Réessayez pour les actualiser." onRetry={() => void rulesQuery.refetch()} isRetrying={rulesQuery.isFetching} className="[&_button]:min-h-12" /> : null}
       {(["student", "teacher"] as const).map((subjectType) => (
-        <section key={subjectType} aria-labelledby={`risk-${subjectType}-title`} className="rounded-lg border border-border bg-card p-4 text-card-foreground sm:p-6">
+        <section key={subjectType} data-tour={subjectType === "student" ? "settings-risk-student" : "settings-risk-teacher"} aria-labelledby={`risk-${subjectType}-title`} className="rounded-lg border border-border bg-card p-4 text-card-foreground sm:p-6">
           <div className="mb-5 space-y-1 border-b border-border pb-4">
             <h3 id={`risk-${subjectType}-title`} className="text-xl font-semibold">{subjectType === "student" ? "Élèves" : "Professeurs"}</h3>
             <p className="text-sm">{subjectType === "student" ? "Assiduité, résultats scolaires et paiements." : "Ces signaux alimentent l'action « Professeurs à suivre »."}</p>

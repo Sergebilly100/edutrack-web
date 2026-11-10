@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, CircleX, Clock, History, Info, Send, TriangleAlert } from "lucide-react"
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, CircleX, Clock, History, Info, TriangleAlert } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useBulkSelection } from "@/shared/hooks/useBulkSelection"
 import { BulkActionsBar, type BulkValidateAction as BulkBarAction } from "./components/BulkActionsBar"
+import { PageHeader, HEADER_CONTROL_HEIGHT } from "@/shared/components/PageHeader"
 import { TourGuide } from "@/shared/components/TourGuide"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { validationsTourSteps } from "@/shared/lib/tour-steps"
@@ -26,7 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
-import { EmptyState, OfflineIndicator, emptyStateIcons } from "@/shared/components"
+import { OfflineIndicator, QueryErrorState } from "@/shared/components"
 import {
   OfflineMutationQueuedError,
   useOfflineMutation,
@@ -65,6 +66,12 @@ import {
   ValidationsLoadingRows as LoadingRows,
 } from "./components/ValidationsLoadingRows"
 import {
+  ValidationsCompactEmpty,
+  ValidationsTabCount,
+  ValidationsViewSwitch,
+  type ValidationsView,
+} from "./components/ValidationsViews"
+import {
   EndScanStatusBadge,
   HistoryStatusBadge,
   KindBadges,
@@ -91,12 +98,16 @@ type BulkWarnTarget =
   | { scope: "all" }
   | { scope: "teacher"; teacherId: string; teacherName: string }
 
+const isEligibleSession = (session: MissingEndScanSession): boolean =>
+  session.endScanAction === null || session.endScanActionCancelledAt !== null
+
 const countEligibleSessions = (teacher: MissingEndScanTeacher): number =>
-  teacher.sessions.filter(
-    (s) => s.endScanAction === null || s.endScanActionCancelledAt !== null
-  ).length
+  teacher.sessions.filter(isEligibleSession).length
 
 const PENDING_LIMIT = 20
+
+// Le panneau d'onglet ne porte pas d'anneau de focus : le focus clavier reste visible sur les onglets et les contrôles.
+const PANEL_CLASS = "space-y-4 focus-visible:ring-0 focus-visible:ring-offset-0"
 
 // Garde défensive : un item provenant d'un cache stale (avant le déploiement
 // du backend multi-critères) peut ne pas avoir `kinds`. On retombe sur [kind].
@@ -151,7 +162,11 @@ export default function ValidationsPage() {
   const [cancelSanctionTarget, setCancelSanctionTarget] = useState<CancelSanctionTarget | null>(null)
   const [cancelSanctionReason, setCancelSanctionReason] = useState("")
   const [bulkWarnTarget, setBulkWarnTarget] = useState<BulkWarnTarget | null>(null)
-  const [endScanStatusFilter, setEndScanStatusFilter] = useState<"all" | EndScanStatus>("pending")
+  const [endScanStatusFilter, setEndScanStatusFilter] = useState<"all" | EndScanStatus>("all")
+  // Vue affichée dans chaque onglet : « À traiter » ou « Historique ».
+  const [hoursView, setHoursView] = useState<ValidationsView>("todo")
+  const [endScanView, setEndScanView] = useState<ValidationsView>("todo")
+  const [gpsView, setGpsView] = useState<ValidationsView>("todo")
   const endScanMonthOptions = useMemo(() => getRecentMonthOptions(getCurrentMonth(), 12), [])
 
   // Recherche locale sur la liste en attente déjà chargée, afin de conserver les
@@ -234,7 +249,7 @@ export default function ValidationsPage() {
       queueKey: "validation-reject",
       onSync: () => {
         void invalidateQueries()
-        toast({ title: "Refus synchronisé", description: "L'enseignant sera notifié." })
+        toast({ title: "Refus synchronisé", description: "Le professeur sera notifié." })
       },
     }
   )
@@ -282,7 +297,7 @@ export default function ValidationsPage() {
       setRejectTarget(null)
       setRejectReason("")
       await invalidateQueries()
-      toast({ title: "Présence refusée", description: "L'enseignant sera notifié." })
+      toast({ title: "Présence refusée", description: "Le professeur sera notifié." })
     } catch (error) {
       if (error instanceof OfflineMutationQueuedError) {
         setRejectTarget(null)
@@ -321,7 +336,7 @@ export default function ValidationsPage() {
       }
       toast({
         title: "Cours tolérés",
-        description: `${data.warnedCount} cours toléré(s) sur ${data.teacherCount} enseignant(s).`,
+        description: `${data.warnedCount} cours toléré(s) sur ${data.teacherCount} professeur(s).`,
       })
     },
   })
@@ -340,9 +355,9 @@ export default function ValidationsPage() {
       const desc =
         variables.action === "warned"
           ? variables.validatedHours !== undefined
-            ? "L'enseignant a été averti. Le salaire reflète les heures effectivement créditées."
-            : "L'enseignant a été averti. Son salaire reste intact."
-          : "Le cours ne sera pas comptabilisé. L'enseignant doit se rendre à l'administration."
+            ? "Le professeur a été averti. Le salaire reflète les heures effectivement créditées."
+            : "Le professeur a été averti. Son salaire reste intact."
+          : "Le cours ne sera pas comptabilisé. Le professeur doit se rendre à l'administration."
       toast({ title: label, description: desc })
     },
   })
@@ -356,7 +371,7 @@ export default function ValidationsPage() {
         queryClient.invalidateQueries({ queryKey: ["validations", "missing-end-scans"] }),
         queryClient.invalidateQueries({ queryKey: ["salaries"] }),
       ])
-      toast({ title: "Sanction annulée", description: "L'enseignant a été informé de l'annulation." })
+      toast({ title: "Sanction annulée", description: "Le professeur a été informé de l'annulation." })
     },
   })
 
@@ -418,7 +433,7 @@ export default function ValidationsPage() {
     if (!bulkWarnTarget) return
     const teacherIds =
       bulkWarnTarget.scope === "all"
-        ? endScanTeachers.map((t) => t.teacherId)
+        ? bulkWarnImpact.teachers.map((t) => t.teacherId)
         : [bulkWarnTarget.teacherId]
     warnMutation.mutate(teacherIds)
     setBulkWarnTarget(null)
@@ -562,7 +577,7 @@ export default function ValidationsPage() {
       )}
       <Input
         className="w-full sm:w-[200px]"
-        placeholder="Rechercher un enseignant"
+        placeholder="Rechercher un professeur"
         value={historySearch}
         onChange={(e) => { setHistorySearch(e.target.value); resetHistoryPage() }}
       />
@@ -577,13 +592,7 @@ export default function ValidationsPage() {
   ) => {
     if (isLoading) return <LoadingRows />
     if (items.length === 0) {
-      return (
-        <EmptyState
-          icon={emptyStateIcons.allGood}
-          title="Aucun historique"
-          message="Les présences traitées apparaîtront ici."
-        />
-      )
+      return <ValidationsCompactEmpty title="Aucun résultat" message="Aucune entrée ne correspond à ces filtres." />
     }
 
     const totalPages = Math.ceil(total / HISTORY_LIMIT)
@@ -647,7 +656,7 @@ export default function ValidationsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Enseignant</TableHead>
+                <TableHead>Professeur</TableHead>
                 <TableHead>Cours</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Créneau</TableHead>
@@ -726,7 +735,7 @@ export default function ValidationsPage() {
   const renderGpsTable = (items: PendingValidationItem[], totalItems: number) => {
     if (pendingQuery.isLoading) return <LoadingRows />
     if (items.length === 0) {
-      return <EmptyState icon={emptyStateIcons.allGood} title="Aucune présence suspecte" message="Les scans GPS hors périmètre apparaîtront ici." />
+      return <ValidationsCompactEmpty title="Tout est à jour" message="Les scans GPS hors périmètre apparaîtront ici." />
     }
 
     const isBusy = approveMutation.isPending || rejectMutation.isPending
@@ -775,7 +784,7 @@ export default function ValidationsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Enseignant</TableHead>
+              <TableHead>Professeur</TableHead>
               <TableHead>Cours</TableHead>
               <TableHead>Critères</TableHead>
               <TableHead>Date</TableHead>
@@ -826,7 +835,7 @@ export default function ValidationsPage() {
   const renderShortHoursTable = (items: PendingValidationItem[], totalItems: number) => {
     if (pendingQuery.isLoading) return <LoadingRows />
     if (items.length === 0) {
-      return <EmptyState icon={emptyStateIcons.allGood} title="Aucune heure courte" message="Les cours terminés trop tôt apparaîtront ici." />
+      return <ValidationsCompactEmpty title="Aucun résultat" message="Aucun professeur ne correspond à cette recherche." />
     }
 
     const allIds = items.map((i) => i.attendanceId)
@@ -924,7 +933,7 @@ export default function ValidationsPage() {
                   aria-label="Tout sélectionner"
                 />
               </TableHead>
-              <TableHead>Enseignant</TableHead>
+              <TableHead>Professeur</TableHead>
               <TableHead>Cours</TableHead>
               <TableHead>Critères</TableHead>
               <TableHead>Date</TableHead>
@@ -1021,14 +1030,82 @@ export default function ValidationsPage() {
     )
   }
 
+  const renderHistoryView = (
+    kind: "short_hours" | "gps_suspicious",
+    query: { isLoading: boolean; isError: boolean; refetch: () => unknown; data?: { items: ValidationHistoryItem[]; total: number } }
+  ) => {
+    const items = query.data?.items ?? []
+    const filtersActive =
+      historyMonth !== "all_months" ||
+      historySearch !== "" ||
+      (kind === "short_hours" ? shortHoursFilter !== "all" : gpsFilter !== "all")
+    if (query.isLoading) return <LoadingRows />
+    if (query.isError) {
+      return <QueryErrorState message="Impossible de charger l'historique." onRetry={() => void query.refetch()} />
+    }
+    if (items.length === 0 && !filtersActive) {
+      return <ValidationsCompactEmpty title="Aucun historique" message="Les présences traitées apparaîtront ici." />
+    }
+    return (
+      <div className="space-y-4">
+        {renderHistoryFilters(kind)}
+        {renderHistoryTable(items, query.data?.total ?? 0, false, kind)}
+      </div>
+    )
+  }
+
+  const endScanMonthFilter = (
+    <Select value={endScanMonth} onValueChange={setEndScanMonth}>
+      <SelectTrigger aria-label="Mois des scans de fin" className="w-full sm:w-[180px]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all_months">Tous les mois</SelectItem>
+        {endScanMonthOptions.map((m) => (
+          <SelectItem key={m} value={m}>
+            {formatMonthLabel(m)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+
+  // Chiffres cohérents : le compteur de l'onglet, le résumé et la liste mesurent la même chose
+  // (cours encore à traiter, tolérés/sanctionnés non annulés exclus). Les professeurs sans cours à traiter ne comptent pas.
+  const endScanTodoTeachers = endScanTeachers.filter((t) => countEligibleSessions(t) > 0)
+  const endScanHistoryCount = endScanTeachers.reduce((sum, t) => sum + t.sessions.filter((x) => x.endScanAction !== null).length, 0)
+
+  /** Vue « À traiter » : chargement, erreur avec « Réessayer », état vide unique, sinon le contenu. */
+  const renderPendingView = (count: number, emptyMessage: string, content: ReactNode) => {
+    if (pendingQuery.isLoading) return <LoadingRows />
+    if (pendingQuery.isError) {
+      return <QueryErrorState message="Impossible de charger les validations en attente." onRetry={() => void pendingQuery.refetch()} />
+    }
+    if (count === 0) return <ValidationsCompactEmpty title="Tout est à jour" message={emptyMessage} />
+    return <div className="space-y-4">{content}</div>
+  }
+
   const renderEndScanTab = () => {
     if (endScanQuery.isLoading) return <LoadingRows />
-    if (endScanTeachers.length === 0) {
-      return <EmptyState icon={emptyStateIcons.allGood} title="Aucun scan de fin manquant" message="Tous les enseignants ont effectué leur scan de fin pour ce mois." />
+    if (endScanQuery.isError) {
+      return <QueryErrorState message="Impossible de charger les scans de fin." onRetry={() => void endScanQuery.refetch()} />
+    }
+    const isTodo = endScanView === "todo"
+    const hasItems = isTodo ? endScanTotal > 0 : endScanHistoryCount > 0
+    const monthFilterVisible = hasItems || endScanMonth !== "all_months"
+    if (!hasItems) {
+      return (
+        <div className="space-y-4">
+          {monthFilterVisible ? <div className="flex">{endScanMonthFilter}</div> : null}
+          {isTodo
+            ? <ValidationsCompactEmpty title="Tout est à jour" message="Les cours sans scan de fin apparaîtront ici." />
+            : <ValidationsCompactEmpty title="Aucun historique" message="Les cours déjà traités apparaîtront ici." />}
+        </div>
+      )
     }
 
-    // Tri des profs : celui dont la session la plus récente est la première
-    const sortedTeachers = [...endScanTeachers].sort((a, b) => {
+    // Tri des professeurs : celui dont la session la plus récente est la première
+    const sortedTeachers = [...(isTodo ? endScanTodoTeachers : endScanTeachers)].sort((a, b) => {
       const latestA = a.sessions.reduce((max, s) => s.date > max ? s.date : max, "")
       const latestB = b.sessions.reduce((max, s) => s.date > max ? s.date : max, "")
       return latestB.localeCompare(latestA)
@@ -1037,21 +1114,41 @@ export default function ValidationsPage() {
     return (
       <div className="space-y-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted-foreground">{endScanTeachers.length} enseignant(s), {endScanTotal} cours sans scan de fin</p>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="w-full sm:w-auto"
-              disabled={warnMutation.isPending}
-              onClick={() => setBulkWarnTarget({ scope: "all" })}
-            >
-              <Send className="mr-2 h-4 w-4" />
-              {warnMutation.isPending ? "Traitement..." : "Tolérer tous les profs avec un avertissement"}
-            </Button>
+            {monthFilterVisible ? endScanMonthFilter : null}
+            {!isTodo ? (
+              <Select value={endScanStatusFilter} onValueChange={(v) => setEndScanStatusFilter(v as typeof endScanStatusFilter)}>
+                <SelectTrigger data-tour="validations-endscan-filters" aria-label="Statut des scans de fin" className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Filtrer par statut" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les statuts</SelectItem>
+                  <SelectItem value="warned">Toléré</SelectItem>
+                  <SelectItem value="sanctioned">Sanctionné</SelectItem>
+                  <SelectItem value="cancelled">Sanction annulée</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : null}
           </div>
+          {isTodo ? (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="w-full sm:w-auto"
+                disabled={warnMutation.isPending || endScanTotal === 0}
+                onClick={() => setBulkWarnTarget({ scope: "all" })}
+              >
+                <TriangleAlert className="mr-2 h-4 w-4" />
+                {warnMutation.isPending ? "Traitement..." : "Tolérer tous avec un avertissement"}
+              </Button>
+            </div>
+          ) : null}
         </div>
+        {isTodo ? (
+          <p className="text-sm text-muted-foreground">{endScanTodoTeachers.length} professeur(s), {endScanTotal} cours sans scan de fin à traiter</p>
+        ) : null}
 
         <div className="space-y-2">
           {sortedTeachers.map((teacher) => {
@@ -1062,11 +1159,10 @@ export default function ValidationsPage() {
               return b.timeSlot.localeCompare(a.timeSlot)
             })
 
-            // Filtrer par statut
-            const filteredSessions =
-              endScanStatusFilter === "all"
-                ? sortedSessions
-                : sortedSessions.filter((s) => getEndScanStatus(s) === endScanStatusFilter)
+            // « À traiter » : cours encore éligibles. « Historique » : cours déjà tolérés ou sanctionnés, filtrés par statut.
+            const filteredSessions = isTodo
+              ? sortedSessions.filter(isEligibleSession)
+              : sortedSessions.filter((s) => s.endScanAction !== null && (endScanStatusFilter === "all" || getEndScanStatus(s) === endScanStatusFilter))
 
             if (filteredSessions.length === 0) return null
 
@@ -1085,7 +1181,7 @@ export default function ValidationsPage() {
                     )}
                     <span className="font-medium">{teacher.teacherName}</span>
                     <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-900">
-                      {teacher.missingEndScanCount} cours
+                      {isTodo ? countEligibleSessions(teacher) : filteredSessions.length} cours
                     </Badge>
                     {teacher.warningCount > 0 ? (
                       <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
@@ -1098,23 +1194,25 @@ export default function ValidationsPage() {
                       </Badge>
                     ) : null}
                   </CollapsibleTrigger>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="w-full border-amber-200 text-amber-900 hover:bg-amber-50 sm:w-auto"
-                    disabled={warnMutation.isPending}
-                    onClick={() =>
-                      setBulkWarnTarget({
-                        scope: "teacher",
-                        teacherId: teacher.teacherId,
-                        teacherName: teacher.teacherName,
-                      })
-                    }
-                  >
-                    <Send className="mr-2 h-3 w-3" />
-                    Tolérer tous ses cours avec un avertissement
-                  </Button>
+                  {isTodo ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="w-full border-amber-200 text-amber-900 hover:bg-amber-50 sm:w-auto"
+                      disabled={warnMutation.isPending}
+                      onClick={() =>
+                        setBulkWarnTarget({
+                          scope: "teacher",
+                          teacherId: teacher.teacherId,
+                          teacherName: teacher.teacherName,
+                        })
+                      }
+                    >
+                      <TriangleAlert className="mr-2 h-3 w-3" />
+                      Tolérer tous ses cours avec un avertissement
+                    </Button>
+                  ) : null}
                 </div>
 
                 <CollapsibleContent>
@@ -1310,108 +1408,57 @@ export default function ValidationsPage() {
         onStepChange={tour.setStepIndex}
         onFinish={tour.markDone}
       />
-      <div className="space-y-6 animate-in fade-in duration-200 mt-3">
-        <header className="flex items-start justify-between gap-3">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight">Validation des horaires</h1>
-            <p className="text-sm text-muted-foreground">Présence(s) en attente de décision.</p>
-          </div>
-          {isDirectorValidations ? (
-            <Button type="button" variant="outline" size="sm" className="text-muted-foreground shrink-0" onClick={() => tour.restart()}>
-              <Info className="mr-1.5 h-4 w-4" />
-              Guide
-            </Button>
-          ) : null}
-        </header>
+      <div className="space-y-6 animate-in fade-in duration-200">
+        <PageHeader title="Validation des horaires" subtitle="Présences en attente de décision." />
 
         <Tabs defaultValue="hours" className="space-y-4">
-          <TabsList className="grid h-auto w-full grid-cols-1 gap-1 rounded-xl border border-border bg-muted/50 p-1 sm:grid-cols-3">
-            <TabsTrigger value="hours" data-tour="validations-short-hours" className="min-h-12">Heures à valider ({groups.short_hours.length})</TabsTrigger>
-            <TabsTrigger value="end-scan" data-tour="validations-tab-end-scan" className="min-h-12">
-              <AlertTriangle className="mr-1 h-3.5 w-3.5" />
-              Scan de fin ({endScanTotal})
+          <TabsList data-tour="validations-tabs" className="grid h-auto w-full grid-cols-1 gap-1 rounded-xl border border-border bg-muted/50 p-1 sm:grid-cols-3">
+            <TabsTrigger value="hours" className="min-h-12">
+              Heures à valider
+              <ValidationsTabCount count={groups.short_hours.length} />
             </TabsTrigger>
-            <TabsTrigger value="gps" data-tour="validations-tab-gps" className="min-h-12">Présences suspectes ({groups.gps_suspicious.length})</TabsTrigger>
+            <TabsTrigger value="end-scan" className="min-h-12">
+              {endScanTotal > 0 ? <AlertTriangle aria-hidden="true" className="mr-1 h-3.5 w-3.5" /> : null}
+              Scan de fin
+              <ValidationsTabCount count={endScanTotal} />
+            </TabsTrigger>
+            <TabsTrigger value="gps" className="min-h-12">
+              Présences suspectes
+              <ValidationsTabCount count={groups.gps_suspicious.length} />
+            </TabsTrigger>
           </TabsList>
-          <TabsContent value="hours" className="space-y-6">
-            <div className="space-y-4">
-              <InfoBox>Ces enseignants ont terminé leur cours avant l'heure prévue. Choisissez les heures à accorder.</InfoBox>
-              <Input
-                aria-label="Rechercher un professeur à valider"
-                className="w-full sm:max-w-sm"
-                placeholder="Rechercher un professeur"
-                value={shortHoursSearch}
-                onChange={(event) => {
-                  setShortHoursSearch(event.target.value)
-                  setShortHoursPage(1)
-                  bulkSelection.clearSelection()
-                }}
-              />
-              {renderShortHoursTable(shortHoursPageItems, filteredShortHours.length)}
-            </div>
-            <div className="space-y-4 border-t border-border pt-6" data-tour="validations-history">
-              <div className="flex items-center gap-2">
-                <History className="h-4 w-4 text-muted-foreground" />
-                <h2 className="text-base font-medium">Historique des heures à valider</h2>
-              </div>
-              {renderHistoryFilters("short_hours")}
-              {renderHistoryTable(
-                shortHoursHistoryQuery.data?.items ?? [],
-                shortHoursHistoryQuery.data?.total ?? 0,
-                shortHoursHistoryQuery.isLoading,
-                "short_hours"
-              )}
-            </div>
+          <TabsContent value="hours" className={PANEL_CLASS}>
+            <div data-tour="validations-hours-info"><InfoBox>Ces professeurs ont terminé leur cours avant l'heure prévue. Choisissez les heures à accorder.</InfoBox></div>
+            <ValidationsViewSwitch label="Vue des heures à valider" value={hoursView} onChange={setHoursView} todoCount={groups.short_hours.length} />
+            {hoursView === "todo" ? renderPendingView(groups.short_hours.length, "Les cours terminés trop tôt apparaîtront ici.", (
+              <>
+                <Input
+                  aria-label="Rechercher un professeur à valider"
+                  data-tour="validations-search"
+                  className="w-full sm:max-w-sm"
+                  placeholder="Rechercher un professeur"
+                  value={shortHoursSearch}
+                  onChange={(event) => {
+                    setShortHoursSearch(event.target.value)
+                    setShortHoursPage(1)
+                    bulkSelection.clearSelection()
+                  }}
+                />
+                {renderShortHoursTable(shortHoursPageItems, filteredShortHours.length)}
+              </>
+            )) : renderHistoryView("short_hours", shortHoursHistoryQuery)}
           </TabsContent>
-          <TabsContent value="end-scan" className="space-y-4">
-            <InfoBox>Ces enseignants ont pointé leur arrivée mais n'ont pas effectué le scan de fin de cours.</InfoBox>
-            <div className="flex flex-col md:flex-row md:items-center md:justify-start gap-2">
-              <Select value={endScanMonth} onValueChange={setEndScanMonth}>
-                <SelectTrigger aria-label="Mois des scans de fin" className="w-full md:ml-4 md:w-[180px] md:m-0">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all_months">Tous les mois</SelectItem>
-                  {endScanMonthOptions.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {formatMonthLabel(m)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={endScanStatusFilter} onValueChange={(v) => setEndScanStatusFilter(v as typeof endScanStatusFilter)}>
-                <SelectTrigger aria-label="Statut des scans de fin" className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Filtrer par statut" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les statuts</SelectItem>
-                  <SelectItem value="pending">En attente</SelectItem>
-                  <SelectItem value="warned">Averti</SelectItem>
-                  <SelectItem value="sanctioned">Sanctionné</SelectItem>
-                  <SelectItem value="cancelled">Sanction annulée</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <TabsContent value="end-scan" className={PANEL_CLASS}>
+            <div data-tour="validations-endscan-info"><InfoBox>Ces professeurs ont pointé leur arrivée mais n'ont pas effectué le scan de fin de cours.</InfoBox></div>
+            <ValidationsViewSwitch label="Vue des scans de fin" value={endScanView} onChange={setEndScanView} todoCount={endScanTotal} />
             {renderEndScanTab()}
           </TabsContent>
-          <TabsContent value="gps" className="space-y-6">
-            <div className="space-y-4">
-              <InfoBox>Ces enseignants ont été détectés hors du périmètre de la salle au moment du scan. Vérifiez avec eux avant de valider.</InfoBox>
-              {renderGpsTable(gpsPageItems, groups.gps_suspicious.length)}
-            </div>
-            <div className="space-y-4 border-t border-border pt-6">
-              <div className="flex items-center gap-2">
-                <History className="h-4 w-4 text-muted-foreground" />
-                <h2 className="text-base font-medium">Historique des présences suspectes</h2>
-              </div>
-              {renderHistoryFilters("gps_suspicious")}
-              {renderHistoryTable(
-                gpsHistoryQuery.data?.items ?? [],
-                gpsHistoryQuery.data?.total ?? 0,
-                gpsHistoryQuery.isLoading,
-                "gps_suspicious"
-              )}
-            </div>
+          <TabsContent value="gps" className={PANEL_CLASS}>
+            <div data-tour="validations-gps-info"><InfoBox>Ces professeurs ont été détectés hors du périmètre de la salle au moment du scan. Vérifiez avec eux avant de valider.</InfoBox></div>
+            <ValidationsViewSwitch label="Vue des présences suspectes" value={gpsView} onChange={setGpsView} todoCount={groups.gps_suspicious.length} />
+            {gpsView === "todo"
+              ? renderPendingView(groups.gps_suspicious.length, "Les scans GPS hors périmètre apparaîtront ici.", renderGpsTable(gpsPageItems, groups.gps_suspicious.length))
+              : renderHistoryView("gps_suspicious", gpsHistoryQuery)}
           </TabsContent>
         </Tabs>
       </div>
@@ -1446,7 +1493,7 @@ export default function ValidationsPage() {
                   <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>
                     Cette présence cumule plusieurs critères. Cet accord lève également
-                    l'alerte GPS suspect en plus des heures. Convoquez cet enseignant pour en savoir plus avant de valider cette présence.
+                    l'alerte GPS suspect en plus des heures. Convoquez ce professeur pour en savoir plus avant de valider cette présence.
                   </span>
                 </div>
               ) : null}
@@ -1528,7 +1575,7 @@ export default function ValidationsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Refuser la présence de {rejectTarget?.teacherName}</DialogTitle>
-            <DialogDescription>Une notification sera envoyée à l'enseignant avec ce motif.</DialogDescription>
+            <DialogDescription>Une notification sera envoyée au professeur avec ce motif.</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             {rejectTarget ? (
@@ -1584,7 +1631,7 @@ export default function ValidationsPage() {
             <DialogTitle>
               {endScanActionTarget?.action === "warned"
                 ? "Tolérer avec avertissement"
-                : "Sanctionner l'enseignant"}
+                : "Sanctionner le professeur"}
             </DialogTitle>
             <DialogDescription>
               {endScanActionTarget?.teacher.teacherName} - {endScanActionTarget?.session.subject} du{" "}
@@ -1679,7 +1726,7 @@ export default function ValidationsPage() {
                                   {plannedAmount ? ` · ${plannedAmount}` : ""}
                                 </span>
                                 <span className="block text-xs text-muted-foreground mt-0.5">
-                                  Crédite la durée pleine du créneau (l'enseignant a peut-être enseigné plus que l'estimation).
+                                  Crédite la durée pleine du créneau (le professeur a peut-être enseigné plus que l'estimation).
                                 </span>
                               </span>
                             </label>
@@ -1690,7 +1737,7 @@ export default function ValidationsPage() {
                   ) : null}
                   <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                     <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>Un message d'avertissement sera envoyé à l'enseignant.</span>
+                    <span>Un message d'avertissement sera envoyé au professeur.</span>
                   </div>
                 </>
               ) : (
@@ -1700,7 +1747,7 @@ export default function ValidationsPage() {
                     {endScanActionTarget.teacher.hourlyRate !== null
                       ? `Montant planifié concerné : ${formatFcfa(endScanActionTarget.teacher.hourlyRate * (endScanActionTarget.session.scheduleDurationMinutes / 60))}. `
                       : ""}
-                    Ce cours ne sera pas comptabilisé. L'enseignant devra se rendre à l'administration pour se justifier.
+                    Ce cours ne sera pas comptabilisé. Le professeur devra se rendre à l'administration pour se justifier.
                   </span>
                 </div>
               )}
@@ -1777,7 +1824,7 @@ export default function ValidationsPage() {
             />
             <div className="flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">
               <Info className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>Le cours sera à nouveau comptabilisé et l'enseignant recevra une notification d'information.</span>
+              <span>Le cours sera à nouveau comptabilisé et le professeur recevra une notification d'information.</span>
             </div>
           </div>
           <DialogFooter>
@@ -1817,14 +1864,14 @@ export default function ValidationsPage() {
           <DialogHeader>
             <DialogTitle>
               {bulkWarnTarget?.scope === "all"
-                ? "Tolérer tous les profs avec un avertissement"
+                ? "Tolérer tous avec un avertissement"
                 : `Tolérer tous les cours de ${bulkWarnTarget?.scope === "teacher" ? bulkWarnTarget.teacherName : ""}`}
             </DialogTitle>
             <DialogDescription>
               {bulkWarnImpact.eligibleCount === 0
                 ? "Aucun cours éligible : toutes les sessions sont déjà traitées."
                 : bulkWarnTarget?.scope === "all"
-                  ? `Vous êtes sur le point de tolérer ${bulkWarnImpact.eligibleCount} cours sans scan de fin pour ${bulkWarnImpact.teacherCount} enseignant(s).`
+                  ? `Vous êtes sur le point de tolérer ${bulkWarnImpact.eligibleCount} cours sans scan de fin pour ${bulkWarnImpact.teacherCount} professeur(s).`
                   : `Vous êtes sur le point de tolérer ${bulkWarnImpact.eligibleCount} cours sans scan de fin.`}
             </DialogDescription>
           </DialogHeader>
@@ -1837,7 +1884,7 @@ export default function ValidationsPage() {
                     <p className="font-medium">Conséquences de cette action :</p>
                     <ul className="list-disc pl-4 space-y-0.5">
                       <li>Ces sessions seront marquées « Toléré ».</li>
-                      <li>{bulkWarnImpact.teacherCount > 1 ? "Les enseignants" : "L'enseignant"} recevr{bulkWarnImpact.teacherCount > 1 ? "ont" : "a"} une notification par SMS et email.</li>
+                      <li>{bulkWarnImpact.teacherCount > 1 ? "Les professeurs" : "Le professeur"} recevr{bulkWarnImpact.teacherCount > 1 ? "ont" : "a"} une notification par SMS et email.</li>
                       <li>Aucun impact sur {bulkWarnImpact.teacherCount > 1 ? "leurs" : "son"} salaire{bulkWarnImpact.teacherCount > 1 ? "s" : ""}.</li>
                       <li>Les sanctions et tolérances déjà appliquées ne seront pas modifiées.</li>
                     </ul>
@@ -1846,7 +1893,7 @@ export default function ValidationsPage() {
               </div>
               {bulkWarnTarget?.scope === "all" && bulkWarnImpact.teachers.length > 0 ? (
                 <div className="rounded-lg border border-border p-3 text-sm">
-                  <p className="text-muted-foreground mb-1">Enseignants concernés :</p>
+                  <p className="text-muted-foreground mb-1">Professeurs concernés :</p>
                   <ul className="space-y-0.5">
                     {bulkWarnImpact.teachers.map((t) => (
                       <li key={t.teacherId} className="flex justify-between gap-2">
@@ -1870,7 +1917,7 @@ export default function ValidationsPage() {
               disabled={warnMutation.isPending || bulkWarnImpact.eligibleCount === 0}
               onClick={confirmBulkWarn}
             >
-              {warnMutation.isPending ? "Traitement..." : "Confirmer la tolérance"}
+              {warnMutation.isPending ? "Traitement..." : "Confirmer et tolérer"}
             </Button>
           </DialogFooter>
         </DialogContent>

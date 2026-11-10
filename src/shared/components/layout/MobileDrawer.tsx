@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react"
+
 import { Link, useLocation } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { ChevronDown } from "lucide-react"
@@ -12,9 +12,13 @@ import { fetchConductDecisionWorkspace } from "@/modules/academic/academic.api"
 import { getConductReminderCount, getOpenConductScopes } from "@/modules/academic/conduct-navigation"
 import { useEndOfYearReviewStatus } from "@/modules/class-decisions/useEndOfYearReviewStatus"
 import { filterNavItemsByFeatures, getNavItemsByRole, isNavItemActive } from "@/shared/components/layout/nav-items"
+import { NavSections } from "@/shared/components/layout/NavSections"
 import { UserMenu } from "@/shared/components/layout/UserMenu"
+import { useActionBadges } from "@/modules/dashboard/action-badges"
+import { ActionBadge } from "@/shared/components/ActionBadge"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { isStaffRole, useAuthStore } from "@/shared/store/auth.store"
+import { useSidebarStore } from "@/shared/store/sidebar.store"
 
 interface MobileDrawerProps {
   open: boolean
@@ -46,6 +50,7 @@ export function MobileDrawer({ open, onClose, variant = "default" }: MobileDrawe
   })
   const openConductScopes = getOpenConductScopes(conductQuery.data)
   const conductReminderCount = getConductReminderCount(conductQuery.data)
+  const actionBadges = useActionBadges()
   const items = filterNavItemsByFeatures(
     getNavItemsByRole(userRole, permissions, studentLabels.plural),
     { subscriptionsEnabled, endOfYearReviewVisible: endOfYearStatusQuery.data?.visible === true },
@@ -62,11 +67,12 @@ export function MobileDrawer({ open, onClose, variant = "default" }: MobileDrawe
   const activeGroup = navigationGroups.find((group) =>
     group.items.some((item) => isNavItemActive(item, location.pathname, location.search)),
   )?.label
-  const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
+  const expandedGroup = useSidebarStore((state) => state.expandedGroup)
+  const setExpandedGroup = useSidebarStore((state) => state.setExpandedGroup)
 
   const toggleGroup = (groupLabel: string) => {
     if (groupLabel === activeGroup) return
-    setExpandedGroup((current) => current === groupLabel ? null : groupLabel)
+    setExpandedGroup(expandedGroup === groupLabel ? null : groupLabel)
   }
 
   return (
@@ -104,19 +110,15 @@ export function MobileDrawer({ open, onClose, variant = "default" }: MobileDrawe
                     </Button>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="space-y-1">
-                    {group.items.map((item, index) => {
-                      const Icon = item.icon
-
-                      return (
-                        <Fragment key={item.href}>
-                          {item.section && item.section !== group.items[index - 1]?.section ? (
-                            <p className={cn(
-                              "px-3 pt-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground",
-                              item.section === "Abonnements" && "mt-2 border-t border-border pt-3",
-                            )}>
-                              {item.section}
-                            </p>
-                          ) : null}
+                    <NavSections
+                      group={group.label}
+                      items={group.items}
+                      touch
+                      isActive={(item) => isNavItemActive(item, location.pathname, location.search)}
+                      badgeFor={(item) => ({ count: actionBadges.byHref[item.href], details: actionBadges.detailsByHref[item.href] })}
+                      renderItem={(item) => {
+                        const Icon = item.icon
+                        return (
                           <Link
                             to={item.href}
                             onClick={onClose}
@@ -133,11 +135,11 @@ export function MobileDrawer({ open, onClose, variant = "default" }: MobileDrawe
                               <span aria-label={`${conductReminderCount} décision${conductReminderCount > 1 ? "s" : ""} de conduite à finaliser`} className="ml-auto inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-semibold text-white">
                                 {conductReminderCount}
                               </span>
-                            ) : null}
+                            ) : <ActionBadge count={actionBadges.byHref[item.href]} details={actionBadges.detailsByHref[item.href]} className="ml-auto" />}
                           </Link>
-                        </Fragment>
-                      )
-                    })}
+                        )
+                      }}
+                    />
                   </CollapsibleContent>
                 </Collapsible>
               ))}

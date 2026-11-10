@@ -93,6 +93,22 @@ describe("RiskDetailsPage", () => {
     }))
   })
 
+  it("lit les filtres élèves depuis l'URL et propose de les réinitialiser", async () => {
+    renderPage("/dashboard/risks?tab=students&category=absences&level=critical&levelId=level-1")
+    expect(await screen.findByRole("columnheader", { name: "Élève" })).toBeInTheDocument()
+    expect(listStudentRisksMock).toHaveBeenLastCalledWith(expect.objectContaining({ category: "absences", riskLevel: "critical", schoolLevelId: "level-1", atRisk: true }))
+    fireEvent.click(screen.getByRole("button", { name: "Réinitialiser les filtres" }))
+    await waitFor(() => expect(listStudentRisksMock).toHaveBeenLastCalledWith(expect.objectContaining({ category: undefined, riskLevel: undefined, schoolLevelId: undefined })))
+    expect(screen.queryByRole("button", { name: "Réinitialiser les filtres" })).not.toBeInTheDocument()
+  })
+
+  it("ouvre l'onglet professeurs avec le motif d'absences présélectionné, sans mois par défaut", async () => {
+    renderPage("/dashboard/risks?tab=teachers&signal=absences")
+    expect(await screen.findByRole("link", { name: "M. Yao" })).toBeInTheDocument()
+    expect(listTeacherRisksMock).toHaveBeenLastCalledWith(expect.objectContaining({ signal: "absences", month: undefined, atRisk: true }))
+    expect(screen.getByText(/absences répétées/, { selector: "p" })).toBeInTheDocument()
+  })
+
   it("affiche les absences répétées dans l’onglet professeur", async () => {
     renderPage()
     const teachersTab = await screen.findByRole("tab", { name: "Professeurs" })
@@ -111,7 +127,8 @@ describe("RiskDetailsPage", () => {
     })
     expect(notification.title).toBe("Professeurs à suivre")
     expect(notification.targetHref).toBe("/dashboard/risks?tab=teachers")
-    expect(DASHBOARD_ACTION_ROUTES.student_at_risk.href).toBe("/students")
+    expect(DASHBOARD_ACTION_ROUTES.student_at_risk.href).toBe("/dashboard/risks?tab=students")
+    expect(DASHBOARD_ACTION_ROUTES.teacher_absences_high.href).toBe("/dashboard/risks?tab=teachers&signal=absences")
     renderPage(notification.targetHref)
 
     expect(await screen.findByRole("columnheader", { name: "Absences répétées" })).toBeInTheDocument()

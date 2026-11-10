@@ -1,3 +1,4 @@
+import { formatPersonName } from "@/shared/utils/person-name"
 import { useEffect, useMemo, useState } from "react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -86,7 +87,7 @@ export default function AttendanceSheet({
             <div className="space-y-2">
               {sortedStudents.map((student) => {
                 const isAbsent = absentStudentIds.has(student.id)
-                const fullName = `${student.lastName} ${student.firstName}`
+                const fullName = `${formatPersonName({ lastName: student.lastName, firstName: student.firstName })}`
 
                 return (
                   <div

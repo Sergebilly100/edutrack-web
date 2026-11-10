@@ -1,4 +1,6 @@
 import { apiClient as api } from "@/shared/api/client"
+import { downloadExcelExport } from "@/shared/api/excelExport.api"
+import { exportFileName } from "@/shared/utils/export-file-name"
 
 export type StudentItem = {
   id: string
@@ -362,6 +364,24 @@ const fetchStudentList = (path: string, query: StudentsListQuery) =>
       },
     })
     .then((response) => response.data)
+
+export type StudentsExportRequest = {
+  schoolYearId: string
+  schoolYearLabel: string
+  /** Filtres de la liste, ou `undefined` pour tout exporter (toutes les inscriptions de l'année). */
+  filters?: { classId?: string; levelId?: string; isActive?: boolean; search?: string }
+}
+
+/** Export Excel des élèves de l'année choisie. Une sélection filtrée reprend la liste : inscrits confirmés uniquement. */
+export const exportStudentsExcel = (request: StudentsExportRequest): Promise<void> =>
+  downloadExcelExport("/students/export", {
+    school_year_id: request.schoolYearId,
+    class_id: request.filters?.classId,
+    level_id: request.filters?.levelId,
+    is_active: request.filters?.isActive === undefined ? undefined : String(request.filters.isActive),
+    search: request.filters?.search,
+    enrollment_status: request.filters ? "confirmed" : undefined,
+  }, exportFileName("eleves", request.schoolYearLabel))
 
 export const listStudents = (query: StudentsListQuery = {}) => fetchStudentList("/students", query)
 export const listHistoryProfiles = (query: StudentsListQuery = {}) => fetchStudentList("/students/history-directory", query)

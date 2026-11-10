@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState } from "react"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { teacherNotesTourSteps } from "@/shared/lib/tour-steps"
+import { AideButton } from "@/shared/aide/AideButton"
 import { useQuery } from "@tanstack/react-query"
 import { useSearchParams } from "react-router-dom"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -17,6 +21,7 @@ import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 type NotesTab = "evaluations" | "moyennes" | "conduite" | "decisions"
 
 export default function TeacherNotesWorkspace() {
+  const tour = useTourGuide("teacher-notes", true)
   const [searchParams, setSearchParams] = useSearchParams()
   const evaluationsTabRef = useRef<HTMLButtonElement>(null)
   const [reviewNotice, setReviewNotice] = useState<"ended" | "unavailable" | null>(null)
@@ -74,15 +79,19 @@ export default function TeacherNotesWorkspace() {
   const verifyingReview = requestedTab === "conduite" && !reviewVerified
 
   return  <div className="min-w-0 space-y-4">
+    <TourGuide steps={teacherNotesTourSteps} run={tour.run} stepIndex={tour.stepIndex} onStepChange={tour.setStepIndex} onFinish={tour.markDone} />
     <OfflineIndicator />
     <InstallPwaCard
       audience="user"
       headline="Installez IvoirEdu pour pointer plus vite"
       className="!mb-4 !mt-0"
     />
-    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-      Espace d’enseignement
-    </p>
+    <div className="flex items-center justify-between gap-3">
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        Espace d’enseignement
+      </p>
+      <AideButton />
+    </div>
     <Tabs value={tab} onValueChange={(value) => {
       setReviewNotice(null)
       setSearchParams((current) => {
@@ -91,7 +100,7 @@ export default function TeacherNotesWorkspace() {
         return next
       })
     }}>
-      <TabsList aria-label="Sections de Notes" className={`grid h-auto w-full gap-1 p-1 ${canReview && canDecide ? "grid-cols-2 sm:grid-cols-4" : canReview || canDecide ? "grid-cols-3" : "grid-cols-2"}`}>
+      <TabsList aria-label="Sections de Notes" data-tour="notes-tabs" className={`grid h-auto w-full gap-1 p-1 ${canReview && canDecide ? "grid-cols-2 sm:grid-cols-4" : canReview || canDecide ? "grid-cols-3" : "grid-cols-2"}`}>
         <TabsTrigger ref={evaluationsTabRef} value="evaluations" className="min-h-12 px-1 text-xs sm:text-sm">Évaluations</TabsTrigger>
         <TabsTrigger value="moyennes" className="min-h-12 px-1 text-xs sm:text-sm">Moyennes</TabsTrigger>
         {canReview ? <TabsTrigger value="conduite" className="min-h-12 gap-1 px-1 text-xs sm:text-sm">Conduite{conductPendingCount > 0 ? <Badge variant="warning" className="px-1.5 text-[10px]">{conductPendingCount}</Badge> : null}</TabsTrigger> : null}

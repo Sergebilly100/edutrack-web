@@ -1,3 +1,4 @@
+import { formatPersonName } from "@/shared/utils/person-name"
 import { useEffect, useMemo, useState } from "react"
 import type { Column, ColumnDef } from "@tanstack/react-table"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -24,6 +25,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { listClasses, listLevels } from "@/modules/academic/academic.api"
 import StudentAbsencePanel from "@/modules/students/components/StudentAbsencePanel"
+import { StudentsExportButton } from "@/modules/students/components/StudentsExportButton"
 import {
   getAttendanceHistory,
   getParentAccessMode,
@@ -232,7 +234,7 @@ export default function StudentsPage() {
     () =>
       students.map((student) => ({
         ...student,
-        name: `${student.lastName} ${student.firstName}`.trim(),
+        name: `${formatPersonName({ lastName: student.lastName, firstName: student.firstName })}`.trim(),
         parentDisplayName: student.parentName ?? student.parentName2 ?? "Non renseigné",
         parentPhoneDisplay: student.parentPhone ?? student.parentPhone2 ?? "Non renseigné",
         monthlyAbsences: absencesMap[student.id] ?? 0,
@@ -336,7 +338,10 @@ export default function StudentsPage() {
       subtitle={`Liste des ${studentLabels.pluralLower} et suivi des absences`}
       actions={
         <div className="flex flex-wrap gap-2">
-          {canViewStudents ? <Button asChild variant="outline" className="min-h-12"><Link to="/students/history">Tous les dossiers élèves</Link></Button> : null}
+          {canViewStudents ? <Button asChild variant="outline" className="min-h-12" data-tour="students-dossiers-btn"><Link to="/students/history">Tous les dossiers élèves</Link></Button> : null}
+          {canViewStudents ? (
+            <StudentsExportButton noun={studentLabels.pluralLower} levelFilter={levelFilter} classFilter={classFilter} statusFilter={statusFilter} searchTerm={searchTerm} />
+          ) : null}
           {parentAccessModeQuery.data?.available ? (
             <Button
               type="button"
@@ -351,17 +356,7 @@ export default function StudentsPage() {
               {sendPendingParentAccessMutation.isPending ? "Envoi des accès…" : "Envoyer les accès parents en attente"}
             </Button>
           ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="text-muted-foreground"
-            onClick={() => tour.restart()}
-            aria-label="Revoir le guide"
-          >
-            <InfoIcon className="mr-1.5 h-4 w-4" />
-            Guide
-          </Button>
+          
 
         </div>
       }
@@ -374,15 +369,15 @@ export default function StudentsPage() {
           setSearchParams(next, { replace: true })
         }}
         className="space-y-4"
-        data-tour="students-tabs"
+
       >
         <HomeroomTeacherReminder />
-        <TabsList className={cn("grid h-auto w-full rounded-xl border border-border bg-muted/50 p-1 sm:w-full", canViewStudents && canViewAttendance ? "grid-cols-2 md:w-[420px]" : "grid-cols-1 md:w-[220px]")}>
+        <TabsList data-tour="students-tablist" className={cn("grid h-auto w-full rounded-xl border border-border bg-muted/50 p-1 sm:w-full", canViewStudents && canViewAttendance ? "grid-cols-2 md:w-[420px]" : "grid-cols-1 md:w-[220px]")}>
           {canViewStudents ? (
-            <TabsTrigger value="liste" className="min-h-12 rounded-lg text-sm font-medium" data-tour="students-tab-liste">Liste</TabsTrigger>
+            <TabsTrigger value="liste" className="min-h-12 rounded-lg text-sm font-medium">Liste</TabsTrigger>
           ) : null}
           {canViewAttendance ? (
-            <TabsTrigger value="absences" className="min-h-12 rounded-lg text-sm font-medium" data-tour="students-tab-absences">Absences</TabsTrigger>
+            <TabsTrigger value="absences" className="min-h-12 rounded-lg text-sm font-medium">Absences</TabsTrigger>
           ) : null}
         </TabsList>
 
@@ -400,7 +395,7 @@ export default function StudentsPage() {
               </AlertDescription>
             </Alert>
           ) : null}
-          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="students-overview">
             <div className="flex flex-col gap-4 bg-[var(--surface-chrome)] px-4 py-4 md:flex-row md:items-center md:justify-between">
               <div className="space-y-1">
                 <p className="text-sm font-semibold">{`Vue opérationnelle ${studentLabels.pluralLower}`}</p>
@@ -522,6 +517,7 @@ export default function StudentsPage() {
           ) : null}
 
           {!studentsQuery.isError ? (
+            <div data-tour="students-table">
             <DataTable
               columns={columns}
               data={tableData}
@@ -581,6 +577,7 @@ export default function StudentsPage() {
                 </Button>
               )}
             />
+            </div>
           ) : null}
         </TabsContent>
         ) : null}

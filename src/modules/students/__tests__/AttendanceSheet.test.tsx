@@ -46,7 +46,7 @@ describe("AttendanceSheet", () => {
       />
     )
 
-    const firstStudent = screen.getByText("Bamba Mariam")
+    const firstStudent = screen.getByText("BAMBA Mariam")
     expect(firstStudent).toBeInTheDocument()
   })
 

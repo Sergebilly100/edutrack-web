@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   GraduationCap,
+  HelpCircle,
   ChevronDown,
   LogOut,
   Menu,
@@ -32,11 +33,14 @@ import { cn } from "@/lib/utils"
 import { logout as logoutApi } from "@/modules/auth/auth.api"
 import { getSmsFeatureSettings } from "@/modules/subscriptions/subscriptions.api"
 import { getPendingValidationCount } from "@/modules/validations/validations.api"
+import { useActionBadges } from "@/modules/dashboard/action-badges"
+import { ActionBadge } from "@/shared/components/ActionBadge"
 import { fetchConductDecisionWorkspace } from "@/modules/academic/academic.api"
 import { getConductReminderCount, getOpenConductScopes } from "@/modules/academic/conduct-navigation"
 import { useEndOfYearReviewStatus } from "@/modules/class-decisions/useEndOfYearReviewStatus"
 import { LogoutOfflineGuardDialog } from "@/shared/components/LogoutOfflineGuardDialog"
 import { OfflineQueueBadge } from "@/shared/components/OfflineQueueBadge"
+import { NavSections } from "@/shared/components/layout/NavSections"
 import { NotificationButton } from "@/shared/components/layout/NotificationButton"
 import { filterNavItemsByFeatures, getNavItemsByRole, isNavItemActive } from "@/shared/components/layout/nav-items"
 import { useTheme } from "@/shared/hooks/useTheme"
@@ -54,10 +58,12 @@ function NavItemComponent({
   item,
   collapsed,
   badgeCount,
+  badgeDetails,
 }: {
   item: ReturnType<typeof getNavItemsByRole>[number]
   collapsed: boolean
   badgeCount?: number
+  badgeDetails?: string[]
 }) {
   const location = useLocation()
   const isActive = isNavItemActive(item, location.pathname, location.search)
@@ -81,10 +87,13 @@ function NavItemComponent({
       >
         {item.label}
       </span>
-      {!collapsed && badgeCount && badgeCount > 0 ? (
-        <span aria-label={item.href === "/academic/conduct" ? `${badgeCount} décision${badgeCount > 1 ? "s" : ""} de conduite à finaliser` : `${badgeCount} actions en attente`} className="ml-auto inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-semibold text-white">
-          {badgeCount}
-        </span>
+      {!collapsed ? (
+        <ActionBadge
+          count={badgeCount}
+          details={badgeDetails}
+          label={item.href === "/academic/conduct" && badgeCount ? `${badgeCount} décision${badgeCount > 1 ? "s" : ""} de conduite à finaliser` : undefined}
+          className="ml-auto"
+        />
       ) : null}
     </Link>
   )
@@ -138,6 +147,21 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
   })
   const openConductScopes = getOpenConductScopes(conductQuery.data)
   const conductReminderCount = getConductReminderCount(conductQuery.data)
+  const actionBadges = useActionBadges()
+  const badgeDetailsFor = (href: string): string[] | undefined => {
+    if (href === "/validations") {
+      const total = validationCountQuery.data?.total
+      return total ? [`${total} décision${total > 1 ? "s" : ""} à prendre sur les pointages`] : undefined
+    }
+    if (href === "/academic/conduct") {
+      return conductReminderCount ? [`${conductReminderCount} décision${conductReminderCount > 1 ? "s" : ""} de conduite à finaliser`] : undefined
+    }
+    return actionBadges.detailsByHref[href]
+  }
+  const badgeCountFor = (href: string): number | undefined =>
+    href === "/validations" ? validationCountQuery.data?.total
+      : href === "/academic/conduct" ? conductReminderCount
+        : actionBadges.byHref[href]
   const visibleItems = filterNavItemsByFeatures(
     getNavItemsByRole(role, permissions, studentLabels.plural),
     {
@@ -160,11 +184,12 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
   const activeGroup = navigationGroups.find((group) =>
     group.items.some((item) => isNavItemActive(item, location.pathname, location.search)),
   )?.label
-  const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
+  const expandedGroup = useSidebarStore((state) => state.expandedGroup)
+  const setExpandedGroup = useSidebarStore((state) => state.setExpandedGroup)
 
   const toggleGroup = (groupLabel: string) => {
     if (groupLabel === activeGroup) return
-    setExpandedGroup((current) => current === groupLabel ? null : groupLabel)
+    setExpandedGroup(expandedGroup === groupLabel ? null : groupLabel)
   }
 
   const openCollapsedGroup = (groupLabel: string) => {
@@ -242,11 +267,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
           {navigationGroups.map((group) => {
             const Icon = group.items[0]?.icon
             const isGroupActive = group.label === activeGroup
-            const groupBadgeCount = group.items.some((item) => item.href === "/validations")
-              ? validationCountQuery.data?.total
-              : group.items.some((item) => item.href === "/academic/conduct")
-                ? conductReminderCount
-                : undefined
+            const groupBadgeCount = group.items.reduce((total, item) => total + (badgeCountFor(item.href) ?? 0), 0)
 
             if (!Icon) return null
 
@@ -293,28 +314,30 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
                   variant="ghost"
                   className="flex min-h-12 w-full items-center justify-between rounded-lg px-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground hover:bg-accent hover:text-foreground"
                 >
-                  {group.label}
+                  <span className="flex items-center gap-2">
+                    {group.label}
+                    {group.label !== expandedGroup && group.label !== activeGroup
+                      ? <ActionBadge count={group.items.reduce((total, item) => total + (badgeCountFor(item.href) ?? 0), 0)} details={group.items.flatMap((item) => badgeDetailsFor(item.href) ?? [])} />
+                      : null}
+                  </span>
                   <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-150 data-[state=open]:rotate-180" />
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-0.5">
-                {group.items.map((item, index) => (
-                  <Fragment key={item.href}>
-                    {item.section && item.section !== group.items[index - 1]?.section ? (
-                      <p className={cn(
-                        "px-3 pt-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground",
-                        item.section === "Abonnements" && "mt-2 border-t border-border pt-3",
-                      )}>
-                        {item.section}
-                      </p>
-                    ) : null}
+                <NavSections
+                  group={group.label}
+                  items={group.items}
+                  isActive={(item) => isNavItemActive(item, location.pathname, location.search)}
+                  badgeFor={(item) => ({ count: badgeCountFor(item.href), details: badgeDetailsFor(item.href) })}
+                  renderItem={(item) => (
                     <NavItemComponent
                       item={item}
                       collapsed={false}
-                      badgeCount={item.href === "/validations" ? validationCountQuery.data?.total : item.href === "/academic/conduct" ? conductReminderCount : undefined}
+                      badgeCount={badgeCountFor(item.href)}
+                      badgeDetails={badgeDetailsFor(item.href)}
                     />
-                  </Fragment>
-                ))}
+                  )}
+                />
               </CollapsibleContent>
             </Collapsible>
           ))}
@@ -403,6 +426,10 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
           <DropdownMenuItem onClick={() => navigate("/account")}>
             <UserCircle className="mr-2 h-4 w-4" />
             Mon compte
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate("/aide")}>
+            <HelpCircle className="mr-2 h-4 w-4" />
+            Aide
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem

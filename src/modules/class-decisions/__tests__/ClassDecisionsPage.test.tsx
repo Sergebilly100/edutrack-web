@@ -81,7 +81,7 @@ describe("ClassDecisionsPage", () => {
 
   it("affiche la saisie manuelle lorsque le module Notes n’est pas disponible", async () => {
     renderPage()
-    expect(await screen.findAllByText("Koné Aminata")).not.toHaveLength(0)
+    expect(await screen.findAllByText("KONÉ Aminata")).not.toHaveLength(0)
     expect(screen.getAllByText(/saisie manuelle/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText("14,5/20").length).toBeGreaterThan(0)
   })

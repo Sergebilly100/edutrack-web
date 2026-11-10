@@ -161,7 +161,7 @@ export default function SmsTemplatePanel({ canReadTemplate }: { canReadTemplate:
               ) : null}
               {isEnabled && variables.length > 0 ? (
                 <div className="space-y-2">
-                  <p className="text-sm font-medium">Insérer une information dans le message</p>
+                  <p className="text-sm font-medium" data-tour="settings-sms-insert">Insérer une information dans le message</p>
                   <div className="flex flex-wrap gap-2">
                     {variables.map((name) => (
                       <Button key={name} type="button" variant="outline" size="sm" className="min-h-12 sm:min-h-9"
@@ -173,6 +173,7 @@ export default function SmsTemplatePanel({ canReadTemplate }: { canReadTemplate:
                 </div>
               ) : null}
               <Textarea
+                data-tour="settings-sms-editor"
                 ref={textareaRef}
                 aria-label={`Texte du SMS d’absence ${studentLabels.singularLower}`}
                 value={messageTemplate}
@@ -202,7 +203,7 @@ export default function SmsTemplatePanel({ canReadTemplate }: { canReadTemplate:
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-tour="settings-sms-preview">
               <h3 className="text-sm font-medium">Aperçu chez le parent</h3>
               <p className="whitespace-pre-wrap break-words rounded-lg bg-muted p-4 text-sm" aria-live="polite">
                 {preview.trim() || "Votre message apparaîtra ici."}

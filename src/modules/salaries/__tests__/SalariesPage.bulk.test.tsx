@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -31,6 +31,30 @@ describe("SalariesPage – sélection groupée", () => {
     expect(screen.getByLabelText("Sélectionner Prof v1")).toBeInTheDocument()
     expect(screen.getByLabelText("Tout sélectionner (permanents)")).toBeInTheDocument()
     expect(screen.getByLabelText("Sélectionner Prof p1")).toBeInTheDocument()
+  })
+})
+
+const renderPageEarly = () => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><SalariesPage /></MemoryRouter></QueryClientProvider>)
+
+describe("SalariesPage – paiement groupé exclusif", () => {
+  beforeEach(() => { stale.value = false })
+
+  it("sélectionner l'autre groupe annule la première sélection : une seule barre et une seule fenêtre", async () => {
+    renderPageEarly()
+    fireEvent.click(await screen.findByLabelText("Tout sélectionner"))
+    expect(screen.getAllByRole("button", { name: /Marquer payés/ })).toHaveLength(1)
+    fireEvent.click(screen.getByRole("button", { name: /Marquer payés \(1 vacataire\)/ }))
+    expect(screen.getAllByRole("dialog")).toHaveLength(1)
+    fireEvent.keyDown(document, { key: "Escape" })
+    fireEvent.click(screen.getByLabelText("Tout sélectionner"))
+    fireEvent.click(screen.getByLabelText("Tout sélectionner (permanents)"))
+    expect(screen.queryByRole("button", { name: /vacataire\)/ })).toBeNull()
+    expect(screen.getByLabelText("Sélectionner Prof v1")).toHaveAttribute("data-state", "unchecked")
+    const pay = screen.getAllByRole("button", { name: /Marquer payés/ })
+    expect(pay).toHaveLength(1)
+    fireEvent.click(pay[0])
+    expect(screen.getAllByRole("dialog")).toHaveLength(1)
+    expect(screen.getByText("Confirmer le paiement groupé (permanents)")).toBeInTheDocument()
   })
 })
 

@@ -109,7 +109,7 @@ export default function TeacherAnalysisPanel() {
 
   return (
     <div className="space-y-4">
-      <Card>
+      <Card data-tour="teachers-analysis-filters">
         <CardContent className="p-4">
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[180px] space-y-2">
@@ -240,7 +240,7 @@ export default function TeacherAnalysisPanel() {
       ) : null}
 
       {queryEnabled ? (
-        <Card>
+        <Card data-tour="teachers-analysis-results">
           <CardContent className="space-y-4 p-4">
             {statsRows.length > 0 ? (
               <div className="flex justify-end">

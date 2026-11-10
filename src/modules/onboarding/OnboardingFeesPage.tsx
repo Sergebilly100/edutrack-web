@@ -4,15 +4,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Plus, Trash2 } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
 import { listLevels, listSchoolYears } from "@/modules/academic/academic.api"
+import { CopyTuitionPlanDialog } from "@/modules/finance/components/CopyTuitionPlanDialog"
+import { planFormMatchesSaved } from "@/modules/finance/tuition-copy"
 import { listTuitionPlans, upsertTuitionPlan, type TuitionPlan, type TuitionScheduleStep } from "@/modules/finance/finance.api"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useAuthStore } from "@/shared/store/auth.store"
@@ -33,8 +33,7 @@ export default function OnboardingFeesPage() {
   const [totalAmount, setTotalAmount] = useState("")
   const [registrationAmount, setRegistrationAmount] = useState("")
   const [steps, setSteps] = useState<TuitionScheduleStep[]>([])
-  const [copyTargetId, setCopyTargetId] = useState("")
-  const [confirmCopyOpen, setConfirmCopyOpen] = useState(false)
+  const [copyOpen, setCopyOpen] = useState(false)
 
   const yearsQuery = useQuery({
     queryKey: ["academic", "school-years"],
@@ -65,19 +64,12 @@ export default function OnboardingFeesPage() {
     () => levels.filter((level) => level.id !== levelId),
     [levelId, levels],
   )
-  const copyTargetPlan = plans.find((plan) => plan.levelId === copyTargetId)
 
   useEffect(() => {
     if (!levels.some((level) => level.id === levelId)) {
       setLevelId(levels[0]?.id ?? "")
     }
   }, [levelId, levels])
-
-  useEffect(() => {
-    if (!copyTargets.some((level) => level.id === copyTargetId)) {
-      setCopyTargetId(copyTargets[0]?.id ?? "")
-    }
-  }, [copyTargetId, copyTargets])
 
   useEffect(() => {
     setTotalAmount(selectedPlan ? String(selectedPlan.totalAmount) : "")
@@ -97,6 +89,7 @@ export default function OnboardingFeesPage() {
         && step.cumulativeAmountExpected >= previous.cumulativeAmountExpected
       ))
   })
+  const formMatchesSaved = planFormMatchesSaved(selectedPlan, { totalAmount, registrationAmount, steps })
   const amountsValid = Number.isFinite(total)
     && total > 0
     && Number.isFinite(registration)
@@ -347,24 +340,16 @@ export default function OnboardingFeesPage() {
                 </Button>
 
                 {copyTargets.length > 0 ? (
-                  <div className="space-y-2 border-t pt-4">
-                    <Label htmlFor="tuition-copy-target">Copier vers un autre niveau</Label>
-                    <Select value={copyTargetId} onValueChange={setCopyTargetId}>
-                      <SelectTrigger id="tuition-copy-target" className="min-h-12">
-                        <SelectValue placeholder="Choisir un niveau" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {copyTargets.map((level) => <SelectItem key={level.id} value={level.id}>{level.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                  <div className="border-t pt-4">
                     <Button
                       type="button"
                       variant="outline"
                       className="min-h-12 w-full"
-                      disabled={!canSave || !selectedPlan || !copyTargetId || savePlan.isPending}
-                      onClick={() => copyTargetPlan ? setConfirmCopyOpen(true) : savePlan.mutate(copyTargetId)}
+                      disabled={!canSave || !selectedPlan || !formMatchesSaved || savePlan.isPending}
+                      title={formMatchesSaved ? undefined : "Enregistrez d’abord les frais de ce niveau : la copie reprend les frais enregistrés."}
+                      onClick={() => setCopyOpen(true)}
                     >
-                      Copier ces frais vers {copyTargets.find((level) => level.id === copyTargetId)?.name ?? "un autre niveau"}
+                      Copier ces frais vers…
                     </Button>
                   </div>
                 ) : null}
@@ -372,27 +357,7 @@ export default function OnboardingFeesPage() {
             </Card>
           </div>
 
-          <AlertDialog open={confirmCopyOpen} onOpenChange={setConfirmCopyOpen}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Remplacer le plan de frais existant ?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Le niveau {copyTargets.find((level) => level.id === copyTargetId)?.name} possède déjà un plan pour l’année {activeYear.label}. Les frais actuels seront remplacés par ceux du niveau {levels.find((level) => level.id === levelId)?.name}.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Annuler</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => {
-                    setConfirmCopyOpen(false)
-                    savePlan.mutate(copyTargetId)
-                  }}
-                >
-                  Remplacer le plan
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <CopyTuitionPlanDialog open={copyOpen} onOpenChange={setCopyOpen} schoolYearId={activeYear.id} sourceLevelId={levelId} />
         </>
       )}
     </div>

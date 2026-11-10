@@ -1,3 +1,4 @@
+import { formatPersonName } from "@/shared/utils/person-name"
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowRight, CalendarPlus, Loader2 } from "lucide-react"
@@ -162,6 +163,7 @@ export default function NotesPage() {
 
         <section
           aria-label="Contexte de notation"
+          data-tour="notes-context"
           className="rounded-lg border bg-card p-3 shadow-sm md:p-5"
         >
           <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
@@ -238,6 +240,7 @@ export default function NotesPage() {
               <Button
                 type="button"
                 className="min-h-5 sm:flex-1"
+                data-tour="notes-add-evaluation"
                 disabled={isPeriodReadOnly}
                 onClick={() => setCreateOpen(true)}
               >
@@ -280,6 +283,7 @@ export default function NotesPage() {
             ) : null}
             <section
               aria-labelledby="evaluations-title"
+              data-tour="notes-evaluations"
               className="space-y-4 rounded-lg border bg-card p-2 shadow-sm md:p-5"
             >
               <div className="mb-2 flex gap-2 border-b pb-3">
@@ -535,7 +539,7 @@ function EvaluationGradesDialog({ evaluation, classId, gradingPeriodId, students
       </DialogHeader>
       <div className="min-h-0 overflow-y-auto py-1 sm:px-6 sm:py-5">
         {evaluation && students.length === 0 ? <EmptyState title="Aucun élève confirmé" description="Aucune inscription confirmée dans cette classe pour l’année scolaire de la saisie." classNameRendu="py-0" /> : null}
-        {evaluation && students.length > 0 ? <div className="divide-y rounded-lg border">{students.map((student) => <GradeRow key={`${evaluation.id}-${student.id}-${evaluation.grades.find((item) => item.studentId === student.id)?.score ?? "empty"}`} fullName={`${student.firstName} ${student.lastName}`} initialScore={String(evaluation.grades.find((item) => item.studentId === student.id)?.score ?? "")} readOnly={readOnly} onSave={(score) => gradeMutation.mutateAsync({ studentId: student.id, score })} />)}</div> : null}
+        {evaluation && students.length > 0 ? <div className="divide-y rounded-lg border">{students.map((student) => <GradeRow key={`${evaluation.id}-${student.id}-${evaluation.grades.find((item) => item.studentId === student.id)?.score ?? "empty"}`} fullName={`${formatPersonName({ lastName: student.lastName, firstName: student.firstName })}`} initialScore={String(evaluation.grades.find((item) => item.studentId === student.id)?.score ?? "")} readOnly={readOnly} onSave={(score) => gradeMutation.mutateAsync({ studentId: student.id, score })} />)}</div> : null}
       </div>
     </DialogContent>
   </Dialog>

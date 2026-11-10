@@ -87,7 +87,7 @@ export function ConductSettings({ canEditPolicy, canManageAssignments }: { canEd
     onError: (error) => toast({ title: "Suppression impossible", description: error instanceof Error ? error.message : undefined, variant: "destructive" }),
   })
 
-  return <section className="space-y-5 rounded-lg border p-4" aria-label="Conduite">
+  return <section className="space-y-5 rounded-lg border p-4" aria-label="Conduite" data-tour="settings-conduct">
     <div><h2 className="font-semibold">Décision de conduite</h2><p className="text-sm text-muted-foreground">Le responsable décide même si des avis enseignants manquent. Seule la note finale entre dans la moyenne.</p></div>
     {yearsQuery.isLoading ? <p role="status">Chargement des années scolaires…</p> : yearsQuery.isError ? <div role="alert" className="space-y-2"><p>Années scolaires indisponibles.</p><Button type="button" variant="outline" className="min-h-12" onClick={() => void yearsQuery.refetch()}>Réessayer</Button></div> : (yearsQuery.data?.length ?? 0) === 0 ? <EmptyState title="Aucune année scolaire" description="Créez une année scolaire avant de configurer la conduite." /> : <>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_8rem_auto] lg:items-end"><div className="space-y-2"><Label htmlFor="conduct-year">Année scolaire</Label><Select value={schoolYearId} onValueChange={value => { setSelectedYearId(value); setMode(""); setCoefficient("") }}><SelectTrigger id="conduct-year" className="min-h-12"><SelectValue /></SelectTrigger><SelectContent>{yearsQuery.data?.map(year => <SelectItem key={year.id} value={year.id}>{year.label}</SelectItem>)}</SelectContent></Select></div>

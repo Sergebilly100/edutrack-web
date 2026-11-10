@@ -1,3 +1,4 @@
+import { formatPersonName } from "@/shared/utils/person-name"
 import { useMemo, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { ChevronRight } from "lucide-react"
@@ -117,7 +118,7 @@ export function AttendanceTab({
     return groups.flatMap((g) =>
       g.absences.map((abs) => ({
         studentId: abs.studentId,
-        studentName: `${abs.studentFirstName} ${abs.studentLastName}`,
+        studentName: `${formatPersonName({ lastName: abs.studentLastName, firstName: abs.studentFirstName })}`,
         className: g.className,
         createdAt: abs.createdAt,
         smsStatus: abs.smsStatus,

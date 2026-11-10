@@ -30,7 +30,7 @@ describe("StudentHistoryDirectoryPage", () => {
         <Route path="/students/:studentId/history" element={<p>Historique ouvert</p>} />
       </Routes></MemoryRouter>
     </QueryClientProvider>)
-    expect(await screen.findByText("Koné Aya")).toBeInTheDocument()
+    expect(await screen.findByText("KONÉ Aya")).toBeInTheDocument()
     fireEvent.change(screen.getByRole("searchbox", { name: "Nom ou matricule" }), { target: { value: "MAT-42" } })
     await waitFor(() => expect(listHistoryProfiles).toHaveBeenCalledWith(expect.objectContaining({ search: "MAT-42" })))
     fireEvent.click(await screen.findByRole("link", { name: "Ouvrir le dossier" }))
@@ -51,13 +51,13 @@ describe("StudentHistoryDirectoryPage", () => {
         <Route path="/students/history" element={<StudentHistoryDirectoryPage />} />
       </Routes></MemoryRouter>
     </QueryClientProvider>)
-    expect(await screen.findByText("Koné Aya")).toBeInTheDocument()
+    expect(await screen.findByText("KONÉ Aya")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Inscrits cette année" }))
-    expect(await screen.findByText("Yao Awa")).toBeInTheDocument()
+    expect(await screen.findByText("YAO Awa")).toBeInTheDocument()
     expect(listStudents).toHaveBeenCalledWith(expect.objectContaining({ page: 1, limit: 20 }))
-    expect(screen.queryByText("Koné Aya")).not.toBeInTheDocument()
+    expect(screen.queryByText("KONÉ Aya")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Tous les dossiers" }))
-    expect(await screen.findByText("Koné Aya")).toBeInTheDocument()
+    expect(await screen.findByText("KONÉ Aya")).toBeInTheDocument()
   })
 
   it("filtre les dossiers historiques par année et niveau puis ouvre l’année sélectionnée", async () => {

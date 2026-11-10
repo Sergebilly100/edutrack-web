@@ -1,0 +1,167 @@
+import type { AidePage } from "@/shared/aide/aide.types"
+
+export const settingsAide: AidePage = {
+  id: "settings",
+  espace: "Configuration",
+  titre: "Paramètres de l'école",
+  chemins: ["/settings"],
+  roles: ["director", "staff"],
+  requires: ["settings.school", "settings.positions", "settings.sms_templates", "tuition.view", "tuition.edit"],
+  visite: "settings",
+  resume:
+    "Cette page règle le fonctionnement de l'école : identité, personnel et droits, documents d'inscription, frais, relances de paiement, alertes de risque et messages aux parents. Les onglets affichés dépendent de vos droits.",
+  prerequis: [
+    "Certaines fonctions s'activent côté IvoirEdu : « Heures réelles », le « Service Alertes Parents » et les limites du forfait. Elles apparaissent ici en lecture seule.",
+    "Sans plan de frais par niveau, la caisse ne peut pas confirmer d'inscription : configurez-le avant la rentrée.",
+    "Sans règle de relance active, aucune relance de paiement ne part.",
+  ],
+  taches: [
+    {
+      id: "logo-cachet",
+      titre: "Comment ajouter le logo et le cachet de l'école ?",
+      etapes: [
+        "Ouvrez l'onglet « Général ».",
+        "Dans « Logo », glissez l'image ou cliquez pour la choisir (PNG, JPEG ou WebP, 2 Mo maximum).",
+        "Faites de même pour le cachet et la signature, qui figurent sur les bulletins PDF.",
+        "Confirmez l'envoi : rien n'est enregistré avant la confirmation.",
+      ],
+      requires: ["settings.school"],
+      reserve: "Réservé aux personnes qui gèrent les paramètres de l'école",
+    },
+    {
+      id: "politique-qr",
+      titre: "Comment rendre le scan du QR code facultatif ?",
+      etapes: [
+        "Ouvrez l'onglet « Général ».",
+        "Dans « Politique de scan QR Codes des salles », lisez l'état actuel.",
+        "Cliquez sur « Activer le mode facultatif » ou « Désactiver le mode facultatif ».",
+        "Confirmez : le bouton « Passer cette étape » est alors proposé aux professeurs.",
+      ],
+      requires: ["settings.school"],
+      reserve: "Réservé aux personnes qui gèrent les paramètres de l'école",
+    },
+    {
+      id: "creer-poste",
+      titre: "Comment créer un poste et donner des droits ?",
+      etapes: [
+        "Ouvrez l'onglet « Personnel ».",
+        "Cliquez sur « Nouveau poste » et saisissez le nom, par exemple « Censeur ».",
+        "Cochez les droits dans la matrice de permissions, groupe par groupe.",
+        "Cliquez sur « Créer le poste » : les droits s'appliquent après l'enregistrement.",
+      ],
+      requires: ["settings.positions"],
+      reserve: "Réservé aux personnes qui gèrent les postes",
+    },
+    {
+      id: "ajouter-utilisateur",
+      titre: "Comment créer le compte d'un membre du personnel ?",
+      etapes: [
+        "Ouvrez l'onglet « Personnel », bloc « Utilisateurs administratifs ».",
+        "Saisissez le nom complet, un mot de passe provisoire d'au moins 8 caractères, et un e-mail ou un téléphone.",
+        "Cliquez sur « Ajouter l'utilisateur ».",
+        "Assignez-lui un poste : ses droits en dépendent.",
+      ],
+      requires: ["settings.positions"],
+      reserve: "Réservé aux personnes qui gèrent les postes",
+    },
+    {
+      id: "regler-conduite",
+      titre: "Comment choisir qui décide de la note de conduite ?",
+      etapes: [
+        "Ouvrez l'onglet « Personnel », bloc « Décision de conduite ».",
+        "Choisissez l'année scolaire.",
+        "Choisissez le responsable : professeur principal, direction ou éducateur délégué.",
+        "Réglez le coefficient annuel, puis cliquez sur « Enregistrer ».",
+        "Pour un éducateur délégué, affectez-le à une classe ou un niveau.",
+      ],
+      requires: ["conduct.finalize", "settings.positions"],
+      reserve: "Réservé aux personnes qui gèrent la conduite",
+    },
+    {
+      id: "documents-requis",
+      titre: "Comment définir les documents demandés à l'inscription ?",
+      etapes: [
+        "Ouvrez l'onglet « Académique ».",
+        "Dans « Documents requis par niveau », saisissez le nom de la pièce.",
+        "Choisissez les niveaux concernés et décochez « Obligatoire » si elle est facultative.",
+        "Enregistrez : la pièce apparaît dans le récapitulatif.",
+      ],
+    },
+    {
+      id: "delais-notes",
+      titre: "Comment régler le délai de saisie des notes ?",
+      etapes: [
+        "Ouvrez l'onglet « Académique ».",
+        "Dans « Délais de saisie des notes », saisissez le délai de grâce en jours.",
+        "Saisissez le seuil de retard, supérieur au délai de grâce.",
+        "Cliquez sur « Enregistrer les délais ».",
+      ],
+      requires: ["settings.school"],
+      reserve: "Réservé aux personnes qui gèrent les paramètres de l'école",
+    },
+    {
+      id: "plan-frais",
+      titre: "Comment enregistrer les frais d'un niveau ?",
+      etapes: [
+        "Ouvrez l'onglet « Scolarité & finances » et choisissez l'année.",
+        "Dans « Plan par niveau », choisissez le niveau.",
+        "Saisissez le montant annuel et le montant à régler à l'inscription.",
+        "Ajoutez des seuils : une date et le cumul attendu à cette date.",
+        "Cliquez sur « Enregistrer le plan ».",
+      ],
+      requires: ["tuition.edit"],
+      reserve: "Réservé aux personnes qui peuvent modifier les frais",
+    },
+    {
+      id: "copier-plan",
+      titre: "Comment reprendre un plan de frais sur d'autres niveaux ?",
+      etapes: [
+        "Enregistrez d'abord le plan du niveau de départ.",
+        "Cliquez sur « Copier vers… ».",
+        "Choisissez les niveaux de destination : ceux qui ont déjà des frais sont signalés.",
+        "Confirmez la copie.",
+      ],
+      requires: ["tuition.edit"],
+      reserve: "Réservé aux personnes qui peuvent modifier les frais",
+    },
+    {
+      id: "regles-relance",
+      titre: "Comment régler les relances de paiement ?",
+      etapes: [
+        "Ouvrez l'onglet « Relances ».",
+        "Pour chaque type (préventive, retard, retard important), saisissez le délai en jours.",
+        "Choisissez le canal : SMS, dans l'application ou les deux.",
+        "Cochez « Active » puis cliquez sur « Enregistrer ».",
+      ],
+    },
+    {
+      id: "regles-risque",
+      titre: "Comment régler les alertes de risque du tableau de bord ?",
+      etapes: [
+        "Ouvrez l'onglet « Risques ».",
+        "Choisissez le signal : élèves ou professeurs.",
+        "Cochez « Signal actif » et réglez le seuil.",
+        "Cliquez sur « Enregistrer » à côté du signal.",
+      ],
+    },
+    {
+      id: "modele-sms",
+      titre: "Comment personnaliser le SMS d'absence envoyé aux parents ?",
+      etapes: [
+        "Ouvrez l'onglet « Communication ».",
+        "Modifiez le texte du message d'absence (au moins 5 caractères).",
+        "Insérez le prénom, la matière, la date ou le téléphone de l'école avec les boutons.",
+        "Relisez l'aperçu chez le parent.",
+        "Cliquez sur « Créer le modèle SMS », ou sur « Enregistrer » si vous en avez déjà un.",
+      ],
+      requires: ["settings.sms_templates"],
+      reserve: "Réservé aux personnes qui gèrent les modèles de messages",
+    },
+  ],
+  bonASavoir: [
+    "Les informations de l'école (nom, ville, plan, type d'enseignement) sont gérées par IvoirEdu : contactez-nous pour les corriger.",
+    "Le nombre de postes administratifs est limité par votre forfait, et seul IvoirEdu peut le modifier.",
+    "Le nouveau mot de passe d'un utilisateur doit avoir au moins 8 caractères.",
+    "Les téléphones se saisissent au format 225 suivi de 10 chiffres.",
+  ],
+}

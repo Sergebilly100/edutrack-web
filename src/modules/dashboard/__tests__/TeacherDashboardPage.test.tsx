@@ -67,7 +67,7 @@ describe("TeacherDashboardPage", () => {
     renderWithClient(<TeacherDashboardPage />)
 
     expect(await screen.findByText("Prochain cours")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Revoir le guide" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Ouvrir l'aide de la page" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Mes notifications" })).toBeInTheDocument()
     fireEvent.click(await screen.findByRole("button", { name: "Saisir les notes" }))
     expect(navigateMock).toHaveBeenCalledWith("/academic/notes?classId=class-1&gradingPeriodId=period-1")

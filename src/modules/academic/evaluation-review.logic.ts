@@ -32,3 +32,11 @@ export const todayInAbidjan = (): string => {
   const value = (type: 'year' | 'month' | 'day') => parts.find((part) => part.type === type)?.value ?? ''
   return `${value('year')}-${value('month')}-${value('day')}`
 }
+
+/** Même texte que celui envoyé par l'API (evaluation-review.repository.ts) : à garder synchronisé. */
+export const reminderMessage = (label: string, subject: string, className: string): string =>
+  `Bonjour, la direction attend l’avancement de la saisie des notes de ${label} en ${subject} (${className}). Pourriez-vous les renseigner dans l’application dès que possible ? Merci !`
+
+/** Message envoyé quand un professeur est relancé pour plusieurs évaluations à la fois (sans matière). */
+export const groupedReminderMessage = (classNames: string[]): string =>
+  `Bonjour, la direction attend l’avancement de la saisie des notes des évaluations réalisées avec les classes suivantes : ${[...new Set(classNames)].join(", ")}. Pourriez-vous les renseigner dans l’application dès que possible ? Merci !`

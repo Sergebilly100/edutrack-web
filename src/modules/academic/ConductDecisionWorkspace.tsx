@@ -13,6 +13,8 @@ import { EmptyState } from "@/shared/components/EmptyState"
 import { useAuthStore } from "@/shared/store/auth.store"
 import { decideConductGrade, fetchConductDecisionStudents, fetchConductOverview, fetchConductDecisionWorkspace } from "./academic.api"
 
+import { PageHeader } from "@/shared/components/PageHeader"
+
 export default function ConductDecisionWorkspace() {
   const role = useAuthStore((state) => state.user?.role)
   const [params, setParams] = useSearchParams()
@@ -73,7 +75,7 @@ export default function ConductDecisionWorkspace() {
   const overview = overviewQuery.data
 
   return <div className="min-w-0 space-y-4">
-    <header><h1 className="text-2xl font-semibold">Conduite</h1><p className="text-sm text-muted-foreground">Décisions des classes qui vous sont confiées.</p></header>
+    <PageHeader title="Conduite" subtitle="Décisions des classes qui vous sont confiées." />
     {workspaceQuery.isLoading ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Chargement des classes…</p> : null}
     {workspaceQuery.isError ? <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center justify-between gap-2"><span>Impossible de charger les décisions de conduite. Vérifiez la connexion ou les migrations de l’école.</span><Button type="button" variant="outline" className="min-h-12" onClick={() => void workspaceQuery.refetch()}>Réessayer</Button></AlertDescription></Alert> : null}
     {workspaceQuery.isSuccess && scopes.length === 0 ? <div className="space-y-3"><EmptyState title="Aucune décision autorisée" description="Vérifiez le mode de décision de l’année dans Paramètres → Personnel. L’entrée Conduite apparaît pendant la revue lorsqu’une classe vous est autorisée." />{role === "director" ? <Button asChild variant="outline" className="min-h-12"><Link to="/settings?tab=personnel">Ouvrir les paramètres de conduite</Link></Button> : null}</div> : null}

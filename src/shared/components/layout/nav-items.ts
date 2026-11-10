@@ -4,7 +4,6 @@ import {
   AdminIcon,
   AttendanceIcon,
   DashboardIcon,
-  ImportIcon,
   RoomIcon,
   SalaryIcon,
   ScheduleIcon,
@@ -159,7 +158,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: FINANCE_PATHS.dashboard,
     icon: LayoutDashboard,
     group: "Finance",
-    section: "Scolarité",
+    section: "Vue d’ensemble",
     roles: ["director", "staff"],
     requiredPermissions: ["payments.view"],
     mobileVisible: true,
@@ -169,17 +168,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: FINANCE_PATHS.recovery,
     icon: HandCoins,
     group: "Finance",
-    section: "Scolarité",
-    roles: ["director", "staff"],
-    requiredPermissions: ["payments.view"],
-    mobileVisible: false,
-  },
-  {
-    label: "Journal de caisse",
-    href: FINANCE_PATHS.journal,
-    icon: ClipboardList,
-    group: "Finance",
-    section: "Scolarité",
+    section: "Vue d’ensemble",
     roles: ["director", "staff"],
     requiredPermissions: ["payments.view"],
     mobileVisible: false,
@@ -189,17 +178,27 @@ export const NAV_ITEMS: NavItem[] = [
     href: FINANCE_PATHS.entry,
     icon: ReceiptText,
     group: "Finance",
-    section: "Scolarité",
+    section: "Encaissement",
     roles: ["director", "staff"],
     requiredPermissions: ["payments.record"],
     mobileVisible: true,
+  },
+  {
+    label: "Journal de caisse",
+    href: FINANCE_PATHS.journal,
+    icon: ClipboardList,
+    group: "Finance",
+    section: "Encaissement",
+    roles: ["director", "staff"],
+    requiredPermissions: ["payments.view"],
+    mobileVisible: false,
   },
   {
     label: "Historique & reçus",
     href: FINANCE_PATHS.history,
     icon: History,
     group: "Finance",
-    section: "Scolarité",
+    section: "Encaissement",
     roles: ["director", "staff"],
     requiredPermissions: ["payments.view"],
     mobileVisible: false,
@@ -209,17 +208,26 @@ export const NAV_ITEMS: NavItem[] = [
     href: FINANCE_PATHS.agreements,
     icon: ClipboardList,
     group: "Finance",
-    section: "Scolarité",
+    section: "Ajustements",
     roles: ["director", "staff"],
     requiredAnyPermissions: ["tuition.view", "tuition.grant_discount", "tuition.manage_student_schedule"],
+    mobileVisible: false,
+  },
+  {
+    label: "Salaires professeurs",
+    href: "/salaries",
+    icon: SalaryIcon,
+    group: "Finance",
+    section: "Personnel",
+    roles: ["director", "staff"],
+    requiredPermissions: ["salary.view"],
     mobileVisible: false,
   },
   {
     label: "Abonnements parents",
     href: "/subscriptions",
     icon: UsersRound,
-    group: "Finance",
-    section: "Abonnements",
+    group: "Abonnements",
     roles: ["director", "staff"],
     requiredPermissions: ["subscriptions.view"],
     mobileVisible: false,
@@ -229,28 +237,9 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Revenus abonnements",
     href: "/subscriptions/revenue",
     icon: TrendingUp,
-    group: "Finance",
-    section: "Abonnements",
+    group: "Abonnements",
     roles: ["director", "staff"],
     requiredPermissions: ["subscriptions.revenue"],
-    mobileVisible: false,
-  },
-  {
-    label: "Import de données",
-    href: "/import",
-    icon: ImportIcon,
-    group: "Administration",
-    roles: ["director", "staff"],
-    requiredPermissions: ["import.schedule"],
-    mobileVisible: false,
-  },
-  {
-    label: "Salaires professeurs",
-    href: "/salaries",
-    icon: SalaryIcon,
-    group: "Administration",
-    roles: ["director", "staff"],
-    requiredPermissions: ["salary.view"],
     mobileVisible: false,
   },
   {
@@ -453,4 +442,16 @@ export function filterNavItemsByFeatures(
     }
     return true
   })
+}
+
+export type NavBlock = { section?: string; items: NavItem[] }
+
+/** Regroupe les entrées consécutives d'un groupe par sous-groupe (`section`), dans l'ordre du menu. */
+export function toNavBlocks(items: NavItem[]): NavBlock[] {
+  return items.reduce<NavBlock[]>((blocks, item) => {
+    const last = blocks[blocks.length - 1]
+    if (last && last.section === item.section) last.items.push(item)
+    else blocks.push({ section: item.section, items: [item] })
+    return blocks
+  }, [])
 }

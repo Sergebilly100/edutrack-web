@@ -10,6 +10,9 @@ import { PageLayout } from "@/shared/components/PageLayout"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { financeRecoveryTourSteps } from "@/shared/lib/tour-steps"
 import { todayInBusinessTimezone } from "@/shared/lib/business-date"
 import { formatFcfa } from "@/shared/utils/formatting"
 import { studentNoun, studentPlural } from "@/shared/utils/student-label"
@@ -25,6 +28,7 @@ const schoolToday = () => todayInBusinessTimezone().split("-").reverse().join("/
 export default function RecoveryPage() {
   const labels = useStudentLabels()
   const { hasPermission } = usePermissions()
+  const tour = useTourGuide("finance-recovery", true)
   const [searchParams, setSearchParams] = useSearchParams()
   const years = useQuery({ queryKey: ["finance", "recovery", "years"], queryFn: fetchRecoveryYears })
   const yearChoice = searchParams.get("annee") ?? ""
@@ -57,12 +61,14 @@ export default function RecoveryPage() {
   if (years.isError) return <PageLayout title="Recouvrement détaillé"><QueryErrorState message="Impossible de charger les années scolaires." onRetry={() => void years.refetch()} /></PageLayout>
 
   const yearSelect = <Select value={schoolYearId} onValueChange={(value) => updateParams({ annee: value, niveau: "", classe: "" })}>
-    <SelectTrigger className="min-h-12 w-full sm:w-64" aria-label="Année scolaire"><SelectValue placeholder="Année scolaire" /></SelectTrigger>
+    <SelectTrigger className="min-h-12 w-full sm:w-64" aria-label="Année scolaire" data-tour="finance-recovery-year"><SelectValue placeholder="Année scolaire" /></SelectTrigger>
     <SelectContent>{years.data?.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}{item.status === "active" ? " · Active" : ""}</SelectItem>)}</SelectContent>
   </Select>
 
-  return <PageLayout title="Recouvrement détaillé" subtitle={`Suivi des encaissements par niveau, classe et ${studentNoun(labels, 1)}.`} actions={yearSelect}>
-    <section aria-label="Filtres de recouvrement" className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+  return <>
+  <TourGuide steps={financeRecoveryTourSteps} run={tour.run} stepIndex={tour.stepIndex} onStepChange={tour.setStepIndex} onFinish={tour.markDone} />
+  <PageLayout title="Recouvrement détaillé" subtitle={`Suivi des encaissements par niveau, classe et ${studentNoun(labels, 1)}.`} actions={yearSelect}>
+    <section aria-label="Filtres de recouvrement" data-tour="finance-recovery-filters" className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
       <Select value={levelId || "all"} onValueChange={(value) => updateParams({ niveau: value === "all" ? "" : value, classe: "" })} disabled={!schoolYearId || base.isLoading}>
         <SelectTrigger className="min-h-12 w-full sm:w-72" aria-label="Niveau"><SelectValue>Niveau : {levelName ?? "Tous les niveaux"}</SelectValue></SelectTrigger>
         <SelectContent><SelectItem value="all">Tous les niveaux</SelectItem>{allLevels.map((item) => <SelectItem key={item.levelId} value={item.levelId}>{item.levelName}</SelectItem>)}</SelectContent>
@@ -82,7 +88,7 @@ export default function RecoveryPage() {
     {summary.isError || base.isError ? <QueryErrorState message="Impossible de charger le recouvrement." onRetry={() => { void summary.refetch(); void base.refetch() }} /> : null}
 
     {selection && summary.data && !loading ? <>
-      <section aria-label="Indicateurs de recouvrement" className="grid gap-3 lg:grid-cols-[2fr_1.2fr_1.2fr]">
+      <section aria-label="Indicateurs de recouvrement" data-tour="finance-recovery-stats" className="grid gap-3 lg:grid-cols-[2fr_1.2fr_1.2fr]">
         <StatCard title="Taux de recouvrement">
           <div className="flex items-center gap-4"><p className="text-4xl font-semibold tabular-nums">{ratePercent(selection.recoveryRate)} %</p><RateBar rate={selection.recoveryRate} label="Taux de recouvrement" className="flex-1" barClassName="h-2" /></div>
           <p className="text-sm text-muted-foreground">{formatFcfa(selection.paid)} encaissés sur {formatFcfa(selection.expected)} attendus à date</p>
@@ -95,9 +101,10 @@ export default function RecoveryPage() {
       </section>
       {selection.studentCount === 0
         ? <EmptyState icon={WalletCards} title="Aucune inscription confirmée" message={`Aucun ${studentNoun(labels, 1)} ne correspond aux filtres sélectionnés.`} />
-        : <section className="min-w-0 space-y-3"><h2 className="text-lg font-semibold">Par niveau et par classe</h2><RecoveryTable levels={summary.data.levels} classes={summary.data.classes} total={selection} labels={labels} onViewStudents={(item, opener) => { openerRef.current = opener; setDetailClass(item) }} /></section>}
+        : <section className="min-w-0 space-y-3" data-tour="finance-recovery-table"><h2 className="text-lg font-semibold">Par niveau et par classe</h2><RecoveryTable levels={summary.data.levels} classes={summary.data.classes} total={selection} labels={labels} onViewStudents={(item, opener) => { openerRef.current = opener; setDetailClass(item) }} /></section>}
     </> : null}
 
     <RecoveryStudentsDialog open={detailClass !== null} onClose={() => setDetailClass(null)} schoolYearId={schoolYearId} levelId={detailClass?.levelId} schoolClass={detailClass} labels={labels} canOpenStudent={hasPermission("payments.view")} returnFocusRef={openerRef} />
   </PageLayout>
+  </>
 }

@@ -42,6 +42,7 @@ import {
   blockTeacher,
   createTeacher,
   exportTeacherHours,
+  exportTeachersExcel,
   fetchTeacherAttendanceStats,
   getTeacherCompliance,
   getTeachers,
@@ -66,6 +67,7 @@ import {
 import { ConfirmActionDialog, DataTable, EmptyState, OfflineGuard, PageLayout } from "@/shared/components"
 import { TourGuide } from "@/shared/components/TourGuide"
 import { HomeroomTeacherReminder } from "@/shared/components/HomeroomTeacherReminder"
+import { ExportListDialog } from "@/shared/components/ExportListDialog"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
@@ -243,7 +245,7 @@ export function TeacherRankingPanel({
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="teachers-ranking-header">
         <div className="flex flex-col gap-4 bg-[var(--surface-chrome)] px-4 py-4 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1">
             <p className="text-sm font-semibold">Classement de conformité</p>
@@ -680,18 +682,22 @@ export default function TeachersPage() {
       subtitle="Gestion des profs, blocage et export"
       actions={
         <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="text-muted-foreground"
-            onClick={() => tour.restart()}
-            aria-label="Revoir le guide"
-          >
-            <InfoIcon className="mr-1.5 h-4 w-4" />
-            Guide
-          </Button>
+          
           <div className="flex flex-wrap gap-2" data-tour="teachers-actions">
+          <ExportListDialog
+            noun="professeurs"
+            filtersActive={typeFilter !== "all" || statusFilter !== "all" || subjectFilter.trim() !== ""}
+            yearHint="Tous les professeurs sont exportés ; seules les classes affichées dépendent de l’année choisie."
+            onExport={({ schoolYearId, schoolYearLabel, filtered }) => exportTeachersExcel({
+              schoolYearId,
+              schoolYearLabel,
+              filters: filtered ? {
+                type: typeFilter === "all" ? undefined : typeFilter,
+                isActive: statusFilter === "all" ? undefined : statusFilter === "active",
+                subject: subjectFilter.trim() || undefined,
+              } : undefined,
+            })}
+          />
           {canResetTeacherPassword ? (
             <OfflineGuard>
               <Button
@@ -725,10 +731,10 @@ export default function TeachersPage() {
           setSearchParams(next, { replace: true })
         }}
         className="space-y-4"
-        data-tour="teachers-tabs"
+
       >
         <HomeroomTeacherReminder />
-        <TabsList
+        <TabsList data-tour="teachers-tablist"
           className={cn(
             "grid h-auto w-full rounded-xl border border-border bg-muted/50 p-1 sm:w-full",
             canViewTeacherAnalysis && canViewTeacherRanking
@@ -738,17 +744,17 @@ export default function TeachersPage() {
                 : "grid-cols-1 md:w-[220px]"
           )}
         >
-          <TabsTrigger value="liste" className="min-h-12 rounded-lg text-sm font-medium" data-tour="teachers-tab-liste">Liste</TabsTrigger>
+          <TabsTrigger value="liste" className="min-h-12 rounded-lg text-sm font-medium">Liste</TabsTrigger>
           {canViewTeacherAnalysis ? (
-            <TabsTrigger value="analyse" className="min-h-12 rounded-lg text-sm font-medium" data-tour="teachers-tab-analyse">Analyse présence</TabsTrigger>
+            <TabsTrigger value="analyse" className="min-h-12 rounded-lg text-sm font-medium">Analyse présence</TabsTrigger>
           ) : null}
           {canViewTeacherRanking ? (
-            <TabsTrigger value="classement" className="min-h-12 rounded-lg text-sm font-medium" data-tour="teachers-tab-classement">Classement</TabsTrigger>
+            <TabsTrigger value="classement" className="min-h-12 rounded-lg text-sm font-medium">Classement</TabsTrigger>
           ) : null}
         </TabsList>
 
         <TabsContent value="liste" className="space-y-6">
-          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="teachers-overview">
             <div className="flex flex-col gap-4 bg-[var(--surface-chrome)] px-4 py-4 md:flex-row md:items-center md:justify-between">
               <div className="space-y-1">
                 <p className="text-sm font-semibold">Pilotage professeurs</p>
@@ -846,7 +852,7 @@ export default function TeachersPage() {
           ) : null}
 
           {!teachersQuery.isError ? (
-            <div data-testid="teachers-list-table">
+            <div data-testid="teachers-list-table" data-tour="teachers-table">
               <DataTable
                 columns={columns}
                 data={tableData}

@@ -34,10 +34,14 @@ import {
   publishReportCard,
   requestReportCardPdf,
 } from "./academic.api"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { reportCardsTourSteps } from "@/shared/lib/tour-steps"
 import { PageLayout } from "@/shared/components/PageLayout"
 import { invalidateAcademicReportScope } from "./academic-report-cache"
 
 export default function ReportCardsPage() {
+  const tour = useTourGuide("report-cards", true)
   const { toast } = useToast()
   const { hasPermission } = usePermissions()
   const queryClient = useQueryClient()
@@ -188,13 +192,14 @@ export default function ReportCardsPage() {
   }
 
   return (
-
+    <>
+    <TourGuide steps={reportCardsTourSteps} run={tour.run} stepIndex={tour.stepIndex} onStepChange={tour.setStepIndex} onFinish={tour.markDone} />
     <PageLayout
       title="Bulletins"
       subtitle="Génération figée par période, publication manuelle classe par classe."
     >
 
-      <div className="grid gap-4 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2 lg:grid-cols-4" data-tour="report-cards-filters">
         <div className="space-y-2">
           <Label htmlFor="report-cards-year">Année scolaire</Label>
           <Select value={schoolYearId} onValueChange={(value) => {
@@ -237,9 +242,9 @@ export default function ReportCardsPage() {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="report-cards-class">Classe</Label>
-          <Select value={classId} onValueChange={setSelectedClassId} disabled={!schoolYearId || classesQuery.isPending}>
-            <SelectTrigger id="report-cards-class" className="min-h-12"><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
+          <Label htmlFor="report-cards-class">Classe <span aria-hidden="true" className="text-destructive">*</span><span className="sr-only"> (obligatoire)</span></Label>
+          <Select value={classId} onValueChange={setSelectedClassId} disabled={!schoolYearId || classesQuery.isPending} required>
+            <SelectTrigger id="report-cards-class" className="min-h-12" aria-required="true" aria-describedby={!classId ? "report-cards-class-help" : undefined}><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
             <SelectContent>
               {classesQuery.isPending ? <SelectItem value="loading-classes" disabled>Chargement des classes…</SelectItem> : null}
               {classesQuery.isError ? <SelectItem value="classes-error" disabled>Classes indisponibles</SelectItem> : null}
@@ -251,6 +256,7 @@ export default function ReportCardsPage() {
               ) : null}
             </SelectContent>
           </Select>
+          {!classId && !classesQuery.isPending ? <p id="report-cards-class-help" className="text-xs text-muted-foreground">Choisissez une classe pour continuer</p> : null}
         </div>
         <div className="space-y-2">
           <Label htmlFor="report-cards-period">Période</Label>
@@ -277,7 +283,15 @@ export default function ReportCardsPage() {
       {!enabled && !classesQuery.isPending && !periodsQuery.isPending ? (
         classesQuery.isSuccess && classes.length === 0
           ? <EmptyState title={`Aucune classe pour ${selectedYear?.label ?? "cette année"}`} description="Cette année ne contient ni classe exploitable pour les bulletins ni bulletin historique." />
-          : <EmptyState title="Choisissez une classe et une période" description="Les bulletins s'afficheront ici." />
+          : !classId
+            ? <div className="space-y-3">
+                <EmptyState title="Choisissez une classe pour continuer" description="La classe est obligatoire : la préparation, la génération et les bulletins s’affichent après ce choix." />
+                {hasPermission("report_cards.publish") ? <Card className="shadow-sm"><CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+                  <p id="report-cards-generate-reason" className="text-sm text-muted-foreground">Choisissez une classe pour générer les bulletins.</p>
+                  <Button type="button" disabled aria-describedby="report-cards-generate-reason"><Sparkles className="mr-2 h-4 w-4" />Générer les bulletins de la classe</Button>
+                </CardContent></Card> : null}
+              </div>
+            : <EmptyState title="Choisissez une période" description="Les bulletins s'afficheront ici." />
       ) : enabled ? (
         <>
           {historicalAmbiguity ? <Alert variant="destructive"><AlertDescription>
@@ -289,7 +303,7 @@ export default function ReportCardsPage() {
             </Alert>
           ) : null}
 
-          {!readOnlyClass ? <Card className="shadow-sm">
+          {!readOnlyClass ? <Card className="shadow-sm" data-tour="report-cards-readiness">
             <CardHeader className="pb-3 border-none">
               <CardTitle>Préparation de la classe</CardTitle>
               <CardDescription>
@@ -362,7 +376,7 @@ export default function ReportCardsPage() {
           </Card> : null}
 
           {readinessForClass && !readOnlyClass && hasPermission("report_cards.publish") ? (
-            <Card className="shadow-sm">
+            <Card className="shadow-sm" data-tour="report-cards-generate">
               <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
                 <p className="text-sm text-muted-foreground">
                   {canGenerate ? classClosed ? "Les bulletins générés peuvent être recalculés." : "Cette classe est prête à générer ses bulletins." : generationBlocker()}
@@ -383,7 +397,7 @@ export default function ReportCardsPage() {
             </Card>
           ) : null}
 
-          <Card className="shadow-sm">
+          <Card className="shadow-sm" data-tour="report-cards-list">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div className="space-y-1">
                 <CardTitle>Bulletins de la classe</CardTitle>
@@ -462,6 +476,7 @@ export default function ReportCardsPage() {
         </>
       ) : null}
     </PageLayout>
+    </>
   )
 }
 

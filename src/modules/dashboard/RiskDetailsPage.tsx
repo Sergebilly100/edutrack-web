@@ -13,13 +13,15 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { listClasses, listLevels } from "@/modules/academic/academic.api"
-import { listStudentRisks, listTeacherRisks, type RiskLevel, type RiskPagination, type StudentRiskCategory } from "@/modules/dashboard/dashboard.api"
+import { listStudentRisks, listTeacherRisks, type RiskLevel, type RiskPagination, type StudentRiskCategory, type TeacherRiskSignal } from "@/modules/dashboard/dashboard.api"
 import { EmptyState } from "@/shared/components/EmptyState"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
+import { ResetFiltersButton } from "@/shared/components/ResetFiltersButton"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 
+import { PageHeader } from "@/shared/components/PageHeader"
+
 const PAGE_SIZE = 10
-const currentMonth = () => new Date().toISOString().slice(0, 7)
 const levelLabel: Record<RiskLevel, string> = { none: "Aucun signal", attention: "À suivre", warning: "Vigilance", critical: "Prioritaire" }
 const levelClass: Record<RiskLevel, string> = { none: "border-border bg-muted text-foreground", attention: "border-blue-200 bg-blue-50 text-blue-800", warning: "border-amber-200 bg-amber-50 text-amber-800", critical: "border-red-200 bg-red-50 text-red-700" }
 const categoryLabel: Record<StudentRiskCategory, string> = { absences: "Absences", grades: "Baisse de moyenne", payments: "Paiement" }
@@ -29,20 +31,52 @@ type RiskFilterLevel = Exclude<RiskLevel, "none">
 
 export default function RiskDetailsPage() {
   const { hasPermission } = usePermissions()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const canViewTeachers = hasPermission("teachers.view") || hasPermission("attendance.view")
   const canViewStudents = hasPermission("students.view") || hasPermission("attendance.view")
   const schoolYearId = searchParams.get("schoolYearId") || undefined
   const gradingPeriodId = searchParams.get("gradingPeriodId") || undefined
-  const openTeachers = canViewTeachers && (searchParams.get("tab") === "teachers" || !canViewStudents)
-  const [tab, setTab] = useState<Tab>(openTeachers ? "teachers" : "students")
+  // Tous les filtres vivent dans l'URL : lien depuis le tableau de bord, rechargement et partage gardent la sélection.
+  const pick = <T extends string>(key: string, allowed: readonly T[]): T | undefined => {
+    const value = searchParams.get(key)
+    return allowed.includes(value as T) ? (value as T) : undefined
+  }
+  const tab: Tab = (canViewTeachers && (searchParams.get("tab") === "teachers" || !canViewStudents)) ? "teachers" : "students"
+  const schoolLevelId = searchParams.get("levelId") || "all"
+  const classId = searchParams.get("classId") || "all"
+  const category: StudentRiskCategory | "all" = pick("category", ["absences", "grades", "payments"] as const) ?? "all"
+  const riskLevel: RiskFilterLevel | "all" = pick("level", ["attention", "warning", "critical"] as const) ?? "all"
+  const teacherSignal = pick("signal", ["absences", "lateness"] as const)
+  const monthParam = searchParams.get("month") ?? ""
+  const teacherMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam) ? monthParam : ""
+  const setFilter = (key: string, value: string | undefined) => setSearchParams((current) => {
+    const next = new URLSearchParams(current)
+    if (value && value !== "all") next.set(key, value); else next.delete(key)
+    return next
+  }, { replace: true })
+  const setTab = (value: Tab) => setFilter("tab", value)
+  const setSchoolLevelId = (value: string) => setSearchParams((current) => {
+    const next = new URLSearchParams(current)
+    if (value !== "all") next.set("levelId", value); else next.delete("levelId")
+    next.delete("classId")
+    return next
+  }, { replace: true })
+  const setClassId = (value: string) => setFilter("classId", value)
+  const setCategory = (value: StudentRiskCategory | "all") => setFilter("category", value)
+  const setRiskLevel = (value: RiskFilterLevel | "all") => setFilter("level", value)
+  const setTeacherMonth = (value: string) => setFilter("month", value)
+  const resetStudentFilters = () => setSearchParams((current) => {
+    const next = new URLSearchParams(current)
+    ;["levelId", "classId", "category", "level"].forEach((key) => next.delete(key))
+    return next
+  }, { replace: true })
+  const resetTeacherFilters = () => setSearchParams((current) => {
+    const next = new URLSearchParams(current)
+    ;["month", "signal"].forEach((key) => next.delete(key))
+    return next
+  }, { replace: true })
   const [studentPage, setStudentPage] = useState(1)
   const [teacherPage, setTeacherPage] = useState(1)
-  const [schoolLevelId, setSchoolLevelId] = useState("all")
-  const [classId, setClassId] = useState("all")
-  const [category, setCategory] = useState<StudentRiskCategory | "all">("all")
-  const [riskLevel, setRiskLevel] = useState<RiskFilterLevel | "all">("all")
-  const [teacherMonth, setTeacherMonth] = useState(() => openTeachers ? "" : currentMonth())
   const canViewPayments = hasPermission("payments.view")
 
   const levelsQuery = useQuery({ queryKey: ["academic", "levels"], queryFn: listLevels, enabled: canViewStudents })
@@ -50,18 +84,19 @@ export default function RiskDetailsPage() {
   const availableClasses = useMemo(() => (classesQuery.data?.classes ?? []).filter((schoolClass) => schoolLevelId === "all" || schoolClass.level.id === schoolLevelId), [classesQuery.data?.classes, schoolLevelId])
   const studentFilters = { schoolYearId, gradingPeriodId, schoolLevelId: schoolLevelId === "all" ? undefined : schoolLevelId, classId: classId === "all" ? undefined : classId, category: category === "all" ? undefined : category, riskLevel: riskLevel === "all" ? undefined : riskLevel }
   const studentsQuery = useQuery({ queryKey: ["risks", "students", studentFilters, studentPage], queryFn: () => listStudentRisks({ ...studentFilters, atRisk: true, page: studentPage, limit: PAGE_SIZE }), enabled: canViewStudents, staleTime: 3 * 60_000 })
-  const teachersQuery = useQuery({ queryKey: ["risks", "teachers", teacherMonth, teacherPage], queryFn: () => listTeacherRisks({ month: teacherMonth || undefined, atRisk: true, page: teacherPage, limit: PAGE_SIZE }), enabled: canViewTeachers, staleTime: 3 * 60_000 })
+  const teachersQuery = useQuery({ queryKey: ["risks", "teachers", teacherMonth, teacherSignal, teacherPage], queryFn: () => listTeacherRisks({ month: teacherMonth || undefined, signal: teacherSignal, atRisk: true, page: teacherPage, limit: PAGE_SIZE }), enabled: canViewTeachers, staleTime: 3 * 60_000 })
 
   useEffect(() => { setStudentPage(1) }, [schoolLevelId, classId, category, riskLevel])
-  useEffect(() => { if (classId !== "all" && !availableClasses.some((schoolClass) => schoolClass.id === classId)) setClassId("all") }, [availableClasses, classId])
-  useEffect(() => { setTeacherPage(1) }, [teacherMonth])
+  useEffect(() => { if (classesQuery.isSuccess && classId !== "all" && !availableClasses.some((schoolClass) => schoolClass.id === classId)) setClassId("all") }, [availableClasses, classId, classesQuery.isSuccess])
+  useEffect(() => { setTeacherPage(1) }, [teacherMonth, teacherSignal])
 
-  return <div className="route-surface space-y-5 py-5 sm:py-6">
-    <header className="border-b pb-5"><h1 className="text-2xl font-semibold tracking-tight">Élèves et professeurs à suivre</h1><p className="mt-1 text-sm text-muted-foreground">Consultez les signaux d’alerte et ouvrez la fiche concernée pour agir.</p></header>
+  return <div className="route-surface space-y-5 pb-5 sm:pb-6">
+    <PageHeader title="Élèves et professeurs à suivre" subtitle="Consultez les signaux d’alerte et ouvrez la fiche concernée pour agir." />
     <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
       <TabsList className="h-auto min-h-12 w-full sm:w-auto">{canViewStudents ? <TabsTrigger value="students" className="min-h-12 flex-1 sm:min-w-40">Élèves</TabsTrigger> : null}{canViewTeachers ? <TabsTrigger value="teachers" className="min-h-12 flex-1 sm:min-w-40">Professeurs</TabsTrigger> : null}</TabsList>
       <TabsContent value="students" className="mt-5 space-y-5">
         <StudentFilters schoolLevelId={schoolLevelId} classId={classId} category={category} riskLevel={riskLevel} onSchoolLevelChange={setSchoolLevelId} onClassChange={setClassId} onCategoryChange={(value) => setCategory(value as StudentRiskCategory | "all")} onRiskLevelChange={(value) => setRiskLevel(value as RiskFilterLevel | "all")} levels={(levelsQuery.data ?? []).map((level) => ({ id: level.id, name: level.name }))} classes={availableClasses.map((schoolClass) => ({ id: schoolClass.id, name: schoolClass.name }))} canViewPayments={canViewPayments} />
+        <ResetFiltersButton active={schoolLevelId !== "all" || classId !== "all" || category !== "all" || riskLevel !== "all"} onReset={resetStudentFilters} />
         <RiskCard title="Élèves à suivre" description="Les baisses de moyenne sont comparées à la période précédente et ne sont retenues que si les deux périodes sont clôturées." icon={<GraduationCap className="h-5 w-5" />}>
           {studentsQuery.isLoading ? <TableSkeleton /> : null}
           {studentsQuery.isError ? <QueryErrorState message="Impossible de charger les élèves à suivre." onRetry={() => void studentsQuery.refetch()} /> : null}
@@ -71,6 +106,8 @@ export default function RiskDetailsPage() {
       </TabsContent>
       {canViewTeachers ? <TabsContent value="teachers" className="mt-5 space-y-5">
         <div className="max-w-xs space-y-2"><Label htmlFor="teacher-risk-month">Mois</Label><Input id="teacher-risk-month" type="month" className="min-h-12" value={teacherMonth} onChange={(event) => setTeacherMonth(event.target.value)} /></div>
+        {teacherSignal ? <p className="text-sm text-muted-foreground">Filtre : {teacherSignal === "absences" ? "absences répétées" : "retards répétés"}</p> : null}
+        <ResetFiltersButton active={Boolean(teacherMonth || teacherSignal)} onReset={resetTeacherFilters} />
         <RiskCard title="Professeurs à suivre" description={teacherMonth ? "Les absences et retards sont comptés sur le mois sélectionné et comparés aux seuils configurés." : "Les absences suivent leur fenêtre configurée et les retards les 30 derniers jours, comme pour l’action du tableau de bord. Sélectionnez un mois pour consulter une autre période."} icon={<UsersRound className="h-5 w-5" />}>
           {teachersQuery.isLoading ? <TableSkeleton /> : null}
           {teachersQuery.isError ? <QueryErrorState message="Impossible de charger les professeurs à suivre." onRetry={() => void teachersQuery.refetch()} /> : null}

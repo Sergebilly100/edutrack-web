@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, ListFilter } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -19,11 +20,14 @@ import { DependentSelect } from "@/shared/components/DependentSelect"
 import { FilterBar } from "@/shared/components/FilterBar"
 import { ResetFiltersButton } from "@/shared/components/ResetFiltersButton"
 import { PageLayout } from "@/shared/components/PageLayout"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { evaluationsTourSteps } from "@/shared/lib/tour-steps"
 import { currentReviewPeriodId } from "@/shared/lib/academic-context"
 import { useToast } from "@/components/ui/use-toast"
-import { completionPercent, evaluationStatus, todayInAbidjan } from "./evaluation-review.logic"
+import { completionPercent, evaluationStatus, groupedReminderMessage, reminderMessage, todayInAbidjan } from "./evaluation-review.logic"
 import type { ReviewEvaluation } from "./evaluation-review.api"
-import { fetchEvaluationReview, fetchReviewOptions, fetchSpontaneousReview, remindEvaluationTeacher } from "./evaluation-review.api"
+import { fetchEvaluationReview, fetchReviewOptions, fetchSpontaneousReview, remindEvaluationTeacher, remindEvaluationsBatch } from "./evaluation-review.api"
 
 const displayDate = (date: string | null) => date ? new Date(`${date}T00:00:00`).toLocaleDateString("fr-FR") : "Sans date"
 const displayAdjustment = (value: number) => new Intl.NumberFormat("fr-FR", { signDisplay: "always", maximumFractionDigits: 3 }).format(value)
@@ -63,6 +67,7 @@ function ReviewPagination({ label, plural, total, page, pageSize, onPageChange, 
 }
 
 export default function EvaluationReviewPage() {
+  const tour = useTourGuide("evaluations", true)
   const [renderedAt, setRenderedAt] = useState(() => Date.now())
   useEffect(() => {
     const timer = window.setInterval(() => setRenderedAt(Date.now()), 60_000)
@@ -88,6 +93,9 @@ export default function EvaluationReviewPage() {
   const [studentSearchInput, setStudentSearchInput] = useState("")
   const [studentSearch, setStudentSearch] = useState("")
   const [remindTarget, setRemindTarget] = useState<ReviewEvaluation | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [batchOpen, setBatchOpen] = useState(false)
+  const [selectMode, setSelectMode] = useState(false)
 
   const yearsQuery = useQuery({ queryKey: ["evaluation-review", "years"], queryFn: () => fetchReviewOptions({}) })
   const activeYear = yearsQuery.data?.schoolYears.find((item) => item.active)
@@ -129,9 +137,28 @@ export default function EvaluationReviewPage() {
       toast({ title: "Relance non envoyée", description: message, variant: "destructive" })
     },
   })
-  const resetPage = () => { setPage(1); setSpontaneousPage(1); setOpenId(null); setOpenStudentId(null); setStudentSearch(""); setStudentSearchInput("") }
+  const batchMutation = useMutation({
+    mutationFn: remindEvaluationsBatch,
+    onSuccess: async (data) => {
+      setBatchOpen(false)
+      setSelectedIds([])
+      setSelectMode(false)
+      await queryClient.invalidateQueries({ queryKey: ["evaluation-review", "list"] })
+      toast({ title: `${data.sent} relance${data.sent > 1 ? "s" : ""} envoyée${data.sent > 1 ? "s" : ""}`,
+        description: data.skipped ? `${data.skipped} ignorée${data.skipped > 1 ? "s" : ""} (déjà relancée${data.skipped > 1 ? "s" : ""} ou plus à relancer).` : undefined })
+    },
+    onError: () => {
+      setBatchOpen(false)
+      toast({ title: "Relances non envoyées", description: "Impossible d’envoyer les relances. Réessayez.", variant: "destructive" })
+    },
+  })
+  const policy = result?.policy ?? { graceDays: 7, lateDays: 14 }
+  const remindableItems = (result?.items ?? []).filter((item) => evaluationStatus(item, policy, todayInAbidjan()).canRemind)
+  const selectedItems = remindableItems.filter((item) => selectedIds.includes(item.id))
+  const toggleSelected = (id: string, checked: boolean) => setSelectedIds((ids) => checked ? [...new Set([...ids, id])] : ids.filter((item) => item !== id))
+  const resetPage = () => { setSelectedIds([]); setPage(1); setSpontaneousPage(1); setOpenId(null); setOpenStudentId(null); setStudentSearch(""); setStudentSearchInput("") }
   const applyStudentSearch = (value: string) => { setStudentSearch(value.trim()); setSpontaneousPage(1); setOpenStudentId(null) }
-  const goToScheduledPage = (next: number) => { setPage(next); setOpenId(null); scheduledSectionRef.current?.scrollIntoView?.({ block: "start" }) }
+  const goToScheduledPage = (next: number) => { setSelectedIds([]); setPage(next); setOpenId(null); scheduledSectionRef.current?.scrollIntoView?.({ block: "start" }) }
   const goToSpontaneousPage = (next: number) => { setSpontaneousPage(next); setOpenStudentId(null); spontaneousSectionRef.current?.scrollIntoView?.({ block: "start" }) }
   const changeYear = (value: string) => { setYear(value); setPeriod(""); setLevel(""); setClassId(""); setSubject(""); setTeacher(""); resetPage() }
   const changePeriod = (value: string) => { setPeriod(value); setLevel(""); setClassId(""); setSubject(""); setTeacher(""); resetPage() }
@@ -139,8 +166,10 @@ export default function EvaluationReviewPage() {
   const changeClass = (value: string) => { setClassId(value); setSubject(""); setTeacher(""); resetPage() }
   const changeSubject = (value: string) => { setSubject(value); setTeacher(""); resetPage() }
 
-  return <PageLayout title="Suivi des évaluations et notes" subtitle="Consultez les évaluations saisies et les notes des élèves." >
-    <section aria-label="Filtres" className="space-y-4 rounded-lg border bg-card p-4 sm:p-6">
+  return <>
+  <TourGuide steps={evaluationsTourSteps} run={tour.run} stepIndex={tour.stepIndex} onStepChange={tour.setStepIndex} onFinish={tour.markDone} />
+  <PageLayout title="Suivi des évaluations et notes" subtitle="Consultez les évaluations saisies et les notes des élèves." >
+    <section aria-label="Filtres" data-tour="evaluations-filters" className="space-y-4 rounded-lg border bg-card p-4 sm:p-6">
       <AcademicContextFilters yearIdPrefix="review" showPeriod allowAllYears={false}
         years={(yearsQuery.data?.schoolYears ?? []).map((item) => ({ ...item, status: item.active ? "active" as const : "closed" as const }))}
         yearId={schoolYearId} activeYear={activeYear ? { ...activeYear, status: "active" } : undefined}
@@ -169,14 +198,14 @@ export default function EvaluationReviewPage() {
     {!schoolYearId && !yearsQuery.isLoading ? <EmptyState title="Aucune année scolaire" description="Créez une année scolaire pour consulter les évaluations." /> : null}
     {schoolYearId && !gradingPeriodId && !calendarQuery.isLoading ? <EmptyState title="Aucune période configurée" description="Configurez une période pour cette année scolaire." /> : null}
     <Tabs value={view} onValueChange={setView} className="space-y-4">
-      <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto bg-muted/80">
+      <TabsList data-tour="evaluations-tabs" className="h-auto w-full justify-start gap-1 overflow-x-auto bg-muted/80">
         <TabsTrigger value="scheduled" className="min-h-12 whitespace-nowrap">Évaluations programmées</TabsTrigger>
         <TabsTrigger value="spontaneous" className="min-h-12 whitespace-nowrap">Notes spontanées</TabsTrigger>
       </TabsList>
       <TabsContent ref={scheduledSectionRef} value="scheduled" className="space-y-4">
     {yearsQuery.isLoading || calendarQuery.isLoading || optionsQuery.isLoading || resultQuery.isLoading || resultQuery.isFetching ? <div aria-label="Chargement des évaluations" className="space-y-3"><Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" /></div> : null}
     {result && !resultQuery.isFetching ? <>
-      <section aria-label="Synthèse" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section aria-label="Synthèse" data-tour="evaluations-summary" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {([
           ["Évaluations programmées", result.summary.evaluations],
           ["Notes saisies", result.summary.grades],
@@ -192,22 +221,26 @@ export default function EvaluationReviewPage() {
             aria-label="Complétion des notes" aria-valuenow={completionPercent(result.summary.grades, result.summary.grades + result.summary.missing)} aria-valuemin={0} aria-valuemax={100} />
         </CardContent></Card>
       </section>
-      <div className="flex flex-col gap-3 rounded-lg border bg-muted/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div data-tour="evaluations-sort" className="flex flex-col gap-3 rounded-lg border bg-muted/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <ListFilter aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
           <div><Label htmlFor="evaluation-sort" className="text-sm font-semibold text-foreground">Trier et regrouper</Label>
             <p className="mt-0.5 text-sm text-muted-foreground">{sort === "delay" ? "Les saisies les plus en retard apparaissent en premier." : `Évaluations regroupées par ${sort === "teacher" ? "professeur" : "classe"}.`}</p>
           </div>
         </div>
-        <div className="w-full shrink-0 sm:w-52">
+        <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto">
+          {remindableItems.length > 0 ? <Button type="button" variant="ghost" size="sm" className="min-h-12 text-muted-foreground" aria-pressed={selectMode}
+            onClick={() => { setSelectMode((on) => !on); setSelectedIds([]) }}>{selectMode ? "Quitter la sélection" : "Relance groupée"}</Button> : null}
+          <div className="w-full sm:w-52">
           <Select value={sort} onValueChange={(value: "delay" | "teacher" | "class") => { setSort(value); setPage(1); setOpenId(null) }}>
             <SelectTrigger id="evaluation-sort" className="min-h-12 border-blue-300 bg-background font-semibold text-foreground shadow-sm transition-colors hover:border-blue-500 hover:bg-blue-50 focus:ring-2 focus:ring-primary dark:hover:bg-blue-950/40"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="delay">Retard</SelectItem><SelectItem value="teacher">Professeur</SelectItem><SelectItem value="class">Classe</SelectItem></SelectContent>
           </Select>
+          </div>
         </div>
       </div>
       {result.items.length === 0 ? <EmptyState title="Aucune évaluation" description="Aucune évaluation ne correspond aux filtres sélectionnés." /> :
-        <section aria-label="Évaluations" className="space-y-3">{result.items.map((evaluation, index) => {
+        <section aria-label="Évaluations" data-tour="evaluations-list" className="space-y-3">{result.items.map((evaluation, index) => {
           const open = openId === evaluation.id
           const entered = evaluation.enteredCount ?? evaluation.notes.filter((note) => note.score !== null).length
           const expected = evaluation.expectedCount ?? evaluation.notes.length
@@ -234,7 +267,10 @@ export default function EvaluationReviewPage() {
               </span>
             </Button>
             <div className="flex flex-wrap items-center gap-2">
+              {selectMode && status.canRemind ? <Checkbox aria-label={`Sélectionner ${evaluation.label?.trim() || evaluation.subject.name} pour relance`}
+                checked={selectedIds.includes(evaluation.id)} onCheckedChange={(checked) => toggleSelected(evaluation.id, checked === true)} /> : null}
               <Badge variant="outline" className={badgeClass}>{status.label}</Badge>
+              {lastReminder && !Number.isNaN(lastReminder.getTime()) ? <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">Relancé le {lastReminder.toLocaleDateString("fr-FR", { timeZone: "Africa/Abidjan" })}</Badge> : null}
               {status.canRemind ? <Button type="button" variant="outline" className="min-h-12" disabled={remindMutation.isPending}
                 onClick={() => setRemindTarget(evaluation)}>Relancer</Button> : null}
             </div>
@@ -312,10 +348,44 @@ export default function EvaluationReviewPage() {
           <div><dt className="font-medium">Destinataire</dt><dd>{remindTarget.teacher.name}</dd></div>
           <div><dt className="font-medium">Évaluation en attente</dt><dd>{remindTarget.label?.trim() || remindTarget.subject.name} · {remindTarget.class.name} · {pending} note{pending > 1 ? "s" : ""} manquante{pending > 1 ? "s" : ""}</dd></div>
           <div><dt className="font-medium">Canal</dt><dd>Notification dans l’application</dd></div>
-          <div><dt className="font-medium">Aperçu du message</dt><dd className="rounded-lg border bg-muted/60 p-3">Merci de saisir les notes de {remindTarget.label} en {remindTarget.subject.name} ({remindTarget.class.name}).</dd></div>
+          <div><dt className="font-medium">Aperçu du message</dt><dd className="rounded-lg border bg-muted/60 p-3">{reminderMessage(remindTarget.label, remindTarget.subject.name, remindTarget.class.name)}</dd></div>
           <div><dt className="font-medium">Dernière relance</dt><dd>{last ? last.toLocaleString("fr-FR", { timeZone: "Africa/Abidjan", dateStyle: "short", timeStyle: "short" }) : "Aucune"}</dd></div>
         </dl>
       </ConfirmActionDialog>
     })() : null}
+    {selectMode && remindableItems.length > 0 ? <div role="region" aria-label="Relance groupée" className="fixed inset-x-4 bottom-4 z-40 mx-auto flex max-w-2xl flex-wrap items-center gap-3 rounded-lg border bg-card px-4 py-2 sm:bottom-6">
+      <Checkbox id="select-all-remindable" aria-label="Sélectionner toutes les évaluations à relancer"
+        checked={selectedItems.length === remindableItems.length ? true : selectedItems.length > 0 ? "indeterminate" : false}
+        onCheckedChange={(checked) => setSelectedIds(checked === true ? remindableItems.map((item) => item.id) : [])} />
+      <Label htmlFor="select-all-remindable" className="min-w-0 flex-1 text-sm">{selectedItems.length > 0 ? `${selectedItems.length} sélectionnée${selectedItems.length > 1 ? "s" : ""}` : `Tout sélectionner (${remindableItems.length})`}</Label>
+      <Button type="button" variant="ghost" className="min-h-12" onClick={() => { setSelectMode(false); setSelectedIds([]) }}>Annuler</Button>
+      <Button type="button" className="min-h-12" disabled={selectedItems.length === 0 || batchMutation.isPending}
+        onClick={() => setBatchOpen(true)}>Relancer la sélection{selectedItems.length > 0 ? ` (${selectedItems.length})` : ""}</Button>
+    </div> : null}
+    {batchOpen ? (() => {
+      const byTeacher = new Map<string, ReviewEvaluation[]>()
+      for (const item of selectedItems) byTeacher.set(item.teacher.id, [...(byTeacher.get(item.teacher.id) ?? []), item])
+      const teachers = byTeacher
+      const messageFor = (items: ReviewEvaluation[]) => items.length === 1
+        ? reminderMessage(items[0].label, items[0].subject.name, items[0].class.name)
+        : groupedReminderMessage(items.map((item) => item.class.name))
+      const recentCount = selectedItems.filter((item) => item.lastReminderAt && renderedAt - new Date(item.lastReminderAt).getTime() < 24 * 60 * 60 * 1000).length
+      const sample = [...byTeacher.values()].find((items) => items.length > 1) ?? [...byTeacher.values()][0]
+      return <ConfirmActionDialog open onOpenChange={(open) => { if (!open && !batchMutation.isPending) setBatchOpen(false) }}
+        title="Relancer la sélection"
+        description={`${teachers.size} professeur${teachers.size > 1 ? "s" : ""} recevr${teachers.size > 1 ? "ont" : "a"} un message de relance pour ${selectedItems.length} évaluation${selectedItems.length > 1 ? "s" : ""}.`}
+        confirmLabel={recentCount ? "Relancer quand même" : `Envoyer ${selectedItems.length} relance${selectedItems.length > 1 ? "s" : ""}`} pendingLabel="Envoi…"
+        isPending={batchMutation.isPending} variant={recentCount ? "destructive" : "default"}
+        consequences={recentCount ? [`${recentCount} évaluation${recentCount > 1 ? "s ont" : " a"} déjà été relancée${recentCount > 1 ? "s" : ""} dans les dernières 24 h. Confirmez uniquement si ces nouvelles relances sont nécessaires.`] : undefined}
+        onConfirm={() => batchMutation.mutate({ evaluationIds: selectedItems.map((item) => item.id), force: recentCount > 0 })}>
+        <dl className="space-y-2 text-sm">
+          <div><dt className="font-medium">Destinataires ({teachers.size})</dt>
+            <dd><ul className="max-h-40 list-disc overflow-y-auto pl-4">{[...byTeacher.values()].map((items) => <li key={items[0].teacher.id}>{items[0].teacher.name} · {[...new Set(items.map((item) => item.class.name))].join(", ")}</li>)}</ul></dd></div>
+          <div><dt className="font-medium">Canal</dt><dd>Notification dans l’application</dd></div>
+          {sample ? <div><dt className="font-medium">Aperçu du message (un seul message par professeur)</dt><dd className="rounded-lg border bg-muted/60 p-3">{messageFor(sample)}</dd></div> : null}
+        </dl>
+      </ConfirmActionDialog>
+    })() : null}
   </PageLayout>
+  </>
 }

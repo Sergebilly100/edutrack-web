@@ -81,3 +81,7 @@ export const fetchSpontaneousReview = (params: ReviewFilters) =>
 
 export const remindEvaluationTeacher = ({ evaluationId, force }: { evaluationId: string; force?: boolean }): Promise<{ lastReminderAt: string }> =>
   apiClient.post<{ lastReminderAt: string }>(`/academic/evaluations/${evaluationId}/remind`, force ? { force: true } : {}).then((response) => response.data)
+
+export type BatchReminderResult = { sent: number; skipped: number; results: Array<{ evaluationId: string; status: "sent" | "not_found" | "not_due" | "too_soon" }> }
+export const remindEvaluationsBatch = ({ evaluationIds, force }: { evaluationIds: string[]; force?: boolean }): Promise<BatchReminderResult> =>
+  apiClient.post<BatchReminderResult>("/academic/evaluations/remind", { evaluationIds, ...(force ? { force: true } : {}) }).then((response) => response.data)

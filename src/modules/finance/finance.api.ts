@@ -33,6 +33,8 @@ export type Payment = {
   cancelledAt: string | null
   cancellationReason: string | null
   paymentDate: string
+  /** Heure réelle du paiement, seulement si elle est connue (caisse) ; null pour les imports et anciens paiements. */
+  paidAt: string | null
   createdAt: string
 }
 
@@ -221,6 +223,7 @@ const parsePayment = (value: unknown): Payment => {
     cancelledAt: asNullableString(row.cancelledAt),
     cancellationReason: asNullableString(row.cancellationReason),
     paymentDate: asString(row.paymentDate ?? row.payment_date ?? row.createdAt ?? row.created_at).slice(0, 10),
+    paidAt: asNullableString(row.paidAt ?? row.paid_at),
     createdAt: asString(row.createdAt),
   }
 }
@@ -451,6 +454,53 @@ export async function upsertTuitionPlan(levelId: string, payload: {
 }): Promise<TuitionPlan> {
   const response = await apiClient.put(`/tuition-plans/levels/${levelId}`, payload)
   return parseTuitionPlan(response.data.tuitionPlan)
+}
+
+export type TuitionPlanSummary = {
+  totalAmount: number
+  registrationAmount: number
+  currency: string
+  scheduleSteps: Array<{ dueDate: string; cumulativeAmountExpected: number }>
+}
+
+export type TuitionCopyTarget = {
+  levelId: string
+  levelName: string
+  /** Plan existant du niveau cible (remplacé seulement après confirmation explicite). */
+  existingPlan: TuitionPlanSummary | null
+  enrolledStudents: number
+  /** Élèves dont la remise, le montant personnalisé ou l'échéancier négocié est conservé. */
+  studentsWithIndividualTerms: number
+}
+
+export type TuitionCopyPreview = {
+  schoolYearId: string
+  schoolYearLabel: string
+  source: { levelId: string; levelName: string; plan: TuitionPlanSummary }
+  targets: TuitionCopyTarget[]
+}
+
+export type TuitionCopyResult = {
+  levelId: string
+  levelName: string
+  status: "copied" | "skipped" | "error"
+  code?: string
+  message?: string
+}
+
+export type TuitionCopyResponse = { results: TuitionCopyResult[]; cacheRefreshed: boolean }
+
+export async function getTuitionCopyPreview(sourceLevelId: string, schoolYearId: string): Promise<TuitionCopyPreview> {
+  const response = await apiClient.get(`/tuition-plans/levels/${sourceLevelId}/copy-preview`, { params: { school_year_id: schoolYearId } })
+  return response.data as TuitionCopyPreview
+}
+
+export async function copyTuitionPlan(sourceLevelId: string, payload: {
+  schoolYearId: string
+  targets: Array<{ levelId: string; overwrite: boolean; confirmEnrolled: boolean }>
+}): Promise<TuitionCopyResponse> {
+  const response = await apiClient.post(`/tuition-plans/levels/${sourceLevelId}/copy`, payload)
+  return response.data as TuitionCopyResponse
 }
 
 export async function grantTuitionOverride(payload: {
@@ -732,6 +782,7 @@ export type FinancialRecentPayment = {
   payment_id: string;
   student_id: string;
   payment_date: string;
+  paid_at?: string | null;
   student_name: string;
   student_matricule: string | null;
   class_name: string | null;
@@ -838,4 +889,33 @@ export const fetchFinancialAlertLogs = async (page = 1, limit = 20): Promise<Fin
     logs: response.data.logs ?? [],
     pagination: response.data.pagination ?? { page, limit, total: 0, totalPages: 1 },
   };
+}
+
+export type AgingStudent = {
+  student_id: string
+  first_name: string
+  last_name: string
+  matricule: string | null
+  class_name: string
+  remaining_amount: string
+  days_late: number
+  oldest_due_date: string
+  last_payment_date: string | null
+}
+export type AgingStudentsPage = {
+  bucket: FinancialAgingBucket["bucket"]
+  /** Chiffres de la tranche, indépendants de la recherche : identiques à ceux du tableau de bord. */
+  total_amount: string
+  student_count: number
+  students: AgingStudent[]
+  /** Classes présentes dans la tranche : alimente le filtre. */
+  classes: Array<{ id: string; name: string }>
+  pagination: { page: number; limit: number; total: number; totalPages: number }
+}
+
+export async function fetchAgingStudents(params: { schoolYearId: string; bucket: FinancialAgingBucket["bucket"]; page: number; limit: number; search?: string; classId?: string }): Promise<AgingStudentsPage> {
+  const response = await apiClient.get<AgingStudentsPage>("/finance/aging/students", {
+    params: { school_year_id: params.schoolYearId, bucket: params.bucket, page: params.page, limit: params.limit, search: params.search || undefined, class_id: params.classId || undefined },
+  })
+  return response.data
 }

@@ -61,6 +61,8 @@ import { SalarySummaryCards } from "@/modules/salaries/components/SalarySummaryC
 import { SalariesStatsCards } from "@/modules/salaries/components/SalariesStatsCards"
 import { SalaryExportSection } from "@/modules/salaries/components/SalaryExportSection"
 import { ContextualHelp, EmptyState, OfflineGuard, OfflineIndicator, SalaryRow, emptyStateIcons } from "@/shared/components"
+import { HEADER_CONTROL_HEIGHT, HeaderAction, PageHeader } from "@/shared/components/PageHeader"
+import { formatDateTimeFr } from "@/shared/utils/formatting"
 import { TourGuide } from "@/shared/components/TourGuide"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
 import {
@@ -90,9 +92,24 @@ export default function SalariesPage() {
   const canViewValidations = hasPermission("validations.view")
 
   const bulkSelection = useBulkSelection<string>()
-  const [bulkPayDialogOpen, setBulkPayDialogOpen] = useState(false)
   const bulkPermanentSelection = useBulkSelection<string>()
-  const [bulkPermanentPayDialogOpen, setBulkPermanentPayDialogOpen] = useState(false)
+  // Un seul état pilote la fenêtre de paiement groupé : jamais deux fenêtres ni deux barres en même temps.
+  const [bulkPayGroup, setBulkPayGroup] = useState<"vacataire" | "permanent" | null>(null)
+  const bulkPayDialogOpen = bulkPayGroup === "vacataire"
+  const bulkPermanentPayDialogOpen = bulkPayGroup === "permanent"
+  const setBulkPayDialogOpen = (open: boolean) => setBulkPayGroup(open ? "vacataire" : null)
+  const setBulkPermanentPayDialogOpen = (open: boolean) => setBulkPayGroup(open ? "permanent" : null)
+  // Sélectionner un groupe annule la sélection de l'autre et ferme la fenêtre précédente.
+  const selectingVacataires = (apply: () => void) => {
+    bulkPermanentSelection.clearSelection()
+    setBulkPayGroup(null)
+    apply()
+  }
+  const selectingPermanents = (apply: () => void) => {
+    bulkSelection.clearSelection()
+    setBulkPayGroup(null)
+    apply()
+  }
 
   // Escape annule la sélection bulk active (vacataires et permanents)
   useEffect(() => {
@@ -759,28 +776,13 @@ export default function SalariesPage() {
         onFinish={tour.markDone}
       />
 
-      <div className="space-y-6 animate-fade-in mt-2" data-testid="salaries-page">
-        <header className="space-y-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-start gap-3">
-              <div className="space-y-1 md:py-2">
-                <h1 className="text-2xl font-semibold tracking-tight">Gestion des salaires</h1>
-                <p className="text-sm text-muted-foreground">Pilotage mensuel des paies vacataires</p>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-1 text-muted-foreground"
-                onClick={() => tour.restart()}
-                aria-label="Revoir le guide"
-              >
-                <Info className="mr-1.5 h-4 w-4" />
-                Guide
-              </Button>
+      <div className="space-y-6 animate-fade-in" data-testid="salaries-page">
+        <div className="space-y-4">
+          <PageHeader
+            title="Gestion des salaires"
+            subtitle="Pilotage mensuel des paies vacataires"
+            actions={
+              <>
               <div className="flex items-center gap-2" data-tour="salaries-month">
                 <Button
                   type="button"
@@ -794,7 +796,7 @@ export default function SalariesPage() {
                 </Button>
 
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="w-[210px]" data-testid="salaries-month-select-trigger">
+                  <SelectTrigger className={`${HEADER_CONTROL_HEIGHT} w-[210px]`} data-testid="salaries-month-select-trigger">
                     <SelectValue placeholder="Sélectionner un mois" />
                   </SelectTrigger>
                   <SelectContent>
@@ -825,35 +827,11 @@ export default function SalariesPage() {
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
-
-              {canComputeSalaries ? (
-                <div className="flex flex-col gap-1" data-tour="salaries-compute">
-                  <Button
-                    type="button"
-                    onClick={() => setComputeDialogOpen(true)}
-                    disabled={isSelectedMonthFuture || computeMutation.isPending}
-                    data-testid="salaries-compute-button"
-                  >
-                    Calculer les salaires
-                  </Button>
-                  {salarySummaryQuery.data?.lastComputedAt ? (
-                    <p className="text-xs text-muted-foreground">
-                      Dernier calcul : {new Date(salarySummaryQuery.data.lastComputedAt).toLocaleString("fr-FR", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit"
-                      })}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-
               {canExportSalaries ? (
                 <Button
                   type="button"
                   variant="outline"
+                  className={HEADER_CONTROL_HEIGHT}
                   onClick={() => {
                     setBulkExportTarget("all")
                     setBulkPeriodFrom(selectedMonth)
@@ -868,8 +846,25 @@ export default function SalariesPage() {
                   Export bilan PDF
                 </Button>
               ) : null}
-            </div>
-          </div>
+                {canComputeSalaries ? (
+                  <HeaderAction
+                    note={salarySummaryQuery.data?.lastComputedAt ? `Dernier calcul : ${formatDateTimeFr(salarySummaryQuery.data.lastComputedAt)}` : undefined}
+                  >
+                    <Button
+                      type="button"
+                      className={HEADER_CONTROL_HEIGHT}
+                      onClick={() => setComputeDialogOpen(true)}
+                      disabled={isSelectedMonthFuture || computeMutation.isPending}
+                      data-testid="salaries-compute-button"
+                      data-tour="salaries-compute"
+                    >
+                      Calculer les salaires
+                    </Button>
+                  </HeaderAction>
+                ) : null}
+              </>
+            }
+          />
 
           {isSelectedMonthFuture ? (
             <p className="text-sm text-amber-900">Le calcul est désactivé pour un mois futur.</p>
@@ -883,7 +878,7 @@ export default function SalariesPage() {
             failedReason={exportJobQuery.data?.failedReason}
             onDownload={handleDownloadExport}
           />
-        </header>
+        </div>
 
         <div data-tour="salaries-stats">
           <SalariesStatsCards
@@ -894,7 +889,7 @@ export default function SalariesPage() {
         </div>
 
         {canViewValidations && (validationCountQuery.data?.total ?? 0) > 0 ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900" data-tour="salaries-hav">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
                 <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
@@ -913,7 +908,7 @@ export default function SalariesPage() {
         ) : null}
 
         {staleRecordsCount > 0 && !isSelectedMonthFuture ? (
-          <div role="status" data-testid="salaries-recalc-banner" className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-100">
+          <div role="status" data-testid="salaries-recalc-banner" data-tour="salaries-stale" className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-100">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
                 <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -1039,16 +1034,16 @@ export default function SalariesPage() {
                       <TableHead className="w-10">
                         <Checkbox
                           checked={bulkSelection.isAllSelected(bulkSelectableIds)}
-                          onCheckedChange={() => bulkSelection.toggleAll(bulkSelectableIds)}
+                          onCheckedChange={() => selectingVacataires(() => bulkSelection.toggleAll(bulkSelectableIds))}
                           aria-label="Tout sélectionner"
                         />
                       </TableHead>
                     ) : null}
                     <TableHead>Professeur</TableHead>
                     <TableHead>Progression</TableHead>
-                    <TableHead>Total (hors HAV)</TableHead>
+                    <TableHead data-tour="salaries-total-col">Total (hors HAV)</TableHead>
                     <TableHead>Statut</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="text-right" data-tour="salaries-actions-col">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1071,7 +1066,7 @@ export default function SalariesPage() {
                           {isSelectable ? (
                             <Checkbox
                               checked={bulkSelection.isSelected(row.salaryRecordId!)}
-                              onCheckedChange={() => bulkSelection.toggleSelection(row.salaryRecordId!)}
+                              onCheckedChange={() => selectingVacataires(() => bulkSelection.toggleSelection(row.salaryRecordId!))}
                               aria-label={`Sélectionner ${row.teacherName}`}
                             />
                           ) : null}
@@ -1158,7 +1153,7 @@ export default function SalariesPage() {
                       <TableHead className="w-10">
                         <Checkbox
                           checked={bulkPermanentSelection.isAllSelected(bulkSelectablePermanentIds)}
-                          onCheckedChange={() => bulkPermanentSelection.toggleAll(bulkSelectablePermanentIds)}
+                          onCheckedChange={() => selectingPermanents(() => bulkPermanentSelection.toggleAll(bulkSelectablePermanentIds))}
                           aria-label="Tout sélectionner (permanents)"
                         />
                       </TableHead>
@@ -1185,7 +1180,7 @@ export default function SalariesPage() {
                           {isPermanentSelectable ? (
                             <Checkbox
                               checked={bulkPermanentSelection.isSelected(row.salaryRecordId!)}
-                              onCheckedChange={() => bulkPermanentSelection.toggleSelection(row.salaryRecordId!)}
+                              onCheckedChange={() => selectingPermanents(() => bulkPermanentSelection.toggleSelection(row.salaryRecordId!))}
                               aria-label={`Sélectionner ${row.teacherName}`}
                             />
                           ) : null}
@@ -1694,7 +1689,7 @@ export default function SalariesPage() {
               disabled={!isOnline}
               title={!isOnline ? OFFLINE_ACTION_TITLE : undefined}
             >
-              Marquer payés
+              Marquer payés ({bulkSelection.selectedCount} vacataire{bulkSelection.selectedCount > 1 ? "s" : ""})
             </Button>
           </div>
         </div>
@@ -1762,7 +1757,7 @@ export default function SalariesPage() {
               disabled={!isOnline}
               title={!isOnline ? OFFLINE_ACTION_TITLE : undefined}
             >
-              Marquer payés
+              Marquer payés ({bulkPermanentSelection.selectedCount} permanent{bulkPermanentSelection.selectedCount > 1 ? "s" : ""})
             </Button>
           </div>
         </div>

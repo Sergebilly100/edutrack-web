@@ -1,3 +1,4 @@
+import { formatPersonName } from "@/shared/utils/person-name"
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Loader2, Minus, Plus } from "lucide-react"
@@ -112,7 +113,7 @@ export function SpontaneousGradeDialog({ open, slot, attendance, onOpenChange }:
             <Label>Élève</Label>
             <Select disabled={Boolean(unavailableReason)} value={studentId || "none"} onValueChange={(value) => setStudentId(value === "none" ? "" : value)}>
               <SelectTrigger className="min-h-12" aria-label="Élève"><SelectValue placeholder="Choisir un élève" /></SelectTrigger>
-              <SelectContent>{(studentsQuery.data?.data ?? []).map((student) => <SelectItem key={student.id} value={student.id}>{student.firstName} {student.lastName}</SelectItem>)}</SelectContent>
+              <SelectContent>{(studentsQuery.data?.data ?? []).map((student) => <SelectItem key={student.id} value={student.id}>{formatPersonName({ lastName: student.lastName, firstName: student.firstName })}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div className="grid gap-4 sm:grid-cols-[auto_1fr] sm:items-end">

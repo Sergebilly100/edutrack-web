@@ -146,7 +146,7 @@ test.describe("Page salaires", () => {
     await mockDirectorAuth(page)
     await mockSalaryApis(page)
     await loginAsDirectorUI(page)
-    await navigateMenu(page, "Administration", "Salaires professeurs")
+    await navigateMenu(page, "Finance", "Salaires professeurs")
     await expect(page).toHaveURL(/\/salaries/)
     await selectSalaryMonth(page, PAYABLE_MONTH)
     await expect(page.getByTestId("salaries-page")).toBeVisible()

@@ -17,6 +17,7 @@ import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { InstallPwaCard } from "@/shared/pwa/InstallPwaCard"
 import { TourGuide } from "@/shared/components/TourGuide"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { AideButton } from "@/shared/aide/AideButton"
 import { teacherAppTourSteps } from "@/shared/lib/tour-steps"
 import { CalendarIcon } from "@/shared/components/icons"
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus"
@@ -223,11 +224,12 @@ export default function TeacherSchedulePage() {
       />
 
       <header className="rounded-lg border bg-card p-4 shadow-sm !mt-0" data-tour="teacher-app-header">
-        <div className="flex items-start justify-between gap-2">
-          <div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase text-muted-foreground">Aujourd'hui et semaine</p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight">Mon planning</h1>
           </div>
+          <AideButton compact className="-mr-1 -mt-1" />
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <span className="font-medium">Semaine du {formatDateRange(weekStart, weekEnd)}</span>
@@ -306,10 +308,11 @@ export default function TeacherSchedulePage() {
       ) : null}
 
       {!scheduleQuery.isLoading && daySlots.length > 0 ? (
-        <ul className="space-y-2" data-testid="teacher-schedule-list" data-tour="teacher-app-courses">
-          {daySlots.map((slot) => (
+        <ul className="space-y-2" data-testid="teacher-schedule-list">
+          {daySlots.map((slot, index) => (
             <CourseCard
               key={slot.id}
+              tourAnchors={index === 0}
               slot={slot}
               attendance={attendanceBySchedule.get(slot.id)}
               onStartCourse={(s) => { setEditingRollCall(false); setActiveSlot(s) }}

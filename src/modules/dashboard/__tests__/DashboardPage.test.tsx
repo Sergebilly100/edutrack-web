@@ -302,7 +302,7 @@ describe("DashboardPage", () => {
     expect(screen.getByRole("link", { name: /Professeurs : 13/ })).toHaveAttribute("href", "/teachers")
     expect(await screen.findByRole("link", { name: /Baisse de moyenne/ })).toHaveAttribute(
       "href",
-      "/dashboard/risks?tab=students&schoolYearId=school-year-1&gradingPeriodId=period-current",
+      "/dashboard/risks?tab=students&category=grades&schoolYearId=school-year-1&gradingPeriodId=period-current",
     )
     expect(screen.queryByRole("tab")).not.toBeInTheDocument()
   })
@@ -338,8 +338,11 @@ describe("DashboardPage", () => {
     })
     renderWithQueryClient(<DashboardPage />)
 
-    expect(await screen.findByText("Aucun élève confirmé")).toBeInTheDocument()
-    expect(screen.getByText(/Les dossiers en attente ne font pas partie/)).toBeInTheDocument()
+    // La période par défaut est choisie après le chargement des périodes : on attend l'état stabilisé.
+    await waitFor(() => {
+      expect(screen.getByText("Aucun élève confirmé")).toBeInTheDocument()
+      expect(screen.getByText(/Les dossiers en attente ne font pas partie/)).toBeInTheDocument()
+    })
     expect(screen.getAllByRole("row", { name: /6e/ }).length).toBeGreaterThan(0)
     expect(screen.getByText("Élèves confirmés")).toBeInTheDocument()
   })
@@ -351,7 +354,7 @@ describe("DashboardPage", () => {
       risks: { studentAbsences: 8, studentGrades: 8, studentPayments: 8, teacherAbsences: 1, teacherLateness: 1, teachersAtRisk: 1 },
     })
     renderWithQueryClient(<DashboardPage />)
-    expect(await screen.findByRole("link", { name: /Retards répétés/ })).toHaveAttribute("href", "/dashboard/risks?tab=teachers")
+    expect(await screen.findByRole("link", { name: /Retards répétés/ })).toHaveAttribute("href", "/dashboard/risks?tab=teachers&signal=lateness")
     expect(await screen.findByText("1 à risque")).toBeInTheDocument()
   })
 
@@ -375,7 +378,7 @@ describe("DashboardPage", () => {
       expect(getDashboardActionItemsMock.mock.calls.length).toBeGreaterThan(initialCalls.actionItems)
       expect(listSchoolYearsMock.mock.calls.length).toBeGreaterThan(initialCalls.schoolYears)
     })
-    expect(await screen.findByText(/Dernière actualisation :/)).toBeInTheDocument()
+    expect(await screen.findByText(/Mis à jour :/)).toBeInTheDocument()
   })
 
   it("conserve la dernière actualisation après le rechargement de la page", async () => {
@@ -383,7 +386,7 @@ describe("DashboardPage", () => {
 
     renderWithQueryClient(<DashboardPage />)
 
-    expect(await screen.findByText("Dernière actualisation : 17/10/2026 à 08:30")).toBeInTheDocument()
+    expect(await screen.findByText("Mis à jour : 17 oct. 2026 à 08:30")).toBeInTheDocument()
   })
 
   it("garde la cloche et les priorités synchronisées après une résolution serveur", async () => {
@@ -458,6 +461,26 @@ describe("DashboardPage", () => {
     expect(getSalarySummaryMock).not.toHaveBeenCalled()
   })
 
+  it("travaille sur l'année active : ligne de contexte en lecture seule, sans sélecteur d'année, avec la pastille du nom de l'école", async () => {
+    renderWithQueryClient(<DashboardPage />)
+
+    expect(await screen.findByText(/Année scolaire 2025-2026/)).toBeInTheDocument()
+    expect(screen.queryByRole("combobox", { name: "Année scolaire" })).not.toBeInTheDocument()
+    expect(await screen.findByText("École Sainte Marie")).toBeInTheDocument()
+    expect(await screen.findByRole("combobox", { name: "Période" })).toBeInTheDocument()
+    expect(screen.getByText("Trimestre 1 · en cours")).toBeInTheDocument()
+  })
+
+  it("sans année active : message clair avec lien de configuration, sans erreur", async () => {
+    listSchoolYearsMock.mockResolvedValue([{ id: "school-year-0", label: "2024-2025", status: "closed" }])
+    renderWithQueryClient(<DashboardPage />)
+
+    expect(await screen.findByText(/Aucune année scolaire active/)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Configurer l'année scolaire" })).toHaveAttribute("href", "/academic/school-years")
+    expect(screen.queryByRole("combobox", { name: "Période" })).not.toBeInTheDocument()
+    expect(screen.queryByText("Tableau de bord indisponible")).not.toBeInTheDocument()
+  })
+
   it("rend une période à venir indisponible à la sélection", async () => {
     renderWithQueryClient(<DashboardPage />)
 
@@ -493,7 +516,7 @@ describe("DashboardPage", () => {
   it("affiche uniquement les validations en attente dans les actions prioritaires", async () => {
     getDashboardActionItemsMock.mockResolvedValue([
       { id: "validations", type: "validations_pending", referenceId: null, priority: "high", message: "2 décision(s) à prendre sur les pointages.", generatedAt: "2026-05-12" },
-      { id: "students", type: "student_at_risk", referenceId: null, priority: "high", message: "10 élève(s) à examiner (niveau warning/critical)", generatedAt: "2026-05-12" },
+      { id: "students", type: "student_at_risk", referenceId: null, priority: "high", message: "10 élèves à suivre", generatedAt: "2026-05-12" },
       { id: "teachers", type: "teacher_at_risk", referenceId: null, priority: "high", message: "6 professeur(s) à suivre pour leur assiduité", generatedAt: "2026-05-12" },
       { id: "absence", type: "teacher_absences_high", referenceId: null, priority: "high", message: "52 absences de professeurs sur les 7 derniers jours", generatedAt: "2026-05-12" },
       { id: "salary", type: "salary_pending", referenceId: null, priority: "medium", message: "1 fiche de salaire à terminer", generatedAt: "2026-05-12" },

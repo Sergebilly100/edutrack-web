@@ -1,3 +1,8 @@
+import { formatPersonName } from "@/shared/utils/person-name"
+import { AideButton } from "@/shared/aide/AideButton"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { teacherCalculationTourSteps } from "@/shared/lib/tour-steps"
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -104,6 +109,7 @@ export default function CalculationPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const tour = useTourGuide("teacher-calculation", true);
   const [searchParams] = useSearchParams();
   const classId = searchParams.get("classId") ?? "";
   const gradingPeriodId = searchParams.get("gradingPeriodId") ?? "";
@@ -227,6 +233,7 @@ export default function CalculationPage() {
   return (
     <>
       <OfflineIndicator />
+      <TourGuide steps={teacherCalculationTourSteps} run={tour.run} stepIndex={tour.stepIndex} onStepChange={tour.setStepIndex} onFinish={tour.markDone} />
       <InstallPwaCard
         audience="user"
         headline="Installez IvoirEdu pour pointer plus vite"
@@ -234,19 +241,22 @@ export default function CalculationPage() {
       />
       <div className="space-y-6 md:px-6 md:py-8">
         <header className="space-y-3">
-          <Button variant="ghost" className="min-h-6 px-0 py-0" asChild>
-            <Link
-              to={averagesUrl}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Retour aux moyennes
-            </Link>
-          </Button>
-          <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <Button variant="ghost" className="min-h-12 px-0 py-0" asChild>
+              <Link
+                to={averagesUrl}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Retour aux moyennes
+              </Link>
+            </Button>
+            <AideButton compact />
+          </div>
+          <div>
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">
                 Calcul des moyennes
               </h1>
-              <div className="text-sm text-muted-foreground">
+              <div className="text-sm text-muted-foreground" data-tour="calc-context">
                 {selectedClass?.name ?? "Classe"} · {subject.name} ·{" "}
                 {period?.label ?? "Période"} &nbsp;
                 <Badge variant={ completion.status === "completed" ? "outline" : "secondary" }>
@@ -256,10 +266,9 @@ export default function CalculationPage() {
                 </Badge>
               </div>
             </div>
-            
           </div>
         </header>
-        <ol className="grid grid-cols-3 gap-2 text-center text-xs" aria-label="Étapes de calcul" >
+        <ol data-tour="calc-steps" className="grid grid-cols-3 gap-2 text-center text-xs" aria-label="Étapes de calcul" >
           <li className="rounded-lg border p-2 text-muted-foreground">
             1. Notes saisies
           </li>
@@ -292,7 +301,7 @@ export default function CalculationPage() {
           </Card>
         ) : null}
         {currentStep === 2 ? (
-          <Card className="shadow-sm">
+          <Card data-tour="calc-notes" className="shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle>Notes de {subject.name}</CardTitle>
               <CardDescription>
@@ -313,7 +322,7 @@ export default function CalculationPage() {
                   {students.map((student) => (
                     <TableRow key={student.id}>
                       <TableCell className="font-medium">
-                        {student.firstName} {student.lastName}
+                        {formatPersonName({ lastName: student.lastName, firstName: student.firstName })}
                       </TableCell>
                       <TableCell>
                         {evaluationCount(evaluations, student.id)} note
@@ -325,7 +334,7 @@ export default function CalculationPage() {
                           variant="outline"
                           className="min-h-6"
                           onClick={() => setDetailsStudentId(student.id)}
-                          aria-label={`Consulter les notes de ${student.firstName} ${student.lastName}`}
+                          aria-label={`Consulter les notes de ${formatPersonName({ lastName: student.lastName, firstName: student.firstName })}`}
                         >
                           <Eye className=" h-4 w-4" />
                         </Button>
@@ -337,7 +346,7 @@ export default function CalculationPage() {
             </CardContent>
           </Card>
         ) : (
-          <Card className="shadow-sm">
+          <Card data-tour="calc-averages" className="shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle>Moyennes de {subject.name}</CardTitle>
               <CardDescription>
@@ -357,7 +366,7 @@ export default function CalculationPage() {
                   {students.map((student) => (
                     <TableRow key={student.id} >
                       <TableCell className="font-medium px-2 py-2" pNone="true">
-                        {student.firstName} {student.lastName}
+                        {formatPersonName({ lastName: student.lastName, firstName: student.firstName })}
                       </TableCell>
                       <TableCell className="font-medium px-2 py-2" pNone="true">
                         {formatAverage(subjectAverage(evaluations, student.id))}
@@ -368,7 +377,7 @@ export default function CalculationPage() {
                           variant="outline"
                           className="min-h-6"
                           onClick={() => setDetailsStudentId(student.id)}
-                          aria-label={`Consulter les notes de ${student.firstName} ${student.lastName}`}
+                          aria-label={`Consulter les notes de ${formatPersonName({ lastName: student.lastName, firstName: student.firstName })}`}
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
@@ -401,6 +410,7 @@ export default function CalculationPage() {
             <Button
               type="button"
               className="min-h-6 w-full"
+              data-tour="calc-validate"
               disabled={validateMutation.isPending || !preparation.canFinalize}
               onClick={() => validateMutation.mutate()}
             >
@@ -480,7 +490,7 @@ function StudentNotesDialog({
         <DialogHeader className="border-b px-5 py-5 text-left sm:px-6">
           <DialogTitle>
             Notes de{" "}
-            {student ? `${student.firstName} ${student.lastName}` : "l’élève"}
+            {student ? `${formatPersonName({ lastName: student.lastName, firstName: student.firstName })}` : "l’élève"}
           </DialogTitle>
           <DialogDescription>
             Détail des évaluations retenues pour la moyenne.

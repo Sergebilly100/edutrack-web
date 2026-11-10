@@ -13,7 +13,7 @@ describe("StudentSearch financial dossiers", () => {
     const onChange = vi.fn()
     render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><StudentSearch schoolYearId="year-current" value={null} onChange={onChange} /></QueryClientProvider>)
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "Jean" } })
-    fireEvent.click(await screen.findByRole("option", { name: /Recette Jean/ }))
+    fireEvent.click(await screen.findByRole("option", { name: /RECETTE Jean/ }))
     await waitFor(() => expect(onChange).toHaveBeenCalledWith(student))
     expect(mocks.listFinancialProfiles).toHaveBeenCalledWith({ schoolYearId: "year-current", search: "Jean", limit: 8, isActive: true })
   })

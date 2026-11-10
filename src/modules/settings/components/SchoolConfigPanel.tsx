@@ -629,7 +629,7 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
         {showGeneral ? <>
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
           <div className="space-y-5">
-            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="settings-school-info">
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/30 px-5 py-4" data-tour="settings-school-info-header">
                 <div className="flex items-center gap-3">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background">
@@ -792,7 +792,7 @@ export default function SchoolConfigPanel({ section = "all" }: { section?: "all"
         </> : null}
 
         {showAcademic ? <>
-        {canManageSchoolSettings ? <section id="evaluation-delays" aria-labelledby="evaluation-delays-title" className="space-y-4 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
+        {canManageSchoolSettings ? <section id="evaluation-delays" data-tour="settings-evaluation-delays" aria-labelledby="evaluation-delays-title" className="space-y-4 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
           <div>
             <h2 id="evaluation-delays-title" className="text-lg font-semibold">Délais de saisie des notes</h2>
             <p className="text-sm text-muted-foreground">Après le délai de grâce, une saisie devient attendue. Au-delà du seuil de retard, elle apparaît en rouge.</p>

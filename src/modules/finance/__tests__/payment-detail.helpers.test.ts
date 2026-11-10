@@ -1,17 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import { buildFinancialGap, formatPaymentDate, hasActiveDiscount, sortPaymentsMostRecentFirst, summarizeConfirmedPayments } from "../payment-detail.helpers"
+import { buildFinancialGap, hasActiveDiscount, sortPaymentsMostRecentFirst, summarizeConfirmedPayments } from "../payment-detail.helpers"
 
-describe("formatPaymentDate", () => {
-  it("n'affiche jamais 00:00 pour une date seule", () => {
-    expect(formatPaymentDate("2026-11-05").time).toBeNull()
-    expect(formatPaymentDate("2026-11-05T00:00:00").time).toBeNull()
-    expect(formatPaymentDate("2026-11-05").date).toContain("2026")
-  })
-  it("affiche l'heure quand elle est connue", () => {
-    expect(formatPaymentDate("2026-11-05T14:30:00Z").time).toContain("14")
-  })
-})
 
 describe("liste et synthèse", () => {
   it("trie du plus récent au plus ancien", () => {

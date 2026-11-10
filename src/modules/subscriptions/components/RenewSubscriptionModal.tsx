@@ -34,6 +34,8 @@ type RenewSubscriptionPayload = {
 }
 
 type RenewSubscriptionModalProps = {
+  /** Mois restants de l'année scolaire active (plafond de durée) ; indéfini tant que non chargé. */
+  maxDurationMonths?: number
   open: boolean
   onOpenChange: (open: boolean) => void
   parentFullName: string
@@ -62,6 +64,7 @@ const computeNextEndsAt = (currentEndsAt: string, months: number) => {
 }
 
 export default function RenewSubscriptionModal({
+  maxDurationMonths,
   open,
   onOpenChange,
   parentFullName,
@@ -128,14 +131,16 @@ export default function RenewSubscriptionModal({
             <Input
               type="number"
               min={1}
-              max={120}
+              max={maxDurationMonths ?? 120}
               value={String(durationMonths)}
               onChange={(event) => {
                 const value = Number(event.target.value)
-                setDurationMonths(Number.isInteger(value) && value >= 1 ? value : 1)
+                setDurationMonths(Number.isInteger(value) && value >= 1 ? Math.min(value, maxDurationMonths ?? 120) : 1)
               }}
             />
-            <p className="text-xs text-muted-foreground">Saisissez le nombre de mois (1 à 120).</p>
+            <p className="text-xs text-muted-foreground">
+              {maxDurationMonths ? `Saisissez le nombre de mois (1 à ${maxDurationMonths}, jusqu’à la fin de l’année scolaire).` : "Saisissez le nombre de mois (1 à 120)."}
+            </p>
           </div>
 
           <div className="space-y-2">

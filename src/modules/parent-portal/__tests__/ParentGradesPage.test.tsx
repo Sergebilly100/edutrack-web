@@ -214,7 +214,7 @@ describe("ParentGradesPage", () => {
       expect(await screen.findByText("Aucun résultat disponible")).toBeInTheDocument()
       expect(api.grades).toHaveBeenCalledWith("aya", "period-t1")
 
-      await choose("Enfant", "Koné Yao · 5ème B")
+      await choose("Enfant", "KONÉ Yao · 5ème B")
       expect(await screen.findByText("16,25")).toBeInTheDocument()
       expect(api.grades).toHaveBeenCalledWith("yao", undefined)
       expect(queryClient.getQueryData(["parent", "grades", "aya", "period-t1"])).toBeDefined()

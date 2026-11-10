@@ -68,7 +68,8 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <TooltipProvider delayDuration={0}>
-      <div className="flex h-screen overflow-hidden bg-[var(--surface-base)]">
+      {/* relative : contient les éléments absolus (ex. tableaux sr-only) pour qu'ils ne rallongent pas le document (second défilement + zone blanche). */}
+      <div className="relative flex h-screen h-dvh overflow-hidden bg-[var(--surface-base)]">
         <DesktopSidebar />
         <MobileSidebar />
 

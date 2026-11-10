@@ -1,3 +1,4 @@
+import { formatPersonName } from "@/shared/utils/person-name"
 import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ColumnDef } from "@tanstack/react-table"
@@ -21,6 +22,9 @@ import {
   type LevelOption,
 } from "@/modules/class-decisions/class-decisions.api"
 import { DataTable, EmptyState, PageLayout, QueryErrorState, Spinner } from "@/shared/components"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { endOfYearTourSteps } from "@/shared/lib/tour-steps"
 import { StudentsIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 
@@ -143,6 +147,7 @@ export default function ClassDecisionsPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const { hasPermission } = usePermissions()
+  const tour = useTourGuide("end-of-year", true)
   const canValidate = hasPermission("class_decisions.validate")
   const [drafts, setDrafts] = useState<Record<string, Draft>>({})
   const [levelFilter, setLevelFilter] = useState(ALL_FILTER)
@@ -248,10 +253,10 @@ export default function ClassDecisionsPage() {
   const columns: ColumnDef<ClassDecision>[] = [
     {
       id: "student",
-      accessorFn: (row) => `${row.studentLastName} ${row.studentFirstName}`,
+      accessorFn: (row) => `${formatPersonName({ lastName: row.studentLastName, firstName: row.studentFirstName })}`,
       header: "Élève",
       cell: ({ row }) => (
-        <div><p className="font-medium">{row.original.studentLastName} {row.original.studentFirstName}</p><p className="text-xs text-muted-foreground">{row.original.studentMatricule ?? "Sans matricule"}</p></div>
+        <div><p className="font-medium">{formatPersonName({ lastName: row.original.studentLastName, firstName: row.original.studentFirstName })}</p><p className="text-xs text-muted-foreground">{row.original.studentMatricule ?? "Sans matricule"}</p></div>
       ),
     },
     { accessorKey: "className", header: "Classe" },
@@ -274,9 +279,9 @@ export default function ClassDecisionsPage() {
   const previewColumns: ColumnDef<NonNullable<typeof bulkPreview>["items"][number]>[] = [
     {
       id: "student",
-      accessorFn: (row) => `${row.studentLastName} ${row.studentFirstName}`,
+      accessorFn: (row) => `${formatPersonName({ lastName: row.studentLastName, firstName: row.studentFirstName })}`,
       header: "Élève",
-      cell: ({ row }) => <div><p className="font-medium">{row.original.studentLastName} {row.original.studentFirstName}</p><p className="text-xs text-muted-foreground">{row.original.className}</p></div>,
+      cell: ({ row }) => <div><p className="font-medium">{formatPersonName({ lastName: row.original.studentLastName, firstName: row.original.studentFirstName })}</p><p className="text-xs text-muted-foreground">{row.original.className}</p></div>,
     },
     {
       accessorKey: "generalAverage",
@@ -308,6 +313,8 @@ export default function ClassDecisionsPage() {
   }
 
   return (
+    <>
+    <TourGuide steps={endOfYearTourSteps} run={tour.run} stepIndex={tour.stepIndex} onStepChange={tour.setStepIndex} onFinish={tour.markDone} />
     <PageLayout
       title="Fin d’année"
       subtitle={
@@ -324,7 +331,7 @@ export default function ClassDecisionsPage() {
         />
       ) : (
         <div className="space-y-5">
-          <div className="grid gap-4 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2">
+          <div className="grid gap-4 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2" data-tour="end-year-filters">
             <div className="space-y-2">
               <label
                 className="text-sm font-medium"
@@ -336,7 +343,7 @@ export default function ClassDecisionsPage() {
                 value={levelFilter}
                 onValueChange={(value) => updateScope(value, ALL_FILTER)}
               >
-                <SelectTrigger id="class-decisions-level" className="min-h-12">
+                <SelectTrigger id="class-decisions-level" className="min-h-12" data-tour="end-year-level">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -360,7 +367,7 @@ export default function ClassDecisionsPage() {
                 value={classFilter}
                 onValueChange={(value) => updateScope(levelFilter, value)}
               >
-                <SelectTrigger id="class-decisions-class" className="min-h-12">
+                <SelectTrigger id="class-decisions-class" className="min-h-12" data-tour="end-year-class">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -379,6 +386,7 @@ export default function ClassDecisionsPage() {
               <Button
                 type="button"
                 className="min-h-12"
+                data-tour="end-year-auto"
                 onClick={() => setConfigDialogOpen(true)}
                 disabled={!isLevelSelected}
               >
@@ -528,7 +536,7 @@ export default function ClassDecisionsPage() {
                     mobileCard={(item) => (
                       <div className="space-y-2 rounded-lg border bg-card p-4">
                         <p className="font-medium">
-                          {item.studentLastName} {item.studentFirstName}
+                          {formatPersonName({ lastName: item.studentLastName, firstName: item.studentFirstName })}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           Moyenne : {formatGeneralAverage(item.generalAverage)}
@@ -579,6 +587,7 @@ export default function ClassDecisionsPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          <div data-tour="end-year-table">
           <DataTable
             columns={columns}
             data={query.data?.decisions ?? []}
@@ -596,7 +605,7 @@ export default function ClassDecisionsPage() {
               <div className="space-y-4 rounded-lg border bg-card p-4">
                 <div>
                   <p className="font-medium">
-                    {decision.studentLastName} {decision.studentFirstName}
+                    {formatPersonName({ lastName: decision.studentLastName, firstName: decision.studentFirstName })}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {decision.className}, {decision.currentLevelName}
@@ -615,8 +624,10 @@ export default function ClassDecisionsPage() {
               </div>
             )}
           />
+          </div>
         </div>
       )}
     </PageLayout>
+    </>
   );
 }

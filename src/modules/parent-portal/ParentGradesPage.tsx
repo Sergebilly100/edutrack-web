@@ -1,3 +1,4 @@
+import { formatPersonName } from "@/shared/utils/person-name"
 import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { CalendarDays, ChevronDown, GraduationCap, X } from "lucide-react"
@@ -156,7 +157,7 @@ export default function ParentGradesPage() {
       ) : (
         <>
           {students.length > 1 ? (
-            <div className="space-y-2">
+            <div className="space-y-2" data-tour="parent-student-selector">
               <Label htmlFor="parent-grades-student">Enfant</Label>
               <Select value={selectedStudentId} onValueChange={selectStudent}>
                 <SelectTrigger id="parent-grades-student" className="min-h-10 w-full">
@@ -165,7 +166,7 @@ export default function ParentGradesPage() {
                 <SelectContent>
                   {students.map((student) => (
                     <SelectItem key={student.id} value={student.id}>
-                      {student.last_name} {student.first_name} · {student.class_name}
+                      {formatPersonName({ lastName: student.last_name, firstName: student.first_name })} · {student.class_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -178,7 +179,7 @@ export default function ParentGradesPage() {
               </span>
               <span className="min-w-0">
                 <span className="block truncate font-medium">
-                  {selectedStudent.last_name} {selectedStudent.first_name}
+                  {formatPersonName({ lastName: selectedStudent.last_name, firstName: selectedStudent.first_name })}
                 </span>
                 <span className="block truncate text-sm text-muted-foreground">{selectedStudent.class_name}</span>
               </span>
@@ -186,7 +187,7 @@ export default function ParentGradesPage() {
           ) : null}
 
           {periods.length > 1 ? (
-            <div className="space-y-2">
+            <div className="space-y-2" data-tour="parent-grades-period">
               <Label htmlFor="parent-grades-period">Période</Label>
               <Select
                 value={selectedPeriodId}
@@ -281,7 +282,7 @@ export default function ParentGradesPage() {
               description="Les évaluations apparaissent ici après la saisie complète des notes. La moyenne de matière s’affiche après validation."
             />
           ) : (
-            <section aria-label="Résultats validés" className="space-y-3">
+            <section aria-label="Résultats validés" data-tour="parent-grades-results" className="space-y-3">
               {resultsInRevision ? (
                 <Alert role="status">
                   <AlertDescription>

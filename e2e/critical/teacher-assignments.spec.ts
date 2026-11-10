@@ -124,7 +124,8 @@ for (const device of [{ name: 'Android', width: 393, height: 851, mobile: true }
       await expect(page.getByRole('combobox', { name: /Matière du bloc/ }).filter({ hasText: 'Mathematiques' })).toHaveCount(1);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
-      await navigateMenu(page, 'Administration', 'Import de données');
+      await page.goto('/schedule');
+      await page.getByRole('button', { name: "Importer l'EDT" }).click();
       await expect(page.getByLabel('Du lundi', { exact: true })).toBeVisible();
       const edt = await file(['Nom professeur*','Classe*','Matière*','Jour*','Créneau*','Salle'], [[`Aya ${suffix}`, className, 'Mathematiques', 'Lundi', '08:00 - 09:00', 'Salle A1']]);
       await page.locator('input[type="file"]').setInputFiles(edt);

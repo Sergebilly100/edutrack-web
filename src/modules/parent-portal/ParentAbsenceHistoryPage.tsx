@@ -1,3 +1,4 @@
+import { formatPersonName } from "@/shared/utils/person-name"
 import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { ArrowLeft, XCircle } from "lucide-react"
@@ -61,7 +62,7 @@ export default function ParentAbsenceHistoryPage() {
           Historique des absences - {selectedStudent?.first_name ?? studentLabels.singular}
         </h1>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" data-tour="parent-absences-filters">
           <Select
             value={selectedStudentId}
             onValueChange={(value) => {
@@ -75,7 +76,7 @@ export default function ParentAbsenceHistoryPage() {
             <SelectContent>
               {(studentsQuery.data ?? []).map((student) => (
                 <SelectItem key={student.id} value={student.id}>
-                  {student.last_name} {student.first_name} · {student.class_name}
+                  {formatPersonName({ lastName: student.last_name, firstName: student.first_name })} · {student.class_name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -99,7 +100,7 @@ export default function ParentAbsenceHistoryPage() {
       ) : absencesQuery.data?.length ? (
         <div className="space-y-3">
           {/* // Affiche le nombre d'absences et le mois sélectionné */}
-          <p className="pt-1 text-sm font-medium text-muted-foreground">
+          <p className="pt-1 text-sm font-medium text-muted-foreground" data-tour="parent-absences-list">
             {absencesQuery.data.length} absence(s) en {monthLabelFr(month)}
           </p>
 

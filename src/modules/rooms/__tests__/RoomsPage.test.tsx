@@ -93,7 +93,7 @@ describe("RoomsPage", () => {
     renderRoomsPage()
 
     await waitFor(() => {
-      expect(screen.getByText(/aucune salle active trouvée/i)).toBeInTheDocument()
+      expect(screen.getByText(/^aucune salle$/i)).toBeInTheDocument()
     })
   })
 
@@ -114,16 +114,16 @@ describe("RoomsPage", () => {
   it("masque le guide en mode assistant", async () => {
     listRoomsMock.mockResolvedValue([])
     renderRoomsPage(true)
-    await screen.findByText(/aucune salle active trouvée/i)
-    expect(screen.queryByRole("button", { name: "Revoir le guide" })).not.toBeInTheDocument()
+    await screen.findByText(/^aucune salle$/i)
+    expect(screen.queryByRole("button", { name: "Ouvrir l'aide de la page" })).not.toBeInTheDocument()
     expect(screen.queryByTestId("tour-guide")).not.toBeInTheDocument()
   })
 
   it("garde le guide dans la page normale", async () => {
     listRoomsMock.mockResolvedValue([])
     renderRoomsPage()
-    await screen.findByText(/aucune salle active trouvée/i)
-    expect(screen.getByRole("button", { name: "Revoir le guide" })).toBeInTheDocument()
+    await screen.findByText(/^aucune salle$/i)
+    expect(screen.getByRole("button", { name: "Ouvrir l'aide de la page" })).toBeInTheDocument()
     expect(screen.getByTestId("tour-guide")).toBeInTheDocument()
   })
 

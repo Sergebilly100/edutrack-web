@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Bell, CheckCircle2, CircleX, ClipboardCheck, Flag, Info, MapPin, RefreshCw } from "lucide-react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -23,10 +24,12 @@ import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { OfflineGuard } from "@/shared/components/OfflineGuard"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { NotificationsPanel, type NotificationPanelItem } from "@/shared/components/layout/NotificationsPanel"
-import { actionItemToNotification } from "./dashboard-action-notifications"
+import { actionItemToNotification, CONFIG_ACTION_TYPES } from "./dashboard-action-notifications"
 import { useAuthStore } from "@/shared/store/auth.store"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { apiClient } from "@/shared/api/client"
+import { HEADER_CONTROL_HEIGHT, HeaderAction, PageHeader } from "@/shared/components/PageHeader"
+import { formatDateTimeFr } from "@/shared/utils/formatting"
 import { TourGuide } from "@/shared/components/TourGuide"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { dashboardTourSteps } from "@/shared/lib/tour-steps"
@@ -258,7 +261,6 @@ export default function DashboardPage() {
   const [refreshSuccess, setRefreshSuccess] = useState(false)
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const [schoolYearId, setSchoolYearId] = useState("")
   const [gradingPeriodId, setGradingPeriodId] = useState("")
   const studentLabels = useStudentLabels()
   const isDirector = user?.role === "director"
@@ -313,6 +315,11 @@ export default function DashboardPage() {
     retry: false,
   })
 
+  // Le tableau de bord travaille toujours sur l'année active (pas de sélecteur d'année).
+  const activeYear = schoolYearsQuery.data?.find((year) => year.status === "active")
+  const schoolYearId = activeYear?.id ?? ""
+  const noActiveYear = schoolYearsQuery.isSuccess && !activeYear
+
   const gradingPeriodsQuery = useQuery({
     queryKey: ["academic", "grading-periods", schoolYearId],
     queryFn: async () => {
@@ -355,11 +362,6 @@ export default function DashboardPage() {
   }, [refreshSuccess])
 
   useEffect(() => {
-    if (schoolYearId || !schoolYearsQuery.data?.length) return
-    setSchoolYearId((schoolYearsQuery.data.find((year) => year.status === "active") ?? schoolYearsQuery.data[0]).id)
-  }, [schoolYearId, schoolYearsQuery.data])
-
-  useEffect(() => {
     if (gradingPeriodId || !gradingPeriodsQuery.data?.length) return
     const today = new Date().toISOString().slice(0, 10)
     const startedPeriods = gradingPeriodsQuery.data.filter((period) => {
@@ -400,18 +402,7 @@ export default function DashboardPage() {
     refreshStorageKey,
   ])
 
-  const lastRefreshLabel = lastRefreshedAt
-    ? `${new Intl.DateTimeFormat("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      timeZone: "Africa/Abidjan",
-    }).format(lastRefreshedAt)} à ${new Intl.DateTimeFormat("fr-FR", {
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: "Africa/Abidjan",
-    }).format(lastRefreshedAt)}`
-    : null
+  const lastRefreshLabel = lastRefreshedAt ? `Mis à jour : ${formatDateTimeFr(lastRefreshedAt)}` : "Actualise les données"
 
   const actionItemsQuery = useQuery({
     queryKey: ["dashboard", "action-items"],
@@ -483,8 +474,9 @@ export default function DashboardPage() {
   }, [dispatchMobileHeaderState, handleDashboardRefresh])
 
   const priorityActions = (actionItemsQuery.data ?? [])
-    .filter((item): item is typeof item & { type: "validations_pending" } =>
-      item.type === "validations_pending" && canViewValidations
+    .filter((item) =>
+      (item.type === "validations_pending" && canViewValidations)
+      || (isDirector && CONFIG_ACTION_TYPES.includes(item.type))
     )
     .map((item) => {
       const notification = actionItemToNotification(item)
@@ -547,93 +539,40 @@ export default function DashboardPage() {
       <div
         className={`space-y-6 animate-fade-in rounded-lg ${refreshSuccess ? "fresh-data-pulse" : ""}`}
       >
-        <header className="-mx-4 border-b bg-background px-4 py-4 md:sticky md:top-0 md:z-30 md:-mx-6 md:px-6">
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1">
-              <h1 className="text-2xl font-semibold tracking-tight">
-                Bonjour, {user?.name ?? ""}
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                {formatToday(new Date())}
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Badge variant="outline">{schoolName}</Badge>
-                <Select
-                  value={schoolYearId}
-                  onValueChange={(value) => {
-                    setSchoolYearId(value);
-                    setGradingPeriodId("");
-                  }}
-                >
-                  <SelectTrigger
-                    className="min-h-10 w-[12.5rem]"
-                    aria-label="Année scolaire"
-                  >
-                    <SelectValue placeholder="Année scolaire" />
+        <PageHeader
+          sticky
+          title={`Bonjour, ${user?.name ?? ""}`}
+          subtitle={activeYear ? `${formatToday(new Date())} · Année scolaire ${activeYear.label}` : formatToday(new Date())}
+          context={<Badge variant="outline">{schoolName}</Badge>}
+          actions={
+            <>
+              {gradingPeriodsQuery.data?.length ? (
+                <Select value={gradingPeriodId} onValueChange={setGradingPeriodId}>
+                  <SelectTrigger className={`${HEADER_CONTROL_HEIGHT} w-[12.5rem]`} aria-label="Période" data-tour="dashboard-context">
+                    <SelectValue placeholder="Période" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(schoolYearsQuery.data ?? []).map((year: SchoolYear) => (
-                      <SelectItem key={year.id} value={year.id}>
-                        {year.label}
+                    {gradingPeriodsQuery.data.map((period) => (
+                      <SelectItem key={period.id} value={period.id} disabled={!period.notesEntryOpen && !period.conductReviewOpen && !period.isClosed}>
+                        {period.label}
+                        {period.notesEntryOpen
+                          ? " · en cours"
+                          : period.conductReviewOpen
+                            ? " · en revue"
+                            : period.isClosed
+                              ? " · finalisée"
+                              : " · à venir"}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {gradingPeriodsQuery.data?.length ? (
-                  <Select
-                    value={gradingPeriodId}
-                    onValueChange={setGradingPeriodId}
-                  >
-                    <SelectTrigger
-                      className="min-h-10 w-[12.5rem]"
-                      aria-label="Période"
-                    >
-                      <SelectValue placeholder="Période" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {gradingPeriodsQuery.data.map((period) => (
-                        <SelectItem key={period.id} value={period.id} disabled={!period.notesEntryOpen && !period.conductReviewOpen && !period.isClosed}>
-                          {period.label}
-                          {period.notesEntryOpen
-                            ? " · en cours"
-                            : period.conductReviewOpen
-                              ? " · en revue"
-                              : period.isClosed
-                                ? " · finalisée"
-                                : " · à venir"}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : null}
-              </div>
-            </div>
-            <div className="hidden items-start gap-2 md:flex">
-              {isDirector ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="default"
-                  className="text-muted-foreground"
-                  onClick={() => {
-                    (
-                      document.scrollingElement ?? document.documentElement
-                    ).scrollTo({ top: 0, behavior: "instant" });
-                    tour.restart();
-                  }}
-                  aria-label="Revoir le tour guidé"
-                >
-                  <Info className="mr-1.5 h-4 w-4" />
-                  Guide
-                </Button>
               ) : null}
               <Button
                 type="button"
                 variant="outline"
-                size="default"
                 aria-label="Voir les notifications"
                 onClick={() => setNotificationsOpen((current) => !current)}
-                className="relative"
+                className={`relative hidden md:inline-flex ${HEADER_CONTROL_HEIGHT} w-10 px-0`}
                 data-tour="dashboard-alerts"
               >
                 <Bell className="h-4 w-4" />
@@ -643,16 +582,16 @@ export default function DashboardPage() {
                   </span>
                 ) : null}
               </Button>
-              <div className="flex flex-col items-end gap-1">
+              <HeaderAction note={<span className="hidden md:inline">{lastRefreshLabel}</span>}>
                 <TooltipProvider delayDuration={150}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="inline-flex">
+                      <span className="hidden md:inline-flex">
                         <OfflineGuard message="Actualisation indisponible hors ligne">
                           <Button
                             type="button"
                             variant="outline"
-                            size="default"
+                            className={HEADER_CONTROL_HEIGHT}
                             aria-label="Mettre à jour les données"
                             disabled={isRefreshing}
                             onClick={() => {
@@ -682,22 +621,27 @@ export default function DashboardPage() {
                     <TooltipContent>Actualise toutes les données</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-                <p className="whitespace-nowrap text-xs text-muted-foreground" aria-live="polite">
-                  {lastRefreshLabel ? `${lastRefreshLabel}` : "Actualise les données"}
-                </p>
-              </div>
-              {/* Annonce l'état de l'actualisation aux lecteurs d'écran sans
-                  voler le focus ni perturber l'affichage visuel. */}
+              </HeaderAction>
+              {/* Annonce l'état de l'actualisation aux lecteurs d'écran sans voler le focus. */}
               <span className="sr-only" role="status" aria-live="polite">
-                {isRefreshing
-                  ? "Mise à jour des données en cours"
-                  : refreshSuccess
-                    ? "Données à jour"
-                    : ""}
+                {isRefreshing ? "Mise à jour des données en cours" : refreshSuccess ? "Données à jour" : ""}
               </span>
-            </div>
-          </div>
-        </header>
+            </>
+          }
+        />
+
+        {noActiveYear ? (
+          <Alert>
+            <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+              <span>Aucune année scolaire active : les chiffres liés à l'année (effectifs, académique, finances) sont vides.</span>
+              {isDirector ? (
+                <Button asChild variant="outline" className="min-h-10">
+                  <Link to="/academic/school-years">Configurer l'année scolaire</Link>
+                </Button>
+              ) : null}
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
         {notificationsOpen ? (
           <NotificationsPanel
@@ -714,6 +658,8 @@ export default function DashboardPage() {
           />
         ) : null}
 
+        {/* On attend l'année active avant de charger les blocs qui en dépendent (évite un double chargement). */}
+        {schoolYearsQuery.isLoading ? <DashboardSkeleton /> : (
         <Suspense fallback={<DashboardSkeleton />}>
           <OverviewTab
             canViewAttendance={canViewAttendance}
@@ -729,6 +675,7 @@ export default function DashboardPage() {
             priorityActions={priorityActions}
           />
         </Suspense>
+        )}
       </div>
     </>
   );

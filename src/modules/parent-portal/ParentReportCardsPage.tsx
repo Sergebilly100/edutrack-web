@@ -1,3 +1,4 @@
+import { formatPersonName } from "@/shared/utils/person-name"
 import { useEffect, useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { FileDown, GraduationCap, Loader2 } from "lucide-react"
@@ -117,6 +118,7 @@ export default function ParentReportCardsPage() {
           <EmptyState title="Aucun enfant rattaché" description="Contactez l'école pour accéder aux bulletins." />
         ) : null}
 
+        <div className="space-y-4" data-tour="parent-reports-filters">
         {(studentsQuery.data?.length ?? 0) > 1 ? (
           <div className="space-y-2">
             <Label htmlFor="parent-report-student">Enfant</Label>
@@ -134,7 +136,7 @@ export default function ParentReportCardsPage() {
               <SelectContent>
                 {(studentsQuery.data ?? []).map((student) => (
                   <SelectItem key={student.id} value={student.id}>
-                    {student.first_name} {student.last_name} · {student.class_name}
+                    {formatPersonName({ lastName: student.last_name, firstName: student.first_name })} · {student.class_name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -155,6 +157,7 @@ export default function ParentReportCardsPage() {
             </Select>
           </div>
         ) : null}
+        </div>
 
         {!studentId && students.length > 1 ? (
           <EmptyState
@@ -178,7 +181,7 @@ export default function ParentReportCardsPage() {
           ) : (
             <div className="space-y-3">
               {cardsQuery.data?.inRevision ? <p role="status" className="rounded-lg border bg-muted p-3 text-sm">Un bulletin est en révision. Il sera visible après publication.</p> : null}
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2" data-tour="parent-reports-list">
               {(cardsQuery.data?.reportCards ?? []).map((card) => (
                 <Card key={card.id} className="shadow-sm">
                   <CardHeader className="pb-2">

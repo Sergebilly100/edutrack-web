@@ -1,6 +1,7 @@
+import { formatPersonName } from "@/shared/utils/person-name"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CalendarClock, CheckCircle2, Loader2, Plus, RotateCcw, Tag, Trash2 } from "lucide-react"
+import { CalendarClock, CheckCircle2, Copy, Loader2, Plus, RotateCcw, Tag, Trash2 } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
@@ -22,6 +23,8 @@ import { isCivilDate } from "@/shared/lib/date-validation"
 import { getStudentTuitionSchedule, getTuitionOverrideWithdrawalPreview, grantTuitionOverride, listTuitionPlans, resetStudentTuitionSchedule, saveStudentTuitionSchedule, upsertTuitionPlan, withdrawTuitionOverride, type TuitionPlan, type TuitionScheduleStep } from "../finance.api"
 import type { TuitionRecovery } from "../tuition-recovery"
 import { StudentSearch } from "./StudentSearch"
+import { CopyTuitionPlanDialog } from "./CopyTuitionPlanDialog"
+import { planFormMatchesSaved } from "../tuition-copy"
 
 type TuitionConfigurationProps = {
   schoolYearId: string
@@ -75,6 +78,7 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
   const [studentInstallments, setStudentInstallments] = useState<NegotiatedInstallment[]>([blankInstallment()])
   const [scheduleReason, setScheduleReason] = useState("")
   const [stepDateMessage, setStepDateMessage] = useState<string | null>(null)
+  const [copyOpen, setCopyOpen] = useState(false)
   const updateStepDate = (index: number, value: string) => {
     const result = changeStepDate(steps, index, value)
     setSteps(result.next)
@@ -260,7 +264,7 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
         </Alert>
       ) : null}
 
-      <Card>
+      <Card data-tour="settings-tuition-plan">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <CalendarClock className="h-5 w-5 text-primary" />
@@ -289,7 +293,7 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="tuition-total">Montant total de scolarité annuel</Label>
+              <Label htmlFor="tuition-total" data-tour="settings-tuition-total">Montant total de scolarité annuel</Label>
               <div className="relative">
                 <Input
                   id="tuition-total"
@@ -340,7 +344,7 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
           ) : <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <Label>Courbe cumulative attendue</Label>
+                <Label data-tour="settings-tuition-curve">Courbe cumulative attendue</Label>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Les dates et montants doivent progresser dans l’ordre.
                 </p>
@@ -505,7 +509,21 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
             </Alert>
           ) : null}
           {canEdit ? (
-            <div className="flex justify-end">
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {!recovery ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-12"
+                  data-tour="settings-tuition-copy"
+                  disabled={!levelId || !planFormMatchesSaved(selectedPlan, { totalAmount, registrationAmount, steps })}
+                  title={planFormMatchesSaved(selectedPlan, { totalAmount, registrationAmount, steps }) ? undefined : "Enregistrez d’abord le plan de ce niveau : la copie reprend le plan enregistré."}
+                  onClick={() => setCopyOpen(true)}
+                >
+                  <Copy aria-hidden="true" className="mr-2 h-4 w-4" />
+                  Copier vers…
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 className="min-h-12"
@@ -534,9 +552,10 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
           ) : null}
         </CardContent>
       </Card>
+      {!recovery && levelId ? <CopyTuitionPlanDialog open={copyOpen} onOpenChange={setCopyOpen} schoolYearId={schoolYearId} sourceLevelId={levelId} /> : null}
 
       {canManageStudentSchedule ? (
-        <Card>
+        <Card data-tour="settings-tuition-negotiated">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <CalendarClock className="h-5 w-5 text-primary" />
@@ -831,7 +850,7 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
       ) : null}
 
       {canGrantDiscount ? (
-        <Card>
+        <Card data-tour="settings-tuition-adjust">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Tag className="h-5 w-5 text-primary" />
@@ -1113,7 +1132,7 @@ export function TuitionConfiguration({ schoolYearId, canEdit, canGrantDiscount, 
             <AlertDialogDescription>
               L’échéancier négocié de{" "}
               {scheduleStudent
-                ? `${scheduleStudent.lastName} ${scheduleStudent.firstName}`
+                ? `${formatPersonName({ lastName: scheduleStudent.lastName, firstName: scheduleStudent.firstName })}`
                 : "cet élève"}{" "}
               sera archivé dans l’historique. Les alertes et le statut financier
               suivront de nouveau le plan commun.

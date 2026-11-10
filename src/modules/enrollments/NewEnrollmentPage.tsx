@@ -16,6 +16,9 @@ import { useToast } from "@/components/ui/use-toast"
 import { listClasses, listLevels, listSchoolYears } from "@/modules/academic/academic.api"
 import { createStudent, getStudentById, updateStudent } from "@/modules/students/students.api"
 import { PageLayout } from "@/shared/components/PageLayout"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { enrollmentNewTourSteps } from "@/shared/lib/tour-steps"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
@@ -55,6 +58,7 @@ function EnrollmentForm() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const { hasPermission } = usePermissions()
+  const tour = useTourGuide("enrollment-new", hasPermission("enrollments.create") || hasPermission("enrollments.edit"))
   const studentLabels = useStudentLabels()
   const [step, setStep] = useState(1)
   const [schoolYearId, setSchoolYearId] = useState(returnDraft?.context.schoolYearId ?? "")
@@ -245,6 +249,8 @@ function EnrollmentForm() {
   const historicalForbidden = Boolean(enrollmentId) && !canEditDraft
 
   return (
+    <>
+    <TourGuide steps={enrollmentNewTourSteps} run={tour.run} stepIndex={tour.stepIndex} onStepChange={tour.setStepIndex} onFinish={tour.markDone} />
     <PageLayout
       title={enrollmentId ? "Modifier l’inscription" : "Nouvelle inscription"}
       subtitle={
@@ -344,7 +350,7 @@ function EnrollmentForm() {
                 </span>
               </p>
             ) : null}
-            <EnrollmentProgress currentStep={step} />
+            <div data-tour="enrollment-new-progress"><EnrollmentProgress currentStep={step} /></div>
           </div>
         ) : null}
 
@@ -358,6 +364,7 @@ function EnrollmentForm() {
               <section
                 className="space-y-4"
                 aria-labelledby="student-identity-title"
+                data-tour="enrollment-new-identity"
               >
                 <h2
                   id="student-identity-title"
@@ -511,6 +518,7 @@ function EnrollmentForm() {
               <section
                 className="space-y-4 border-t pt-6"
                 aria-labelledby="target-class-title"
+                data-tour="enrollment-new-class"
               >
                 <h2 id="target-class-title" className="text-base font-semibold">
                   Affectation
@@ -640,6 +648,7 @@ function EnrollmentForm() {
               <section
                 className="space-y-4 border-t pt-6"
                 aria-labelledby="parent-title"
+                data-tour="enrollment-new-parent"
               >
                 <div>
                   <h2 id="parent-title" className="text-base font-semibold">
@@ -769,7 +778,7 @@ function EnrollmentForm() {
                 </div>
               </section>
 
-              <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-col gap-2 border-t bg-card px-4 py-4 sm:-mx-6 sm:-mb-6 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+              <div data-tour="enrollment-new-submit" className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-col gap-2 border-t bg-card px-4 py-4 sm:-mx-6 sm:-mb-6 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <p aria-live="polite" className="text-sm text-muted-foreground">
                   {blockedReason ??
                     "Les informations sont prêtes pour la suite du dossier."}
@@ -806,7 +815,7 @@ function EnrollmentForm() {
         ) : null}
 
         {step === 2 && enrollment ? (
-          <Card>
+          <Card data-tour="enrollment-new-documents">
             <CardHeader>
               <CardTitle className="text-xl">Documents requis</CardTitle>
             </CardHeader>
@@ -854,5 +863,6 @@ function EnrollmentForm() {
         ) : null}
       </div>
     </PageLayout>
+    </>
   );
 }

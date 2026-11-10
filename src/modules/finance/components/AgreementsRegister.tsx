@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useSearchParams } from "react-router-dom"
-import { Plus } from "lucide-react"
+import { Plus, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -15,6 +15,7 @@ import { useToast } from "@/components/ui/use-toast"
 import type { StudentItem } from "@/modules/students/students.api"
 import { EmptyState } from "@/shared/components/EmptyState"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
+import { useDebounce } from "@/shared/hooks/useDebounce"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { formatFcfa } from "@/shared/utils/formatting"
 import { getStudentTuitionSchedule, grantTuitionOverride, listAgreementsRegister, replaceTuitionOverride, saveStudentTuitionSchedule, type AgreementRegisterEntry } from "../finance.api"
@@ -75,6 +76,9 @@ export function AgreementsRegister({ schoolYearId }: { schoolYearId: string }) {
       ? rawStatus
       : "all";
   const search = params.get("q") ?? "";
+  // Saisie locale instantanée ; l'URL (donc la requête) n'est mise à jour qu'après 300 ms de pause.
+  const [searchInput, setSearchInput] = useState(search);
+  const debouncedSearch = useDebounce(searchInput.trim(), 300);
   const page = Math.max(1, Number(params.get("page")) || 1);
   const id = params.get("detail");
   const [overrideOpen, setOverrideOpen] = useState(false);
@@ -90,6 +94,19 @@ export function AgreementsRegister({ schoolYearId }: { schoolYearId: string }) {
       );
       return current;
     });
+  useEffect(() => {
+    if (debouncedSearch === search) return;
+    setParams(
+      (current) => {
+        if (debouncedSearch) current.set("q", debouncedSearch);
+        else current.delete("q");
+        current.set("page", "1");
+        return current;
+      },
+      { replace: true },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
   const query = useQuery({
     queryKey: [
       "finance",
@@ -103,21 +120,15 @@ export function AgreementsRegister({ schoolYearId }: { schoolYearId: string }) {
     queryFn: () =>
       listAgreementsRegister({ schoolYearId, kind, status, search, page }),
     enabled: Boolean(schoolYearId),
+    placeholderData: keepPreviousData,
   });
-  if (query.isLoading) return <Skeleton className="h-72 w-full" />;
-  if (query.isError)
-    return (
-      <QueryErrorState
-        message="Impossible de charger le registre des accords."
-        onRetry={() => void query.refetch()}
-      />
-    );
   const entries = query.data?.entries ?? [];
   const pagination = query.data?.pagination;
   return (
     <section className="space-y-5">
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div
+          data-tour="finance-agreements-tabs"
           role="tablist"
           aria-label="Types d’accord"
           className="flex w-full gap-1 rounded-lg bg-muted p-1 sm:w-auto"
@@ -147,6 +158,7 @@ export function AgreementsRegister({ schoolYearId }: { schoolYearId: string }) {
         </div>
         {kind === "overrides" && hasPermission("tuition.grant_discount") ? (
           <Button
+            data-tour="finance-agreements-new"
             onClick={() => {
               setEditingOverride(null);
               setOverrideOpen(true);
@@ -159,6 +171,7 @@ export function AgreementsRegister({ schoolYearId }: { schoolYearId: string }) {
         {kind === "schedules" &&
         hasPermission("tuition.manage_student_schedule") ? (
           <Button
+            data-tour="finance-agreements-new"
             onClick={() => {
               setEditingSchedule(null);
               setScheduleOpen(true);
@@ -170,18 +183,40 @@ export function AgreementsRegister({ schoolYearId }: { schoolYearId: string }) {
         ) : null}
       </div>
       <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 md:grid-cols-2">
-        <Input
-          className="min-h-12"
-          value={search}
-          onChange={(event) => set({ q: event.target.value, page: "1" })}
-          placeholder="Élève, matricule, classe ou niveau"
-          aria-label="Rechercher un accord"
-        />
+        <div className="relative">
+          <Input
+            className="min-h-12 pr-24"
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            data-tour="finance-agreements-search"
+            placeholder="Élève, matricule, classe ou niveau"
+            aria-label="Rechercher un accord"
+          />
+          <div className="absolute inset-y-0 right-1 flex items-center gap-1">
+            {query.isFetching && !query.isLoading ? (
+              <span role="status" className="text-xs text-muted-foreground">
+                Recherche…
+              </span>
+            ) : null}
+            {searchInput ? (
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-10 w-10"
+                aria-label="Effacer la recherche"
+                onClick={() => setSearchInput("")}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            ) : null}
+          </div>
+        </div>
         <Select
           value={status}
           onValueChange={(value) => set({ status: value, page: "1" })}
         >
-          <SelectTrigger className="min-h-12">
+          <SelectTrigger className="min-h-12" data-tour="finance-agreements-status">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -198,9 +233,16 @@ export function AgreementsRegister({ schoolYearId }: { schoolYearId: string }) {
           </SelectContent>
         </Select>
       </div>
-      {entries.length ? (
+      {query.isLoading ? (
+        <Skeleton className="h-72 w-full" />
+      ) : query.isError ? (
+        <QueryErrorState
+          message="Impossible de charger le registre des accords."
+          onRetry={() => void query.refetch()}
+        />
+      ) : entries.length ? (
         <>
-          <div className="overflow-x-auto rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border" data-tour="finance-agreements-table">
             <Table>
               <TableHeader>
                 <TableRow>

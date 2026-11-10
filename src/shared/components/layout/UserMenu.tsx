@@ -1,6 +1,7 @@
 import { useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { useQueryClient } from "@tanstack/react-query"
+import { HelpCircle } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -87,6 +88,10 @@ export function UserMenu({ collapsed = false }: UserMenuProps) {
         <DropdownMenuItem onClick={() => navigate(user?.role === "super_admin" ? "/admin/account" : "/account")}>
           <UserIcon className="h-4 w-4" />
           <span>Mon compte</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => navigate("/aide")}>
+          <HelpCircle className="h-4 w-4" />
+          <span>Aide</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={requestLogout}>

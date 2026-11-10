@@ -3,12 +3,13 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { fetchOptions, fetchReview, fetchSpontaneous, remindTeacher } = vi.hoisted(() => ({ fetchOptions: vi.fn(), fetchReview: vi.fn(), fetchSpontaneous: vi.fn(), remindTeacher: vi.fn() }))
+const { fetchOptions, fetchReview, fetchSpontaneous, remindTeacher, remindBatch } = vi.hoisted(() => ({ fetchOptions: vi.fn(), fetchReview: vi.fn(), fetchSpontaneous: vi.fn(), remindTeacher: vi.fn(), remindBatch: vi.fn() }))
 vi.mock("@/modules/academic/evaluation-review.api", () => ({
   fetchReviewOptions: (...args: unknown[]) => fetchOptions(...args),
   fetchEvaluationReview: (...args: unknown[]) => fetchReview(...args),
   fetchSpontaneousReview: (...args: unknown[]) => fetchSpontaneous(...args),
   remindEvaluationTeacher: (...args: unknown[]) => remindTeacher(...args),
+  remindEvaluationsBatch: (...args: unknown[]) => remindBatch(...args),
 }))
 
 import EvaluationReviewPage from "@/modules/academic/EvaluationReviewPage"
@@ -38,6 +39,7 @@ describe("EvaluationReviewPage", () => {
     fetchOptions.mockReset().mockResolvedValue(options)
     fetchReview.mockReset().mockResolvedValue({ items: [evaluation], summary: { evaluations: 1, grades: 1, missing: 1 }, policy: { graceDays: 7, lateDays: 14 }, page: 1, pageSize: 20, total: 1 })
     fetchSpontaneous.mockReset().mockResolvedValue({ students: [], totalStudents: 0, totalNotes: 0, page: 1, pageSize: 20 })
+    remindBatch.mockReset().mockResolvedValue({ sent: 2, skipped: 0, results: [] })
     remindTeacher.mockReset().mockResolvedValue({ lastReminderAt: "2026-10-14T00:00:00Z" })
   })
 
@@ -72,7 +74,7 @@ describe("EvaluationReviewPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Relancer" }))
     expect(remindTeacher).not.toHaveBeenCalled()
     const dialog = await screen.findByRole("dialog")
-    expect(within(dialog).getByText(/Merci de saisir les notes/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/la direction attend l’avancement/)).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole("button", { name: "Annuler" }))
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
     expect(remindTeacher).not.toHaveBeenCalled()
@@ -86,6 +88,29 @@ describe("EvaluationReviewPage", () => {
     expect(within(second).getByText(/Une relance a déjà été envoyée/)).toBeInTheDocument()
     fireEvent.click(within(second).getByRole("button", { name: "Relancer quand même" }))
     await waitFor(() => expect(remindTeacher).toHaveBeenLastCalledWith({ evaluationId: "e1", force: true }, expect.anything()))
+  })
+
+  it("relance en groupe les évaluations sélectionnées après confirmation et affiche le badge Relancé", async () => {
+    const date = new Date(`${todayInAbidjan()}T00:00:00Z`)
+    date.setUTCDate(date.getUTCDate() - 8)
+    const iso = date.toISOString().slice(0, 10)
+    const a = { ...evaluation, date: iso }
+    const b = { ...evaluation, id: "e2", date: iso, lastReminderAt: "2020-01-01T10:00:00Z" }
+    fetchReview.mockResolvedValue({ items: [a, b], summary: { evaluations: 2, grades: 1, missing: 3 },
+      policy: { graceDays: 7, lateDays: 14 }, page: 1, pageSize: 20, total: 2 })
+    mount()
+    expect(await screen.findByText(/Relancé le/)).toBeInTheDocument()
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Relance groupée" }))
+    expect(screen.getByRole("button", { name: /Relancer la sélection/ })).toBeDisabled()
+    fireEvent.click(screen.getByRole("checkbox", { name: "Sélectionner toutes les évaluations à relancer" }))
+    fireEvent.click(screen.getByRole("button", { name: "Relancer la sélection (2)" }))
+    const dialog = await screen.findByRole("dialog")
+    expect(remindBatch).not.toHaveBeenCalled()
+    expect(within(dialog).getByText(/Destinataires \(1\)/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/avec les classes suivantes/)).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole("button", { name: /Envoyer 2 relances/ }))
+    await waitFor(() => expect(remindBatch).toHaveBeenCalledWith({ evaluationIds: ["e1", "e2"], force: false }, expect.anything()))
   })
 
   it("transmet le tri global à l’API et regroupe par professeur", async () => {

@@ -1,3 +1,4 @@
+import { formatPersonName } from "@/shared/utils/person-name"
 import { useMemo, useRef, useState } from "react"
 import { CheckCircle2, CircleAlert, CornerDownLeft, Loader2, Plus, RotateCcw } from "lucide-react"
 import { useQueryClient } from "@tanstack/react-query"
@@ -128,7 +129,7 @@ export function QuickPaymentEntry({ schoolYearId, schoolYearLabel, initialStuden
       ])
       toast({
         title: row.student.blockedReEnrollment && result.financialStatus.remainingDue === 0 ? "Dette soldée, réinscription débloquée" : "Paiement enregistré",
-        description: `${row.student.lastName} ${row.student.firstName} · ${formatFcfa(amount)}${row.student.blockedReEnrollment ? ` · dette ${row.student.paymentSchoolYearLabel ?? "antérieure"}` : ""}`,
+        description: `${formatPersonName({ lastName: row.student.lastName, firstName: row.student.firstName })} · ${formatFcfa(amount)}${row.student.blockedReEnrollment ? ` · dette ${row.student.paymentSchoolYearLabel ?? "antérieure"}` : ""}`,
       })
       const index = rows.findIndex((item) => item.id === row.id)
       const next = rows[index + 1]
@@ -159,7 +160,7 @@ export function QuickPaymentEntry({ schoolYearId, schoolYearLabel, initialStuden
 
   return (
     <section className="space-y-5">
-      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" data-tour="finance-entry-form">
         <div className="bg-[var(--surface-chrome)] px-4 py-4 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-col gap-4 pb-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl space-y-1">
@@ -172,7 +173,7 @@ export function QuickPaymentEntry({ schoolYearId, schoolYearLabel, initialStuden
               <div className="space-y-1.5">
                 <Label htmlFor="quick-payment-method">Mode appliqué aux nouvelles lignes</Label>
                 <Select value={method} onValueChange={(value) => setMethod(value as PaymentMethod)}>
-                  <SelectTrigger id="quick-payment-method" className="min-h-12"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="quick-payment-method" className="min-h-12" data-tour="finance-entry-method"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(methodLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
                   </SelectContent>
@@ -195,7 +196,7 @@ export function QuickPaymentEntry({ schoolYearId, schoolYearLabel, initialStuden
         <span className="ml-auto hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex"><CornerDownLeft className="h-3.5 w-3.5" /> Entrée valide la ligne</span>
       </div>
 
-      <div className="hidden overflow-visible rounded-lg border bg-card shadow-sm md:block">
+      <div className="hidden overflow-visible rounded-lg border bg-card shadow-sm md:block" data-tour="finance-entry-table">
         <Table className="min-w-[780px] overflow-visible">
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">

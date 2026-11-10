@@ -1,3 +1,4 @@
+import { formatInitials, formatPersonName } from "@/shared/utils/person-name"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
@@ -69,8 +70,7 @@ import { TourGuide } from "@/shared/components/TourGuide"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { studentDetailTourSteps } from "@/shared/lib/tour-steps"
 
-const initials = (firstName: string, lastName: string) =>
-  `${lastName?.[0] ?? ""}${firstName?.[0] ?? ""}`.toUpperCase()
+const initials = (firstName: string, lastName: string) => formatInitials({ lastName, firstName })
 
 const smsLabel: Record<"queued" | "sent" | "failed" | "delivered", string> = {
   queued: "En attente",
@@ -479,17 +479,7 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
               ? <Button className="min-h-12" onClick={() => navigate(`/students/${studentId}`)}>Voir l’année active</Button>
               : null
           ) : <Button className="min-h-12" onClick={() => navigate(`/students/${studentId}/history`)}>Historique scolaire</Button>}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="text-muted-foreground"
-            onClick={() => tour.restart()}
-            aria-label="Revoir le guide"
-          >
-            <InfoIcon className="mr-1.5 h-4 w-4" />
-            Guide
-          </Button>
+          
           <Button variant="outline" onClick={() => navigate(returnTo)}>
             <BackIcon className="mr-2 h-4 w-4" />
             Retour
@@ -501,7 +491,7 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
       <nav aria-label="Fil d’Ariane" className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
         <span>Dossiers élèves</span>
         <span aria-hidden="true">/</span>
-        <span>{student.lastName} {student.firstName}</span>
+        <span>{formatPersonName({ lastName: student.lastName, firstName: student.firstName })}</span>
         <span aria-hidden="true">/</span>
         <span className="font-medium text-foreground">{historical ? `Historique scolaire${selectedYear?.schoolYearLabel ? ` · ${selectedYear.schoolYearLabel}` : ""}` : "Année en cours"}</span>
       </nav>
@@ -539,7 +529,7 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <h2 className="truncate text-xl font-semibold tracking-tight">{student.lastName} {student.firstName}</h2>
+              <h2 className="truncate text-xl font-semibold tracking-tight">{formatPersonName({ lastName: student.lastName, firstName: student.firstName })}</h2>
               <p className="mt-0.5 truncate text-sm text-muted-foreground">{historical ? selectedYear?.className ?? latestConfirmedSchoolYear?.className ?? "Classe indisponible" : student.className ?? "Classe indisponible"} · {historical ? selectedYear?.schoolYearLabel ?? latestConfirmedSchoolYear?.label : student.activeSchoolYear?.label}</p>
               {student.matricule ? (
                 <p className="mt-1 truncate text-sm text-muted-foreground">Matricule : {student.matricule}{student.birthDate ? ` · Né(e) le ${new Date(student.birthDate).toLocaleDateString("fr-FR")}` : ""} à {student.birthPlace}</p>
@@ -557,7 +547,7 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
               <div className="flex justify-end"><Badge variant="outline" className="gap-1.5 rounded-md px-2.5 py-1"><Archive className="h-3.5 w-3.5" aria-hidden="true" />Lecture seule</Badge></div>
               <Label htmlFor="student-school-year">Année scolaire consultée</Label>
               <Select value={selectedYearId} onValueChange={selectHistoricalYear}>
-                <SelectTrigger id="student-school-year" className="min-h-12 w-full bg-background">
+                <SelectTrigger id="student-school-year" data-tour="student-detail-year" className="min-h-12 w-full bg-background">
                   <SelectValue placeholder="Choisir une année scolaire" />
                 </SelectTrigger>
                 <SelectContent>
@@ -639,7 +629,7 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
             </article>
           })}
         </div>
-      </section> : canViewFinance ? <section className="mt-4 overflow-hidden rounded-lg border" aria-label="Situation financière de l’élève">
+      </section> : canViewFinance ? <section className="mt-4 overflow-hidden rounded-lg border" aria-label="Situation financière de l’élève" data-tour="student-detail-finance">
           {financialQuery.isLoading ? <Skeleton className="h-20 w-full" aria-label="Chargement de la situation financière" /> : null}
           {financialQuery.isError ? <QueryErrorState title="Situation financière indisponible" message={financialQuery.error instanceof ApiError && financialQuery.error.code === "TUITION_PLAN_REQUIRED" ? "Les frais scolaires ne sont pas encore configurés pour cette année." : "Impossible de charger la situation financière."} onRetry={() => void financialQuery.refetch()} isRetrying={financialQuery.isFetching} /> : null}
           {financialQuery.data ? <div className="grid lg:grid-cols-[minmax(0,1.55fr)_minmax(10rem,0.72fr)_minmax(10rem,0.72fr)]">
@@ -667,19 +657,19 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
       </section> : null}
 
       <Tabs defaultValue={canViewAttendance ? "absences" : "dossier"} className="mt-6 space-y-4">
-        <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-lg border bg-muted/60 p-1">
-          {canViewAttendance ? <TabsTrigger value="absences" data-tour="student-detail-tab-absences" className="min-h-12 shrink-0 px-4 data-[state=active]:bg-background">Absences</TabsTrigger> : null}
+        <TabsList data-tour="student-detail-tabs" className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-lg border bg-muted/60 p-1">
+          {canViewAttendance ? <TabsTrigger value="absences" className="min-h-12 shrink-0 px-4 data-[state=active]:bg-background">Absences</TabsTrigger> : null}
           <TabsTrigger value="dossier" className="min-h-12 shrink-0 px-4 data-[state=active]:bg-background">Fil d'activité</TabsTrigger>
-          {canViewDocuments ? <TabsTrigger value="documents" data-tour="student-detail-tab-documents" className="min-h-12 shrink-0 px-4 data-[state=active]:bg-background">
+          {canViewDocuments ? <TabsTrigger value="documents" className="min-h-12 shrink-0 px-4 data-[state=active]:bg-background">
             Dossier
           </TabsTrigger> : null}
           {canViewReportCards ? <TabsTrigger value="report-cards" className="min-h-12 shrink-0 px-4 data-[state=active]:bg-background">Bulletins</TabsTrigger> : null}
           {canViewEvaluations ? <TabsTrigger value="results" className="min-h-12 shrink-0 px-4 data-[state=active]:bg-background">Résultats</TabsTrigger> : null}
           {canViewPaymentMovements ? <TabsTrigger value="payments" className="min-h-12 shrink-0 px-4 data-[state=active]:bg-background">Paiements</TabsTrigger> : null}
-          <TabsTrigger value="informations" data-tour="student-detail-tab-informations" className="min-h-12 shrink-0 px-4 data-[state=active]:bg-background">
+          <TabsTrigger value="informations" className="min-h-12 shrink-0 px-4 data-[state=active]:bg-background">
             Infos Parents
           </TabsTrigger>
-          {canViewAttendance ? <TabsTrigger value="sms" data-tour="student-detail-tab-sms" className="min-h-12 shrink-0 px-4 data-[state=active]:bg-background">
+          {canViewAttendance ? <TabsTrigger value="sms" className="min-h-12 shrink-0 px-4 data-[state=active]:bg-background">
             Notifications Parents
           </TabsTrigger> : null}
         </TabsList>
@@ -698,7 +688,7 @@ export default function StudentDetailPage({ mode = "current" }: { mode?: "curren
           </section> : <section className="flex items-center gap-3 rounded-lg border bg-muted/20 p-4 text-sm" aria-label="Synthèse des absences archivées"><Archive className="h-5 w-5 shrink-0 text-blue-700" aria-hidden="true" /><p>Absences pour {selectedYear?.schoolYearLabel ?? "toutes les années"} : <strong>{canViewAttendance ? absenceRows.length : "consultation non autorisée"}</strong></p></section>}
 
           <Card>
-            <CardHeader className="flex flex-col gap-4 space-y-0 sm:flex-row sm:items-center sm:justify-between">
+            <CardHeader data-tour="student-detail-absence-filters" className="flex flex-col gap-4 space-y-0 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <CardTitle className="text-base">Absences</CardTitle>
                 <p className="mt-1 text-sm text-muted-foreground">Filtrez l’historique sans quitter le dossier de l’élève.</p>

@@ -1,3 +1,4 @@
+import { formatInitials, formatPersonName } from "@/shared/utils/person-name"
 import { useMemo, useState } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -51,6 +52,9 @@ import { ResetFiltersButton } from "@/shared/components/ResetFiltersButton";
 import { PageLayout } from "@/shared/components/PageLayout";
 import { QueryErrorState } from "@/shared/components/QueryErrorState";
 import { usePermissions } from "@/shared/hooks/usePermissions";
+import { useTourGuide } from "@/shared/hooks/useTourGuide";
+import { TourGuide } from "@/shared/components/TourGuide";
+import { enrollmentsTourSteps } from "@/shared/lib/tour-steps";
 import { useDebounce } from "@/shared/hooks/useDebounce";
 import { getStudentById } from "@/modules/students/students.api";
 import { useEndOfYearReviewStatus } from "@/modules/class-decisions/useEndOfYearReviewStatus";
@@ -126,9 +130,9 @@ function EnrollmentDocumentBadge({ enrollment }: { enrollment: Enrollment }) {
   );
 }
 
-type DossierSort = "student" | "class" | "status";
-const studentName = (enrollment: Enrollment) => `${enrollment.studentLastName.toLocaleUpperCase("fr-FR")} ${enrollment.studentFirstName}`;
-const studentInitials = (enrollment: Enrollment) => `${enrollment.studentLastName.charAt(0)}${enrollment.studentFirstName.charAt(0)}`.toLocaleUpperCase("fr-FR");
+type DossierSort = "date" | "student" | "class" | "status";
+const studentName = (enrollment: Enrollment) => formatPersonName({ lastName: enrollment.studentLastName, firstName: enrollment.studentFirstName });
+const studentInitials = (enrollment: Enrollment) => formatInitials({ lastName: enrollment.studentLastName, firstName: enrollment.studentFirstName });
 const enrollmentDateFormatter = new Intl.DateTimeFormat("fr-CI", {
   day: "2-digit",
   month: "2-digit",
@@ -148,17 +152,18 @@ export default function EnrollmentsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedTab = searchParams.get("tab") === "re-enrollment" ? "re-enrollment" : "dossiers";
   const { hasPermission } = usePermissions();
+  const tour = useTourGuide("enrollments", hasPermission("enrollments.view"));
   const canEditDraft =
     hasPermission("enrollments.edit") && hasPermission("students.edit");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
-  const [dossierYearChoice, setDossierYearChoice] = useState("");
   const [dossierLevelId, setDossierLevelId] = useState("");
   const [dossierClassId, setDossierClassId] = useState("");
   const [dossierStatus, setDossierStatus] = useState<Enrollment["status"] | "all">("all");
-  const [dossierSort, setDossierSort] = useState<DossierSort>("student");
-  const [dossierSortDescending, setDossierSortDescending] = useState(false);
+  // Par défaut : date d'inscription décroissante (les plus récents d'abord), ordre stable fourni par l'API.
+  const [dossierSort, setDossierSort] = useState<DossierSort>("date");
+  const [dossierSortDescending, setDossierSortDescending] = useState(true);
   const dossierSearch = searchParams.get("search") ?? "";
   const debouncedDossierSearch = useDebounce(dossierSearch.trim(), 250);
   const updateDossierSearch = (value: string) => {
@@ -194,9 +199,8 @@ export default function EnrollmentsPage() {
   const activeYearId = activeYears.length === 1 ? activeYears[0].id : "";
   const selectedYear = activeYears.length === 1 ? activeYears[0] : null;
   const reviewStatusQuery = useEndOfYearReviewStatus();
-  const dossierYearId = dossierYearChoice === "all" ? "" : dossierYearChoice || activeYearId;
-  const dossierYear = yearsQuery.data?.find((year) => year.id === dossierYearId);
-  const viewingPastDossiers = selectedTab === "dossiers" && dossierYear?.status === "closed";
+  // L'onglet Dossiers affiche toujours l'année active ; les années passées se consultent via l'historique des élèves.
+  const dossierYearId = activeYearId;
   const closedOriginYears = (yearsQuery.data ?? []).filter((year) => year.status === "closed" && (!selectedYear || year.endDate < selectedYear.startDate))
     .sort((left, right) => right.endDate.localeCompare(left.endDate));
   const historicalOriginYears = (historicalSourceYearsQuery.data ?? []).map((label) => ({
@@ -204,9 +208,10 @@ export default function EnrollmentsPage() {
     label: `${label} (import historique)`,
     status: "closed" as const,
   }));
-  const originYears = [...closedOriginYears, ...historicalOriginYears, ...(selectedYear ? [selectedYear] : [])];
+  // Année d'origine : uniquement une année TERMINÉE (jamais l'année active) ; par défaut la plus récente. Règle aussi vérifiée par l'API.
+  const originYears = [...closedOriginYears, ...historicalOriginYears];
   const recentYearId = originYears.some((year) => year.id === recentYearChoice)
-    ? recentYearChoice : closedOriginYears[0]?.id || selectedYear?.id || historicalOriginYears[0]?.id || "";
+    ? recentYearChoice : closedOriginYears[0]?.id || historicalOriginYears[0]?.id || "";
   const originYear = originYears.find((year) => year.id === recentYearId);
   const isHistoricalSourceYear = recentYearId.startsWith("historical:");
   const historicalSourceYearLabel = isHistoricalSourceYear ? recentYearId.slice("historical:".length) : undefined;
@@ -242,7 +247,7 @@ export default function EnrollmentsPage() {
         ...(debouncedDossierSearch ? { search: debouncedDossierSearch } : {}),
       }),
     select: (data) => normalizeEnrollmentsListResponse(data, page, 20),
-    enabled: yearsQuery.isSuccess,
+    enabled: yearsQuery.isSuccess && Boolean(dossierYearId),
   });
   const dossierCountsQuery = useQuery({
     queryKey: ["enrollments", "year-counts", dossierYearId],
@@ -254,7 +259,7 @@ export default function EnrollmentsPage() {
       ]);
       return { total: all.pagination.total, newRegistrations: newRegistrations.pagination.total, reRegistrations: reRegistrations.pagination.total };
     },
-    enabled: yearsQuery.isSuccess,
+    enabled: yearsQuery.isSuccess && Boolean(dossierYearId),
   });
   const requiredDocumentsQuery = useQuery({
     queryKey: ["enrollments", "required-document-types"],
@@ -400,7 +405,10 @@ export default function EnrollmentsPage() {
     }),
     [enrollmentRows, yearsQuery.data],
   );
-  const sortedEnrollments = useMemo(() => [...namedEnrollments].sort((left, right) => {
+  const sortedEnrollments = useMemo(() => dossierSort === "date"
+    // L'API renvoie déjà date d'inscription décroissante puis création puis identifiant : on garde cet ordre tel quel.
+    ? (dossierSortDescending ? [...namedEnrollments] : [...namedEnrollments].reverse())
+    : [...namedEnrollments].sort((left, right) => {
     const a = left.enrollment;
     const b = right.enrollment;
     const value = dossierSort === "student"
@@ -411,7 +419,7 @@ export default function EnrollmentsPage() {
     return (dossierSortDescending ? -1 : 1) * (value || a.id.localeCompare(b.id));
   }), [namedEnrollments, dossierSort, dossierSortDescending]);
   const toggleDossierSort = (sort: DossierSort) => {
-    setDossierSortDescending((current) => dossierSort === sort ? !current : false);
+    setDossierSortDescending((current) => dossierSort === sort ? !current : sort === "date");
     setDossierSort(sort);
   };
   const dossierHref = (enrollment: Enrollment, isActiveYear: boolean) => {
@@ -440,13 +448,6 @@ export default function EnrollmentsPage() {
       </DropdownMenuContent>
     </DropdownMenu>;
   };
-  const updateDossierYear = (yearId: string) => {
-    setDossierYearChoice(yearId || "all");
-    setDossierLevelId("");
-    setDossierClassId("");
-    updateDossierSearch("");
-    setPage(1);
-  };
   const updateRecentYear = (yearId: string) => {
     setRecentYearChoice(yearId);
     setRecentLevelId("");
@@ -458,12 +459,14 @@ export default function EnrollmentsPage() {
     return <PageLayout title="Inscriptions"><Alert variant="destructive"><AlertDescription>Vous n’avez pas accès aux inscriptions et aux candidats à la réinscription.</AlertDescription></Alert></PageLayout>;
   }
   return (
+    <>
+    <TourGuide steps={enrollmentsTourSteps} run={tour.run} stepIndex={tour.stepIndex} onStepChange={tour.setStepIndex} onFinish={tour.markDone} />
     <PageLayout
       title="Inscriptions"
-      subtitle={selectedTab === "re-enrollment" ? "Suivez les élèves à traiter et ceux déjà réinscrits." : viewingPastDossiers ? `Dossiers ${dossierYear.label} · consultation seule.` : "Consultez les inscriptions de l’année sélectionnée."}
+      subtitle={selectedTab === "re-enrollment" ? "Suivez les élèves à traiter et ceux déjà réinscrits." : selectedYear ? `Dossiers de l’année ${selectedYear.label}.` : "Consultez les inscriptions de l’année en cours."}
       actions={
-        hasPermission("enrollments.create") && !viewingPastDossiers ? (
-          <Button asChild>
+        hasPermission("enrollments.create") ? (
+          <Button asChild data-tour="enrollments-new-btn">
             <Link to="/enrollments/new">
               <Plus className="mr-2 h-4 w-4" />
               Nouvelle inscription
@@ -478,16 +481,22 @@ export default function EnrollmentsPage() {
         else next.delete("tab");
         setSearchParams(next, { replace: true });
       }} className="space-y-5">
-        <TabsList className="grid h-auto w-full grid-cols-2 rounded-lg sm:w-[420px]">
+        <TabsList className="grid h-auto w-full grid-cols-2 rounded-lg sm:w-[420px]" data-tour="enrollments-tabs">
           <TabsTrigger value="dossiers" className="min-h-12">Dossiers</TabsTrigger>
           <TabsTrigger value="re-enrollment" className="min-h-12">Réinscriptions</TabsTrigger>
         </TabsList>
         <TabsContent value="dossiers" className="space-y-4">
+          {yearsQuery.isSuccess && activeYears.length === 0 ? <Alert><AlertDescription>
+            Aucune année scolaire active : les dossiers d’inscription de l’année en cours s’afficheront dès qu’IvoirEdu aura ouvert l’année. Les dossiers des années passées se consultent depuis l’historique des élèves.
+          </AlertDescription></Alert> : null}
+          {yearsQuery.isSuccess && activeYears.length > 1 ? <Alert variant="destructive"><AlertDescription>
+            Plusieurs années scolaires sont actives : corrigez ce conflit pour afficher les dossiers d’inscription.
+          </AlertDescription></Alert> : null}
           {dossierCountsQuery.isLoading ? <div className="grid gap-3 sm:grid-cols-3" role="status" aria-label="Chargement de la synthèse">
             {[0, 1, 2].map((item) => <div key={item} className="h-24 animate-pulse rounded-lg bg-muted" />)}
           </div> : null}
           {dossierCountsQuery.isError ? <QueryErrorState message="Impossible de charger la synthèse des inscriptions." onRetry={() => void dossierCountsQuery.refetch()} isRetrying={dossierCountsQuery.isFetching} /> : null}
-          {dossierCountsQuery.data ? <div className="grid gap-3 sm:grid-cols-3" aria-label="Synthèse des inscriptions">
+          {dossierCountsQuery.data ? <div className="grid gap-3 sm:grid-cols-3" aria-label="Synthèse des inscriptions" data-tour="enrollments-summary">
             {[
               { label: "Total inscrits", count: dossierCountsQuery.data.total },
               { label: "Nouvelles inscriptions", count: dossierCountsQuery.data.newRegistrations },
@@ -503,10 +512,15 @@ export default function EnrollmentsPage() {
               <Button asChild variant="outline" className="min-h-12"><Link to="/settings?tab=scolarite">Configurer</Link></Button>
             </AlertDescription>
           </Alert> : null}
-          <div className="space-y-4 rounded-lg border bg-card p-4">
-            <AcademicContextFilters yearIdPrefix="dossier" years={yearsQuery.data ?? []} yearId={dossierYearId}
-              activeYear={selectedYear ?? undefined} showPeriod={false} allowAllYears
-              onYearChange={updateDossierYear} yearDisabled={yearsQuery.isLoading} />
+          <div className="space-y-4 rounded-lg border bg-card p-4" data-tour="enrollments-filters">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {selectedYear
+                ? <p className="text-sm font-medium" aria-label={`Année scolaire affichée : ${selectedYear.label}`}>Année {selectedYear.label}</p>
+                : <p className="text-sm text-muted-foreground">Aucune année scolaire active</p>}
+              {hasPermission("students.view")
+                ? <Button asChild variant="link" className="min-h-12 px-0"><Link to="/students/history">Dossiers des années passées</Link></Button>
+                : null}
+            </div>
             <FilterBar className="lg:grid-cols-4">
             <div className="space-y-2">
               <Label htmlFor="enrollment-dossier-search">Élève, nom ou matricule</Label>
@@ -535,8 +549,8 @@ export default function EnrollmentsPage() {
               </Select>
             </div>
             </FilterBar>
-            <ResetFiltersButton active={Boolean(dossierYearChoice || dossierLevelId || dossierClassId || dossierStatus !== "all" || dossierSearch)}
-              onReset={() => { setDossierYearChoice(""); setDossierLevelId(""); setDossierClassId(""); setDossierStatus("all"); updateDossierSearch(""); setPage(1) }} />
+            <ResetFiltersButton active={Boolean(dossierLevelId || dossierClassId || dossierStatus !== "all" || dossierSearch)}
+              onReset={() => { setDossierLevelId(""); setDossierClassId(""); setDossierStatus("all"); updateDossierSearch(""); setPage(1) }} />
           </div>
           {enrollmentsQuery.isLoading ? (
             <div className="space-y-3">
@@ -560,7 +574,7 @@ export default function EnrollmentsPage() {
           namedEnrollments.length === 0 ? (
             <EmptyState
               title="Aucun dossier d’inscription"
-              description={dossierSearch || dossierYearId || dossierLevelId || dossierClassId || dossierStatus !== "all" ? "Aucune inscription ne correspond à la recherche ou aux filtres. Essayez un autre nom, matricule ou statut." : "Créez une nouvelle inscription ou ouvrez Réinscriptions."}
+              description={dossierSearch || dossierLevelId || dossierClassId || dossierStatus !== "all" ? "Aucune inscription ne correspond à la recherche ou aux filtres. Essayez un autre nom, matricule ou statut." : "Créez une nouvelle inscription ou ouvrez Réinscriptions."}
               icon={FileCheck2}
             />
           ) : null}
@@ -577,7 +591,7 @@ export default function EnrollmentsPage() {
                     <Avatar><AvatarFallback className="bg-blue-50 text-blue-700">{studentInitials(enrollment)}</AvatarFallback></Avatar>
                     <div className="min-w-0"><p className="font-medium">{studentName(enrollment)}</p>
                       {matriculesByStudentId.get(enrollment.studentId) !== undefined ? <p className="text-xs text-muted-foreground">{matriculesByStudentId.get(enrollment.studentId) ?? "Sans matricule"}</p> : null}
-                      <p className="text-sm text-muted-foreground">{enrollment.className}{!dossierYearId ? ` · ${enrollment.schoolYearLabel}` : ""}</p>
+                      <p className="text-sm text-muted-foreground">{enrollment.className}</p>
                       <p className="text-xs text-muted-foreground">Inscrit le <EnrollmentDate value={enrollment.enrolledAt} /></p></div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -602,7 +616,9 @@ export default function EnrollmentsPage() {
                     <Button variant="ghost" onClick={() => toggleDossierSort("class")} className="min-h-12 px-0">Classe visée</Button>
                   </TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Date d’inscription</TableHead>
+                  <TableHead aria-sort={dossierSort === "date" ? dossierSortDescending ? "descending" : "ascending" : "none"}>
+                    <Button variant="ghost" onClick={() => toggleDossierSort("date")} className="min-h-12 px-0">Date d’inscription</Button>
+                  </TableHead>
                   <TableHead aria-sort={dossierSort === "status" ? dossierSortDescending ? "descending" : "ascending" : "none"}>
                     <Button variant="ghost" onClick={() => toggleDossierSort("status")} className="min-h-12 px-0">Statut</Button>
                   </TableHead>
@@ -624,7 +640,6 @@ export default function EnrollmentsPage() {
                         </div>
                       </div></TableCell>
                       <TableCell><span className="block">{enrollment.className}</span>
-                        {!dossierYearId ? <span className="text-xs text-muted-foreground">{enrollment.schoolYearLabel}</span> : null}
                       </TableCell>
                       <TableCell><Badge variant="outline">{enrollment.type === "re_registration" ? "Réinscription" : "Nouvelle"}</Badge></TableCell>
                       <TableCell className="whitespace-nowrap tabular-nums"><EnrollmentDate value={enrollment.enrolledAt} /></TableCell>
@@ -676,9 +691,23 @@ export default function EnrollmentsPage() {
           {recentClassesQuery.isError ? <QueryErrorState message="Impossible de charger les classes récentes." onRetry={() => void recentClassesQuery.refetch()} isRetrying={recentClassesQuery.isFetching} /> : null}
           {yearsQuery.isSuccess && activeYears.length === 0 ? <Alert><AlertDescription>Aucune année scolaire active. La campagne s’ouvrira quand l’année suivante sera créée par IvoirEdu.</AlertDescription></Alert> : null}
           {yearsQuery.isSuccess && activeYears.length > 1 ? <Alert variant="destructive"><AlertDescription>Plusieurs années scolaires sont actives. Corrigez ce conflit avant de lancer la campagne.</AlertDescription></Alert> : null}
+          {yearsQuery.isSuccess && !yearsQuery.isFetching && !historicalSourceYearsQuery.isLoading && originYears.length === 0 ? (
+            <div className="space-y-3">
+              <EmptyState
+                icon={FileCheck2}
+                title="Aucune année terminée"
+                description="La réinscription n’est possible qu’une fois une année scolaire terminée (clôturée). Tant que l’année en cours n’est pas terminée, aucun élève ne peut être réinscrit."
+              />
+              {reviewStatusQuery.data?.visible && hasPermission("class_decisions.view") ? (
+                <p className="text-center text-sm text-muted-foreground">
+                  Pour préparer la fin d’année (décisions de passage), ouvrez <Link className="font-medium text-primary underline" to="/end-of-year">Fin d’année</Link>.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           {originYear ? <>
           <div className="space-y-4">
-            <div className="space-y-4 rounded-lg border bg-card p-4">
+            <div className="space-y-4 rounded-lg border bg-card p-4" data-tour="enrollments-campaign">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-1">
                   <h2 className="text-lg font-semibold">Campagne de réinscription → année {campaignTargetLabel}</h2>
@@ -769,7 +798,7 @@ export default function EnrollmentsPage() {
             />
           ) : null}
           {candidates.length > 0 ? (
-            <div role="region" aria-label="Tableau des candidats à la réinscription" tabIndex={0}
+            <div role="region" aria-label="Tableau des candidats à la réinscription" tabIndex={0} data-tour="enrollments-candidates"
               className="overflow-x-auto rounded-lg border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <Table className="min-w-[76rem]">
                 <TableHeader><TableRow>
@@ -788,7 +817,7 @@ export default function EnrollmentsPage() {
                     const dossierHref = candidate.isHistoricalSource
                       ? `/students/${candidate.studentId}?returnTo=${encodeURIComponent("/enrollments?tab=re-enrollment")}`
                       : `/students/${candidate.studentId}/history?year=${candidate.currentSchoolYearId}&returnTo=${encodeURIComponent("/enrollments?tab=re-enrollment")}`;
-                    const name = `${candidate.studentLastName.toLocaleUpperCase("fr-FR")} ${candidate.studentFirstName}`;
+                    const name = formatPersonName({ lastName: candidate.studentLastName, firstName: candidate.studentFirstName });
                     const isCreating = reEnrollmentMutation.isPending && reEnrollmentMutation.variables?.studentId === candidate.studentId;
                     const canChooseClass = Boolean(targetYear && candidate.status === "ready"
                       && (candidate.isHistoricalSource || (candidate.finalDecision && candidate.finalDecision !== "expelled")));
@@ -798,7 +827,7 @@ export default function EnrollmentsPage() {
                       onKeyDown={(event) => { if (canOpenDossier && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); navigate(dossierHref) } }}
                       className={canOpenDossier ? "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" : undefined}>
                       <TableCell><div className="flex items-center gap-3">
-                        <Avatar><AvatarFallback className="bg-blue-50 text-blue-700">{`${candidate.studentLastName.charAt(0)}${candidate.studentFirstName.charAt(0)}`.toLocaleUpperCase("fr-FR")}</AvatarFallback></Avatar>
+                        <Avatar><AvatarFallback className="bg-blue-50 text-blue-700">{formatInitials({ lastName: candidate.studentLastName, firstName: candidate.studentFirstName })}</AvatarFallback></Avatar>
                         <div><span className="block font-medium">{name}</span>
                           <span className="block text-xs text-muted-foreground">{candidate.studentMatricule ?? "Sans matricule"}</span>
                         </div>
@@ -901,5 +930,6 @@ export default function EnrollmentsPage() {
         </TabsContent>
       </Tabs>
     </PageLayout>
+    </>
   );
 }

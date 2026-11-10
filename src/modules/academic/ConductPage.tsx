@@ -124,7 +124,7 @@ function TeacherConductSection({ openScopes }: { openScopes: ConductReviewAction
         {openScopes.length === 0 ? <EmptyState title="Fenêtre de revue terminée" description="Les avis de conduite ne sont plus modifiables pour cette période." /> : null}
         {selectedPeriod ? <p className="text-sm text-muted-foreground">Revue ouverte jusqu’au {new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Africa/Abidjan" }).format(new Date(`${selectedPeriod.endDate}T12:00:00Z`))}.</p> : null}
         {selectedPeriod && selectedPeriod.pendingCount === 0 ? <p className="text-sm text-muted-foreground">Aucun avis restant à renseigner. Les avis non verrouillés restent modifiables pendant la revue.</p> : null}
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2" data-tour="conduct-filters">
           <div className="space-y-2">
             <Label>Classe</Label>
             <Select value={selectedClassId || "none"} onValueChange={(value) => {
@@ -168,7 +168,7 @@ function TeacherConductSection({ openScopes }: { openScopes: ConductReviewAction
         ) : (
           <div className="space-y-5">
             {availableStudents.length > 0 ? (
-              <div className="space-y-3 rounded-lg border p-4">
+              <div className="space-y-3 rounded-lg border p-4" data-tour="conduct-bulk">
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <Checkbox

@@ -1,3 +1,4 @@
+import { formatPersonName } from "@/shared/utils/person-name"
 import { apiClient as api } from "@/shared/api/client"
 
 export type GeoPayload = { latitude?: number; longitude?: number; accuracy?: number }
@@ -240,7 +241,7 @@ const toStudentItem = (row: unknown): StudentItem => {
 
   return {
     id: toString(item.id),
-    full_name: fullName || `${firstName} ${lastName}`.trim(),
+    full_name: fullName || formatPersonName({ lastName, firstName }),
     matricule: typeof matricule === "string" && matricule.length > 0 ? matricule : null,
   }
 }
@@ -473,8 +474,10 @@ export const fetchStudents = (classId: string) =>
     .then((r) =>
       (r.data?.data ?? []).map((student) => ({
         id: student.id,
-        full_name:
-          `${student.firstName ?? student.first_name ?? ""} ${student.lastName ?? student.last_name ?? ""}`.trim(),
+        full_name: formatPersonName({
+          lastName: student.lastName ?? student.last_name,
+          firstName: student.firstName ?? student.first_name,
+        }),
         matricule: student.matricule ?? null,
       }))
     )

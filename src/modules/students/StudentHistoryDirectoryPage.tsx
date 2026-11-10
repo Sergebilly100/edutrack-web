@@ -1,3 +1,4 @@
+import { formatPersonName } from "@/shared/utils/person-name"
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link, useLocation, useSearchParams } from "react-router-dom"
@@ -134,7 +135,7 @@ export default function StudentHistoryDirectoryPage() {
           <div className="divide-y rounded-lg border bg-card">
             {query.data.data.map((student) => <div key={student.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div className="min-w-0 space-y-1">
-                <p className="font-medium">{student.lastName} {student.firstName}</p>
+                <p className="font-medium">{formatPersonName({ lastName: student.lastName, firstName: student.firstName })}</p>
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                   <span>{student.matricule ? `Matricule : ${student.matricule}` : "Matricule non renseigné"}</span>
                   {student.schoolYearLabel ? <Badge variant="outline">{student.schoolYearLabel}</Badge> : null}

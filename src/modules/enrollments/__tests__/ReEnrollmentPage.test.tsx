@@ -84,10 +84,10 @@ describe('Réinscriptions', () => {
     expect(screen.getByRole('table')).toHaveTextContent('Classe d’origine')
     expect(screen.getByRole('table')).toHaveTextContent('Décision de fin d’année')
     expect(screen.getByRole('progressbar', { name: 'Progression de la campagne de réinscription' })).toHaveAttribute('aria-valuenow', '14')
-    expect(within(screen.getByRole('row', { name: 'Ouvrir le dossier de KONÉ decision_pending' })).getByText('Décision en attente')).toBeInTheDocument()
-    expect(within(screen.getByRole('row', { name: 'Ouvrir le dossier de KONÉ blocked_unpaid' })).getByText(/Impayé de l’année d’origine/)).toBeInTheDocument()
-    expect(within(screen.getByRole('row', { name: 'Ouvrir le dossier de KONÉ financial_unavailable' })).getByText(/Solde de l’année d’origine indisponible/)).toBeInTheDocument()
-    expect(within(screen.getByRole('row', { name: 'Ouvrir le dossier de KONÉ awaiting_documents' })).getByText(/pièces du dossier à compléter/)).toBeInTheDocument()
+    expect(within(screen.getByRole('row', { name: 'Ouvrir le dossier de KONÉ Decision_pending' })).getByText('Décision en attente')).toBeInTheDocument()
+    expect(within(screen.getByRole('row', { name: 'Ouvrir le dossier de KONÉ Blocked_unpaid' })).getByText(/Impayé de l’année d’origine/)).toBeInTheDocument()
+    expect(within(screen.getByRole('row', { name: 'Ouvrir le dossier de KONÉ Financial_unavailable' })).getByText(/Solde de l’année d’origine indisponible/)).toBeInTheDocument()
+    expect(within(screen.getByRole('row', { name: 'Ouvrir le dossier de KONÉ Awaiting_documents' })).getByText(/pièces du dossier à compléter/)).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Réinscrire' })).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: 'Bloqué par impayé : 1' }))
     await waitFor(() => expect(mocks.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ campaignStatus: 'blocked_unpaid' })))
@@ -112,7 +112,7 @@ describe('Réinscriptions', () => {
     })
     renderPage()
 
-    await screen.findByText('KONÉ historique')
+    await screen.findByText('KONÉ Historique')
     fireEvent.keyDown(screen.getByRole('combobox', { name: 'Année d’origine' }), { key: 'ArrowDown' })
     fireEvent.click(await screen.findByRole('option', { name: '2024-2025 (import historique) · Année clôturée' }))
     await waitFor(() => expect(mocks.listCandidates).toHaveBeenCalledWith(expect.objectContaining({
@@ -121,7 +121,7 @@ describe('Réinscriptions', () => {
       sourceSchoolYearId: undefined,
     })))
     expect(await screen.findByText(/Les élèves importés pour 2024-2025 n’ont pas d’impayé antérieur enregistré/)).toBeInTheDocument()
-    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Classe d’accueil de KONÉ historique' }), { key: 'ArrowDown' })
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Classe d’accueil de KONÉ Historique' }), { key: 'ArrowDown' })
     fireEvent.click(await screen.findByRole('option', { name: /5e A/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Réinscrire' }))
     await waitFor(() => expect(mocks.createEnrollment).toHaveBeenCalledWith({
@@ -143,7 +143,7 @@ describe('Réinscriptions', () => {
     renderPage()
     expect(await screen.findByRole('button', { name: 'Réinscrit : 1' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Prêt à réinscrire : 0' })).not.toBeInTheDocument()
-    expect(within(screen.getByRole('row', { name: 'Ouvrir le dossier de KONÉ confirmed' })).getByText('Non renseignée')).toBeInTheDocument()
+    expect(within(screen.getByRole('row', { name: 'Ouvrir le dossier de KONÉ Confirmed' })).getByText('Non renseignée')).toBeInTheDocument()
     fireEvent.keyDown(screen.getByRole('button', { name: 'Autres statuts' }), { key: 'ArrowDown' })
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Prêt à réinscrire : 0' }))
     await waitFor(() => expect(mocks.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ campaignStatus: 'ready' })))
@@ -152,7 +152,7 @@ describe('Réinscriptions', () => {
 
   it('permet de filtrer directement par classe récente', async () => {
     renderPage()
-    await screen.findByText('KONÉ ready')
+    await screen.findByText('KONÉ Ready')
     fireEvent.keyDown(screen.getByRole('combobox', { name: 'Classe récente' }), { key: 'ArrowDown' })
     fireEvent.click(await screen.findByRole('option', { name: '5e A' }))
     await waitFor(() => expect(mocks.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ classId: 'class-2', levelId: undefined })))
@@ -160,21 +160,21 @@ describe('Réinscriptions', () => {
 
   it('crée le dossier après choix de la classe et ouvre le dossier par la ligne', async () => {
     renderPage()
-    await screen.findByText('KONÉ ready')
-    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Classe d’accueil de KONÉ ready' }), { key: 'ArrowDown' })
+    await screen.findByText('KONÉ Ready')
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Classe d’accueil de KONÉ Ready' }), { key: 'ArrowDown' })
     fireEvent.click(await screen.findByRole('option', { name: /5e A/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Réinscrire' }))
     await waitFor(() => expect(mocks.createEnrollment).toHaveBeenCalledWith({
       studentId: 'ready', classId: 'class-2', schoolYearId: 'year-2', type: 're_registration', isRepeating: false,
     }))
-    fireEvent.click(screen.getByRole('row', { name: 'Ouvrir le dossier de KONÉ ready' }))
+    fireEvent.click(screen.getByRole('row', { name: 'Ouvrir le dossier de KONÉ Ready' }))
     expect(screen.getByTestId('location')).toHaveTextContent('/students/ready/history')
   })
 
   it('affiche les candidats en lecture seule si la cible n’existe pas', async () => {
     mocks.listYears.mockResolvedValue([{ id: 'year-1', label: '2025-2026', status: 'closed', startDate: '2025-09-01', endDate: '2026-06-30' }])
     renderPage()
-    expect(await screen.findByText('KONÉ ready')).toBeInTheDocument()
+    expect(await screen.findByText('KONÉ Ready')).toBeInTheDocument()
     expect(screen.getByText(/La campagne s’ouvrira quand l’année 2026-2027 sera créée et ouverte par IvoirEdu/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Réinscrire' })).not.toBeInTheDocument()
     expect(mocks.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ schoolYearId: undefined, sourceSchoolYearId: 'year-1' }))
@@ -192,18 +192,32 @@ describe('Réinscriptions', () => {
     expect(screen.queryByRole('button', { name: 'Réinscrire' })).not.toBeInTheDocument()
   })
 
-  it('permet de préparer l’année suivant l’année active et ne montre Fin d’année que si sa route est accessible', async () => {
+  it('n’utilise jamais l’année active comme année d’origine : état vide explicite, aucune requête de campagne, lien vers Fin d’année', async () => {
     mocks.listYears.mockResolvedValue([{ id: 'year-2', label: '2026-2027', status: 'active', startDate: '2026-09-01', endDate: '2027-06-30' }])
-    mocks.listCandidates.mockResolvedValue({
-      candidates: [{ ...candidate('attente', 'decision_pending'), currentSchoolYearId: 'year-2', currentSchoolYearLabel: '2026-2027', sourceSchoolYearStatus: 'active' }],
-      counts: { ...counts, decisionPending: 1, ready: 0, awaitingCashier: 0, awaitingDocuments: 0, blockedUnpaid: 0, reEnrolled: 0, excluded: 0, financialUnavailable: 0, toProcess: 1, confirmed: 0, all: 1 },
-      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
-    })
+    mocks.listHistoricalYears.mockResolvedValue([])
     renderPage()
-    expect(await screen.findByText('KONÉ attente')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Campagne de réinscription → année 2027-2028' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Ouvrir Fin d’année' })).toHaveAttribute('href', '/end-of-year')
+    expect(await screen.findByText('Aucune année terminée')).toBeInTheDocument()
+    expect(screen.getByText(/La réinscription n’est possible qu’une fois une année scolaire terminée/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Fin d’année' })).toHaveAttribute('href', '/end-of-year')
+    expect(screen.queryByRole('combobox', { name: 'Année d’origine' })).not.toBeInTheDocument()
+    expect(mocks.listCandidates).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: 'Réinscrire' })).not.toBeInTheDocument()
+  })
+
+  it('propose uniquement des années terminées comme origine, la plus récente par défaut', async () => {
+    mocks.listYears.mockResolvedValue([
+      { id: 'year-old', label: '2024-2025', status: 'closed', startDate: '2024-09-01', endDate: '2025-06-30' },
+      { id: 'year-1', label: '2025-2026', status: 'closed', startDate: '2025-09-01', endDate: '2026-06-30' },
+      { id: 'year-2', label: '2026-2027', status: 'active', startDate: '2026-09-01', endDate: '2027-06-30' },
+    ])
+    renderPage()
+    await screen.findByText('KONÉ Ready')
+    expect(mocks.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ sourceSchoolYearId: 'year-1' }))
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Année d’origine' }), { key: 'ArrowDown' })
+    const options = (await screen.findAllByRole('option')).map((option) => option.textContent)
+    expect(options.some((label) => label?.includes('2026-2027'))).toBe(false)
+    expect(options.some((label) => label?.includes('2025-2026'))).toBe(true)
+    expect(options.some((label) => label?.includes('2024-2025'))).toBe(true)
   })
 
   it('garde les anciennes campagnes clôturées en consultation seule', async () => {
@@ -218,7 +232,7 @@ describe('Réinscriptions', () => {
       pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
     }))
     renderPage()
-    await screen.findByText('KONÉ ready')
+    await screen.findByText('KONÉ Ready')
     fireEvent.keyDown(screen.getByRole('combobox', { name: 'Année d’origine' }), { key: 'ArrowDown' })
     fireEvent.click(await screen.findByRole('option', { name: '2024-2025 · Année clôturée' }))
     await waitFor(() => expect(mocks.listCandidates).toHaveBeenCalledWith(expect.objectContaining({ sourceSchoolYearId: 'year-old', schoolYearId: 'year-1' })))

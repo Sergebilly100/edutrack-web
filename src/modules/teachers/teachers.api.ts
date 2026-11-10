@@ -1,4 +1,6 @@
 import { apiClient as api } from "@/shared/api/client"
+import { downloadExcelExport } from "@/shared/api/excelExport.api"
+import { exportFileName } from "@/shared/utils/export-file-name"
 import { asBoolean, asNullableString, asNumber, asString, isRecord } from "@/shared/utils/parsers"
 
 export type TeacherType = "vacataire" | "permanent"
@@ -694,3 +696,18 @@ export const fetchTeacherOptions = async (): Promise<TeacherOption[]> => {
 export { getTeacherCompliance, type DashboardTeacherComplianceItem } from "@/modules/dashboard/dashboard.api"
 export { getTeacherSalaryDetails, type SalaryTeacherDetails } from "@/modules/salaries/salaries.api"
 export { fetchWeeklySchedule } from "@/modules/schedule/schedule.api"
+
+export type TeachersExportRequest = {
+  schoolYearId: string
+  schoolYearLabel: string
+  /** Filtres de la liste, ou `undefined` pour tout exporter. Seules les classes dépendent de l'année. */
+  filters?: { type?: "vacataire" | "permanent"; isActive?: boolean; subject?: string }
+}
+
+export const exportTeachersExcel = (request: TeachersExportRequest): Promise<void> =>
+  downloadExcelExport("/teachers/export", {
+    school_year_id: request.schoolYearId,
+    type: request.filters?.type,
+    is_active: request.filters?.isActive === undefined ? undefined : String(request.filters.isActive),
+    subject: request.filters?.subject,
+  }, exportFileName("professeurs", request.schoolYearLabel))

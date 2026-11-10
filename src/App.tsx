@@ -25,6 +25,7 @@ const AdminRevenuePage = lazy(() => import("@/modules/admin/AdminRevenuePage"))
 const AdminSchoolDetailPage = lazy(() => import("@/modules/admin/AdminSchoolDetailPage"))
 const AdminRevenuSmsPage = lazy(() => import("@/modules/admin/AdminRevenuSmsPage"))
 const AdminSmsPage = lazy(() => import("@/modules/admin/AdminSmsPage"))
+const AideCenterPage = lazy(() => import("@/modules/aide/AideCenterPage"))
 const AccountPage = lazy(() => import("@/modules/account/AccountPage"))
 const FirstLoginPasswordPage = lazy(() => import("@/modules/account/FirstLoginPasswordPage"))
 const AttendancePage = lazy(() => import("@/modules/attendance/AttendancePage"))
@@ -478,6 +479,24 @@ function AccountRoute() {
   return <AppShell><AccountPage /></AppShell>
 }
 
+function AideRoute() {
+  const user = useAuthStore((state) => state.user)
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (user.mustChangePassword) {
+    return <Navigate to="/account/first-login-password" replace />
+  }
+
+  if (user.role === "teacher") {
+    return <TeacherShell element={<AideCenterPage />} />
+  }
+
+  return <AppShell><AideCenterPage /></AppShell>
+}
+
 function FirstLoginPasswordRoute() {
   const user = useAuthStore((state) => state.user)
 
@@ -501,16 +520,22 @@ function PlaceholderPage({ title }: { title: string }) {
   )
 }
 
-function PermissionRoute({
+/** /import n'a plus d'entrée de menu : l'accès est réservé à la direction et aux profils détenant une permission d'import. */
+const IMPORT_PERMISSIONS: PermissionKey[] = ["import.schedule", "import.students", "import.teachers"]
+
+export function PermissionRoute({
   href,
   element,
   requiredAnyPermissions,
   requiredAllPermissions,
+  standalone = false,
 }: {
   href: string
   element: ReactElement
   requiredAnyPermissions?: PermissionKey[]
   requiredAllPermissions?: PermissionKey[]
+  /** Route sans entrée dans le menu latéral (ex. /import) : l'accès repose sur le rôle et les permissions requises, pas sur le menu. */
+  standalone?: boolean
 }) {
   const user = useAuthStore((state) => state.user)
   const permissions = useAuthStore((state) => state.permissions)
@@ -533,7 +558,9 @@ function PermissionRoute({
   }
 
   const allowed = getNavItemsByRole(user.role, permissions)
-  const canAccess = allowed.some((item) => item.href.split("?")[0] === href)
+  const canAccess = standalone
+    ? user.role === "director" || isStaffRole(user.role)
+    : allowed.some((item) => item.href.split("?")[0] === href)
   const hasRequiredPermission =
     !isStaffRole(user.role) ||
     !requiredAnyPermissions ||
@@ -721,8 +748,8 @@ export default function App() {
           <Route path="/admin/revenuSms" element={<AdminRevenuSmsPage />} />
           <Route path="/admin/maintenance" element={<AdminMaintenancePage />} />
           <Route path="/admin/account" element={<AdminAccountPage />} />
-          <Route path="/import" element={<PermissionRoute href="/import" element={<ImportPage />} />} />
-          <Route path="/imports" element={<PermissionRoute href="/import" element={<ImportPage />} />} />
+          <Route path="/import" element={<PermissionRoute href="/import" standalone requiredAnyPermissions={IMPORT_PERMISSIONS} element={<ImportPage />} />} />
+          <Route path="/imports" element={<PermissionRoute href="/import" standalone requiredAnyPermissions={IMPORT_PERMISSIONS} element={<ImportPage />} />} />
           <Route path="/rooms" element={<PermissionRoute href="/rooms" element={<RoomsPage />} />} />
           <Route path="/salaries" element={<PermissionRoute href="/salaries" element={<SalariesPage />} />} />
           <Route path="/validations" element={<PermissionRoute href="/validations" element={<ValidationsPage />} />} />
@@ -740,6 +767,7 @@ export default function App() {
         </Route>
 
         <Route path="/account" element={<AccountRoute />} />
+        <Route path="/aide" element={<AideRoute />} />
 
         <Route path="/parent" element={<ParentPortalLayout />}>
           <Route path="first-login-password" element={<ParentFirstLoginPasswordPage />} />

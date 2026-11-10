@@ -14,6 +14,9 @@ import { createGradingPeriod, listGradingPeriods, listSchoolYears, updateGrading
 import { AcademicNavigation } from "@/modules/academic/components/AcademicNavigation"
 import { AcademicTimeline } from "@/shared/components/AcademicTimeline"
 import { EmptyState, PageLayout, QueryErrorState, Spinner } from "@/shared/components"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { schoolYearsTourSteps } from "@/shared/lib/tour-steps"
 import { CalendarIcon } from "@/shared/components/icons"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { businessToday, daysUntil, formatAcademicDate, nextAcademicDeadline, periodDateErrors, periodOverlap } from "@/shared/lib/academic-calendar"
@@ -107,6 +110,7 @@ export default function SchoolYearsPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const { hasPermission } = usePermissions()
+  const tour = useTourGuide("school-years", true)
   const canEdit = hasPermission("school_years.edit")
   const canViewDecisions = hasPermission("class_decisions.view")
   const today = businessToday()
@@ -137,27 +141,29 @@ export default function SchoolYearsPage() {
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: GRADING_PERIODS_KEY }); toast({ title: "Calendrier de période enregistré" }) },
     onError: (error) => toast({ title: "Calendrier impossible à enregistrer", description: apiErrorMessage(error, "Vérifiez les dates et la transition entre périodes."), variant: "destructive" }),
   })
-  return <PageLayout title="Structure scolaire" subtitle="Configurez les périodes d’évaluation et l’ouverture des décisions de fin d’année.">
+  return <>
+  <TourGuide steps={schoolYearsTourSteps} run={tour.run} stepIndex={tour.stepIndex} onStepChange={tour.setStepIndex} onFinish={tour.markDone} />
+  <PageLayout title="Structure scolaire" subtitle="Configurez les périodes d’évaluation et l’ouverture des décisions de fin d’année.">
     <AcademicNavigation />
     {yearsQuery.isLoading ? <div className="py-6"><Spinner /></div> : null}
     {yearsQuery.isError ? <QueryErrorState onRetry={() => void yearsQuery.refetch()} isRetrying={yearsQuery.isFetching} message="Impossible de charger les années scolaires." /> : null}
     {yearsQuery.isSuccess && years.length === 0 ? <EmptyState icon={CalendarIcon} title="Aucune année scolaire" message="La prochaine année scolaire doit être ouverte depuis l’espace super administrateur." /> : null}
-    {activeYear ? <div className="grid gap-4 md:grid-cols-3">
+    {activeYear ? <div className="grid gap-4 md:grid-cols-3" data-tour="years-summary">
       <div className="rounded-lg border bg-card p-4"><p className="text-sm font-medium text-slate-700 dark:text-slate-200">Année active</p><p className="mt-2 text-xl font-semibold">{activeYear.label}</p><p className="mt-1 text-sm">Fin {countdown(activeYear.endDate, today)}</p></div>
       <div className="rounded-lg border bg-card p-4"><p className="text-sm font-medium text-slate-700 dark:text-slate-200">Période courante</p><p className="mt-2 text-xl font-semibold">{periodsQuery.isLoading ? "Chargement…" : activePeriod?.label ?? "Aucune période commencée"}</p><p className="mt-1 text-sm">{activePeriod ? activePeriod.isClosed ? "Clôturée" : activePeriod.conductReviewOpen ? "Revue de conduite" : activePeriod.notesEntryOpen ? "Saisie des notes" : "À venir" : ""}</p></div>
       <div className="rounded-lg border bg-card p-4"><p className="text-sm font-medium text-slate-700 dark:text-slate-200">Prochaine échéance</p><p className="mt-2 text-xl font-semibold">{periodsQuery.isLoading ? "Chargement…" : deadline ? formatAcademicDate(deadline.date) : "Aucune échéance"}</p><p className="mt-1 text-sm">{deadline ? `${deadline.label} · ${countdown(deadline.date, today)}` : ""}</p></div>
     </div> : null}
-    {years.length > 0 ? <div className="overflow-x-auto rounded-lg border bg-card"><Table><TableHeader><TableRow><TableHead>Année</TableHead><TableHead>Période</TableHead><TableHead>Cycle</TableHead><TableHead>Ouverture des décisions</TableHead><TableHead>Statut</TableHead></TableRow></TableHeader><TableBody>{years.map((year) => <TableRow key={year.id} className={`cursor-pointer ${selectedYear?.id === year.id ? "bg-blue-50 dark:bg-blue-950" : ""}`} onClick={() => { setSelectedYearId(year.id); setReviewDateDraft(null) }}><TableCell><Button type="button" variant="ghost" className="min-h-12 justify-start gap-2 font-semibold" aria-current={selectedYear?.id === year.id ? "true" : undefined}>{selectedYear?.id === year.id ? <Check className="h-4 w-4 text-blue-700" aria-hidden="true" /> : <span className="w-4" />}{year.label}</Button></TableCell><TableCell className="whitespace-nowrap">{formatAcademicDate(year.startDate)} au {formatAcademicDate(year.endDate)}</TableCell><TableCell className="whitespace-nowrap">{year.gradingPeriodType === "semester" ? "2 semestres" : "3 trimestres"}</TableCell><TableCell className="whitespace-nowrap">{formatAcademicDate(year.endOfYearReviewStartDate)} · {countdown(year.endOfYearReviewStartDate, today)}</TableCell><TableCell><Badge variant="outline" className={year.status === "active" ? "border-green-200 bg-green-50 text-green-800" : year.status === "closed" ? "bg-slate-100 text-slate-700" : "border-amber-200 bg-amber-50 text-amber-800"}>{year.status === "active" ? "Active" : year.status === "closed" ? "Clôturée" : "À venir"}</Badge></TableCell></TableRow>)}</TableBody></Table></div> : null}
+    {years.length > 0 ? <div className="overflow-x-auto rounded-lg border bg-card" data-tour="years-table"><Table><TableHeader><TableRow><TableHead>Année</TableHead><TableHead>Période</TableHead><TableHead>Cycle</TableHead><TableHead>Ouverture des décisions</TableHead><TableHead>Statut</TableHead></TableRow></TableHeader><TableBody>{years.map((year) => <TableRow key={year.id} className={`cursor-pointer ${selectedYear?.id === year.id ? "bg-blue-50 dark:bg-blue-950" : ""}`} onClick={() => { setSelectedYearId(year.id); setReviewDateDraft(null) }}><TableCell><Button type="button" variant="ghost" className="min-h-12 justify-start gap-2 font-semibold" aria-current={selectedYear?.id === year.id ? "true" : undefined}>{selectedYear?.id === year.id ? <Check className="h-4 w-4 text-blue-700" aria-hidden="true" /> : <span className="w-4" />}{year.label}</Button></TableCell><TableCell className="whitespace-nowrap">{formatAcademicDate(year.startDate)} au {formatAcademicDate(year.endDate)}</TableCell><TableCell className="whitespace-nowrap">{year.gradingPeriodType === "semester" ? "2 semestres" : "3 trimestres"}</TableCell><TableCell className="whitespace-nowrap">{formatAcademicDate(year.endOfYearReviewStartDate)} · {countdown(year.endOfYearReviewStartDate, today)}</TableCell><TableCell><Badge variant="outline" className={year.status === "active" ? "border-green-200 bg-green-50 text-green-800" : year.status === "closed" ? "bg-slate-100 text-slate-700" : "border-amber-200 bg-amber-50 text-amber-800"}>{year.status === "active" ? "Active" : year.status === "closed" ? "Clôturée" : "À venir"}</Badge></TableCell></TableRow>)}</TableBody></Table></div> : null}
     {selectedYear && periodsQuery.isSuccess ? <AcademicTimeline year={selectedYear} periods={periods} currentPeriodId={currentPeriodId} today={today} /> : null}
     {selectedYear ? <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.42fr)]">
-      <section className="space-y-4 rounded-lg border bg-card p-4 md:p-6" aria-labelledby="periods-heading"><h2 id="periods-heading" className="text-xl font-semibold">Périodes d’évaluation · {selectedYear.label}</h2>
+      <section className="space-y-4 rounded-lg border bg-card p-4 md:p-6" aria-labelledby="periods-heading" data-tour="years-periods"><h2 id="periods-heading" className="text-xl font-semibold">Périodes d’évaluation · {selectedYear.label}</h2>
         {periodsQuery.isLoading ? <Spinner /> : null}
         {periodsQuery.isError ? <QueryErrorState onRetry={() => void periodsQuery.refetch()} isRetrying={periodsQuery.isFetching} message="Le calendrier des périodes n’a pas pu être chargé. Réessayez avant de le modifier." /> : null}
         {periodsQuery.isSuccess && periods.length === 0 ? <EmptyState icon={CalendarIcon} title="Aucune période" message="Ajoutez la première période de l’année scolaire." /> : null}
         {periodsQuery.isSuccess ? periods.map((period, index) => <PeriodEditor key={`${period.id}-${period.startDate}-${period.reviewStartDate}-${period.endDate}`} period={period} previous={periods[index - 1]} next={periods[index + 1]} year={selectedYear} isCurrent={period.id === currentPeriodId} canEdit={Boolean(selectedEditable && !period.hasGeneratedCards)} pending={periodMutation.isPending} today={today} onSave={(item, dates) => periodMutation.mutate({ period: item, dates })} />) : null}
         {periodsQuery.isSuccess && selectedEditable && periods.length < (selectedYear.gradingPeriodType === "semester" ? 2 : 3) ? <NewPeriod year={selectedYear} previous={periods[periods.length - 1]} pending={periodMutation.isPending} onSave={(label, dates) => periodMutation.mutate({ label, dates })} /> : null}
       </section>
-      <section className="space-y-5 rounded-lg border bg-card p-4 md:p-6" aria-labelledby="decisions-heading"><h2 id="decisions-heading" className="text-xl font-semibold">Décisions de fin d’année · {selectedYear.label}</h2>
+      <section className="space-y-5 rounded-lg border bg-card p-4 md:p-6" aria-labelledby="decisions-heading" data-tour="years-decisions"><h2 id="decisions-heading" className="text-xl font-semibold">Décisions de fin d’année · {selectedYear.label}</h2>
         <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100">{daysUntil(selectedYear.endOfYearReviewStartDate, today) !== null && daysUntil(selectedYear.endOfYearReviewStartDate, today)! > 0 ? `S’ouvre ${countdown(selectedYear.endOfYearReviewStartDate, today)}` : `Ouvert depuis le ${formatAcademicDate(selectedYear.endOfYearReviewStartDate)}`}</Badge>
         <p className="text-sm text-slate-700 dark:text-slate-200">Cette date ouvre le menu « Fin d’année » et la validation des décisions de passage.</p>
         <label className="block space-y-2 text-sm font-medium">Ouverture des décisions de fin d’année<Input type="date" value={reviewDate} max={selectedYear.endDate} disabled={!selectedEditable || reviewMutation.isPending} aria-invalid={Boolean(reviewDate && !reviewDateValid)} onChange={(event) => setReviewDateDraft(event.target.value)} /></label>
@@ -168,4 +174,5 @@ export default function SchoolYearsPage() {
       </section>
     </div> : null}
   </PageLayout>
+  </>
 }

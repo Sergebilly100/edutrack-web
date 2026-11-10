@@ -992,7 +992,8 @@ export type TeacherRiskItem = {
 
 type RiskListParams = { page: number; limit: number }
 type StudentRiskListParams = RiskListParams & { schoolYearId?: string; gradingPeriodId?: string; schoolLevelId?: string; classId?: string; category?: StudentRiskCategory; riskLevel?: Exclude<RiskLevel, "none">; atRisk?: boolean }
-type TeacherRiskListParams = RiskListParams & { month?: string; atRisk?: boolean }
+export type TeacherRiskSignal = "absences" | "lateness"
+type TeacherRiskListParams = RiskListParams & { month?: string; atRisk?: boolean; signal?: TeacherRiskSignal }
 
 const parseRiskPagination = (value: unknown): RiskPagination => {
   const row = isRecord(value) ? value : {}

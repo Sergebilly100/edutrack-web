@@ -70,6 +70,21 @@ describe("RequiredDocumentsSettings", () => {
     }))
   })
 
+  it("recalcule les dossiers affichés (détail élève, documents du dossier, listes) dès que la liste des documents requis change", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    const keys = [["enrollments", "documents", "student-1"], ["enrollments", "list"], ["students", "detail", "student-1"]]
+    keys.forEach((key) => queryClient.setQueryData(key, { cached: true }))
+    render(<QueryClientProvider client={queryClient}><RequiredDocumentsSettings canEdit /></QueryClientProvider>)
+    expect(await screen.findByText("Extrait de naissance")).toBeInTheDocument()
+    keys.forEach((key) => expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false))
+
+    fireEvent.change(screen.getByLabelText("Nom du document"), { target: { value: "Photo d’identité" } })
+    fireEvent.click(await screen.findByRole("checkbox", { name: "CP1" }))
+    fireEvent.click(screen.getByRole("button", { name: "Ajouter aux niveaux sélectionnés" }))
+
+    await waitFor(() => keys.forEach((key) => expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true)))
+  })
+
   it("modifie en une fois tous les niveaux associés au document", async () => {
     renderPanel()
     fireEvent.click(await screen.findByRole("button", { name: "Modifier" }))

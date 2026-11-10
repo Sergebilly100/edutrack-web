@@ -9,6 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { EmptyState } from "@/shared/components/EmptyState"
 import { fetchClassCompletion, listClasses } from "./academic.api"
 
+import { PageHeader } from "@/shared/components/PageHeader"
+
 export default function CompletionTrackingPage() {
   const [classId, setClassId] = useState("")
   const [gradingPeriodId, setGradingPeriodId] = useState("")
@@ -38,13 +40,8 @@ export default function CompletionTrackingPage() {
   })
 
   return (
-    <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Suivi de complétude</h1>
-        <p className="text-sm text-muted-foreground">
-          Quelles matières bloquent encore la génération des bulletins, et chez quel professeur.
-        </p>
-      </header>
+    <div className="space-y-6">
+      <PageHeader title="Suivi de complétude" subtitle="Quelles matières bloquent encore la génération des bulletins, et chez quel professeur." />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">

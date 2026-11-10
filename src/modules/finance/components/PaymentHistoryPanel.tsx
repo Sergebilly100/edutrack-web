@@ -25,8 +25,9 @@ import { getInitials } from "@/shared/utils/avatar"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { usePdfExportJob } from "@/shared/hooks/usePdfExportJob"
 import { formatFcfa } from "@/shared/utils/formatting"
+import { formatPaymentMoment, formatReceiptNumber } from "@/shared/utils/receipt"
 import { FINANCE_PATHS } from "../finance.routes"
-import { buildFinancialGap, formatPaymentDate, hasActiveDiscount, paymentPlural, sortPaymentsMostRecentFirst, summarizeConfirmedPayments } from "../payment-detail.helpers"
+import { buildFinancialGap, hasActiveDiscount, paymentPlural, sortPaymentsMostRecentFirst, summarizeConfirmedPayments } from "../payment-detail.helpers"
 import { cancelPayment, getFinancialStatus, getPaymentHistory, getStudentAccountStatement, requestPaymentReceipt, type FinancialCacheStatus, type Payment } from "../finance.api"
 
 const HISTORY_PAGE_SIZE = 20
@@ -79,7 +80,7 @@ function PaymentHistoryTable({ schoolYearId }: { schoolYearId: string }) {
 
   return (
     <section className="space-y-5">
-      <div className="grid gap-4 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2 xl:grid-cols-5" data-tour="finance-history-filters">
         <FilterDate
           label="Du"
           id="history-from"
@@ -166,7 +167,7 @@ function PaymentHistoryTable({ schoolYearId }: { schoolYearId: string }) {
       ) : null}
       {historyQuery.data && historyQuery.data.entries.length > 0 ? (
         <div className="space-y-4">
-          <div className="overflow-x-auto rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border" data-tour="finance-history-table">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -199,7 +200,7 @@ function PaymentHistoryTable({ schoolYearId }: { schoolYearId: string }) {
                     </TableCell>
                     <TableCell>{entry.levelName}</TableCell>
                     <TableCell>{entry.className}</TableCell>
-                    <TableCell>{entry.receiptNumber}</TableCell>
+                    <TableCell>{formatReceiptNumber(entry.receiptNumber)}</TableCell>
                     <TableCell>
                       <Badge
                         variant="outline"
@@ -332,9 +333,9 @@ function StudentPaymentDetails({ schoolYearId, schoolYearLabel, canCancel, stude
         <Table>
           <TableHeader><TableRow><TableHead className="px-4">Date</TableHead><TableHead>Mode</TableHead><TableHead>Reçu</TableHead><TableHead>Réf. école</TableHead><TableHead className="text-right">Montant</TableHead><TableHead className="text-right">Reste après</TableHead><TableHead>Statut</TableHead><TableHead><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
           <TableBody>{payments.map((payment) => <TableRow key={payment.id} className={payment.status === "cancelled" ? "bg-muted/30" : undefined}>
-            <TableCell className="px-4 py-4"><PaymentDate value={payment.paymentDate} /></TableCell>
+            <TableCell className="px-4 py-4"><PaymentDate payment={payment} /></TableCell>
             <TableCell className="py-4"><p>{methodLabels[payment.method]}</p><p className="text-sm text-muted-foreground">{sourceLabels[payment.source]}</p></TableCell>
-            <TableCell className="py-4 tabular-nums">{payment.receiptNumber}</TableCell>
+            <TableCell className="py-4 tabular-nums">{formatReceiptNumber(payment.receiptNumber)}</TableCell>
             <TableCell className="py-4">{payment.schoolReceiptReference ?? "—"}</TableCell>
             <TableCell className="py-4 text-right font-semibold tabular-nums">{formatFcfa(payment.amount)}</TableCell>
             <TableCell className="py-4 text-right tabular-nums text-muted-foreground">{formatFcfa(payment.balanceAfter)}</TableCell>
@@ -344,9 +345,9 @@ function StudentPaymentDetails({ schoolYearId, schoolYearLabel, canCancel, stude
         </Table>
       </div>
       <ul className="space-y-3 md:hidden">{payments.map((payment) => <li key={payment.id} className={`rounded-xl border bg-card p-4 ${payment.status === "cancelled" ? "bg-muted/30" : ""}`}>
-        <div className="flex items-start justify-between gap-3"><div><p className="text-lg font-semibold tabular-nums">{formatFcfa(payment.amount)}</p><PaymentDate value={payment.paymentDate} /></div><StatusPill tone={paymentStatusTones[payment.status]}>{paymentStatusLabels[payment.status]}</StatusPill></div>
+        <div className="flex items-start justify-between gap-3"><div><p className="text-lg font-semibold tabular-nums">{formatFcfa(payment.amount)}</p><PaymentDate payment={payment} /></div><StatusPill tone={paymentStatusTones[payment.status]}>{paymentStatusLabels[payment.status]}</StatusPill></div>
         <p className="mt-2 text-sm">{methodLabels[payment.method]} · <span className="text-muted-foreground">{sourceLabels[payment.source]}</span></p>
-        <p className="text-xs text-muted-foreground">Reçu {payment.receiptNumber}{payment.schoolReceiptReference ? ` · Réf. école ${payment.schoolReceiptReference}` : ""}</p>
+        <p className="text-xs text-muted-foreground">Reçu {formatReceiptNumber(payment.receiptNumber)}{payment.schoolReceiptReference ? ` · Réf. école ${payment.schoolReceiptReference}` : ""}</p>
         <p className="mt-1 text-sm text-muted-foreground">Reste après : {formatFcfa(payment.balanceAfter)}</p>
         {payment.cancellationReason ? <p className="mt-1 text-xs text-muted-foreground">Motif : {payment.cancellationReason}</p> : null}
         <div className="mt-3 flex justify-end"><PaymentActions payment={payment} canDownloadReceipt={canDownloadReceipt} canCancel={canCancel} isReceiptRunning={receipt.isRunning} onReceipt={() => void receipt.launch(() => requestPaymentReceipt(payment.id))} onCancel={() => { setCancelTarget(payment.id); setReason("") }} /></div>
@@ -359,8 +360,8 @@ function StudentPaymentDetails({ schoolYearId, schoolYearLabel, canCancel, stude
   </section>
 }
 
-function PaymentDate({ value }: { value: string }) {
-  const { date, time } = formatPaymentDate(value)
+function PaymentDate({ payment }: { payment: Pick<Payment, "paymentDate" | "paidAt"> }) {
+  const { date, time } = formatPaymentMoment(payment)
   return <><p className="font-semibold">{date}</p>{time ? <p className="text-sm text-muted-foreground">{time}</p> : null}</>
 }
 

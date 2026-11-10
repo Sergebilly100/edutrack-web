@@ -7,8 +7,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { listSchoolYears } from "@/modules/academic/academic.api"
 import { PageLayout } from "@/shared/components/PageLayout"
+import { HEADER_CONTROL_HEIGHT, HeaderAction } from "@/shared/components/PageHeader"
+import { formatDateTimeFr } from "@/shared/utils/formatting"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { TourGuide } from "@/shared/components/TourGuide"
+import { useTourGuide } from "@/shared/hooks/useTourGuide"
+import { financeAgreementsTourSteps, financeDashboardTourSteps, financeEntryTourSteps, financeHistoryTourSteps, financeJournalTourSteps } from "@/shared/lib/tour-steps"
 import { FinancialDashboard } from "./components/FinancialDashboard"
 import { PaymentHistoryPanel } from "./components/PaymentHistoryPanel"
 import { QuickPaymentEntry } from "./components/QuickPaymentEntry"
@@ -43,8 +48,18 @@ const VIEW_COPY: Record<FinanceView, { title: string; subtitle: string }> = {
   agreements: { title: "Accords & ajustements", subtitle: "Suivez les dérogations individuelles sans modifier les montants financiers de référence." },
 }
 
+const FINANCE_TOURS = {
+  dashboard: { id: "finance-dashboard", steps: financeDashboardTourSteps },
+  entry: { id: "finance-entry", steps: financeEntryTourSteps },
+  history: { id: "finance-history", steps: financeHistoryTourSteps },
+  journal: { id: "finance-journal", steps: financeJournalTourSteps },
+  agreements: { id: "finance-agreements", steps: financeAgreementsTourSteps },
+} as const
+
 export default function FinancePage({ view, studentId, initialSchoolYearId }: { view: FinanceView; studentId?: string; initialSchoolYearId?: string }) {
   const { hasPermission } = usePermissions()
+  const financeTour = FINANCE_TOURS[view]
+  const tour = useTourGuide(financeTour.id, !(view === "history" && Boolean(studentId)))
   const [searchParams] = useSearchParams()
   const yearsQuery = useQuery({ queryKey: ["academic", "school-years"], queryFn: listSchoolYears })
   const [schoolYearId, setSchoolYearId] = useState(initialSchoolYearId ?? searchParams.get("schoolYearId") ?? "")
@@ -109,43 +124,41 @@ export default function FinancePage({ view, studentId, initialSchoolYearId }: { 
     return <PageLayout title={VIEW_COPY[view].title}><QueryErrorState message="Impossible de charger les années scolaires." onRetry={() => void yearsQuery.refetch()} /></PageLayout>
   }
 
-  return (  
+  return (
+    <>
+    <TourGuide steps={financeTour.steps} run={tour.run} stepIndex={tour.stepIndex} onStepChange={tour.setStepIndex} onFinish={tour.markDone} />
     <PageLayout
       title={VIEW_COPY[view].title}
       subtitle={VIEW_COPY[view].subtitle}
       breadcrumb={breadcrumb}
       actions={
-        <div className="flex flex-wrap items-end justify-end gap-3">
+        <>
           <Select value={schoolYearId} onValueChange={setSchoolYearId}>
-            <SelectTrigger className="min-h-12 w-50" aria-label="Année scolaire"><SelectValue placeholder="Année scolaire" /></SelectTrigger>
+            <SelectTrigger className={`${HEADER_CONTROL_HEIGHT} w-50`} aria-label="Année scolaire" data-tour="finance-year"><SelectValue placeholder="Année scolaire" /></SelectTrigger>
             <SelectContent>{yearsQuery.data?.map((year) => <SelectItem key={year.id} value={year.id}>{year.label}{year.status === "active" ? " · Active" : ""}</SelectItem>)}</SelectContent>
-          </Select> 
+          </Select>
           {view === "dashboard" ? (
-            <div className="flex flex-col items-start gap-1 sm:items-end">
+            <HeaderAction note={school?.last_computed_at ? `Dernier calcul : ${formatDateTimeFr(school.last_computed_at)}` : "Aucun calcul disponible"}>
               <Button
                 variant="outline"
-                className="min-h-12"
+                className={HEADER_CONTROL_HEIGHT}
                 disabled={recalculateMutation.isPending}
                 onClick={() => recalculateMutation.mutate()}
+                data-tour="finance-recalc"
               >
                 {recalculateMutation.isPending ? <Spinner size="sm" className="mr-2" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                 {recalculateMutation.isPending ? "Recalcul en cours…" : "Recalculer les données"}
               </Button>
-              <p className="text-xs leading-5 text-muted-foreground sm:text-right">
-                {school?.last_computed_at
-                  ? `Dernier calcul : ${new Date(school.last_computed_at).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" })}`
-                  : "Aucun calcul disponible"}
-              </p>
-            </div>
+            </HeaderAction>
           ) : null}
-        </div>
+        </>
       }
     >
       {schoolYearId && selectedYear && view === "dashboard" ? <FinancialDashboard schoolYearId={schoolYearId} /> : null}
       {schoolYearId && selectedYear && view === "entry" ? (
       
       <Tabs value={entryTab} onValueChange={setentryTab} className="space-y-5">
-        <TabsList className="grid h-auto w-full rounded-xl border border-border bg-muted/50 p-1 sm:w-full grid-cols-2 md:w-[420px]">
+        <TabsList className="grid h-auto w-full rounded-xl border border-border bg-muted/50 p-1 sm:w-full grid-cols-2 md:w-[420px]" data-tour="finance-entry-tabs">
           <TabsTrigger value="enregistrement" className="min-h-12">Enregistrement</TabsTrigger>
           <TabsTrigger value="import" className="min-h-12">Importer les paiements</TabsTrigger>
         </TabsList>
@@ -157,5 +170,6 @@ export default function FinancePage({ view, studentId, initialSchoolYearId }: { 
       {schoolYearId && selectedYear && view === "history" ? <PaymentHistoryPanel schoolYearId={schoolYearId} schoolYearLabel={selectedYear.label} canCancel={hasPermission("payments.cancel")} studentId={studentId} /> : null}
       {schoolYearId && selectedYear && view === "agreements" ? <AgreementsRegister schoolYearId={schoolYearId} /> : null}
     </PageLayout>
+    </>
   )
 }

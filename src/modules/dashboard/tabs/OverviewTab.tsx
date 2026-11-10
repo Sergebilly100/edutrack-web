@@ -32,7 +32,7 @@ import {
 
 type DashboardPriorityAction = {
   id: string
-  type: "validations_pending"
+  type: string
   title: string
   message: string
   href: string
@@ -115,7 +115,7 @@ export function OverviewTab({
     queryKey: ["finance", "financial-summary", schoolYearId],
     queryFn: () => fetchFinancialSummary(schoolYearId),
     staleTime: QUERY_STALE_TIME,
-    enabled: canViewFinance,
+    enabled: canViewFinance && Boolean(schoolYearId),
   })
 
   const pilotage = pilotageQuery.data
@@ -186,7 +186,7 @@ function PilotageKpis({
     <>
       <KpiCard label="Présence professeurs" value={formatRate(attendance)} detail={`${teacherPresent}/${teacherExpected} cours pointés`} href={`/teachers?tab=analyse&run=1&from=${todayDate}&to=${todayDate}`} isLoading={isLoading} />
       <KpiCard label="Présence élèves" value={formatRate(stats?.studentAttendance.rate ?? 0)} detail="Aujourd’hui" href={`/students?tab=absences&run=1&from=${todayDate}&to=${todayDate}&min_absences=1`} isLoading={isLoading} />
-      <KpiCard label="Élèves confirmés" value={population?.activeStudents ?? 0} detail="Effectif de l’année sélectionnée" href="/students" icon={GraduationCap} isLoading={isLoading} />
+      <KpiCard label="Élèves confirmés" value={population?.activeStudents ?? 0} detail="Effectif de l’année active" href="/students" icon={GraduationCap} isLoading={isLoading} />
       <KpiCard label="Professeurs" value={population?.activeTeachers ?? 0} detail={`${population?.activeClasses ?? 0} classes actives`} href="/teachers" icon={UsersRound} isLoading={isLoading} />
     </>
   )
@@ -205,7 +205,7 @@ function AttendanceHistoryChart({ history }: { history: DashboardHistoryPoint[] 
   const legend = ATTENDANCE_SERIES.filter((series) => trend.some((point) => point[series.key as AttendanceSeriesKey] > 0))
 
   return (
-    <Card className="min-w-0 rounded-lg shadow-sm">
+    <Card data-tour="dashboard-chart" className="min-w-0 rounded-lg shadow-sm">
       <CardHeader className="flex flex-row items-start justify-between gap-3 border-none p-5 pb-3">
         <div>
           <CardTitle className="text-lg">Présence des professeurs, 7 derniers jours</CardTitle>
@@ -256,22 +256,35 @@ function priorityCount(message: string): number {
   return Number.isFinite(value) ? value : 0
 }
 
+const WATCH_LIST_VISIBLE = 4
+
 function WatchList({ items }: { items: DashboardPriorityAction[] }) {
+  const [showAll, setShowAll] = useState(false)
   const orderedItems = [...items].sort((a, b) => priorityWeight[a.priority] - priorityWeight[b.priority])
+  const visibleItems = showAll ? orderedItems : orderedItems.slice(0, WATCH_LIST_VISIBLE)
+  const hiddenCount = orderedItems.length - visibleItems.length
   return (
-    <Card className="rounded-lg shadow-sm">
+    <Card data-tour="dashboard-priorities" className="rounded-lg shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between gap-3 border-none p-5 pb-3">
         <div><CardTitle className="text-lg">Actions prioritaires</CardTitle><CardDescription>Situations qui nécessitent votre décision</CardDescription></div>
         <Badge variant="outline" className="border-border bg-muted text-foreground">{orderedItems.length} sujet{orderedItems.length > 1 ? "s" : ""}</Badge>
       </CardHeader>
       <CardContent className="space-y-2 px-5 pb-5">
-        {orderedItems.length > 0 ? orderedItems.map((item) => (
-          <Link key={item.id} to={item.href} className="flex min-h-16 items-center gap-3 rounded-lg border px-3 py-2 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-            <span className={`inline-flex min-h-10 min-w-10 items-center justify-center rounded-md px-2 text-lg font-bold tabular-nums ${priorityCounterClass[item.priority]}`}>{priorityCount(item.message)}</span>
-            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{item.title}</span><span className="block text-xs text-muted-foreground">Décisions à prendre sur les pointages</span></span>
-            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          </Link>
-        )) : <div className="rounded-lg bg-green-50 p-4 text-sm text-green-800">Aucun sujet prioritaire sur la période sélectionnée.</div>}
+        {visibleItems.length > 0 ? visibleItems.map((item) => {
+          const count = item.type === "validations_pending" ? priorityCount(item.message) : null
+          return (
+            <Link key={item.id} to={item.href} className="flex min-h-16 items-center gap-3 rounded-lg border px-3 py-2 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+              <span className={`inline-flex min-h-10 min-w-10 items-center justify-center rounded-md px-2 text-lg font-bold tabular-nums ${priorityCounterClass[item.priority]}`} aria-hidden="true">{count ?? "!"}</span>
+              <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{item.title}</span><span className="block text-xs text-muted-foreground">{item.message}</span></span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            </Link>
+          )
+        }) : <div className="rounded-lg bg-green-50 p-4 text-sm text-green-800">Aucun sujet prioritaire sur la période sélectionnée.</div>}
+        {orderedItems.length > WATCH_LIST_VISIBLE ? (
+          <Button type="button" variant="ghost" className="min-h-12 w-full text-blue-700" aria-expanded={showAll} onClick={() => setShowAll((value) => !value)}>
+            {showAll ? "Voir moins" : `Voir tout (${hiddenCount} de plus)`}
+          </Button>
+        ) : null}
       </CardContent>
     </Card>
   )
@@ -281,7 +294,7 @@ function AcademicProgress({ levels, confirmedStudents, isLoading, isError }: { l
   if (isError) return <QueryErrorState message="Impossible de charger la performance académique." />
   const hasIncompleteSubjects = levels.some((level) => level.completedSubjects < level.expectedSubjects)
   return (
-    <Card className="rounded-lg shadow-sm">
+    <Card data-tour="dashboard-academic" className="rounded-lg shadow-sm">
       <CardHeader className="flex flex-row items-start justify-between gap-3 border-none p-5 pb-3">
         <div><CardTitle className="text-lg">Performance académique de la période</CardTitle><CardDescription>Moyennes générales réelles, regroupées par niveau.</CardDescription>{!isLoading && hasIncompleteSubjects ? <Badge variant="outline" className="mt-2 border-amber-200 bg-amber-50 text-amber-800">Provisoire : moyennes non clôturées</Badge> : null}</div>
         <Button asChild type="button" variant="ghost" size="sm" className="min-h-10 text-blue-700"><Link to="/academic/evaluations">Détails</Link></Button>
@@ -304,8 +317,9 @@ function AcademicProgress({ levels, confirmedStudents, isLoading, isError }: { l
   )
 }
 
-function studentRisksHref(schoolYearId?: string, gradingPeriodId?: string): string {
+export function studentRisksHref(schoolYearId?: string, gradingPeriodId?: string, category?: "absences" | "grades" | "payments"): string {
   const params = new URLSearchParams({ tab: "students" })
+  if (category) params.set("category", category)
   if (schoolYearId) params.set("schoolYearId", schoolYearId)
   if (gradingPeriodId) params.set("gradingPeriodId", gradingPeriodId)
   return `/dashboard/risks?${params.toString()}`
@@ -320,7 +334,7 @@ function RiskSummary({ risks, canViewTeachers, schoolYearId, gradingPeriodId }: 
   const studentTotal = (risks?.studentAbsences ?? 0) + (risks?.studentGrades ?? 0) + (risks?.studentPayments ?? 0)
   const studentHref = studentRisksHref(schoolYearId, gradingPeriodId)
   return (
-    <Card className="rounded-lg shadow-sm">
+    <Card data-tour="dashboard-risks" className="rounded-lg shadow-sm">
       <CardHeader className="flex flex-row items-start justify-between gap-3 border-none p-5 pb-3">
         <div>
           <CardTitle className="text-lg">
@@ -348,17 +362,17 @@ function RiskSummary({ risks, canViewTeachers, schoolYearId, gradingPeriodId }: 
             {
               label: "Absentéisme à surveiller",
               value: risks?.studentAbsences ?? 0,
-              href: studentHref,
+              href: studentRisksHref(schoolYearId, gradingPeriodId, "absences"),
             },
             {
               label: "Baisse de moyenne",
               value: risks?.studentGrades ?? 0,
-              href: studentHref,
+              href: studentRisksHref(schoolYearId, gradingPeriodId, "grades"),
             },
             {
               label: "Paiements en retard",
               value: risks?.studentPayments ?? 0,
-              href: studentHref,
+              href: studentRisksHref(schoolYearId, gradingPeriodId, "payments"),
             },
           ]}
         />
@@ -370,12 +384,12 @@ function RiskSummary({ risks, canViewTeachers, schoolYearId, gradingPeriodId }: 
               {
                 label: "Absences répétées",
                 value: risks?.teacherAbsences ?? 0,
-                href: "/dashboard/risks?tab=teachers",
+                href: "/dashboard/risks?tab=teachers&signal=absences",
               },
               {
                 label: "Retards répétés",
                 value: risks?.teacherLateness ?? 0,
-                href: "/dashboard/risks?tab=teachers",
+                href: "/dashboard/risks?tab=teachers&signal=lateness",
               },
             ]}
           />
@@ -402,7 +416,7 @@ function TodaySchedule({ courses, date }: { courses: DashboardCourseItem[]; date
     return { label: "À pointer", className: "border-amber-200 bg-amber-50 text-amber-800" }
   }
   return (
-    <Card className="rounded-lg shadow-sm">
+    <Card data-tour="dashboard-today" className="rounded-lg shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between gap-3 border-none p-5 pb-3">
         <div>
           <CardTitle className="text-lg">Présences professeurs aujourd’hui</CardTitle>
@@ -494,7 +508,7 @@ function FinancialSnapshot({ summary, levels, isLoading, isError }: { summary: A
     : null
 
   return (
-    <Card className="rounded-lg shadow-sm">
+    <Card data-tour="dashboard-finance" className="rounded-lg shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between gap-3 p-5 pb-3 border-none">
         <div>
           <CardTitle className="text-lg">Suivi financier</CardTitle>

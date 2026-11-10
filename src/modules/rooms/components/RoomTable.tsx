@@ -53,14 +53,14 @@ export function RoomTable({
             <TableHead>Salle</TableHead>
             <TableHead>Bâtiment</TableHead>
             <TableHead>Capacité</TableHead>
-            <TableHead>GPS</TableHead>
-            <TableHead>EDT / semaine</TableHead>
-            <TableHead>Scans</TableHead>
+            <TableHead data-tour="rooms-gps-col">GPS</TableHead>
+            <TableHead data-tour="rooms-edt-col">EDT / semaine</TableHead>
+            <TableHead data-tour="rooms-scans-col">Scans</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rooms.map((room) => (
+          {rooms.map((room, index) => (
             <TableRow key={room.id}>
               <TableCell className="font-medium">{room.name}</TableCell>
               <TableCell>{room.building || "-"}</TableCell>
@@ -69,7 +69,7 @@ export function RoomTable({
               <TableCell>{room.stats.weeklySchedulesCount}</TableCell>
               <TableCell>{room.stats.scansCount}</TableCell>
               <TableCell className="text-right">
-                <div className="flex justify-end gap-2">
+                <div className="flex justify-end gap-2" data-tour={index === 0 ? "rooms-actions" : undefined}>
                   <OfflineGuard>
                     <Button size="sm" variant="outline" onClick={() => onViewQr(room.id)}>
                       <QrCode className="mr-2 h-4 w-4" />

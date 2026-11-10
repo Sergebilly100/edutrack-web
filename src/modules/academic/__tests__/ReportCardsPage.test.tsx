@@ -125,6 +125,17 @@ describe("ReportCardsPage", () => {
     expect(screen.getByRole("button", { name: /générer les bulletins/i })).toBeDisabled()
   })
 
+  it("signale que la classe est obligatoire : astérisque, aide, aria-required et génération désactivée avec sa raison", async () => {
+    renderPage()
+    const trigger = await screen.findByRole("combobox", { name: /Classe/ })
+    expect(trigger).toHaveAttribute("aria-required", "true")
+    expect(screen.getByText("(obligatoire)")).toBeInTheDocument()
+    await waitFor(() => expect(screen.getAllByText("Choisissez une classe pour continuer").length).toBeGreaterThanOrEqual(2))
+    const generate = await screen.findByRole("button", { name: "Générer les bulletins de la classe" })
+    expect(generate).toBeDisabled()
+    expect(generate).toHaveAccessibleDescription("Choisissez une classe pour générer les bulletins.")
+  })
+
   it("rend une période à venir indisponible à la sélection", async () => {
     mocks.listGradingPeriodsForYear.mockResolvedValue([
       { id: "period-1", schoolYearId: "year-1", label: "Trimestre 1", isCurrent: true, isCompleted: false, bulletinGenerationAvailable: true },
@@ -180,7 +191,7 @@ describe("ReportCardsPage", () => {
 
     expect(screen.getByRole("combobox", { name: /classe/i })).toHaveTextContent("Choisir une classe")
     expect(screen.getByRole("combobox", { name: /période/i })).toHaveTextContent("Trimestre 1 · en revue")
-    expect(await screen.findByText("Choisissez une classe et une période")).toBeInTheDocument()
+    expect((await screen.findAllByText("Choisissez une classe pour continuer")).length).toBeGreaterThan(0)
     expect(mocks.fetchClassReportCards).toHaveBeenCalledTimes(1)
     expect(mocks.fetchClassCompletion).toHaveBeenCalledTimes(1)
 
@@ -200,7 +211,7 @@ describe("ReportCardsPage", () => {
     ])
 
     await waitFor(() => expect(screen.getByRole("combobox", { name: /classe/i })).toHaveTextContent("Choisir une classe"))
-    expect(screen.getByText("Choisissez une classe et une période")).toBeInTheDocument()
+    expect(screen.getAllByText("Choisissez une classe pour continuer").length).toBeGreaterThan(0)
     expect(screen.getByRole("combobox", { name: /période/i })).toHaveTextContent("Trimestre 1 · en revue")
     expect(mocks.fetchClassReportCards).toHaveBeenCalledTimes(1)
   })
@@ -252,7 +263,7 @@ describe("ReportCardsPage", () => {
 
     await selectOption(/année scolaire/i, "2024-2025")
     expect(screen.getByRole("combobox", { name: /classe/i })).toHaveTextContent("Choisir une classe")
-    expect(await screen.findByText("Choisissez une classe et une période")).toBeInTheDocument()
+    expect((await screen.findAllByText("Choisissez une classe pour continuer")).length).toBeGreaterThan(0)
     expect(mocks.fetchClassReportCards).toHaveBeenCalledTimes(1)
     await selectOption(/classe/i, /6ème Archives · archivée/)
     await waitFor(() => expect(mocks.fetchClassReportCards).toHaveBeenCalledWith("class-old", "period-old"))

@@ -12,7 +12,7 @@ export function WeekCoverageAlert({ nextWeekHasCoverage, onNavigateToSchedule , 
   }
 
   return (
-    <div data-testid="week-coverage-alert">
+    <div data-testid="week-coverage-alert" data-tour="schedule-coverage">
       <AlertBanner
         type="warning"
         title="Semaine prochaine non configurée"

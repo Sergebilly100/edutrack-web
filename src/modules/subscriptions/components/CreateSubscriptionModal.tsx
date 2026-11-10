@@ -27,11 +27,12 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import {
+  listEnrolledParents,
   listSubscriptionClasses,
   listSubscriptionClassStudents,
-  listSubscriptionParents,
-  type SubscriptionListItem,
+  type EnrolledParent,
 } from "@/modules/subscriptions/subscriptions.api"
+import { useDebounce } from "@/shared/hooks/useDebounce"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 
 type PaymentMethod = "cash" | "momo_mtn" | "momo_orange"
@@ -60,7 +61,14 @@ type CreateSubscriptionSuccess = {
   credentials: { phone: string; temp_password: string } | null
 }
 
+type SelectedParent = Pick<EnrolledParent, "full_name" | "phone" | "email">
+
 type CreateSubscriptionModalProps = {
+  /** Mois restants de l'année scolaire active (plafond de durée). */
+  maxDurationMonths?: number
+  schoolYearLabel?: string
+  /** Ouvre la liste des abonnements filtrée sur ce téléphone (parent déjà abonné). */
+  onViewExisting?: (phone: string) => void
   open: boolean
   onOpenChange: (open: boolean) => void
   smsUnitPriceFcfa: number | null
@@ -91,6 +99,9 @@ const emptyForm = {
 }
 
 export default function CreateSubscriptionModal({
+  maxDurationMonths,
+  schoolYearLabel,
+  onViewExisting,
   open,
   onOpenChange,
   smsUnitPriceFcfa,
@@ -109,16 +120,17 @@ export default function CreateSubscriptionModal({
   const [success, setSuccess] = useState<CreateSubscriptionSuccess | null>(null)
   const [parentMode, setParentMode] = useState<"existing" | "new">("existing")
   const [parentSearch, setParentSearch] = useState("")
-  const [selectedParent, setSelectedParent] = useState<SubscriptionListItem | null>(null)
+  const [selectedParent, setSelectedParent] = useState<SelectedParent | null>(null)
   const [parentFormTouched, setParentFormTouched] = useState({
     fullName: false,
     phone: false,
     email: false,
   })
 
-  const normalizedParentSearch = parentSearch.trim()
+  const normalizedParentSearch = useDebounce(parentSearch.trim(), 300)
   const shouldSearchExistingParents =
-    open && step === 1 && parentMode === "existing" && normalizedParentSearch.length > 0
+    open && step === 1 && parentMode === "existing" && normalizedParentSearch.length >= 2
+  const maxDuration = maxDurationMonths ?? 12
 
   const fullNameValid = form.full_name.trim().length >= 2
   const phoneValid = PHONE_REGEX.test(form.phone.trim())
@@ -139,15 +151,12 @@ export default function CreateSubscriptionModal({
     enabled: open,
   })
 
-  const existingParentsQuery = useQuery({
-    queryKey: ["subscriptions", "parents", "create-modal", normalizedParentSearch],
-    queryFn: () =>
-      listSubscriptionParents({
-        page: 1,
-        limit: 20,
-        search: normalizedParentSearch,
-      }),
+  // Parents des élèves inscrits (même source que les dossiers d'inscription), pas seulement les abonnés existants.
+  const enrolledParentsQuery = useQuery({
+    queryKey: ["subscriptions", "enrolled-parents", normalizedParentSearch],
+    queryFn: () => listEnrolledParents({ search: normalizedParentSearch, limit: 20 }),
     enabled: shouldSearchExistingParents,
+    placeholderData: (previous) => previous,
   })
 
   const classStudentsQuery = useQuery({
@@ -186,9 +195,7 @@ export default function CreateSubscriptionModal({
     (studentPagination?.page ?? studentPage) * (studentPagination?.limit ?? 25),
     studentTotal
   )
-  const eligibleExistingParents = shouldSearchExistingParents
-    ? (existingParentsQuery.data?.data ?? []).filter((parent) => parent.latest_subscription === null)
-    : []
+  const enrolledParents = shouldSearchExistingParents ? (enrolledParentsQuery.data?.data ?? []) : []
 
   const canGoStep2 =
     parentMode === "existing"
@@ -337,56 +344,60 @@ export default function CreateSubscriptionModal({
                         </div>
                       </div>
 
-                      <div className="max-h-64 divide-y overflow-y-auto rounded-lg border border-border">
-                        {shouldSearchExistingParents && existingParentsQuery.isLoading ? (
+                      <div className="max-h-72 divide-y overflow-y-auto rounded-lg border border-border" aria-live="polite">
+                        {parentSearch.trim().length < 2 ? (
+                          <p className="p-4 text-sm text-muted-foreground">Saisissez au moins 2 caractères (nom, prénom ou téléphone).</p>
+                        ) : null}
+                        {shouldSearchExistingParents && enrolledParentsQuery.isLoading ? (
                           <p className="p-4 text-sm text-muted-foreground">Chargement des parents…</p>
                         ) : null}
-                        {shouldSearchExistingParents && !existingParentsQuery.isLoading && eligibleExistingParents.length === 0 ? (
+                        {shouldSearchExistingParents && !enrolledParentsQuery.isLoading && enrolledParents.length === 0 ? (
                           <p className="p-4 text-sm text-muted-foreground">
-                            Aucun parent sans abonnement trouvé. Choisissez « Ajouter un autre parent ».
+                            {`Aucun parent d'${studentLabels.singularLower} inscrit ne correspond. Choisissez « Ajouter un autre parent ».`}
                           </p>
                         ) : null}
-                        {shouldSearchExistingParents ? eligibleExistingParents.map((parent) => {
-                          const selected = selectedParent?.parent_id === parent.parent_id
+                        {enrolledParents.map((parent) => {
+                          const selected = selectedParent?.phone === parent.phone
+                          const existing = parent.subscription
                           return (
-                            <Button
-                              key={parent.parent_id}
-                              type="button"
-                              variant="ghost"
-                              className={cn(
-                                "h-auto min-h-[56px] w-full justify-start rounded-none px-3 py-2 text-left",
-                                selected && "bg-primary/10 text-primary hover:bg-primary/10"
-                              )}
-                              onClick={() => {
-                                setSelectedParent(parent)
-                                setForm((current) => ({
-                                  ...current,
-                                  student_ids: parent.students.map((student) => student.id),
-                                }))
-                                setSelectedStudentMap(
-                                  Object.fromEntries(
-                                    parent.students.map((student) => [
-                                      student.id,
-                                      {
-                                        id: student.id,
-                                        fullName: student.full_name,
-                                        className: "",
-                                        registrationNumber: null,
-                                      },
-                                    ])
-                                  )
-                                )
-                              }}
-                            >
-                              <span className="min-w-0">
-                                <span className="block truncate font-medium">{parent.full_name}</span>
-                                <span className="block truncate text-xs text-muted-foreground">
-                                  {parent.phone} · {parent.students.map((student) => student.full_name).join(", ") || "Aucun élève lié"}
+                            <div key={parent.phone} className={cn("flex flex-wrap items-center gap-2 px-3 py-2", selected && "bg-primary/10")}>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                disabled={Boolean(existing)}
+                                aria-pressed={selected}
+                                className="h-auto min-h-[56px] min-w-0 flex-1 justify-start rounded-md px-2 py-2 text-left"
+                                onClick={() => {
+                                  setSelectedParent({ full_name: parent.full_name, phone: parent.phone, email: parent.email })
+                                  setForm((current) => ({ ...current, student_ids: parent.students.map((student) => student.id) }))
+                                  setSelectedStudentMap(Object.fromEntries(parent.students.map((student) => [
+                                    student.id,
+                                    { id: student.id, fullName: student.full_name, className: student.class_name, registrationNumber: student.matricule },
+                                  ])))
+                                }}
+                              >
+                                <span className="min-w-0">
+                                  <span className="block truncate font-medium">{parent.full_name}</span>
+                                  <span className="block text-xs text-muted-foreground">
+                                    {parent.phone} · {parent.students.map((student) => `${student.full_name} (${student.class_name}${student.matricule ? ` · ${student.matricule}` : ""})`).join(", ")}
+                                  </span>
                                 </span>
-                              </span>
-                            </Button>
+                              </Button>
+                              {existing ? (
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className={existing.status === "active" ? "border-green-200 bg-green-50 text-green-700" : "border-amber-200 bg-amber-50 text-amber-800"}>
+                                    {existing.status === "active" ? "Abonnement actif" : "Déjà souscrit"}
+                                  </Badge>
+                                  {onViewExisting ? (
+                                    <Button type="button" size="sm" variant="outline" className="min-h-10" onClick={() => onViewExisting(parent.phone)}>
+                                      Voir l’abonnement
+                                    </Button>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </div>
                           )
-                        }) : null}
+                        })}
                       </div>
                     </div>
                   ) : (
@@ -585,17 +596,21 @@ export default function CreateSubscriptionModal({
                         <Input
                           type="number"
                           min={1}
-                          max={12}
+                          max={maxDuration}
                           value={String(form.duration_months)}
                           onChange={(event) => {
                             const value = Number(event.target.value)
                             setForm((prev) => ({
                               ...prev,
-                              duration_months: Number.isInteger(value) && value >= 1 ? value : 1,
+                              duration_months: Number.isInteger(value) && value >= 1 ? Math.min(value, maxDuration) : 1,
                             }))
                           }}
                         />
-                        <p className="text-xs text-muted-foreground">Saisissez le nombre de mois (1 à 12).</p>
+                        <p className="text-xs text-muted-foreground">
+                          {maxDurationMonths
+                            ? `Saisissez le nombre de mois (1 à ${maxDurationMonths}, jusqu’à la fin de l’année scolaire${schoolYearLabel ? ` ${schoolYearLabel}` : ""}).`
+                            : "Saisissez le nombre de mois (1 à 12)."}
+                        </p>
                       </div>
                       <div>
                         <Label >Tarif Total</Label>

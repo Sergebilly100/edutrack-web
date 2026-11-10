@@ -1,4 +1,6 @@
+import { useActionBadges } from "@/modules/dashboard/action-badges"
 import { OnboardingReturn, useOnboardingContext } from "@/modules/onboarding/OnboardingReturn"
+import { ActionBadge } from "@/shared/components/ActionBadge"
 import { useEffect, useRef, useState } from "react"
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import { useForm, useWatch } from "react-hook-form"
@@ -42,6 +44,7 @@ import { ContextualHelp } from "@/shared/components/ContextualHelp"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
 import { useAuthStore } from "@/shared/store/auth.store"
+import { PageHeader, HEADER_CONTROL_HEIGHT } from "@/shared/components/PageHeader"
 import { TourGuide } from "@/shared/components/TourGuide"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { settingsTourSteps } from "@/shared/lib/tour-steps"
@@ -67,6 +70,7 @@ export default function SettingsPage() {
   const user = useAuthStore((state) => state.user)
   const { hasPermission } = usePermissions()
   const onboardingContext = useOnboardingContext()
+  const { bySettingsTab: tabBadges, detailsBySettingsTab: tabDetails } = useActionBadges()
   const simplifiedForOnboarding = Boolean(onboardingContext.target)
   const recovery = readTuitionRecovery(searchParams)
   const canEditTuition = hasPermission("tuition.edit")
@@ -191,6 +195,21 @@ export default function SettingsPage() {
     : canViewConductSettings ? "personnel" : canViewRequiredDocuments
       ? "scolarite"
       : canManageFinance ? "finance" : canManageRiskAlerts ? "risques" : canAccessSmsTemplate ? "communication" : "relances"
+  const availableTabs = [
+    canManageGeneralSettings && "general", canViewConductSettings && "personnel",
+    canViewRequiredDocuments && "scolarite", canManageFinance && "finance",
+    canViewFinancialAlerts && "relances", canManageRiskAlerts && "risques",
+    canAccessSmsTemplate && "communication",
+  ]
+  const requestedTab = searchParams.get("tab") ?? ""
+  const activeTab = availableTabs.includes(requestedTab) ? requestedTab : defaultTab
+  // La visite guidée ne présente que l'onglet ouvert : seul son bouton porte le repère de la visite.
+  const TOUR_TAB_IDS: Record<string, string> = {
+    general: "settings-tab-general", personnel: "settings-tab-personnel", scolarite: "settings-tab-scolarite",
+    finance: "settings-tab-finance", relances: "settings-tab-relances", risques: "settings-tab-risques",
+    communication: "settings-tab-communication",
+  }
+  const tourTab = (tab: string) => (activeTab === tab ? TOUR_TAB_IDS[tab] : undefined)
 
   return (
     <>
@@ -209,27 +228,12 @@ export default function SettingsPage() {
       {recovery ? <Alert><AlertDescription>{canEditTuition
         ? `Paiement en attente : configurez les frais du niveau ${recovery.levelName} pour l’année ${recovery.schoolYearLabel}. Le retour au paiement aura lieu après l’enregistrement de ce plan.`
         : "Contactez le responsable habilité de l’école pour configurer ces frais, puis reprenez ce paiement."}</AlertDescription></Alert> : null}
-      <div className="flex items-start justify-between border-b border-border pb-5">
-        <div className="space-y-0.5">
-          <h1 className="text-2xl font-medium tracking-tight">Paramètres école</h1>
-          <p className="text-sm text-muted-foreground">
-            Configuration de l&apos;école, du personnel, du suivi académique, des frais de scolarité et des communications.
-          </p>
-        </div>
-        {user?.role === "director" && !simplifiedForOnboarding ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="text-muted-foreground"
-            onClick={() => tour.restart()}
-            aria-label="Revoir le guide"
-          >
-            <Info className="mr-1.5 h-4 w-4" />
-            Guide
-          </Button>
-        ) : null}
-      </div>
+      <PageHeader
+        className="!mt-0"
+        title="Paramètres école"
+        subtitle="Configuration de l'école, du personnel, du suivi académique, des frais de scolarité et des communications."
+        hideAide={!(user?.role === "director" && !simplifiedForOnboarding)}
+      />
 
       <div className={cn("grid gap-px overflow-hidden rounded-lg border border-border bg-border", parentSmsMonetized ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
         <div className="bg-card px-4 py-3">
@@ -271,28 +275,23 @@ export default function SettingsPage() {
         </Alert>
       ) : null}
 
-      <Tabs value={([
-        canManageGeneralSettings && "general", canViewConductSettings && "personnel",
-        canViewRequiredDocuments && "scolarite", canManageFinance && "finance",
-        canViewFinancialAlerts && "relances", canManageRiskAlerts && "risques",
-        canAccessSmsTemplate && "communication",
-      ]).includes(searchParams.get("tab") ?? "") ? searchParams.get("tab")! : defaultTab}
+      <Tabs value={activeTab}
         onValueChange={(tab) => {
           if (tab !== "finance") currentLocation.current = null
           setSearchParams((current) => { const next = new URLSearchParams(current); next.set("tab", tab); return next })
         }}
         className="space-y-4">
-      <TabsList className="grid h-auto w-full grid-cols-2 rounded-xl border border-border sm:grid-cols-4 lg:grid-cols-7">
-        {canManageGeneralSettings ? <TabsTrigger value="general" className="min-h-12">Général</TabsTrigger> : null}
-        {canViewConductSettings ? <TabsTrigger value="personnel" className="min-h-12">Personnel</TabsTrigger> : null}
-        {canViewRequiredDocuments ? <TabsTrigger value="scolarite" className="min-h-12">Académique</TabsTrigger> : null}
-        {canManageFinance ? <TabsTrigger value="finance" className="min-h-12 whitespace-normal text-center">Scolarité &amp; finances</TabsTrigger> : null}
-        {canViewFinancialAlerts ? <TabsTrigger value="relances" className="min-h-12">Relances</TabsTrigger> : null}
-        {canManageRiskAlerts ? <TabsTrigger value="risques" className="min-h-12">Risques</TabsTrigger> : null}
-        {canAccessSmsTemplate ? <TabsTrigger value="communication" className="min-h-12">Communication</TabsTrigger> : null}
+      <TabsList className="grid h-auto w-full grid-cols-2 rounded-xl border border-border sm:grid-cols-4 lg:grid-cols-7" data-tour="settings-tabs">
+        {canManageGeneralSettings ? <TabsTrigger value="general" data-tour={tourTab("general")} className="min-h-12 gap-2">Général<ActionBadge count={tabBadges.general} details={tabDetails.general} /></TabsTrigger> : null}
+        {canViewConductSettings ? <TabsTrigger value="personnel" data-tour={tourTab("personnel")} className="min-h-12">Personnel</TabsTrigger> : null}
+        {canViewRequiredDocuments ? <TabsTrigger value="scolarite" data-tour={tourTab("scolarite")} className="min-h-12 gap-2">Académique<ActionBadge count={tabBadges.scolarite} details={tabDetails.scolarite} /></TabsTrigger> : null}
+        {canManageFinance ? <TabsTrigger value="finance" data-tour={tourTab("finance")} className="min-h-12 gap-2 whitespace-normal text-center">Scolarité &amp; finances<ActionBadge count={tabBadges.finance} details={tabDetails.finance} /></TabsTrigger> : null}
+        {canViewFinancialAlerts ? <TabsTrigger value="relances" data-tour={tourTab("relances")} className="min-h-12 gap-2">Relances<ActionBadge count={tabBadges.relances} details={tabDetails.relances} /></TabsTrigger> : null}
+        {canManageRiskAlerts ? <TabsTrigger value="risques" data-tour={tourTab("risques")} className="min-h-12 gap-2">Risques<ActionBadge count={tabBadges.risques} details={tabDetails.risques} /></TabsTrigger> : null}
+        {canAccessSmsTemplate ? <TabsTrigger value="communication" data-tour={tourTab("communication")} className="min-h-12">Communication</TabsTrigger> : null}
       </TabsList>
       {canManageGeneralSettings ? (
-        <TabsContent value="general" data-tour="settings-school-panel">
+        <TabsContent value="general">
         <OfflineDisabledFieldset notice="Configuration école indisponible hors ligne. Reconnectez-vous pour modifier ces paramètres.">
           <SchoolConfigPanel section="general" />
         </OfflineDisabledFieldset>
@@ -329,7 +328,7 @@ export default function SettingsPage() {
               <div className="w-full max-w-sm space-y-2">
                 <Label htmlFor="finance-school-year">Année scolaire</Label>
                 <Select value={financeSchoolYearId} onValueChange={setFinanceSchoolYearId} disabled={schoolYearsQuery.isLoading || schoolYearsQuery.isError}>
-                  <SelectTrigger id="finance-school-year" className="min-h-12"><SelectValue placeholder="Choisir une année scolaire" /></SelectTrigger>
+                  <SelectTrigger id="finance-school-year" data-tour="settings-finance-year" className="min-h-12"><SelectValue placeholder="Choisir une année scolaire" /></SelectTrigger>
                   <SelectContent>
                     {financeSchoolYears.map((schoolYear) => <SelectItem key={schoolYear.id} value={schoolYear.id}>{schoolYear.label}{"status" in schoolYear && schoolYear.status === "active" ? " · Active" : ""}</SelectItem>)}
                   </SelectContent>
@@ -431,7 +430,7 @@ export default function SettingsPage() {
       ) : null}
 
       {canAccessSmsTemplate ? (
-        <TabsContent value="communication" data-tour="settings-sms-templates-panel">
+        <TabsContent value="communication">
         <OfflineDisabledFieldset notice="Templates SMS indisponibles hors ligne.">
           <SmsTemplatePanel canReadTemplate={canEditSmsTemplate} />
         </OfflineDisabledFieldset>

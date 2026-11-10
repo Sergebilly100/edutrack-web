@@ -133,7 +133,7 @@ export default function StudentAbsencePanel() {
 
   return (
     <div className="space-y-4">
-      <Card>
+      <Card data-tour="students-absences-filters">
         <CardContent className="p-4">
           {classesQuery.isError || levelsQuery.isError ? (
             <Alert variant="destructive" className="mb-3"><AlertDescription>Impossible de charger les niveaux et classes.</AlertDescription></Alert>
@@ -284,7 +284,7 @@ export default function StudentAbsencePanel() {
       ) : null}
 
       {queryEnabled ? (
-        <Card>
+        <Card data-tour="students-absences-results">
           <CardContent className="space-y-4 p-4">
             {hasRows ? (
               <div className="flex justify-end">

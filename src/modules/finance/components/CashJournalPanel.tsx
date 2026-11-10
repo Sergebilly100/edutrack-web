@@ -23,6 +23,7 @@ import { formatFcfa } from "@/shared/utils/formatting"
 import { studentNoun } from "@/shared/utils/student-label"
 import { dayLabel, formatCancelledAt, groupByDay, isoToFr, methodShare, pluralize, presetRange, PERIOD_PRESETS, type JournalEntry, type PeriodPreset } from "../cash-journal.helpers"
 import { exportCashJournalExcel, exportCashJournalPdf, getCashJournal, requestPaymentReceipt, type CashJournalFilter, type PaymentMethod } from "../finance.api"
+import { formatReceiptNumber } from "@/shared/utils/receipt"
 import { FINANCE_PATHS } from "../finance.routes"
 import { RateBar } from "./RateBar"
 import { StatCard } from "./StatCard"
@@ -57,8 +58,8 @@ function StudentCell({ entry, canOpenStudent, schoolYearId }: Pick<RowProps, "en
 }
 
 function ReceiptCell({ entry, onReceipt, receiptRunning }: Pick<RowProps, "entry" | "onReceipt" | "receiptRunning">) {
-  if (entry.status === "cancelled") return <span>{entry.receiptNumber}</span>
-  return <button type="button" disabled={receiptRunning} onClick={() => onReceipt(entry.id)} aria-label={`Télécharger le reçu ${entry.receiptNumber}`} className="min-h-10 rounded-md font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">{entry.receiptNumber}</button>
+  if (entry.status === "cancelled") return <span>{formatReceiptNumber(entry.receiptNumber)}</span>
+  return <button type="button" disabled={receiptRunning} onClick={() => onReceipt(entry.id)} aria-label={`Télécharger le reçu ${entry.receiptNumber}`} className="min-h-10 rounded-md font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">{formatReceiptNumber(entry.receiptNumber)}</button>
 }
 
 const reference = (entry: JournalEntry) => entry.providerReference ?? entry.schoolReceiptReference
@@ -129,16 +130,16 @@ export function CashJournalPanel({ schoolYearId }: { schoolYearId: string }) {
 
   return <section className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div role="group" aria-label="Raccourcis de période" className="flex flex-wrap gap-2">
+      <div role="group" aria-label="Raccourcis de période" className="flex flex-wrap gap-2" data-tour="finance-journal-period">
         {PERIOD_PRESETS.map((item) => <Button key={item.value} type="button" variant="outline" aria-pressed={preset === item.value} onClick={() => choosePreset(item.value)} className={cn("min-h-10 rounded-full", preset === item.value && "border-primary bg-primary/10 text-primary")}>{item.label}</Button>)}
       </div>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild><Button variant="outline" className="min-h-10" disabled={exporting || !canExport} title={canExport ? undefined : "L’export de données est désactivé pour cet établissement."}>{exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Exporter<ChevronDown aria-hidden="true" className="ml-2 h-4 w-4" /></Button></DropdownMenuTrigger>
+        <DropdownMenuTrigger asChild><Button variant="outline" className="min-h-10" data-tour="finance-journal-export" disabled={exporting || !canExport} title={canExport ? undefined : "L’export de données est désactivé pour cet établissement."}>{exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Exporter<ChevronDown aria-hidden="true" className="ml-2 h-4 w-4" /></Button></DropdownMenuTrigger>
         <DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => void downloadExcel()}>Excel</DropdownMenuItem><DropdownMenuItem onSelect={() => void pdf.launch(() => exportCashJournalPdf(filter))}>PDF</DropdownMenuItem></DropdownMenuContent>
       </DropdownMenu>
     </div>
 
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" data-tour="finance-journal-filters">
       {preset === "custom" ? <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1"><Label htmlFor="journal-from">Du</Label><Input id="journal-from" type="date" className="min-h-12" value={from} max={to || undefined} aria-invalid={Boolean(rangeError)} aria-describedby={rangeError || dateMessage ? "journal-date-message" : undefined} onChange={(event) => changeDate("from", event.target.value)} /></div>
         <div className="space-y-1"><Label htmlFor="journal-to">Au</Label><Input id="journal-to" type="date" className="min-h-12" value={to} min={from || undefined} aria-invalid={Boolean(rangeError)} aria-describedby={rangeError || dateMessage ? "journal-date-message" : undefined} onChange={(event) => changeDate("to", event.target.value)} /></div>
@@ -158,7 +159,7 @@ export function CashJournalPanel({ schoolYearId }: { schoolYearId: string }) {
     </div>
     {rangeError || dateMessage ? <p id="journal-date-message" role="alert" className="text-sm text-destructive">{rangeError ?? dateMessage}</p> : null}
 
-    {journal ? <div className="grid gap-3 lg:grid-cols-[1fr_2fr]">
+    {journal ? <div className="grid gap-3 lg:grid-cols-[1fr_2fr]" data-tour="finance-journal-totals">
       <StatCard title="Total confirmé" headerExtra={cancelledCount > 0 ? <StatusPill tone="danger">{`${cancelledCount} ${pluralize(cancelledCount, "annulé")} · ${pluralize(cancelledCount, "exclu", "exclus")} du total`}</StatusPill> : null}>
         <p className="text-3xl font-semibold tabular-nums">{formatFcfa(journal.totals.grandTotal)}</p>
         <p className="text-sm text-muted-foreground">{confirmedCount} {pluralize(confirmedCount, "paiement")} {pluralize(confirmedCount, "confirmé")}</p>
@@ -180,7 +181,7 @@ export function CashJournalPanel({ schoolYearId }: { schoolYearId: string }) {
     {journalQuery.isError ? <QueryErrorState message="Impossible de charger le journal de caisse." onRetry={() => void journalQuery.refetch()} /> : null}
     {journal && journal.entries.length === 0 ? <EmptyState icon={ReceiptText} title="Aucun paiement sur cette période" message="Modifiez les filtres ou élargissez la période." /> : null}
 
-    {journal && journal.entries.length > 0 ? <div className="space-y-4 rounded-lg border bg-card">
+    {journal && journal.entries.length > 0 ? <div className="space-y-4 rounded-lg border bg-card" data-tour="finance-journal-list">
       <div className="hidden overflow-x-auto md:block">
         <Table className="min-w-[900px]">
           <TableHeader><TableRow><TableHead>{noun}</TableHead><TableHead>Classe</TableHead><TableHead>Mode</TableHead><TableHead>Référence</TableHead><TableHead>Reçu</TableHead><TableHead>Statut</TableHead><TableHead className="text-right">Montant</TableHead></TableRow></TableHeader>

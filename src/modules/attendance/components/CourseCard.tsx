@@ -12,6 +12,8 @@ interface CourseCardProps {
   attendance?: TeacherAttendance
   onStartCourse: (slot: ScheduleSlot) => void
   onAddSpontaneousGrade?: (slot: ScheduleSlot) => void
+  /** Repères de la visite guidée : posés sur la première carte seulement. */
+  tourAnchors?: boolean
 }
 
 type CourseStatus = "upcoming" | "starting_soon" | "now" | "done" | "missed"
@@ -61,7 +63,7 @@ const getStatus = (
   return "upcoming"
 }
 
-export default function CourseCard({ slot, attendance, onStartCourse, onEditRollCall, onAddSpontaneousGrade }: CourseCardProps) {
+export default function CourseCard({ slot, attendance, onStartCourse, onEditRollCall, onAddSpontaneousGrade, tourAnchors = false }: CourseCardProps) {
   const studentLabels = useStudentLabels()
   const now = new Date()
   const status = getStatus(slot, attendance, now)
@@ -169,7 +171,7 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         {/* Infos du cours */}
-        <div className="space-y-1 min-w-0">
+        <div className="space-y-1 min-w-0" data-tour={tourAnchors ? "teacher-app-course-info" : undefined}>
           <p className="text-xs text-muted-foreground">
             {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
           </p>
@@ -207,7 +209,7 @@ export default function CourseCard({ slot, attendance, onStartCourse, onEditRoll
         </div>
 
         {/* Actions et badges */}
-        <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+        <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end" data-tour={tourAnchors ? "teacher-app-course-actions" : undefined}>
           {/* Cours terminé avec pointage */}
           {status === "done" ? (
             <Badge

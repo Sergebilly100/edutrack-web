@@ -91,7 +91,7 @@ export default function PresenceChart({ data }: PresenceChartProps) {
   }, [data])
 
   return (
-    <Card className="shadow-sm" data-tour="presence-chart">
+    <Card className="shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>

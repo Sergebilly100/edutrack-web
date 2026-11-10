@@ -10,6 +10,8 @@ import { useToast } from "@/components/ui/use-toast"
 import { OfflineGuard } from "@/shared/components/OfflineGuard"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
 import { usePermissions } from "@/shared/hooks/usePermissions"
+import { PageHeader, HEADER_CONTROL_HEIGHT } from "@/shared/components/PageHeader"
+import { EmptyState } from "@/shared/components/EmptyState"
 import { TourGuide } from "@/shared/components/TourGuide"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { roomsTourSteps } from "@/shared/lib/tour-steps"
@@ -361,27 +363,13 @@ export default function RoomsPage() {
     <div className="space-y-6" data-testid="rooms-page">
       <OfflineIndicator />
       <OnboardingReturn />
-      <header className="space-y-2 md:py-2" data-tour="rooms-header">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Salles & QR Codes</h1>
-            <p className="text-sm text-muted-foreground">
-              Gérez les salles de classe et imprimez les QR codes pour le check-in professeur.
-            </p>
-          </div>
-          {!isOnboardingFocus ? <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="text-muted-foreground"
-            onClick={() => tour.restart()}
-            aria-label="Revoir le guide"
-          >
-            <Info className="mr-1.5 h-4 w-4" />
-            Guide
-          </Button> : null}
-        </div>
-      </header>
+      <PageHeader
+        tourId="rooms-header"
+        className="!mt-0"
+        title="Salles & QR Codes"
+        subtitle="Gérez les salles de classe et imprimez les QR codes pour le check-in professeur."
+        hideAide={isOnboardingFocus}
+      />
 
       <Card>
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -407,7 +395,11 @@ export default function RoomsPage() {
           {roomsQuery.isLoading ? (
             <p className="text-sm text-muted-foreground">Chargement des salles...</p>
           ) : canViewRooms && sortedRooms.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucune salle active trouvée.</p>
+            <EmptyState
+              title="Aucune salle"
+              description="Ajoutez vos salles pour générer leurs QR codes. Les professeurs les scannent pour pointer leur présence."
+              action={canCreateRoom ? { label: "Ajouter une salle", onClick: openCreate } : undefined}
+            />
           ) : canViewRooms ? (
             <div data-tour="rooms-table">
             <RoomTable

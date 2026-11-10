@@ -1,3 +1,4 @@
+import { formatPersonName } from "@/shared/utils/person-name"
 import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, XCircle } from "lucide-react"
@@ -105,7 +106,7 @@ export default function ParentSchedulePage() {
         <h1 className="text-xl font-semibold">Emploi du temps</h1>
       </section>
 
-      <section>
+      <section data-tour="parent-student-selector">
         {(studentsQuery.data?.length ?? 0) > 1 ? (
           <div className="rounded-xl border bg-card p-2 shadow-card">
             <p className="mb-2 text-sm text-muted-foreground">Enfant sélectionné</p>
@@ -127,7 +128,7 @@ export default function ParentSchedulePage() {
                       {student.last_name[0]} {student.first_name[0]}
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold leading-tight">{student.last_name} {student.first_name}</span>
+                      <span className="block truncate text-sm font-semibold leading-tight">{formatPersonName({ lastName: student.last_name, firstName: student.first_name })}</span>
                       <span className={cn("block text-xs", active ? "text-primary-foreground/80" : "text-muted-foreground")}>{student.class_name}</span>
                     </span>
                   </Button>
@@ -141,14 +142,14 @@ export default function ParentSchedulePage() {
               {selectedStudent.last_name[0]} {selectedStudent.first_name[0]}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-base font-semibold">{selectedStudent.last_name} {selectedStudent.first_name}</p>
+              <p className="truncate text-base font-semibold">{formatPersonName({ lastName: selectedStudent.last_name, firstName: selectedStudent.first_name })}</p>
               <p className="text-xs text-muted-foreground">{selectedStudent.class_name}</p>
             </div>
           </div>
         ) : null}
       </section>
 
-      <section className="space-y-3">
+      <section className="space-y-3" data-tour="parent-schedule-week">
         <div className="flex items-center justify-between">
           {/* <h2 className="text-lg font-semibold">Programme</h2> */}
           <div className="flex items-center gap-1 my-2">
@@ -180,7 +181,7 @@ export default function ParentSchedulePage() {
           <p className="text-xs text-muted-foreground">Mise à jour du programme…</p>
         ) : null}
 
-        <div className="grid grid-cols-6 gap-1">
+        <div className="grid grid-cols-6 gap-1" data-tour="parent-schedule-days">
           {days.map((day, index) => {
             const isToday = day.date === todayInBusinessTimezone()
             const isSelected = selectedDayIndex === index
@@ -216,7 +217,7 @@ export default function ParentSchedulePage() {
         ) : (days[selectedDayIndex]?.slots.length ?? 0) === 0 ? (
           <EmptyState title="Pas de cours ce jour" message="Aucun cours au programme." />
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2" data-tour="parent-schedule-slots">
             {(days[selectedDayIndex]?.slots ?? []).map((slot, index) => (
               <div
                 key={`slot-${index}`}

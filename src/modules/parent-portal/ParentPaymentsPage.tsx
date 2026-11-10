@@ -1,3 +1,5 @@
+import { formatPersonName } from "@/shared/utils/person-name"
+import { formatPaymentMoment, formatReceiptNumber } from "@/shared/utils/receipt"
 import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { AlertCircle, CheckCircle2, Download, Loader2, ReceiptText, Smartphone } from "lucide-react"
@@ -73,7 +75,7 @@ export default function ParentPaymentsPage() {
       />
       <div className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div><h1 className="text-xl font-semibold tracking-tight">Frais et paiements</h1><p className="mt-1 text-sm text-muted-foreground">Consultez les versements reconnus par l’établissement et téléchargez vos reçus.</p></div>
-        {students.length > 1 ? <Select value={studentId} onValueChange={(nextStudentId) => { setSelectedStudentId(nextStudentId); const next = new URLSearchParams(window.location.search); next.set("student", nextStudentId); window.history.replaceState(null, "", `${window.location.pathname}?${next.toString()}`) }}><SelectTrigger className="min-h-6 w-full sm:w-64" aria-label="Enfant"><SelectValue /></SelectTrigger><SelectContent>{students.map((student) => <SelectItem key={student.id} value={student.id}>{student.last_name} {student.first_name}</SelectItem>)}</SelectContent></Select> : null}
+        {students.length > 1 ? <Select value={studentId} onValueChange={(nextStudentId) => { setSelectedStudentId(nextStudentId); const next = new URLSearchParams(window.location.search); next.set("student", nextStudentId); window.history.replaceState(null, "", `${window.location.pathname}?${next.toString()}`) }}><SelectTrigger className="min-h-6 w-full sm:w-64" aria-label="Enfant"><SelectValue /></SelectTrigger><SelectContent>{students.map((student) => <SelectItem key={student.id} value={student.id}>{formatPersonName({ lastName: student.last_name, firstName: student.first_name })}</SelectItem>)}</SelectContent></Select> : null}
       </div>
 
       {studentsQuery.isError || schoolConfigQuery.isError ? <QueryErrorState message="Impossible de charger le dossier financier." onRetry={() => { void studentsQuery.refetch(); void schoolConfigQuery.refetch() }} /> : null}
@@ -81,7 +83,7 @@ export default function ParentPaymentsPage() {
       {schoolConfigQuery.isSuccess && !schoolYearId ? <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>Aucune année scolaire active. Contactez l’établissement pour consulter les frais.</AlertDescription></Alert> : null}
 
       {statusQuery.data ? (
-        <section className="grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-3" aria-label="Situation financière">
+        <section className="grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-3" aria-label="Situation financière" data-tour="parent-payments-status">
           <div className="bg-blue-500 p-4 text-blue-50"><p className="text-xs text-blue-100">Total des frais</p><p className="mt-1 text-2xl font-semibold tabular-nums">{formatFcfa(statusQuery.data.totalDue)}</p></div>
           <div className="bg-card p-4"><p className="text-xs text-muted-foreground">Déjà versé</p><p className="mt-1 text-2xl font-semibold tabular-nums">{formatFcfa(statusQuery.data.confirmedPaid)}</p></div>
           <div className="bg-card p-4"><p className="text-xs text-muted-foreground">Reste à payer</p><p className="mt-1 text-2xl font-semibold tabular-nums">{formatFcfa(statusQuery.data.remainingDue)}</p><Badge variant="outline" className={statusQuery.data.standing === "late" ? "mt-2 border-amber-200 bg-amber-50 text-amber-700" : "mt-2 border-green-200 bg-green-50 text-green-700"}>{statusQuery.data.standing === "late" ? "Cumul en retard" : "Cumul à jour"}</Badge></div>
@@ -96,12 +98,12 @@ export default function ParentPaymentsPage() {
       </section> */}
 
       <section className="space-y-3">
-        <div><h2 className="text-lg font-semibold">Historique des paiements</h2><p className="text-sm text-muted-foreground">Les paiements annulés restent visibles pour garantir la traçabilité.</p></div>
+        <div data-tour="parent-payments-history"><h2 className="text-lg font-semibold">Historique des paiements</h2><p className="text-sm text-muted-foreground">Les paiements annulés restent visibles pour garantir la traçabilité.</p></div>
         {paymentsQuery.isError ? <QueryErrorState message="Impossible de charger les paiements." onRetry={() => void paymentsQuery.refetch()} /> : null}
         {paymentsQuery.isSuccess && payments.length === 0 ? <EmptyState icon={ReceiptText} title="Aucun paiement enregistré" message="Les versements reconnus par l’établissement apparaîtront ici." /> : null}
         {payments.map((payment) => (
           <div key={payment.id} className="flex flex-col gap-3 rounded-lg border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-lg font-semibold tabular-nums">{formatFcfa(payment.amount)}</p>{payment.status === "cancelled" ? <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">Annulé</Badge> : <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700"><CheckCircle2 className="mr-1 h-3 w-3" />Confirmé</Badge>}</div><p className="mt-1 text-sm text-muted-foreground">{formatDate(`${payment.paymentDate}T00:00:00`)} · {methodLabels[payment.method]}</p><p className="mt-1 text-xs text-muted-foreground">Reçu {payment.receiptNumber}</p><p className="mt-2 text-sm font-medium text-blue-800 dark:text-blue-200">Reste après ce paiement : {formatFcfa(payment.balanceAfter)}</p>{payment.cancellationReason ? <p className="mt-2 text-sm text-red-700">Motif : {payment.cancellationReason}</p> : null}</div>
+            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-lg font-semibold tabular-nums">{formatFcfa(payment.amount)}</p>{payment.status === "cancelled" ? <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">Annulé</Badge> : <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700"><CheckCircle2 className="mr-1 h-3 w-3" />Confirmé</Badge>}</div><p className="mt-1 text-sm text-muted-foreground">{formatPaymentMoment(payment).text} · {methodLabels[payment.method]}</p><p className="mt-1 text-xs text-muted-foreground">Reçu {formatReceiptNumber(payment.receiptNumber)}</p><p className="mt-2 text-sm font-medium text-blue-800 dark:text-blue-200">Reste après ce paiement : {formatFcfa(payment.balanceAfter)}</p>{payment.cancellationReason ? <p className="mt-2 text-sm text-red-700">Motif : {payment.cancellationReason}</p> : null}</div>
             {payment.status !== "cancelled" ? <Button type="button" variant="outline" className="min-h-6 shrink-0" disabled={receipt.isRunning} onClick={() => void receipt.launch(() => requestParentPaymentReceipt(studentId, payment.id))}>{receipt.isRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Télécharger le reçu</Button> : null}
           </div>
         ))}

@@ -1,18 +1,21 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { businessToday, dateMs, formatAcademicDate } from "@/shared/lib/academic-calendar"
+import { businessToday, dateMs } from "@/shared/lib/academic-calendar"
+import { formatPaymentMoment } from "@/shared/utils/receipt"
 
 const mocks = vi.hoisted(() => ({
   fetchClassStudentsStatus: vi.fn(),
   fetchFinancialSummary: vi.fn(),
+  fetchAgingStudents: vi.fn(),
 }))
 
 vi.mock("../finance.api", () => ({
   fetchClassStudentsStatus: mocks.fetchClassStudentsStatus,
   fetchFinancialSummary: mocks.fetchFinancialSummary,
+  fetchAgingStudents: mocks.fetchAgingStudents,
 }))
 
 import { FinancialDashboard } from "../components/FinancialDashboard"
@@ -165,7 +168,8 @@ describe("FinancialDashboard", () => {
     expect(paymentsTable).toHaveTextContent("Reçu")
     expect(paymentsTable).toHaveTextContent("Statut")
     expect(paymentsTable).toHaveTextContent("Espèces")
-    expect(paymentsTable).toHaveTextContent(formatAcademicDate(dayOffset(-1)))
+    // Format unique des dates de paiement (« 7 nov. 2026 ») : l'heure n'apparaît que si elle est connue.
+    expect(paymentsTable).toHaveTextContent(formatPaymentMoment({ paymentDate: dayOffset(-1) }).text)
     expect(paymentsTable).toHaveTextContent("DEMO-0049")
     expect(paymentsTable).toHaveTextContent(/30\s*000\s*FCFA/)
     expect(screen.getByText("Confirmé")).toBeInTheDocument()
@@ -180,6 +184,36 @@ describe("FinancialDashboard", () => {
     expect(screen.getByText("Ancienneté des impayés")).toBeInTheDocument()
     expect(screen.getByRole("progressbar", { name: /0–30 jours : 1\s*080\s*000 FCFA/ })).toBeInTheDocument()
     expect(screen.getByText("7 élèves")).toBeInTheDocument()
+  })
+
+  it("ouvre le détail d'une tranche dans une fenêtre aux chiffres identiques, avec recherche et accès au dossier financier", async () => {
+    mocks.fetchAgingStudents.mockResolvedValue({
+      bucket: "0-30", total_amount: "1080000.00", student_count: 7,
+      classes: [{ id: "class-1", name: "6e A" }, { id: "class-2", name: "5e B" }],
+      students: [{ student_id: "student-9", first_name: "Awa", last_name: "Koné", matricule: "DEMO-0009", class_id: "class-1", class_name: "6e A", remaining_amount: "120000.00", days_late: 12, oldest_due_date: "2026-10-27", last_payment_date: null }],
+      pagination: { page: 1, limit: 10, total: 7, totalPages: 1 },
+    })
+    renderDashboard()
+    const trigger = await screen.findByRole("button", { name: /Voir les élèves : 0–30 jours/ })
+    fireEvent.click(trigger)
+
+    const dialog = await screen.findByRole("dialog", { name: /Impayés de 0–30 jours/ })
+    await waitFor(() => expect(within(dialog).getByText(/1\s*080\s*000 FCFA restant dû · 7 élèves/)).toBeInTheDocument())
+    expect(within(dialog).getByText("KONÉ Awa")).toBeInTheDocument()
+    expect(within(dialog).getByText("12 jours de retard")).toBeInTheDocument()
+    expect(within(dialog).getByText(/Dernier paiement : Aucun paiement/)).toBeInTheDocument()
+    // La liste défile dans la fenêtre : zone repérable au clavier, pagination toujours visible hors de la zone défilante.
+    const list = within(dialog).getByLabelText(/Liste des élèves en retard \(0–30 jours\), défilante/)
+    expect(list).toHaveAttribute("tabindex", "0")
+    expect(list).not.toContainElement(within(dialog).getByRole("navigation", { name: "Pagination" }))
+    expect(mocks.fetchAgingStudents).toHaveBeenCalledWith(expect.objectContaining({ schoolYearId: "school-year-1", bucket: "0-30", page: 1 }))
+    fireEvent.change(within(dialog).getByLabelText(/Rechercher un élève/), { target: { value: "kone" } })
+    await waitFor(() => expect(mocks.fetchAgingStudents).toHaveBeenLastCalledWith(expect.objectContaining({ search: "kone" })), { timeout: 2000 })
+    fireEvent.click(within(dialog).getByRole("combobox", { name: "Filtrer par classe" }))
+    // Le filtre propose uniquement les classes présentes dans la tranche.
+    await waitFor(() => expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(["Toutes les classes", "6e A", "5e B"]))
+    fireEvent.keyDown(dialog, { key: "Escape" })
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
   })
 
   it("explains when no future due dates are returned", async () => {

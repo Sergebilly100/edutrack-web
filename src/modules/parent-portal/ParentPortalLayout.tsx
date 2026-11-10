@@ -8,16 +8,17 @@ import { logout as logoutRequest } from "@/modules/auth/auth.api"
 import { fetchParentSchoolInfo, listParentNotifications } from "@/modules/parent-portal/parent.api"
 import { useParentAuthStore } from "@/modules/parent-portal/parent-auth.store"
 import { useTheme } from "@/shared/hooks/useTheme"
+import { AideButton } from "@/shared/aide/AideButton"
 import { TourGuide } from "@/shared/components/TourGuide"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { parentPortalTourSteps } from "@/shared/lib/tour-steps"
 
 const tabs = [
-  { href: "/parent/dashboard", label: "Accueil", icon: Home, dataTour: "",},
-  { href: "/parent/absences", label: "Absences", icon: CalendarX2, dataTour: "parent-absences-tab", },
-  { href: "/parent/schedule", label: "EDT", icon: CalendarDays, dataTour: "parent-schedule-tab", },
-  { href: "/parent/grades", label: "Notes", icon: GraduationCap, dataTour: "parent-grades-tab", },
-  { href: "/parent/account", label: "Compte", icon: UserCircle2, dataTour: "parent-account-tab", },
+  { href: "/parent/dashboard", label: "Accueil", icon: Home },
+  { href: "/parent/absences", label: "Absences", icon: CalendarX2 },
+  { href: "/parent/schedule", label: "EDT", icon: CalendarDays },
+  { href: "/parent/grades", label: "Notes", icon: GraduationCap },
+  { href: "/parent/account", label: "Compte", icon: UserCircle2 },
 ]
 
 export default function ParentPortalLayout() {
@@ -82,23 +83,13 @@ export default function ParentPortalLayout() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button asChild type="button" variant="outline" size="icon" className="relative h-10 w-10 rounded-lg" aria-label="Voir les notifications">
+              <Button asChild type="button" variant="outline" size="icon" className="relative h-10 w-10 rounded-lg" aria-label="Voir les notifications" data-tour="parent-bell">
                 <NavLink to="/parent/notifications">
                   <Bell className="h-4 w-4" />
                   {(notificationsQuery.data?.unreadCount ?? 0) > 0 ? <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-white">{notificationsQuery.data?.unreadCount}</span> : null}
                 </NavLink>
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="shrink-0 text-muted-foreground"
-                onClick={() => tour.restart()}
-                aria-label="Revoir le guide"
-              >
-                <Info className="mr-1.5 h-4 w-4" />
-                Guide
-              </Button>
+              <AideButton />
               <Button
                 type="button"
                 variant="outline"
@@ -137,6 +128,7 @@ export default function ParentPortalLayout() {
         </main>
 
         <nav
+          data-tour="parent-nav"
           aria-label="Navigation principale"
           className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur-sm lg:static lg:bg-background"
         >
@@ -153,7 +145,6 @@ export default function ParentPortalLayout() {
                       isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
                     )
                   }
-                  data-tour={tab.dataTour}
                 >
                   {({ isActive }) => (
                     <>

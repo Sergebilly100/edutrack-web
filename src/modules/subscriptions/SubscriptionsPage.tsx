@@ -58,6 +58,7 @@ import { ParentAccessResetDialog } from "@/modules/subscriptions/components/Pare
 import { useSchoolYearMonths } from "@/shared/hooks/useSchoolYearMonths"
 import { usePermissions } from "@/shared/hooks/usePermissions"
 import { useStudentLabels } from "@/shared/hooks/useStudentLabel"
+import { useSubscriptionAvailability } from "./useSubscriptionAvailability"
 import { TourGuide } from "@/shared/components/TourGuide"
 import { useTourGuide } from "@/shared/hooks/useTourGuide"
 import { subscriptionsTourSteps } from "@/shared/lib/tour-steps"
@@ -220,6 +221,10 @@ export default function SubscriptionsPage() {
   const [createdBy, setCreatedBy] = useState<string>("all")
   const [createOpen, setCreateOpen] = useState(false)
   const [renewTarget, setRenewTarget] = useState<SubscriptionListItem | null>(null)
+  const availabilityQuery = useSubscriptionAvailability()
+  const availability = availabilityQuery.data
+  const canSubscribeNow = availability?.canSubscribe !== false
+  const subscribeBlockedReason = availability && !availability.canSubscribe ? availability.message : null
   const [contactTarget, setContactTarget] = useState<SubscriptionListItem | null>(null)
   const [contactPhone, setContactPhone] = useState("")
   const [contactEmail, setContactEmail] = useState("")
@@ -385,20 +390,11 @@ export default function SubscriptionsPage() {
       subtitle={`(${activeCount} actifs affichés)`}
       actions={
         <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="text-muted-foreground"
-            onClick={() => tour.restart()}
-            aria-label="Revoir le guide"
-          >
-            <Info className="mr-1.5 h-4 w-4" />
-            Guide
-          </Button>
+          
           {canCreate ? (
             <OfflineGuard>
-              <Button type="button" className="w-full sm:w-auto" onClick={() => setCreateOpen(true)} data-tour="subscriptions-add-btn">
+              <Button type="button" className="w-full sm:w-auto" onClick={() => setCreateOpen(true)} data-tour="subscriptions-add-btn"
+                disabled={!canSubscribeNow} aria-describedby={subscribeBlockedReason ? "subscribe-blocked-reason" : undefined}>
                 Nouvel abonnement
               </Button>
             </OfflineGuard>
@@ -406,6 +402,13 @@ export default function SubscriptionsPage() {
         </div>
       }
     >
+      {subscribeBlockedReason ? (
+        <Alert id="subscribe-blocked-reason">
+          <AlertDescription>
+            {subscribeBlockedReason} Les abonnements existants ne sont pas modifiés.
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <section className="rounded-lg border bg-card p-3 shadow-sm sm:p-4" data-tour="subscriptions-filters">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
           <div className="space-y-2">
@@ -508,7 +511,7 @@ export default function SubscriptionsPage() {
                 <SubscriptionActions
                   item={item}
                   canEdit={canEdit}
-                  canRenew={canRenew}
+                  canRenew={canRenew && canSubscribeNow}
                   canCancel={canCancel}
                   canResetPassword={canResetPassword}
                   onDetails={setDetailsTarget}
@@ -542,10 +545,10 @@ export default function SubscriptionsPage() {
               <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">{studentLabels.plural}</th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Durée</th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Montant</th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Statut</th>
+              <th data-tour="subscriptions-status-col" className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Statut</th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Expire le</th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-muted-foreground">Jours restants</th>
-              <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase text-muted-foreground">Actions</th>
+              <th data-tour="subscriptions-actions-col" className="px-3 py-2.5 text-right text-xs font-semibold uppercase text-muted-foreground">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -572,7 +575,7 @@ export default function SubscriptionsPage() {
                     <SubscriptionActions
                       item={item}
                       canEdit={canEdit}
-                      canRenew={canRenew}
+                      canRenew={canRenew && canSubscribeNow}
                       canCancel={canCancel}
                       canResetPassword={canResetPassword}
                       onDetails={setDetailsTarget}
@@ -622,7 +625,7 @@ export default function SubscriptionsPage() {
           <EmptyState
             title="Aucun parent trouvé"
             message="Aucune souscription ne correspond à cette recherche. Essayez un autre mois, un autre statut, ou créez un abonnement parent."
-            action={canCreate ? { label: "Créer un abonnement", onClick: () => setCreateOpen(true) } : undefined}
+            action={canCreate && canSubscribeNow ? { label: "Créer un abonnement", onClick: () => setCreateOpen(true) } : undefined}
           />
           <ContextualHelp title="À vérifier">
             Changez le mois ou l'état de l'accès, puis relancez la recherche. Si la liste reste vide, créez un abonnement parent depuis le bouton en haut de page.
@@ -631,6 +634,9 @@ export default function SubscriptionsPage() {
       ) : null}
 
       <CreateSubscriptionModal
+        maxDurationMonths={availability?.canSubscribe ? availability.remainingMonths : undefined}
+        schoolYearLabel={availability?.canSubscribe ? availability.schoolYearLabel : undefined}
+        onViewExisting={(phone) => { setStatus("all"); setSearch(phone); setCreateOpen(false) }}
         open={createOpen}
         onOpenChange={setCreateOpen}
         smsUnitPriceFcfa={featureQuery.data?.sms_unit_price_fcfa ?? 0}
@@ -638,6 +644,7 @@ export default function SubscriptionsPage() {
       />
 
       <RenewSubscriptionModal
+        maxDurationMonths={availability?.canSubscribe ? availability.remainingMonths : undefined}
         open={Boolean(renewTarget)}
         onOpenChange={(open) => {
           if (!open) {

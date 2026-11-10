@@ -1,14 +1,8 @@
 import { expect, type Page } from "@playwright/test"
 
-// These workflows use an account that has already dismissed the product tours.
-// Tour discovery itself remains part of the manual first-login checklist.
-export async function returningUser(page: Page) {
-  await page.addInitScript(() => {
-    for (const tour of ["dashboard", "validations", "teachers", "teacher-detail", "students", "student-detail", "schedule", "salaries", "subscriptions", "subscription-revenue", "settings", "rooms", "import", "teacher-app", "teacher-dashboard", "parent-portal"]) {
-      localStorage.setItem(`ivoiredu-tour-done-${tour}`, "1")
-    }
-  })
-}
+// Les visites guidées ne démarrent plus jamais seules : il n'y a plus de clé à forcer.
+// La fonction est conservée pour les parcours qui l'appellent encore (no-op volontaire).
+export async function returningUser(_page: Page) {}
 
 export async function navigateMenu(page: Page, group: string, label: string) {
   const open = page.getByRole("button", { name: "Ouvrir le menu de navigation" })

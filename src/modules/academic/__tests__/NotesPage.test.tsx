@@ -158,10 +158,10 @@ describe("NotesPage", () => {
     await screen.findByText("Devoir 1")
     fireEvent.click(screen.getByRole("button", { name: /Devoir 1/ }))
     expect(screen.getByRole("dialog", { name: "Saisie des notes" })).toBeInTheDocument()
-    expect(screen.getByRole("spinbutton", { name: "Note de Awa Koné" })).toBeInTheDocument()
+    expect(screen.getByRole("spinbutton", { name: "Note de KONÉ Awa" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Close" }))
     fireEvent.click(screen.getByRole("button", { name: /Devoir 2/ }))
-    expect(screen.getAllByRole("spinbutton", { name: "Note de Awa Koné" })).toHaveLength(1)
+    expect(screen.getAllByRole("spinbutton", { name: "Note de KONÉ Awa" })).toHaveLength(1)
   })
 
   it("laisse les notes modifiables quand les moyennes sont calculées", async () => {
@@ -174,7 +174,7 @@ describe("NotesPage", () => {
     renderAcademicPage()
 
     fireEvent.click(await screen.findByRole("button", { name: /Devoir 1/ }))
-    expect(screen.getByRole("spinbutton", { name: "Note de Awa Koné" })).toBeEnabled()
+    expect(screen.getByRole("spinbutton", { name: "Note de KONÉ Awa" })).toBeEnabled()
     expect(screen.getByRole("button", { name: "Enregistrer" })).toBeEnabled()
   })
 

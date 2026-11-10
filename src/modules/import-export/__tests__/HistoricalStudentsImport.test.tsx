@@ -107,7 +107,7 @@ describe('historical student import', () => {
     )
     await screen.findByRole('heading', { name: 'Profils élèves historiques' })
     expect(screen.getAllByRole('link', { name: 'Retour à la configuration' })).toHaveLength(1)
-    expect(screen.queryByRole('button', { name: 'Revoir le guide' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: "Ouvrir l'aide de la page" })).not.toBeInTheDocument()
     expect(screen.queryByTestId('tour-guide')).not.toBeInTheDocument()
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
     expect(screen.queryByText('Mode de mise à jour')).not.toBeInTheDocument()

@@ -23,7 +23,7 @@ export function AcademicTimeline({ year, periods, currentPeriodId, today = busin
   const hasClosedPeriods = periods.some((period) => period.isClosed || year.status === "closed")
   const description = `${year.label}. ${periods.map((period) => `${period.label} du ${formatAcademicDate(period.startDate)} au ${formatAcademicDate(period.endDate)}, revue dès le ${formatAcademicDate(period.reviewStartDate)}`).join(". ")}. Aujourd’hui ${formatAcademicDate(today)}${todayInYear ? "" : ", hors de cette année"}. Décisions dès le ${formatAcademicDate(year.endOfYearReviewStartDate)}. Fin le ${formatAcademicDate(year.endDate)}.`
 
-  return <section className="rounded-lg border bg-card p-4 md:p-6" aria-labelledby="timeline-heading">
+  return <section className="rounded-lg border bg-card p-4 md:p-6" aria-labelledby="timeline-heading" data-tour="years-timeline">
     <h2 id="timeline-heading" className="text-lg font-semibold">Calendrier de l’année · {year.label}</h2>
     <p className="mt-1 text-xs text-slate-700 dark:text-slate-200">Les périodes successives se chevauchent volontairement.</p>
     <div className="mt-4 max-w-full overflow-x-auto" tabIndex={0} aria-label="Frise chronologique, défilement horizontal possible">

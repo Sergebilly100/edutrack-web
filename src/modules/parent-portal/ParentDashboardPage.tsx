@@ -1,3 +1,4 @@
+import { formatPersonName } from "@/shared/utils/person-name"
 import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import {
@@ -261,7 +262,7 @@ export default function ParentDashboardPage() {
                       {student.last_name[0]} {student.first_name[0]}
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold leading-tight">{student.last_name} {student.first_name}</span>
+                      <span className="block truncate text-sm font-semibold leading-tight">{formatPersonName({ lastName: student.last_name, firstName: student.first_name })}</span>
                       <span className={cn("block text-xs", active ? "text-primary-foreground/80" : "text-muted-foreground")}>{student.class_name}</span>
                     </span>
                   </Button>
@@ -276,7 +277,7 @@ export default function ParentDashboardPage() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-muted-foreground">Votre Enfant</p>
-              <p className="truncate text-base font-semibold">{selectedStudent.last_name} {selectedStudent.first_name}</p>
+              <p className="truncate text-base font-semibold">{formatPersonName({ lastName: selectedStudent.last_name, firstName: selectedStudent.first_name })}</p>
               <p className="text-xs text-muted-foreground">{selectedStudent.class_name}</p>
             </div>
           </div>

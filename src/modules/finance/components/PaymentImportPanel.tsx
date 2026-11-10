@@ -74,7 +74,7 @@ export function PaymentImportPanel() {
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         <div className="bg-[var(--surface-chrome)] px-4 py-4 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1">
-            <h2 className="text-lg font-semibold">Import des paiements</h2>
+            <h2 className="text-lg font-semibold" data-tour="finance-import">Import des paiements</h2>
             <p className="text-xs text-muted-foreground">
               Utilisez le fichier de votre caisse. Vous ferez ensuite une correspondance des colonnes, Les cinq champs sont obligatoires. <br />
               Les correspondances enregistrées  seront reprises automatiquement au prochain import.
@@ -244,7 +244,7 @@ export function PaymentImportPanel() {
           ) : null}
         </div>
       ) : null}
-      <div className="rounded-lg border border-dashed p-5">
+      <div className="rounded-lg border border-dashed p-5" data-tour="finance-import-file">
         <Label
           htmlFor="payment-import-file"
           className="flex cursor-pointer flex-col items-center gap-3 text-center"

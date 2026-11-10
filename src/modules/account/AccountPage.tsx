@@ -25,6 +25,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { updateMyProfile } from "@/modules/auth/auth.api"
 import { changePassword } from "@/modules/settings/settings.api"
 import { OfflineGuard, OfflineIndicator } from "@/shared/components"
+import { AideButton } from "@/shared/aide/AideButton"
 import { useAuthStore } from "@/shared/store/auth.store"
 
 const profileSchema = z.object({
@@ -152,10 +153,13 @@ export default function AccountPage() {
     <>
       <OfflineIndicator />
       <div className="mx-auto w-full min-w-0 max-w-5xl space-y-4 animate-fade-in py-1 md:py-2">
-        <header className="space-y-0.5">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Espace personnel</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Mon compte</h1>
-          <p className="text-sm text-muted-foreground">{isTeacher ? "Vos coordonnées et vos accès personnels." : "Gérez votre profil et vos accès personnels."}</p>
+        <header className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1 space-y-0.5">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Espace personnel</p>
+            <h1 className="text-2xl font-semibold tracking-tight">Mon compte</h1>
+            <p className="text-sm text-muted-foreground">{isTeacher ? "Vos coordonnées et vos accès personnels." : "Gérez votre profil et vos accès personnels."}</p>
+          </div>
+          <AideButton compact />
         </header>
 
         <Card className="min-w-0 overflow-hidden border border-border shadow-sm">

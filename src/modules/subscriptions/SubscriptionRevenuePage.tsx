@@ -173,17 +173,7 @@ export default function SubscriptionRevenuePage() {
       title="Revenus abonnements"
       actions={
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="text-muted-foreground"
-            onClick={() => tour.restart()}
-            aria-label="Revoir le guide"
-          >
-            <Info className="mr-1.5 h-4 w-4" />
-            Guide
-          </Button>
+          
           <div className="flex items-center gap-1" data-tour="revenue-nav">
             <Button
               type="button"
@@ -213,7 +203,7 @@ export default function SubscriptionRevenuePage() {
             </Button>
           </div>
           <OfflineGuard>
-            <Button type="button" variant="outline" onClick={() => setExportOpen(true)}>
+            <Button type="button" variant="outline" data-tour="revenue-export" onClick={() => setExportOpen(true)}>
               Exporter bilan
             </Button>
           </OfflineGuard>

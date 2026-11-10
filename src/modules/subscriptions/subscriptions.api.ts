@@ -541,3 +541,25 @@ export const getCommissionOverdueAlerts = async (): Promise<CommissionOverdueAle
   const response = await apiClient.get("/subscriptions/revenue/commission/overdue-alerts")
   return normalizeCommissionOverdueAlerts(response.data)
 }
+
+export type SubscriptionAvailability =
+  | { canSubscribe: true; remainingMonths: number; schoolYearLabel: string; schoolYearEndDate: string }
+  | { canSubscribe: false; reason: "NO_ACTIVE_SCHOOL_YEAR" | "SCHOOL_YEAR_ENDED"; message: string; remainingMonths: 0; schoolYearLabel: string | null; schoolYearEndDate: string | null }
+
+export const getSubscriptionAvailability = async (): Promise<SubscriptionAvailability> =>
+  (await apiClient.get<SubscriptionAvailability>("/subscriptions/availability")).data
+
+export type EnrolledParent = {
+  phone: string
+  full_name: string
+  email: string | null
+  students: Array<{ id: string; full_name: string; class_name: string; matricule: string | null }>
+  subscription: { id: string; parent_id: string | null; status: SubscriptionStatus; ends_at: string | null } | null
+}
+
+export const listEnrolledParents = async (params: { search?: string; page?: number; limit?: number }): Promise<{
+  data: EnrolledParent[]
+  pagination: { page: number; limit: number; total: number; totalPages: number }
+}> => (await apiClient.get("/subscriptions/enrolled-parents", { params: {
+  page: params.page ?? 1, limit: params.limit ?? 20, ...(params.search ? { search: params.search } : {}),
+} })).data

@@ -57,7 +57,7 @@ export default function TeacherAveragesPage() {
 
   return <section className="space-y-4" aria-labelledby="averages-heading">
     <div><h1 id="averages-heading" className="text-2xl font-semibold">Moyennes</h1><p className="text-sm text-muted-foreground">Suivez les notes, calculez puis validez chaque matière.</p></div>
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-3 sm:grid-cols-2" data-tour="averages-filters">
       <div className="space-y-2"><Label htmlFor="average-class">Classe</Label><Select value={classId} onValueChange={(value) => setParam("classId", value)}><SelectTrigger id="average-class" className="min-h-6"><SelectValue placeholder="Choisir une classe" /></SelectTrigger><SelectContent>{(contextQuery.data?.classes ?? []).map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>
       <div className="space-y-2"><Label htmlFor="average-period">Période</Label><Select value={periodId} onValueChange={(value) => setParam("gradingPeriodId", value)}><SelectTrigger id="average-period" className="min-h-6"><SelectValue placeholder="Choisir une période" /></SelectTrigger><SelectContent>{periods.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent></Select></div>
     </div>
@@ -68,11 +68,11 @@ export default function TeacherAveragesPage() {
     {classId && periods.length === 0 && !contextQuery.isLoading ? <EmptyState title="Aucune période accessible" description="Demandez à la direction de vérifier l’année scolaire de cette classe." /> : null}
     {periodState ? <Alert><AlertDescription>{periodState.reason === "SCHOOL_YEAR_CLOSED" ? "Cette année scolaire est clôturée. Les calculs restent consultables." : periodState.reason === "CLASS_INACTIVE" ? "Cette classe est inactive. Les calculs restent consultables." : periodState.isClosed ? "Cette classe et cette période sont clôturées. Les calculs restent consultables." : periodState.reviewOpen ? "Revue en cours. Les matières restent révisables jusqu’à leur validation définitive." : "Classe et période ouvertes au calcul des moyennes."}</AlertDescription></Alert> : null}
     {scopeQuery.data && preparation.length === 0 ? <EmptyState title="Aucune matière attribuée" description="Demandez à la direction de vérifier vos matières ou choisissez une autre classe." /> : null}
-    {preparation.map((subject) => {
+    {preparation.map((subject, index) => {
       const completed = subject.status === "completed" && subject.calculationStarted
       const reason = subject.reasons[0]
       const canOpen = subject.calculationStarted
-      return <article key={subject.subjectId} className="space-y-3 rounded-lg border bg-card p-4 shadow-sm">
+      return <article key={subject.subjectId} data-tour={index === 0 ? "averages-subject" : undefined} className="space-y-3 rounded-lg border bg-card p-4 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-2"><h2 className="font-semibold">{subject.subjectName}</h2><Badge variant="outline">{completed ? "Validée" : subject.calculationStarted ? "En calcul" : subject.evaluationCount === 0 ? "Sans évaluation" : subject.missingGrades > 0 ? "Saisie incomplète" : "Prête à calculer"}</Badge></div>
         <p className="text-sm text-muted-foreground">{subject.evaluationCount} évaluation{subject.evaluationCount > 1 ? "s" : ""} prévue{subject.evaluationCount > 1 ? "s" : ""} · {subject.enteredGrades}/{subject.expectedGrades} notes saisies · {subject.missingGrades} manquante{subject.missingGrades > 1 ? "s" : ""}</p>
         {subject.calculationStarted ? <p className="text-sm">Moyennes disponibles dans le détail du calcul.</p> : null}

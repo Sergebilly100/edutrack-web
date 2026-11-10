@@ -23,7 +23,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { EmptyState } from "@/shared/components/EmptyState"
 import { QueryErrorState } from "@/shared/components/QueryErrorState"
 import { businessToday, daysUntil, formatAcademicDate } from "@/shared/lib/academic-calendar"
+import { usePermissions } from "@/shared/hooks/usePermissions"
 import { formatFcfa, formatFcfaBalance, formatMillionsFcfa } from "@/shared/utils/formatting"
+import { formatPaymentMoment, formatReceiptNumber } from "@/shared/utils/receipt"
+import { AgingStudentsDialog } from "./AgingStudentsDialog"
 import {
   calculateFinancialBalances,
   calculateToDateBalance,
@@ -115,7 +118,7 @@ export function FinancialDashboard({ schoolYearId }: { schoolYearId: string }) {
   return (
     <div className="space-y-6">
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(20rem,0.75fr)]">
-        <Card className="rounded-lg shadow-sm">
+        <Card className="rounded-lg shadow-sm" data-tour="finance-summary">
           <CardHeader className="border-b-0 px-3 pb-0 pt-3 sm:px-3 sm:pt-3">
             <CardTitle className="text-lg">Synthèse des encaissements</CardTitle>
             <CardDescription>Situation des échéances et de la trésorerie sur l’année scolaire</CardDescription>
@@ -193,7 +196,7 @@ export function FinancialDashboard({ schoolYearId }: { schoolYearId: string }) {
       <AgreementMetrics metrics={summaryQuery.data?.agreementMetrics ?? null} />
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)]">
         <LevelRecovery levels={levels} classes={summaryQuery.data?.classes ?? []} />
-        <InstallmentAging buckets={summaryQuery.data?.aging ?? null} />
+        <InstallmentAging buckets={summaryQuery.data?.aging ?? null} schoolYearId={schoolYearId} />
       </section>
       <RecentPayments rows={summaryQuery.data?.recentPayments ?? []} schoolYearId={schoolYearId} />
     </div>
@@ -202,7 +205,7 @@ export function FinancialDashboard({ schoolYearId }: { schoolYearId: string }) {
 
 function AgreementMetrics({ metrics }: { metrics: { activeOverrides: number; activeDiscounts: number; activeSchedules: number; lateSchedules: number; lateScheduleRemaining: number } | null }) {
   if (!metrics) return null
-  return <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Suivi des accords individuels"><Link to={`${FINANCE_PATHS.agreements}?kind=overrides&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Ajustements/Remises actifs</p><p className="mt-1 text-2xl font-semibold tabular-nums">{metrics.activeOverrides}</p><p className="mt-1 text-xs text-muted-foreground">Remises : {formatFcfa(metrics.activeDiscounts)}</p></Link><Link to={`${FINANCE_PATHS.agreements}?kind=schedules&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Échéanciers actifs</p><p className="mt-1 text-2xl font-semibold tabular-nums">{metrics.activeSchedules}</p><p className="mt-1 text-xs text-muted-foreground">Calendriers suivis à date</p></Link><Link to={`${FINANCE_PATHS.agreements}?kind=schedules&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Échéanciers négociés en retard</p><p className="mt-1 text-2xl font-semibold tabular-nums">{metrics.lateSchedules}</p><p className="mt-1 text-xs text-muted-foreground">Selon le moteur financier</p></Link><Link to={`${FINANCE_PATHS.agreements}?kind=schedules&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Solde des échéanciers en retard</p><p className="mt-1 text-2xl font-semibold tabular-nums">{formatFcfa(metrics.lateScheduleRemaining)}</p><p className="mt-1 text-xs text-muted-foreground">Montant restant à recouvrer</p></Link></section>
+  return <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Suivi des accords individuels" data-tour="finance-accords"><Link to={`${FINANCE_PATHS.agreements}?kind=overrides&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Ajustements/Remises actifs</p><p className="mt-1 text-2xl font-semibold tabular-nums">{metrics.activeOverrides}</p><p className="mt-1 text-xs text-muted-foreground">Remises : {formatFcfa(metrics.activeDiscounts)}</p></Link><Link to={`${FINANCE_PATHS.agreements}?kind=schedules&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Échéanciers actifs</p><p className="mt-1 text-2xl font-semibold tabular-nums">{metrics.activeSchedules}</p><p className="mt-1 text-xs text-muted-foreground">Calendriers suivis à date</p></Link><Link to={`${FINANCE_PATHS.agreements}?kind=schedules&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Échéanciers négociés en retard</p><p className="mt-1 text-2xl font-semibold tabular-nums">{metrics.lateSchedules}</p><p className="mt-1 text-xs text-muted-foreground">Selon le moteur financier</p></Link><Link to={`${FINANCE_PATHS.agreements}?kind=schedules&status=active`} className="rounded-lg border p-4 transition-colors hover:bg-muted/50"><p className="text-sm text-muted-foreground">Solde des échéanciers en retard</p><p className="mt-1 text-2xl font-semibold tabular-nums">{formatFcfa(metrics.lateScheduleRemaining)}</p><p className="mt-1 text-xs text-muted-foreground">Montant restant à recouvrer</p></Link></section>
 }
 
 function AmountLine({
@@ -245,7 +248,7 @@ function FinancialVisuals({
 
   return (
     <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(20rem,0.65fr)]">
-      <Card className="rounded-lg shadow-sm">
+      <Card data-tour="finance-monthly" className="rounded-lg shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle>Montants encaissés</CardTitle>
           <CardDescription>Encaissements confirmés, mois par mois sur l’année scolaire</CardDescription>
@@ -289,7 +292,8 @@ function FinancialVisuals({
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              <table className="sr-only" aria-label="Tableau des encaissements mensuels">
+              <div className="sr-only">
+              <table aria-label="Tableau des encaissements mensuels">
                 <caption>Montant encaissé par mois, en FCFA</caption>
                 <thead><tr><th scope="col">Mois</th><th scope="col">Encaissé</th></tr></thead>
                 <tbody>
@@ -298,6 +302,7 @@ function FinancialVisuals({
                   ))}
                 </tbody>
               </table>
+              </div>
             </>
           ) : (
             <EmptyState
@@ -309,7 +314,7 @@ function FinancialVisuals({
         </CardContent>
       </Card>
 
-      <Card className="rounded-lg shadow-sm">
+      <Card data-tour="finance-modes" className="rounded-lg shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle>Répartition des encaissements</CardTitle>
           <CardDescription> Par mode de paiement</CardDescription>
@@ -383,7 +388,7 @@ function UpcomingInstallments({
   scheduleComplete: boolean
 }) {
   return (
-    <Card className="rounded-lg shadow-sm">
+    <Card data-tour="finance-upcoming" className="rounded-lg shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3 border-none">
         <div>
           <CardTitle className="text-lg">Prochaines échéances</CardTitle>
@@ -446,7 +451,9 @@ function UpcomingInstallments({
   )
 }
 
-function InstallmentAging({ buckets }: { buckets: FinancialAgingBucket[] | null }) {
+function InstallmentAging({ buckets, schoolYearId }: { buckets: FinancialAgingBucket[] | null; schoolYearId: string }) {
+  const { hasPermission } = usePermissions()
+  const [openBucket, setOpenBucket] = useState<FinancialAgingBucket["bucket"] | null>(null)
   const labels: Record<FinancialAgingBucket["bucket"], string> = {
     "0-30": "0–30 jours",
     "31-60": "31–60 jours",
@@ -464,22 +471,32 @@ function InstallmentAging({ buckets }: { buckets: FinancialAgingBucket[] | null 
   const totalOverdue = completeBuckets.reduce((sum, bucket) => sum + Number(bucket.total_amount), 0)
 
   return (
-    <Card className="rounded-lg shadow-sm">
+    <Card className="rounded-lg shadow-sm" data-tour="finance-aging">
       <CardHeader className="pb-3">
         <CardTitle className="text-lg">Ancienneté des impayés</CardTitle>
-        <CardDescription>Soldes échus, paiements affectés du plus ancien au plus récent</CardDescription>
+        <CardDescription>Soldes échus, paiements affectés du plus ancien au plus récent. Cliquez sur une tranche pour voir les élèves.</CardDescription>
       </CardHeader>
       <CardContent>
         {buckets !== null && completeBuckets.length === 3 ? (
-          <div className="space-y-5 p-3">
+          <div className="space-y-3 p-1">
             {completeBuckets.map((bucket) => {
               const amount = Number(bucket.total_amount)
               const share = totalOverdue > 0 ? (amount / totalOverdue) * 100 : 0
               return (
-                <div key={bucket.bucket} className="space-y-2">
+                <button
+                  key={bucket.bucket}
+                  type="button"
+                  onClick={() => setOpenBucket(bucket.bucket)}
+                  aria-haspopup="dialog"
+                  aria-label={`Voir les élèves : ${labels[bucket.bucket]}, ${formatFcfa(amount)}, ${bucket.student_count} élève${bucket.student_count === 1 ? "" : "s"}`}
+                  className="group block min-h-12 w-full cursor-pointer space-y-2 rounded-lg border bg-card p-3 text-left shadow-sm transition-colors hover:border-primary/40 hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="font-medium text-sm">{labels[bucket.bucket]}</span>
-                    <span className="text-right text-sm font-semibold tabular-nums">{formatFcfa(amount)}</span>
+                    <span className="flex items-center gap-1 text-right text-sm font-semibold tabular-nums">
+                      {formatFcfa(amount)}
+                      <ChevronRight aria-hidden="true" className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                    </span>
                   </div>
                   <div className="flex items-center gap-3">
                     <Progress
@@ -491,7 +508,7 @@ function InstallmentAging({ buckets }: { buckets: FinancialAgingBucket[] | null 
                       {bucket.student_count} élève{bucket.student_count === 1 ? "" : "s"}
                     </span>
                   </div>
-                </div>
+                </button>
               )
             })}
           </div>
@@ -500,6 +517,7 @@ function InstallmentAging({ buckets }: { buckets: FinancialAgingBucket[] | null 
             Calcul indisponible : certains dossiers n’ont pas d’échéancier complet pour cette année.
           </p>
         )}
+        <AgingStudentsDialog bucket={openBucket} schoolYearId={schoolYearId} onClose={() => setOpenBucket(null)} canOpenStudent={hasPermission("payments.view")} />
       </CardContent>
     </Card>
   )
@@ -513,7 +531,7 @@ function RecentPayments({
   schoolYearId: string
 }) {
   return (
-    <Card className="rounded-lg shadow-sm">
+    <Card data-tour="finance-latest" className="rounded-lg shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3 border-none">
         <div>
           <CardTitle className="text-lg">Derniers encaissements</CardTitle>
@@ -541,7 +559,7 @@ function RecentPayments({
               <TableBody>
                 {rows.map((row) => (
                   <TableRow key={row.payment_id}>
-                    <TableCell className="whitespace-nowrap">{formatAcademicDate(row.payment_date)}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatPaymentMoment({ paymentDate: row.payment_date, paidAt: row.paid_at }).text}</TableCell>
                     <TableCell>
                       <span className="block font-medium">{row.student_name}</span>
                       <span className="text-xs text-muted-foreground">{row.student_matricule ?? "Sans matricule"}</span>
@@ -550,7 +568,7 @@ function RecentPayments({
                       <span className="block">{row.class_name ?? "Classe non renseignée"}</span>
                       <span className="text-xs text-muted-foreground">{methodLabels[row.method]}</span>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">{row.receipt_number ?? "—"}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatReceiptNumber(row.receipt_number)}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
                         Confirmé
@@ -606,7 +624,7 @@ function LevelRecovery({
 
   return (
     <Card className="rounded-lg shadow-sm">
-      <CardHeader className="flex flex-col gap-2 pb-3 sm:flex-row sm:items-start sm:justify-between border-none">
+      <CardHeader className="flex flex-col gap-2 pb-3 sm:flex-row sm:items-start sm:justify-between border-none" data-tour="finance-levels">
         <div>
           <CardTitle>Recouvrement par niveau</CardTitle>
           <CardDescription>Taux à date par niveau, puis détail par classe à l’ouverture.</CardDescription>

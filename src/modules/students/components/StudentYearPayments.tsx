@@ -1,3 +1,4 @@
+import { formatPaymentMoment, formatReceiptNumber } from "@/shared/utils/receipt"
 import { useQuery } from "@tanstack/react-query"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -22,7 +23,7 @@ export function StudentYearPayments({ studentId, schoolYearId, schoolYearLabel }
     <CardHeader><CardTitle className="text-base">Paiements · {schoolYearLabel}</CardTitle></CardHeader>
     <CardContent className="space-y-2">
       {query.data.map((payment) => <div key={payment.id} className="flex flex-wrap items-start justify-between gap-2 rounded-md border p-3 text-sm">
-        <div><p className="font-medium">{statusLabel[payment.status]}</p><p className="text-muted-foreground">{payment.paymentDate} · {payment.receiptNumber || "Sans numéro de reçu"}</p></div>
+        <div><p className="font-medium">{statusLabel[payment.status]}</p><p className="text-muted-foreground">{formatPaymentMoment(payment).text} · {formatReceiptNumber(payment.receiptNumber)}</p></div>
         <strong className="tabular-nums">{formatFcfa(payment.amount)}</strong>
       </div>)}
     </CardContent>

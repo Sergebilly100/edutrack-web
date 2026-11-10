@@ -1,3 +1,4 @@
+import { formatPersonName } from "@/shared/utils/person-name"
 import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { isAxiosError } from "axios"
@@ -266,7 +267,7 @@ function AttendancePanel({ teacherId, canViewAttendance }: { teacherId: string; 
       <Card>
         <CardContent className="pt-4  space-y-4">
 
-          <div className="max-w-full  space-y-2">
+          <div className="max-w-full  space-y-2" data-tour="teacher-detail-month">
             <p className="text-sm font-medium">Mois analysé</p>
             <Select
               value={month}
@@ -286,7 +287,7 @@ function AttendancePanel({ teacherId, canViewAttendance }: { teacherId: string; 
           </div> 
 
           <div className="grid gap-3 sm:grid-cols-2">  
-            <div className="space-y-4  gap-3"> 
+            <div className="space-y-4  gap-3" data-tour="teacher-detail-month-summary"> 
               <div className="grid gap-3 sm:grid-cols-2">
                 <Card>
                   <CardContent className="pt-4">
@@ -324,7 +325,7 @@ function AttendancePanel({ teacherId, canViewAttendance }: { teacherId: string; 
                 </Card>
               </div>
             </div>  
-            <Card>
+            <Card data-tour="teacher-detail-heatmap">
               <CardContent className="pt-6">
                 <PresenceHeatmap month={data.month} rows={data.rows} />
               </CardContent>
@@ -333,7 +334,7 @@ function AttendancePanel({ teacherId, canViewAttendance }: { teacherId: string; 
         </CardContent>
       </Card>
  
-      <Card>
+      <Card data-tour="teacher-detail-presence-table">
         <CardHeader>
           <CardTitle className="text-base">Détail des présences</CardTitle>
         </CardHeader>
@@ -444,7 +445,7 @@ function AttendancePanel({ teacherId, canViewAttendance }: { teacherId: string; 
 function DocumentsPanel({ teacherId }: { teacherId: string }) {
   return (
     <div className="space-y-4">
-      <Card>
+      <Card data-tour="teacher-detail-docs-upload">
         <CardHeader>
           <CardTitle className="text-base">Ajouter un document</CardTitle>
         </CardHeader>
@@ -560,7 +561,7 @@ function InfosPanel({
 
   return (
     <div className="space-y-4">
-      <Card>
+      <Card data-tour="teacher-detail-infos-form">
         <CardHeader>
           <CardTitle className="text-base">Informations du professeur</CardTitle>
         </CardHeader>
@@ -635,7 +636,7 @@ function InfosPanel({
       </Card>
 
       {canResetTeacherPassword ? (
-        <Card>
+        <Card data-tour="teacher-detail-account">
           <CardHeader>
             <CardTitle className="text-base">Compte</CardTitle>
           </CardHeader>
@@ -662,7 +663,7 @@ function InfosPanel({
           if (!resetPasswordMutation.isPending) setResetConfirmOpen(open)
         }}
         title="Réinitialiser le mot de passe"
-        description={`Cette action va générer un nouveau mot de passe temporaire pour ${teacher.firstName} ${teacher.lastName}.`}
+        description={`Cette action va générer un nouveau mot de passe temporaire pour ${formatPersonName({ lastName: teacher.lastName, firstName: teacher.firstName })}.`}
         consequences={[
           "L'ancien mot de passe est immédiatement invalidé - le professeur ne pourra plus se connecter avec.",
           hasEmail
@@ -943,17 +944,7 @@ export default function TeacherDetailPage() {
       subtitle={teacher.fullName}
       actions={
         <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="text-muted-foreground"
-            onClick={() => tour.restart()}
-            aria-label="Revoir le guide"
-          >
-            <InfoIcon className="mr-1.5 h-4 w-4" />
-            Guide
-          </Button>
+          
           <Button
             variant="outline"
             onClick={() => {
@@ -1003,17 +994,16 @@ export default function TeacherDetailPage() {
           className="space-y-4"
         >
           <TabsList
+            data-tour="teacher-detail-tabs"
             className={`grid h-auto min-h-12 w-full ${canManageTeacherDocuments ? "grid-cols-3" : "grid-cols-2"}`}
           >
-            <TabsTrigger value="presences" className="min-h-12" data-tour="teacher-detail-tab-presences">Présences</TabsTrigger>
-            {canManageTeacherDocuments ? <TabsTrigger value="documents" className="min-h-12" data-tour="teacher-detail-tab-documents">Documents</TabsTrigger> : null}
-            <TabsTrigger value="infos" className="min-h-12" data-tour="teacher-detail-tab-infos">Infos</TabsTrigger>
+            <TabsTrigger value="presences" className="min-h-12">Présences</TabsTrigger>
+            {canManageTeacherDocuments ? <TabsTrigger value="documents" className="min-h-12">Documents</TabsTrigger> : null}
+            <TabsTrigger value="infos" className="min-h-12">Infos</TabsTrigger>
           </TabsList>
 
           <TabsContent value="presences">
-            <div data-tour="teacher-detail-heatmap">
-              <AttendancePanel teacherId={teacher.id} canViewAttendance={canViewAttendance} />
-            </div>
+            <AttendancePanel teacherId={teacher.id} canViewAttendance={canViewAttendance} />
           </TabsContent>
           {canManageTeacherDocuments ? (
             <TabsContent value="documents">

@@ -2,6 +2,8 @@ import type { ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
 import { OfflineIndicator } from "@/shared/components/OfflineIndicator"
+import { PageHeader } from "@/shared/components/PageHeader"
+import { useAuthStore } from "@/shared/store/auth.store"
 
 type PageLayoutProps = {
   title: string
@@ -18,6 +20,17 @@ type PageLayoutProps = {
 }
 
 export function PageLayout({ title, subtitle, breadcrumb, actions, contentClassName, offlineCapable = false, children }: PageLayoutProps) {
+  const role = useAuthStore((state) => state.user?.role)
+  // Espace professeur (et sessions hors personnel) : en-tête historique, hors périmètre de l'en-tête standard directeur / staff.
+  if (role && role !== "teacher") {
+    return (
+      <div className="min-h-full bg-background">
+        <OfflineIndicator offlineCapable={offlineCapable} />
+        <PageHeader title={title} subtitle={subtitle} breadcrumb={breadcrumb} actions={actions} />
+        <main className={cn("mx-auto space-y-5 py-5 sm:space-y-6 sm:py-6", contentClassName)}>{children}</main>
+      </div>
+    )
+  }
   return (
     <div className="min-h-full bg-background">
       <OfflineIndicator offlineCapable={offlineCapable} />

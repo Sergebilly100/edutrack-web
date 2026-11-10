@@ -6,7 +6,7 @@ import { navigateMenu, returningUser } from "../ui-helpers"
 test.beforeEach(async ({ page }) => {
   await returningUser(page)
   await loginAsDirectorUI(page)
-  await navigateMenu(page, "Finance", "Abonnements parents")
+  await navigateMenu(page, "Abonnements", "Abonnements parents")
   await page.getByRole("button", { name: "Nouvel abonnement", exact: true }).click()
   await page.getByRole("button", { name: "Ajouter un autre parent" }).click()
 })

@@ -93,13 +93,21 @@ export function RequiredDocumentsSettings({ canEdit }: { canEdit: boolean }) {
       : { name: "", levelIds: [], isMandatory: true })
   }, [editing, form])
 
+  // La liste des documents requis fait foi : toute modification recalcule les dossiers affichés (liste, détail élève,
+  // page documents du dossier) sans rechargement de page.
+  const invalidateDossiers = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["enrollments"] }),
+      queryClient.invalidateQueries({ queryKey: ["students"] }),
+    ])
+  }
+
   const saveMutation = useMutation({
     mutationFn: (values: DocumentFormValues) => editing
       ? syncRequiredDocumentTypes({ documentTypeIds: editing.documents.map((document) => document.id), ...values })
       : createRequiredDocumentTypes(values),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: documentsQueryKey })
-      await queryClient.invalidateQueries({ queryKey: ["enrollments", "list"] })
+      await invalidateDossiers()
       toast({
         title: editing ? "Document mis à jour" : "Document ajouté",
         description: editing
@@ -115,8 +123,7 @@ export function RequiredDocumentsSettings({ canEdit }: { canEdit: boolean }) {
   const archiveMutation = useMutation({
     mutationFn: (documents: RequiredDocumentType[]) => Promise.all(documents.map((document) => archiveRequiredDocumentType(document.id))),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: documentsQueryKey })
-      await queryClient.invalidateQueries({ queryKey: ["enrollments", "list"] })
+      await invalidateDossiers()
       toast({ title: "Document archivé", description: "Il ne sera plus demandé pour les niveaux associés. Les pièces fournies restent conservées." })
       setArchiveTarget(null)
     },
@@ -124,7 +131,7 @@ export function RequiredDocumentsSettings({ canEdit }: { canEdit: boolean }) {
   })
 
   return (
-    <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm" aria-labelledby="required-documents-title">
+    <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm" aria-labelledby="required-documents-title" data-tour="settings-required-docs">
       <div className="border-b border-border bg-muted/30 px-4 py-4 sm:px-6">
         <h2 id="required-documents-title" className="text-lg font-semibold">Documents requis par niveau</h2>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Créez une pièce une seule fois, puis choisissez tous les niveaux concernés.</p>
@@ -209,7 +216,7 @@ export function RequiredDocumentsSettings({ canEdit }: { canEdit: boolean }) {
           </Form>
         ) : null}
 
-        <div className="space-y-3">
+        <div className="space-y-3" data-tour="settings-required-docs-list">
           <div>
             <h3 className="font-semibold">Récapitulatif</h3>
             <p className="text-sm text-muted-foreground">Une ligne par document, avec tous ses niveaux associés.</p>

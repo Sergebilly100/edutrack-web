@@ -69,7 +69,7 @@ export function FinanceSettings({ canManageProviders }: { canManageProviders: bo
     <section className="space-y-6">
 
       {canManageProviders ? (
-        <Card>
+        <Card data-tour="settings-mobile-money">
           <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Smartphone className="h-5 w-5 text-primary" />Mobile Money</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <Alert><Settings2 className="h-4 w-4" /><AlertTitle>Paiement direct temporairement désactivé</AlertTitle><AlertDescription>Le bouton « Payer » n’est pas affiché aux parents. Le numéro enregistré sert uniquement aux consignes de versement manuel.</AlertDescription></Alert>

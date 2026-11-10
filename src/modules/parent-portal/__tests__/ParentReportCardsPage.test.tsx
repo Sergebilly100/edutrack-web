@@ -80,7 +80,7 @@ it("filtre par année, isole le cache et reprend l'année récente au changement
   const queryClient = client()
   const view = renderReportCardsPage(queryClient)
   try {
-    await choose("Enfant", "Aya Recette · QA")
+    await choose("Enfant", "RECETTE Aya · QA")
     expect(await screen.findByText("17.00/20")).toBeInTheDocument()
     await choose("Année scolaire", "2025-2026")
     expect(await screen.findByText("13.00/20")).toBeInTheDocument()
@@ -88,12 +88,12 @@ it("filtre par année, isole le cache et reprend l'année récente au changement
     expect(queryClient.getQueryData(["parent", "report-cards", "aya", "recent"])).toBeDefined()
     expect(queryClient.getQueryData(["parent", "report-cards", "aya", "old"])).toBeDefined()
 
-    await choose("Enfant", "Yao Recette · QB")
+    await choose("Enfant", "RECETTE Yao · QB")
     expect(await screen.findByText("11.00/20")).toBeInTheDocument()
     expect(api.cards).toHaveBeenCalledWith("yao", "old")
     expect(screen.queryByText("13.00/20")).not.toBeInTheDocument()
 
-    await choose("Enfant", "Aya Recette · QA")
+    await choose("Enfant", "RECETTE Aya · QA")
     expect(await screen.findByText("17.00/20")).toBeInTheDocument()
     expect(screen.getByRole("combobox", { name: "Année scolaire" })).toHaveTextContent("2026-2027")
   } finally {
@@ -158,7 +158,7 @@ it("sélectionne l’enfant indiqué par le lien depuis Notes", async () => {
   try {
     expect(await screen.findByText("12.00/20")).toBeInTheDocument()
     expect(api.cards).toHaveBeenCalledWith("yao", "recent")
-    expect(screen.getByRole("combobox", { name: "Enfant" })).toHaveTextContent("Yao Recette · QB")
+    expect(screen.getByRole("combobox", { name: "Enfant" })).toHaveTextContent("RECETTE Yao · QB")
   } finally {
     view.unmount()
     queryClient.clear()
